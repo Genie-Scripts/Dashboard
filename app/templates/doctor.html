@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>診療ダッシュボード（医師版）</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+/* ── Reset & Base ── */
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--txt);font-size:14px;line-height:1.6;min-height:100vh}
+
+/* ── CSS Variables ── */
+:root{
+  --bg:#F0F2F5;--card:#FFF;--elevated:#F7F9FC;
+  --hdr:#1D2B3A;--border:#DCE1E9;--accent:#3A6EA5;--accent-lt:#EEF3FA;
+  --txt:#1A2535;--txt2:#5A6A82;--muted:#94A3B8;
+  --ok:#1A9E6A;--ok-bg:#EDFAF4;--warn:#C87A00;--warn-bg:#FEF6E4;
+  --ng:#C0293B;--ng-bg:#FEF0F2;
+  --mono:'IBM Plex Mono',monospace;--r:10px;
+  --shadow:0 1px 4px rgba(0,0,0,.06);--shadow2:0 4px 16px rgba(0,0,0,.10);
+  --status-good:#16a34a;--status-warn:#d97706;--status-bad:#dc2626;
+  --gap-pos:#16a34a;--gap-neg:#dc2626;
+  --doctor-accent:#3A6EA5;
+}
+
+/* ── Header ── */
+.hdr{background:var(--hdr);padding:0 28px;height:56px;display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid var(--doctor-accent);position:sticky;top:0;z-index:100}
+.hdr-left{display:flex;align-items:center;gap:12px}
+.hdr-badge{background:var(--doctor-accent);color:#fff;font-size:.58rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;padding:3px 9px;border-radius:4px}
+.hdr-role{background:rgba(255,255,255,.12);color:#E8EEF5;font-size:.68rem;font-weight:600;padding:3px 10px;border-radius:4px;border:1px solid rgba(255,255,255,.2)}
+.hdr-title{color:#E8EEF5;font-size:1rem;font-weight:600}
+.hdr-meta{color:#7A90A8;font-size:.72rem;font-family:var(--mono)}
+.hdr-nav a{color:#7A90A8;font-size:.78rem;text-decoration:none;padding:6px 12px;border-radius:6px;border:1px solid rgba(255,255,255,.1);transition:all .15s}
+.hdr-nav a:hover{background:rgba(255,255,255,.08);color:#E8EEF5}
+
+/* ── Wrapper ── */
+.wrapper{max-width:1440px;margin:0 auto;padding:20px 20px 60px}
+
+/* ── Role Brief ── */
+.role-brief{display:flex;gap:12px;flex-wrap:wrap;background:var(--elevated);border:1px solid var(--border);border-radius:var(--r);padding:12px 18px;margin-bottom:20px}
+.role-brief__item{display:flex;align-items:center;gap:6px;font-size:.84rem;color:var(--txt)}
+
+/* ── KPI Cards ── */
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+.kpi-card{background:var(--card);border-radius:var(--r);padding:20px;border:1px solid var(--border);border-top:3px solid var(--accent);box-shadow:var(--shadow)}
+.kpi-card.ok{border-top-color:var(--status-good)}
+.kpi-card.warn{border-top-color:var(--status-warn)}
+.kpi-card.ng{border-top-color:var(--status-bad)}
+.kpi-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
+.kpi-title{font-size:.82rem;font-weight:600;color:var(--txt);margin-bottom:2px}
+.kpi-period{font-size:.68rem;color:var(--muted)}
+.kpi-badge{padding:3px 10px;border-radius:999px;font-size:.7rem;font-weight:700;white-space:nowrap}
+.kpi-badge.ok{background:#dcfce7;color:#166534}
+.kpi-badge.warn{background:#fef3c7;color:#92400e}
+.kpi-badge.ng{background:#fee2e2;color:#991b1b}
+.kpi-badge.neutral{background:var(--elevated);color:var(--muted)}
+.kpi-value{font-size:1.9rem;font-weight:700;font-family:var(--mono);line-height:1;margin-bottom:3px}
+.kpi-card.ok .kpi-value{color:var(--status-good)}
+.kpi-card.warn .kpi-value{color:var(--status-warn)}
+.kpi-card.ng .kpi-value{color:var(--status-bad)}
+.kpi-unit{font-size:.75rem;color:var(--txt2);font-weight:400;margin-left:3px}
+.kpi-gap{font-size:.82rem;font-weight:600;margin-top:4px}
+.kpi-gap.gap-pos{color:var(--gap-pos)}
+.kpi-gap.gap-neg{color:var(--gap-neg)}
+.kpi-gap.gap-neu{color:var(--muted)}
+.kpi-meta{display:grid;grid-template-columns:1fr 1fr;gap:5px 10px;padding-top:10px;border-top:1px solid var(--border);margin-top:10px}
+.kpi-meta-item{display:flex;justify-content:space-between;font-size:.72rem}
+.kpi-meta-lbl{color:var(--muted)}
+.kpi-meta-val{font-weight:600;color:var(--txt);font-family:var(--mono)}
+.progress{width:100%;height:3px;background:var(--elevated);border-radius:99px;margin-top:10px;overflow:hidden}
+.progress-fill{height:100%;border-radius:99px;background:var(--accent);transition:width .6s}
+.kpi-card.ok .progress-fill{background:var(--status-good)}
+.kpi-card.warn .progress-fill{background:var(--status-warn)}
+.kpi-card.ng .progress-fill{background:var(--status-bad)}
+.up{color:var(--ok)}.down{color:var(--ng)}
+
+/* ── Toolbar ── */
+.toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;margin-bottom:16px;flex-wrap:wrap}
+.toolbar-left{display:flex;gap:8px;align-items:center}
+.toolbar-right{display:flex;gap:10px;align-items:center}
+.ctrl-btn{padding:6px 14px;border-radius:6px;font-size:.78rem;font-weight:500;border:1px solid var(--border);background:var(--card);color:var(--txt2);cursor:pointer;transition:all .12s}
+.ctrl-btn:hover{background:var(--accent-lt);border-color:var(--accent);color:var(--accent)}
+.ctrl-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.ctrl-toggle{padding:6px 14px;border-radius:6px;font-size:.78rem;font-weight:500;border:1px solid var(--border);background:var(--card);color:var(--txt2);cursor:pointer;transition:all .12s}
+.ctrl-toggle.on{background:var(--accent-lt);color:var(--accent);border-color:#C5D9EE}
+.dept-select{padding:7px 32px 7px 12px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--txt);font-size:.82rem;font-family:'Noto Sans JP',sans-serif;cursor:pointer;outline:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%235A6A82' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;min-width:160px}
+.dept-select:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(58,110,165,.15)}
+
+/* ── Grid Layouts ── */
+.grid-2-1{display:grid;grid-template-columns:minmax(0,2fr) minmax(300px,1fr);gap:16px;margin-bottom:20px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+.grid-1{display:grid;grid-template-columns:1fr;gap:16px;margin-bottom:20px}
+
+/* ── Panel ── */
+.panel{background:var(--card);border-radius:var(--r);border:1px solid var(--border);box-shadow:var(--shadow);overflow:hidden}
+.panel--hero{box-shadow:var(--shadow2)}
+.panel-head{padding:12px 18px;font-size:.88rem;font-weight:600;background:var(--elevated);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px}
+
+/* ── Chart Heights ── */
+.chart-lg{height:420px}
+.chart-md{height:320px}
+.chart-cum{height:360px}
+.chart-xl{height:460px}
+
+/* ── Rank List (新スタイル) ── */
+.rank-list{display:flex;flex-direction:column;gap:8px;padding:12px}
+.rank-item{display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--card);transition:background .1s}
+.rank-item:hover{background:var(--elevated)}
+.rank-item.ok{border-left:4px solid var(--ok)}
+.rank-item.warn{border-left:4px solid var(--warn)}
+.rank-item.ng{border-left:4px solid var(--ng)}
+.rank-item.neutral{border-left:4px solid var(--muted)}
+.rank-no{font-family:var(--mono);font-weight:700;color:var(--muted);font-size:.82rem;text-align:center}
+.rank-no.top1{color:#B45309}
+.rank-no.top2{color:#6B7280}
+.rank-no.top3{color:#C2410C}
+.rank-body{}
+.rank-name{font-weight:600;font-size:.86rem;color:var(--txt);margin-bottom:2px}
+.rank-note{font-size:.72rem;color:var(--txt2)}
+.rank-val{text-align:right;font-family:var(--mono);font-weight:700;font-size:.86rem}
+.rank-val.ok{color:var(--ok)}
+.rank-val.warn{color:var(--warn)}
+.rank-val.ng{color:var(--ng)}
+.rank-val.neutral{color:var(--muted)}
+.rank-gap-pos{color:var(--ok)}
+.rank-gap-neg{color:var(--ng)}
+.rank-empty{padding:20px;text-align:center;color:var(--muted);font-size:.84rem}
+.rank-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;padding:12px}
+.rank-card{background:var(--card);border:1px solid var(--border);border-top:3px solid var(--muted);border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;transition:box-shadow .15s}
+.rank-card:hover{box-shadow:var(--shadow2)}
+.rank-card.ok{border-top-color:var(--ok)}
+.rank-card.warn{border-top-color:var(--warn)}
+.rank-card.ng{border-top-color:var(--ng)}
+.rank-card.neutral{border-top-color:var(--muted)}
+.rank-card__head{display:flex;align-items:center;gap:6px}
+.rank-card__no{font-family:var(--mono);font-weight:700;font-size:.72rem;color:var(--muted);min-width:18px}
+.rank-card__no.top1{color:#B45309}.rank-card__no.top2{color:#6B7280}.rank-card__no.top3{color:#C2410C}
+.rank-card__name{font-weight:600;font-size:.84rem;color:var(--txt);flex:1;line-height:1.3}
+.rank-card__ach{font-family:var(--mono);font-weight:700;font-size:1.1rem;text-align:right}
+.rank-card__ach.ok{color:var(--ok)}.rank-card__ach.warn{color:var(--warn)}.rank-card__ach.ng{color:var(--ng)}.rank-card__ach.neutral{color:var(--muted)}
+.rank-card__bar-wrap{height:4px;background:var(--border);border-radius:2px;overflow:hidden}
+.rank-card__bar{height:100%;border-radius:2px;transition:width .3s}
+.rank-card__bar.ok{background:var(--ok)}.rank-card__bar.warn{background:var(--warn)}.rank-card__bar.ng{background:var(--ng)}
+.rank-card__meta{display:flex;justify-content:space-between;font-size:.7rem;color:var(--txt2)}
+.rank-card__gap{font-family:var(--mono);font-size:.75rem;font-weight:600}
+.rank-card__score{font-size:.7rem;color:var(--muted)}
+.rank-card__note{font-size:.69rem;color:var(--txt2);line-height:1.4}
+
+/* ── Score Badge ── */
+.score-badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:.68rem;font-weight:700}
+.score-badge.ok{background:var(--ok-bg);color:var(--ok)}
+.score-badge.warn{background:var(--warn-bg);color:var(--warn)}
+.score-badge.ng{background:var(--ng-bg);color:var(--ng)}
+
+/* ── Badge ── */
+.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:.72rem;font-weight:700;margin:0 2px}
+.badge-ok{background:var(--ok-bg);color:var(--ok)}
+.badge-ng{background:var(--ng-bg);color:var(--ng)}
+.badge-warn{background:var(--warn-bg);color:var(--warn)}
+
+/* ── Footnote ── */
+.footnote{background:var(--card);border:1px solid var(--border);border-radius:var(--r);margin-top:20px;overflow:hidden}
+.footnote-head{padding:10px 18px;font-size:.82rem;font-weight:600;background:var(--elevated);border-bottom:1px solid var(--border);cursor:pointer;display:flex;align-items:center;justify-content:space-between;user-select:none}
+.footnote-body{padding:16px 18px;font-size:.78rem;color:var(--txt2);line-height:1.8;display:none}
+.footnote-body.open{display:block}
+.footnote-body dl{display:grid;grid-template-columns:auto 1fr;gap:4px 16px}
+.footnote-body dt{font-weight:600;color:var(--txt);white-space:nowrap}
+.footnote-body dd{margin:0}
+
+/* ── Loading placeholder ── */
+.chart-loading{display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:.84rem;flex-direction:column;gap:8px}
+.chart-loading::before{content:'';width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Responsive ── */
+@media(max-width:1100px){
+  .kpi-row{grid-template-columns:1fr 1fr}
+  .grid-2-1,.grid-2{grid-template-columns:1fr}
+  .chart-lg{height:360px}
+  .chart-md{height:280px}
+  .chart-cum{height:320px}
+  .chart-xl{height:400px}
+}
+@media(max-width:640px){
+  .kpi-row{grid-template-columns:1fr}
+  .hdr-meta{display:none}
+  .wrapper{padding:12px 12px 40px}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ HEADER ═══ -->
+<header class="hdr">
+  <div class="hdr-left">
+    <span class="hdr-badge">KPI</span>
+    <span class="hdr-title">🩺 診療ダッシュボード</span>
+    <span class="hdr-role">医師版</span>
+  </div>
+  <div style="display:flex;align-items:center;gap:16px">
+    <nav class="hdr-nav">
+      <a href="portal.html">🏠 ポータル</a>
+      <a href="nurse.html">👩‍⚕️ 看護師版</a>
+      <a href="admission/index.html">📥 新入院詳細</a>
+    </nav>
+    <span class="hdr-meta">📅 {{ generated_at }} 更新 ｜ 基準日: {{ base_date }}</span>
+  </div>
+</header>
+
+<div class="wrapper doctor-page">
+
+<!-- ═══ ROLE BRIEF ═══ -->
+<div class="role-brief" id="roleBrief"><!-- JS 生成 --></div>
+
+<!-- ═══ KPI ROW ═══ -->
+<div class="kpi-row" id="doctorKpiRow">
+  {% for card in kpi_cards %}
+  <div class="kpi-card {{ card.status }}" id="kpi-{{ card.id }}">
+    <div class="kpi-head">
+      <div>
+        <div class="kpi-title">{{ card.label }}</div>
+        <div class="kpi-period">{{ card.period }}</div>
+      </div>
+      <span class="kpi-badge {{ card.status }}">{{ card.badge }}</span>
+    </div>
+    <div class="kpi-main">
+      <div class="kpi-value">{{ card.value }}<span class="kpi-unit">{{ card.unit }}</span></div>
+      <div class="kpi-gap {{ card.gap_css | default('gap-neu') }}">{{ card.gap }}</div>
+    </div>
+    <div class="kpi-meta">
+      {% for m in card.meta %}
+      <div class="kpi-meta-item">
+        <span class="kpi-meta-lbl">{{ m.lbl }}</span>
+        <span class="kpi-meta-val">{{ m.val | safe }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% if card.achievement %}
+    <div class="progress"><div class="progress-fill" style="width:{{ [card.progress, 100] | min | round }}%"></div></div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+<!-- ═══ TOOLBAR ═══ -->
+<div class="toolbar">
+  <div class="toolbar-left" id="doctorPeriodGroup">
+    <button class="ctrl-btn active" data-period="24w"  onclick="setPeriod(this,'24w')">直近24週</button>
+    <button class="ctrl-btn"        data-period="365d" onclick="setPeriod(this,'365d')">直近1年</button>
+    <button class="ctrl-btn"        data-period="fy"   onclick="setPeriod(this,'fy')">今年度</button>
+  </div>
+  <div class="toolbar-right">
+    <button class="ctrl-toggle" id="doctorYoyBtn" onclick="toggleYoy(this)">📊 昨年度比較</button>
+    <label for="doctorDeptSelect" style="font-size:.82rem;font-weight:600;color:var(--txt2)">📂 診療科</label>
+    <select id="doctorDeptSelect" class="dept-select" onchange="selectDept(this.value)">
+      <option value="__all__">全体</option>
+      {% for dept in all_depts %}
+      <option value="{{ dept }}">{{ dept }}</option>
+      {% endfor %}
+    </select>
+  </div>
+</div>
+
+<!-- ═══ ROW A: 累積進捗（横2列・全幅） ═══ -->
+<section class="grid-2">
+  <div class="panel panel--hero">
+    <div class="panel-head">📈 新入院患者数（直近7日累計 vs 目標）</div>
+    <div id="doctor-chart-cumulative-nadm" class="chart-cum"></div>
+  </div>
+  <div class="panel panel--hero">
+    <div class="panel-head">📈 全身麻酔件数（直近7日累計 vs 目標）</div>
+    <div id="doctor-chart-cumulative-surg" class="chart-cum"></div>
+  </div>
+</section>
+
+<!-- ═══ ROW A2: 要注視ランキング（全幅） ═══ -->
+<section class="grid-1">
+  <div class="panel">
+    <div class="panel-head">🔴 要注視診療科ランキング</div>
+    <div id="doctor-rank-watch" class="rank-grid"></div>
+  </div>
+</section>
+
+<!-- ═══ ROW B: 全麻差分ランキング + 新入院差分ランキング ═══ -->
+<section class="grid-2">
+  <div class="panel">
+    <div class="panel-head">🔬 全麻手術 目標差分ランキング</div>
+    <div id="doctor-rank-surgery-gap" class="rank-grid"></div>
+  </div>
+  <div class="panel">
+    <div class="panel-head">🏥 新入院 目標差分ランキング</div>
+    <div id="doctor-rank-admission-gap" class="rank-grid"></div>
+  </div>
+</section>
+
+<!-- ═══ ROW C: ウォーターフォール + バブル散布図 ═══ -->
+<section class="grid-2">
+  <div class="panel">
+    <div class="panel-head">📊 目標差分ウォーターフォール</div>
+    <div id="doctor-chart-waterfall" class="chart-md"></div>
+  </div>
+  <div class="panel">
+    <div class="panel-head">🫧 全麻件数バブル散布図</div>
+    <div id="doctor-chart-bubble" class="chart-md"></div>
+  </div>
+</section>
+
+<!-- ═══ ROW D: 診療科ヒートマップ ═══ -->
+<section class="grid-1">
+  <div class="panel">
+    <div class="panel-head">🗓 診療科ヒートマップ（新入院達成率推移）</div>
+    <div id="doctor-chart-heatmap" class="chart-xl"></div>
+  </div>
+</section>
+
+<!-- ═══ ROW E: 時系列チャート 2本（既存） ═══ -->
+<section class="grid-2">
+  <div class="panel">
+    <div class="panel-head">📈 新入院患者数推移</div>
+    <div id="doctor-chart-newadm" class="chart-md"></div>
+  </div>
+  <div class="panel">
+    <div class="panel-head">🔬 全身麻酔件数推移</div>
+    <div id="doctor-chart-surgery" class="chart-md"></div>
+  </div>
+</section>
+
+<!-- ═══ FOOTNOTE ═══ -->
+<div class="footnote">
+  <div class="footnote-head" onclick="toggleFootnote()">
+    <span>📖 指標定義・注意事項</span>
+    <span id="footnoteArrow">▼</span>
+  </div>
+  <div class="footnote-body" id="footnoteBody">
+    <dl>
+      <dt>在院患者数</dt><dd>各日の在院患者総数（慣習上「入院患者数」とも呼ぶが実態は在院数）</dd>
+      <dt>新入院患者数</dt><dd>入院患者数 + 緊急入院患者数の合計</dd>
+      <dt>全身麻酔（全麻）</dt><dd>麻酔種別に「全身麻酔(20分以上：吸入もしくは静脈麻酔薬)」を含む手術件数</dd>
+      <dt>達成率</dt><dd>実績 ÷ 目標 × 100。緑 ≥105% / 橙 ≥95% / 赤 &lt;95%</dd>
+      <dt>要注視スコア</dt><dd>目標未達度・7日MA乖離・全麻未達度の加重合計。スコアが高いほど要注視</dd>
+      <dt>目標値</dt><dd>在院 580人(平日)/540人(休日) | 新入院 385人/週 | 全麻 21件/日（平日）</dd>
+      <dt>データ基準日</dt><dd>{{ base_date }} のデータまでを集計対象とする</dd>
+    </dl>
+  </div>
+</div>
+
+</div><!-- /wrapper -->
+
+<!-- ═══ EMBEDDED DATA ═══ -->
+<script>
+const DASH_DATA     = {{ chart_data_json | safe }};
+const DOCTOR_CHART  = {{ doctor_chart_json | safe }};
+const ROLE_BRIEF    = {{ highlight | safe }};
+
+const DOCTOR_WATCH    = {{ doctor_watch_json | safe }};
+const DOCTOR_SURG_GAP = {{ doctor_surgery_gap_json | safe }};
+const DOCTOR_NADM_GAP = {{ doctor_nadm_gap_json | safe }};
+const RANK_DATA = {
+  inp:  {{ rank_inp_json  | safe }},
+  nadm: {{ rank_nadm_json | safe }},
+  surg: {{ rank_surg_json | safe }},
+};
+const ALL_DEPTS = {{ all_depts_json | safe }};
+
+let STATE = {period:'24w', yoy:false, dept:'__all__'};
+
+// ─── 共通ユーティリティ ───
+const COLORS = {
+  actual:'#3A6EA5', ma:'#0D9488', target:'#C0293B', yoy:'#94A3B8',
+  ok:'#16a34a', warn:'#d97706', ng:'#dc2626',
+  barFill:'rgba(58,110,165,0.45)', barFillGa:'rgba(13,148,136,0.50)',
+};
+const BASE_LAYOUT = {
+  paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)',
+  font:{family:'Noto Sans JP, IBM Plex Mono, sans-serif',size:11,color:'#5A6A82'},
+  margin:{t:32,b:36,l:46,r:14},
+  xaxis:{gridcolor:'#DCE1E9',linecolor:'#DCE1E9',tickfont:{size:10,color:'#5A6A82'},type:'date'},
+  yaxis:{gridcolor:'#DCE1E9',linecolor:'#DCE1E9',tickfont:{size:10,color:'#5A6A82'},rangemode:'tozero',zeroline:false},
+  legend:{orientation:'h',x:0,y:-0.22,font:{size:10},bgcolor:'rgba(0,0,0,0)'},
+  hovermode:'x unified',
+  hoverlabel:{bgcolor:'#1D2B3A',font:{color:'#E8EEF5',size:11},bordercolor:'#3A6EA5'},
+};
+const CHART_CONFIG = {displayModeBar:false,responsive:true};
+
+function getStatus(ach){
+  if(ach==null)return'neutral';
+  if(ach>=105)return'ok';
+  if(ach>=95)return'warn';
+  return'ng';
+}
+
+function movingAvg(values,w=7){
+  return values.map((_,i)=>{
+    const sl=values.slice(Math.max(0,i-w+1),i+1).filter(v=>v!=null);
+    return sl.length?+(sl.reduce((a,b)=>a+b,0)/sl.length).toFixed(1):null;
+  });
+}
+
+function weeklyAgg(dates,values){
+  const map={};
+  dates.forEach((d,i)=>{
+    const dt=new Date(d),day=dt.getDay();
+    const mon=new Date(dt-((day===0?6:day-1)*864e5));
+    const key=mon.toISOString().slice(0,10);
+    if(!map[key])map[key]={sum:0,cnt:0};
+    if(values[i]!=null){map[key].sum+=values[i];map[key].cnt++;}
+  });
+  const keys=Object.keys(map).sort();
+  return{dates:keys,values:keys.map(k=>map[k].cnt?+(map[k].sum/map[k].cnt).toFixed(1):null)};
+}
+
+function filterSeries(src,periodKey){
+  const dates=src.dates,values=src.values,bd=DASH_DATA.base_date;
+  const end=new Date(bd);let start;
+  if(periodKey==='7d')start=new Date(end-6*864e5);
+  else if(periodKey==='12w')start=new Date(end-84*864e5);
+  else if(periodKey==='24w')start=new Date(end-168*864e5);
+  else if(periodKey==='365d')start=new Date(end-364*864e5);
+  else if(periodKey==='fy'){const m=end.getMonth(),y=m>=3?end.getFullYear():end.getFullYear()-1;start=new Date(y,3,1);}
+  const s=start.toISOString().slice(0,10),e=end.toISOString().slice(0,10);
+  const idx=dates.reduce((a,d,i)=>{if(d>=s&&d<=e)a.push(i);return a;},[]);
+  const fd=idx.map(i=>dates[i]),fv=idx.map(i=>values[i]);
+  if(periodKey!=='7d'&&fd.length>0)return weeklyAgg(fd,fv);
+  return{dates:fd,values:fv};
+}
+
+function getSeries(key){
+  if(STATE.dept==='__all__')return DASH_DATA.global[key]||{dates:[],values:[]};
+  const d=DASH_DATA.by_dept[STATE.dept];
+  return(d&&d[key])||DASH_DATA.global[key]||{dates:[],values:[]};
+}
+
+function getTarget(key){
+  const t=DASH_DATA.targets,dept=STATE.dept;
+  if(key==='new_admission'){
+    if(dept!=='__all__')return(t.dept_new_admission[dept]||0);
+    return t.new_admission_weekly||385;
+  }
+  if(key==='surgery_ga'){
+    if(dept!=='__all__')return t.dept_surgery[dept]||null;
+    return t.surgery_ga_daily||21;
+  }
+  return null;
+}
+
+function targetLine(target,d0,d1,label='目標'){
+  return{
+    shapes:[{type:'line',x0:d0,x1:d1,y0:target,y1:target,line:{color:COLORS.target,width:1.5,dash:'dash'}}],
+    annotations:[{x:d1,y:target,text:label,showarrow:false,xanchor:'right',yanchor:'bottom',font:{size:9,color:COLORS.target}}],
+  };
+}
+
+// ─── Role Brief ───
+const RB_ICON={ok:'🟢',warn:'🟡',ng:'🔴',neutral:'⚪'};
+function renderRoleBrief(){
+  const el=document.getElementById('roleBrief');
+  if(!el||!Array.isArray(ROLE_BRIEF))return;
+  el.innerHTML=ROLE_BRIEF.map(item=>`<div class="role-brief__item"><span>${RB_ICON[item.status]||'⚪'}</span>${item.text}</div>`).join('');
+}
+
+// ═══════════════════════════════════════════
+// 新ランキング描画
+// ═══════════════════════════════════════════
+
+function rankNoClass(i){return i===0?'top1':i===1?'top2':i===2?'top3':'';}
+
+function renderDoctorWatchRank(){
+  const rows=DOCTOR_WATCH||[];
+  const el=document.getElementById('doctor-rank-watch');
+  if(!rows.length){el.innerHTML='<div class="rank-empty">データなし</div>';return;}
+  el.innerHTML=rows.slice(0,10).map((r,i)=>{
+    const nadmAch = r.nadm_achievement;
+    const surgAch = r.surg_achievement;
+    // watch scoreをパーセント換算して棒グラフ幅に（スコア100pt=over=100%キャップ）
+    const barPct  = Math.min(r.watch_score*2, 100).toFixed(1);
+    const nadmSt  = nadmAch==null?'neutral':nadmAch>=105?'ok':nadmAch>=95?'warn':'ng';
+    const surgSt  = surgAch==null?'neutral':surgAch>=105?'ok':surgAch>=95?'warn':'ng';
+    return `<div class="rank-card ${r.status}">
+      <div class="rank-card__head">
+        <span class="rank-card__no ${rankNoClass(i)}">${i+1}</span>
+        <span class="rank-card__name">${r.department_name}</span>
+      </div>
+      <div class="rank-card__bar-wrap"><div class="rank-card__bar ${r.status}" style="width:${barPct}%"></div></div>
+      <div class="rank-card__meta">
+        <span>新入院 <b class="rank-card__gap ${r.nadm_gap!=null?(r.nadm_gap>=0?'rank-gap-pos':'rank-gap-neg'):''}">${r.nadm_gap!=null?(r.nadm_gap>=0?'+':'')+r.nadm_gap+'人':'—'}</b> <span class="${nadmSt}" style="font-family:var(--mono);font-size:.7rem">${nadmAch!=null?nadmAch.toFixed(1)+'%':'—'}</span></span>
+        <span>全麻 <b class="rank-card__gap ${r.surg_gap!=null?(r.surg_gap>=0?'rank-gap-pos':'rank-gap-neg'):''}">${r.surg_gap!=null?(r.surg_gap>=0?'+':'')+r.surg_gap+'件':'—'}</b> <span class="${surgSt}" style="font-family:var(--mono);font-size:.7rem">${surgAch!=null?surgAch.toFixed(1)+'%':'—'}</span></span>
+      </div>
+      <div class="rank-card__score">スコア ${r.watch_score.toFixed(1)} pt</div>
+    </div>`;
+  }).join('');
+}
+
+function renderDoctorSurgeryGapRank(){
+  const rows=DOCTOR_SURG_GAP||[];
+  const el=document.getElementById('doctor-rank-surgery-gap');
+  if(!rows.length){el.innerHTML='<div class="rank-empty">データなし</div>';return;}
+  el.innerHTML=rows.map((r,i)=>{
+    const ach=r.achievement, st=ach==null?'neutral':ach>=105?'ok':ach>=95?'warn':'ng';
+    const barPct=ach!=null?Math.min(ach,120)/120*100:0;
+    const gapCls=r.gap!=null?(r.gap>=0?'rank-gap-pos':'rank-gap-neg'):'';
+    return`<div class="rank-card ${st}">
+      <div class="rank-card__head">
+        <span class="rank-card__no ${rankNoClass(i)}">${i+1}</span>
+        <span class="rank-card__name">${r.department_name}</span>
+        <span class="rank-card__ach ${st}">${ach!=null?ach.toFixed(1)+'%':'—'}</span>
+      </div>
+      <div class="rank-card__bar-wrap"><div class="rank-card__bar ${st}" style="width:${barPct.toFixed(1)}%"></div></div>
+      <div class="rank-card__meta">
+        <span>実績 <b>${r.actual}件</b></span>
+        <span>目標 ${r.target!=null?r.target:'—'}件</span>
+        <span class="rank-card__gap ${gapCls}">${r.gap_str}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderDoctorAdmissionGapRank(){
+  const rows=DOCTOR_NADM_GAP||[];
+  const el=document.getElementById('doctor-rank-admission-gap');
+  if(!rows.length){el.innerHTML='<div class="rank-empty">データなし</div>';return;}
+  el.innerHTML=rows.map((r,i)=>{
+    const ach=r.achievement, st=ach==null?'neutral':ach>=105?'ok':ach>=95?'warn':'ng';
+    const barPct=ach!=null?Math.min(ach,120)/120*100:0;
+    const gapCls=r.gap!=null?(r.gap>=0?'rank-gap-pos':'rank-gap-neg'):'';
+    return`<div class="rank-card ${st}">
+      <div class="rank-card__head">
+        <span class="rank-card__no ${rankNoClass(i)}">${i+1}</span>
+        <span class="rank-card__name">${r.department_name}</span>
+        <span class="rank-card__ach ${st}">${ach!=null?ach.toFixed(1)+'%':'—'}</span>
+      </div>
+      <div class="rank-card__bar-wrap"><div class="rank-card__bar ${st}" style="width:${barPct.toFixed(1)}%"></div></div>
+      <div class="rank-card__meta">
+        <span>実績 <b>${r.actual}人</b></span>
+        <span>目標 ${r.target!=null?r.target:'—'}人</span>
+        <span class="rank-card__gap ${gapCls}">${r.gap_str}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════
+// Plotlyチャート描画
+// ═══════════════════════════════════════════
+
+// ─ 累積進捗チャート（上下2段：新入院 / 全麻）─
+function renderCumulativeChart(){
+  document.getElementById('doctor-chart-cumulative-nadm').innerHTML='';
+  document.getElementById('doctor-chart-cumulative-surg').innerHTML='';
+  const cp = DOCTOR_CHART.cumulative_progress;
+  if(!cp||!cp.dates||!cp.dates.length){
+    _renderCumulativeMock(); return;
+  }
+
+  // 曜日ラベル
+  const DAY_LABELS = ['月','火','水','木','金','土','日'];
+  const xLabels = cp.dates.map(d=>{
+    const dt = new Date(d);
+    return DAY_LABELS[dt.getDay()===0?6:dt.getDay()-1]+'（'+(dt.getMonth()+1)+'/'+dt.getDate()+'）';
+  });
+
+  // 塗り分け用：実績>目標=グリーン帯、実績<目標=レッド帯
+  function _bandArrays(actual, target) {
+    const overTop=[], overBot=[], underTop=[], underBot=[];
+    actual.forEach((a,i)=>{
+      const t = target[i] ?? 0;
+      const v = a ?? t;
+      if(v >= t){
+        overTop.push(v); overBot.push(t);
+        underTop.push(null); underBot.push(null);
+      } else {
+        overTop.push(null); overBot.push(null);
+        underTop.push(t); underBot.push(v);
+      }
+    });
+    return {overTop,overBot,underTop,underBot};
+  }
+
+  function _fillTraces(b, colorOver, colorUnder) {
+    return [
+      {type:'scatter',x:xLabels,y:b.overBot, mode:'lines',line:{width:0},showlegend:false,hoverinfo:'skip',connectgaps:false},
+      {type:'scatter',x:xLabels,y:b.overTop, mode:'lines',line:{width:0},fill:'tonexty',fillcolor:colorOver, showlegend:false,hoverinfo:'skip',connectgaps:false},
+      {type:'scatter',x:xLabels,y:b.underBot,mode:'lines',line:{width:0},showlegend:false,hoverinfo:'skip',connectgaps:false},
+      {type:'scatter',x:xLabels,y:b.underTop,mode:'lines',line:{width:0},fill:'tonexty',fillcolor:colorUnder,showlegend:false,hoverinfo:'skip',connectgaps:false},
+    ];
+  }
+
+  const BASE = {
+    xaxis:{...BASE_LAYOUT.xaxis,type:'category',tickfont:{size:10}},
+    legend:{orientation:'h',x:0,y:-0.22,font:{size:10},bgcolor:'rgba(0,0,0,0)'},
+    margin:{t:12,b:52,l:46,r:16},
+    height:350,
+    paper_bgcolor:'rgba(0,0,0,0)',plot_bgcolor:'rgba(0,0,0,0)',
+    font:BASE_LAYOUT.font, hovermode:'x unified', hoverlabel:BASE_LAYOUT.hoverlabel,
+  };
+
+  // ── 上段：新入院 ──
+  const nb = _bandArrays(cp.nadm_actual, cp.nadm_target);
+  Plotly.react('doctor-chart-cumulative-nadm',[
+    ..._fillTraces(nb,'rgba(22,163,74,0.18)','rgba(220,38,38,0.13)'),
+    {type:'scatter',mode:'lines+markers',name:'新入院 実績',
+     x:xLabels,y:cp.nadm_actual,
+     line:{color:COLORS.actual,width:2.5},marker:{size:5},
+     hovertemplate:'%{y}人<extra>新入院実績</extra>'},
+    {type:'scatter',mode:'lines',name:'新入院 目標',
+     x:xLabels,y:cp.nadm_target,
+     line:{color:COLORS.actual,width:1.5,dash:'dash'},
+     hovertemplate:'%{y:.1f}人<extra>新入院目標</extra>'},
+  ],{...BASE,
+    title:false,
+    yaxis:{...BASE_LAYOUT.yaxis,title:{text:'人',font:{size:10}}},
+  },CHART_CONFIG);
+
+  // ── 下段：全麻 ──
+  const sb = _bandArrays(cp.surg_actual, cp.surg_target);
+  Plotly.react('doctor-chart-cumulative-surg',[
+    ..._fillTraces(sb,'rgba(22,163,74,0.18)','rgba(220,38,38,0.13)'),
+    {type:'scatter',mode:'lines+markers',name:'全麻 実績',
+     x:xLabels,y:cp.surg_actual,
+     line:{color:COLORS.ma,width:2.5},marker:{size:5},
+     hovertemplate:'%{y}件<extra>全麻実績</extra>'},
+    {type:'scatter',mode:'lines',name:'全麻 目標',
+     x:xLabels,y:cp.surg_target,
+     line:{color:COLORS.ma,width:1.5,dash:'dash'},
+     hovertemplate:'%{y:.1f}件<extra>全麻目標</extra>'},
+  ],{...BASE,
+    title:false,
+    yaxis:{...BASE_LAYOUT.yaxis,title:{text:'件',font:{size:10}}},
+  },CHART_CONFIG);
+}
+
+function _renderCumulativeMock(){
+  const bd=new Date(DASH_DATA.base_date);
+  const start=new Date(bd.getTime()-6*864e5);
+  const dates=[];
+  for(let d=new Date(start);d<=bd;d=new Date(d.getTime()+864e5))
+    dates.push(d.toISOString().slice(0,10));
+  const DAY_LABELS=['月','火','水','木','金','土','日'];
+  const xLbls=dates.map(d=>{const dt=new Date(d);return DAY_LABELS[dt.getDay()===0?6:dt.getDay()-1]+'（'+(dt.getMonth()+1)+'/'+dt.getDate()+'）';});
+  const wkNadm=RANK_DATA.nadm.reduce((s,r)=>s+r.actual,0);
+  const wkNadmTgt=DASH_DATA.targets.new_admission_weekly||385;
+  const nadmActual=xLbls.map((_,i)=>Math.round(wkNadm*(i+1)/xLbls.length));
+  const nadmTarget=xLbls.map((_,i)=>Math.round(wkNadmTgt*(i+1)/7));
+  const wkSurg=RANK_DATA.surg.reduce((s,r)=>s+r.actual,0);
+  const wkSurgTgt=(DASH_DATA.targets.surgery_ga_daily||21)*5;
+  const surgActual=xLbls.map((_,i)=>Math.round(wkSurg*(i+1)/xLbls.length));
+  const surgTarget=xLbls.map((_,i)=>Math.round(wkSurgTgt*(i+1)/7));
+  const BASE={xaxis:{...BASE_LAYOUT.xaxis,type:'category',tickfont:{size:10}},
+    legend:{orientation:'h',x:0,y:-0.22,font:{size:10},bgcolor:'rgba(0,0,0,0)'},
+    margin:{t:16,b:52,l:46,r:16},height:350,
+    paper_bgcolor:'rgba(0,0,0,0)',plot_bgcolor:'rgba(0,0,0,0)',
+    font:BASE_LAYOUT.font,hovermode:'x unified',hoverlabel:BASE_LAYOUT.hoverlabel};
+  Plotly.react('doctor-chart-cumulative-nadm',[
+    {type:'scatter',mode:'lines+markers',name:'新入院 実績',x:xLbls,y:nadmActual,line:{color:COLORS.actual,width:2.5},marker:{size:5}},
+    {type:'scatter',mode:'lines',name:'新入院 目標',x:xLbls,y:nadmTarget,line:{color:COLORS.actual,width:1.5,dash:'dash'}},
+  ],{...BASE,title:{text:'新入院患者数（概算）',font:{size:12,color:'#1A2535'},x:0},yaxis:{...BASE_LAYOUT.yaxis,title:{text:'人',font:{size:10}}}},CHART_CONFIG);
+  Plotly.react('doctor-chart-cumulative-surg',[
+    {type:'scatter',mode:'lines+markers',name:'全麻 実績',x:xLbls,y:surgActual,line:{color:COLORS.ma,width:2.5},marker:{size:5}},
+    {type:'scatter',mode:'lines',name:'全麻 目標',x:xLbls,y:surgTarget,line:{color:COLORS.ma,width:1.5,dash:'dash'}},
+  ],{...BASE,title:{text:'全身麻酔件数（概算）',font:{size:12,color:'#1A2535'},x:0},yaxis:{...BASE_LAYOUT.yaxis,title:{text:'件',font:{size:10}}}},CHART_CONFIG);
+}
+
+// ─ ウォーターフォール（実データ版）─
+function renderWaterfallChart(){
+  document.getElementById('doctor-chart-waterfall').innerHTML='';
+  const wf = DOCTOR_CHART.waterfall || DOCTOR_NADM_GAP;
+  // 両方を統合（doctor_chart 側を優先、なければ nadm_gap を使用）
+  const rows = (DOCTOR_CHART.waterfall && DOCTOR_CHART.waterfall.length)
+               ? DOCTOR_CHART.waterfall : DOCTOR_NADM_GAP;
+  if(!rows.length) return;
+
+  const deptKey = rows[0].dept !== undefined ? 'dept' : 'department_name';
+  const x = rows.map(r=>r[deptKey]);
+  const y = rows.map(r=>r.gap||0);
+  const colors = rows.map(r=>r.color||(r.gap>=0?COLORS.ok:COLORS.ng));
+
+  const layout=Object.assign({},BASE_LAYOUT,{
+    title:{text:'新入院 目標差分（直近7日・診療科別）',font:{size:12,color:'#1A2535'},x:0},
+    xaxis:{...BASE_LAYOUT.xaxis,type:'category',tickangle:-30,tickfont:{size:9}},
+    yaxis:{...BASE_LAYOUT.yaxis,title:{text:'差分（人）',font:{size:10}},zeroline:true,zerolinecolor:'#94A3B8',zerolinewidth:1},
+    margin:{t:32,b:70,l:46,r:14},
+    shapes:[{type:'line',x0:-0.5,x1:x.length-0.5,y0:0,y1:0,line:{color:'#94A3B8',width:1}}],
+  });
+  Plotly.react('doctor-chart-waterfall',[{
+    type:'bar',x,y,
+    marker:{color:colors,opacity:0.82},
+    customdata:rows.map(r=>r.achievement!=null?r.achievement.toFixed(1)+'%':'—'),
+    hovertemplate:'%{x}<br>差分: %{y:+.0f}人<br>達成率: %{customdata}<extra></extra>',
+    text:rows.map(r=>`${r.gap>=0?'+':''}${r.gap}\n${r.achievement!=null?r.achievement.toFixed(0)+'%':''}`),
+    textposition:'outside',
+    textfont:{size:9,color:'#5A6A82'},
+  }],layout,CHART_CONFIG);
+}
+
+// ─ バブル散布図（実データ版）─
+function renderBubbleChart(){
+  document.getElementById('doctor-chart-bubble').innerHTML='';
+  const bbl = DOCTOR_CHART.surgery_bubble;
+  if(!bbl||!bbl.x||!bbl.x.length){
+    // fallback: DOCTOR_SURG_GAP
+    const rows=DOCTOR_SURG_GAP.filter(r=>r.actual>0);
+    if(!rows.length)return;
+    const x=rows.map(r=>r.actual);
+    const y=rows.map(r=>r.target?Math.round(r.actual/r.target*100):null);
+    const sz=rows.map(r=>Math.max(Math.abs(r.gap||0)*4+10,10));
+    const clr=rows.map(r=>r.status==='ok'?COLORS.ok:r.status==='warn'?COLORS.warn:COLORS.ng);
+    _plotBubble(x,y,sz,clr,rows.map(r=>r.department_name)); return;
+  }
+  _plotBubble(bbl.x,bbl.y,bbl.size,bbl.color,bbl.labels);
+}
+
+function _plotBubble(x,y,sz,clr,labels){
+  const layout=Object.assign({},BASE_LAYOUT,{
+    title:{text:'全麻件数 vs 達成率（直近7日・バブル=前期比変化量）',font:{size:12,color:'#1A2535'},x:0},
+    xaxis:{...BASE_LAYOUT.xaxis,type:'-',title:{text:'直近7日実績（件）',font:{size:10}}},
+    yaxis:{...BASE_LAYOUT.yaxis,title:{text:'達成率（%）',font:{size:10}}},
+    showlegend:false,
+    shapes:[
+      {type:'line',x0:0,x1:Math.max(...x)*1.15,y0:95,y1:95,line:{color:COLORS.warn,width:1,dash:'dot'}},
+      {type:'line',x0:0,x1:Math.max(...x)*1.15,y0:105,y1:105,line:{color:COLORS.ok,width:1,dash:'dot'}},
+    ],
+  });
+  Plotly.react('doctor-chart-bubble',[{
+    type:'scatter',mode:'markers+text',
+    x,y,text:labels,textposition:'top center',
+    textfont:{size:9,color:'#5A6A82'},
+    marker:{size:sz,color:clr,opacity:.75,sizemode:'area',
+            line:{color:'rgba(255,255,255,0.6)',width:1}},
+    hovertemplate:'%{text}<br>件数: %{x}<br>達成率: %{y}%<extra></extra>',
+  }],layout,CHART_CONFIG);
+}
+
+// ─ 診療科ヒートマップ（実データ版）─
+function renderHeatmapChart(){
+  document.getElementById('doctor-chart-heatmap').innerHTML='';
+  const hm = DOCTOR_CHART.department_heatmap;
+  const useReal = hm && hm.x && hm.x.length && hm.y && hm.y.length;
+
+  const x      = useReal ? hm.x : [];
+  const y      = useReal ? hm.y : [];
+  const z      = useReal ? hm.z : [];
+  const title  = useReal
+    ? `診療科別 新入院達成率ヒートマップ（直近${hm.x.length}週）`
+    : '診療科別 新入院達成率ヒートマップ（データ準備中）';
+
+  if(!x.length){
+    document.getElementById('doctor-chart-heatmap').innerHTML =
+      '<div class="chart-loading" style="animation:none">ヒートマップデータなし</div>'; return;
+  }
+
+  const layout=Object.assign({},BASE_LAYOUT,{
+    title:{text:title,font:{size:12,color:'#1A2535'},x:0},
+    xaxis:{...BASE_LAYOUT.xaxis,type:'category',tickangle:-30,tickfont:{size:9}},
+    yaxis:{...BASE_LAYOUT.yaxis,type:'category',autorange:'reversed',tickfont:{size:9}},
+    margin:{t:32,b:60,l:90,r:60},
+  });
+  Plotly.react('doctor-chart-heatmap',[{
+    type:'heatmap',z,x,y,
+    colorscale:[
+      [0,'#dc2626'],[0.47,'#dc2626'],[0.48,'#d97706'],
+      [0.52,'#d97706'],[0.53,'#16a34a'],[1,'#16a34a'],
+    ],
+    zmin:50,zmax:130,
+    hovertemplate:'%{y}<br>%{x}週<br>達成率: %{z}%<extra></extra>',
+    colorbar:{title:{text:'達成率%',side:'right'},thickness:14,len:0.7,
+              tickvals:[60,80,95,105,120],ticktext:['60%','80%','95%','105%','120%']},
+  }],layout,CHART_CONFIG);
+}
+
+// ─ YoYトレース追加ユーティリティ ─
+function addYoyTrace(traces, yoyKey, currentDates, label, extraLabel){
+  if(!STATE.yoy) return;
+  const src = DASH_DATA.global[yoyKey];
+  if(!src||!src.dates.length) return;
+  const d0=currentDates[0], d1=currentDates[currentDates.length-1];
+  const pairs=src.dates.reduce((acc,d,i)=>{
+    if(d>=d0&&d<=d1) acc.push([d,src.values[i]]);
+    return acc;
+  },[]);
+  if(!pairs.length) return;
+  traces.push({
+    type:'scatter', mode:'lines', name:label||'前年度',
+    x:pairs.map(p=>p[0]), y:pairs.map(p=>p[1]),
+    line:{color:COLORS.yoy, width:1.5, dash:'dot'},
+    opacity:0.65,
+    hovertemplate:`%{y}${extraLabel||''}<extra>前年度</extra>`,
+  });
+}
+
+// ─ 新入院推移チャート（YoY対応・hover改善）─
+function renderNewAdmChart(){
+  const src=getSeries('new_admission');
+  const{dates,values}=filterSeries(src,STATE.period);
+  if(!dates.length)return;
+  const ma=movingAvg(values,STATE.period==='7d'?7:3);
+  const wkTarget=getTarget('new_admission');
+  const dailyTgt=wkTarget/7;
+  const deptLabel=STATE.dept==='__all__'?'':'（'+STATE.dept+'）';
+  const tgt=targetLine(dailyTgt,dates[0],dates[dates.length-1],
+    `週目標 ${Math.round(wkTarget)}人`);
+  const layout=Object.assign({},BASE_LAYOUT,{
+    title:{text:'新入院患者数推移'+deptLabel,font:{size:12,color:'#1A2535'},x:0},
+    yaxis:{...BASE_LAYOUT.yaxis,title:{text:'人',font:{size:10}}},
+    shapes:tgt.shapes, annotations:tgt.annotations,
+  });
+  const traces=[
+    {type:'bar',name:'実績',x:dates,y:values,
+     marker:{color:COLORS.barFill},opacity:0.55,
+     hovertemplate:'<b>%{x}</b><br>新入院: %{y}人<extra>実績</extra>'},
+    {type:'scatter',mode:'lines',name:'移動平均',x:dates,y:ma,
+     line:{color:COLORS.ma,width:2.5},
+     hovertemplate:'MA: %{y:.1f}人<extra>移動平均</extra>'},
+  ];
+  addYoyTrace(traces,'yoy_new_admission',dates,'前年度','人');
+  Plotly.react('doctor-chart-newadm',traces,layout,CHART_CONFIG);
+}
+
+function renderSurgeryChart(){
+  const src=getSeries('surgery_ga');
+  const{dates,values}=filterSeries(src,STATE.period);
+  if(!dates.length)return;
+  const ma=movingAvg(values,STATE.period==='7d'?7:3);
+  const dailyTgt=getTarget('surgery_ga')||21;
+  const isDaily=STATE.period==='7d';
+  const tgtVal=isDaily?dailyTgt:dailyTgt*5;
+  const tgtLabel=isDaily?`目標 ${dailyTgt}件/日`:`目標 ${Math.round(tgtVal)}件/週`;
+  const deptLabel=STATE.dept==='__all__'?'':'（'+STATE.dept+'）';
+  const tgt=targetLine(tgtVal,dates[0],dates[dates.length-1],tgtLabel);
+  const layout=Object.assign({},BASE_LAYOUT,{
+    title:{text:'全身麻酔件数推移'+deptLabel,font:{size:12,color:'#1A2535'},x:0},
+    yaxis:{...BASE_LAYOUT.yaxis,title:{text:'件',font:{size:10}}},
+    shapes:tgt.shapes, annotations:tgt.annotations,
+  });
+  const traces=[
+    {type:'bar',name:'全麻件数',x:dates,y:values,
+     marker:{color:COLORS.barFillGa},
+     hovertemplate:'<b>%{x}</b><br>全麻: %{y}件<extra>実績</extra>'},
+    {type:'scatter',mode:'lines+markers',name:'移動平均',x:dates,y:ma,
+     line:{color:COLORS.ma,width:2.5},marker:{size:4},
+     hovertemplate:'MA: %{y:.1f}件<extra>移動平均</extra>'},
+  ];
+  addYoyTrace(traces,'yoy_surgery_ga',dates,'前年度（全麻）','件');
+  Plotly.react('doctor-chart-surgery',traces,layout,CHART_CONFIG);
+}
+
+function renderAllCharts(){
+  renderCumulativeChart();
+  renderWaterfallChart();
+  renderBubbleChart();
+  renderHeatmapChart();
+  renderNewAdmChart();
+  renderSurgeryChart();
+}
+
+// ═══════════════════════════════════════════
+// イベントハンドラ
+// ═══════════════════════════════════════════
+function setPeriod(btn,key){
+  STATE.period=key;
+  document.querySelectorAll('[data-period]').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  // 期間変更は時系列チャートのみ再描画（ランキング・ヒートマップは変わらない）
+  renderNewAdmChart(); renderSurgeryChart(); renderCumulativeChart();
+}
+function toggleYoy(btn){
+  STATE.yoy=!STATE.yoy;
+  btn.classList.toggle('on',STATE.yoy);
+  btn.textContent=STATE.yoy?'📊 昨年度比較 ON':'📊 昨年度比較';
+  if(STATE.yoy){
+    // 前年データ存在チェック
+    const yoy = DASH_DATA.global.yoy_new_admission||{};
+    const bd = DASH_DATA.base_date;
+    const hasYoy = yoy.dates && yoy.dates.some(d=>d<=bd);
+    if(!hasYoy){
+      btn.title='前年同期データがありません（データ範囲外）';
+      btn.style.opacity='0.55';
+    }
+  } else {
+    btn.title='';btn.style.opacity='';
+  }
+  renderNewAdmChart(); renderSurgeryChart();
+}
+function selectDept(val){
+  STATE.dept=val;
+  renderNewAdmChart(); renderSurgeryChart();
+  renderWaterfallChart(); renderBubbleChart();
+}
+function toggleFootnote(){
+  const b=document.getElementById('footnoteBody'),a=document.getElementById('footnoteArrow');
+  b.classList.toggle('open');
+  if(a)a.textContent=b.classList.contains('open')?'▲':'▼';
+}
+
+// ═══════════════════════════════════════════
+// 初期化
+// ═══════════════════════════════════════════
+window.addEventListener('DOMContentLoaded',()=>{
+  renderRoleBrief();
+  renderDoctorWatchRank();
+  renderDoctorSurgeryGapRank();
+  renderDoctorAdmissionGapRank();
+  renderAllCharts();
+});
+</script>
+</body>
+</html>

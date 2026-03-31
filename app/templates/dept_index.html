@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>診療科別レポート一覧 | 診療ダッシュボード</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--txt);font-size:14px;line-height:1.6;min-height:100vh}
+:root{
+  --bg:#F0F2F5;--card:#FFF;--elevated:#F7F9FC;
+  --hdr:#1D2B3A;--border:#DCE1E9;--accent:#3A6EA5;--accent-lt:#EEF3FA;
+  --txt:#1A2535;--txt2:#5A6A82;--muted:#94A3B8;
+  --ok:#1A9E6A;--ok-bg:#EDFAF4;--warn:#C87A00;--warn-bg:#FEF6E4;
+  --ng:#C0293B;--ng-bg:#FEF0F2;
+  --status-good:#16a34a;--status-warn:#d97706;--status-bad:#dc2626;
+  --mono:'IBM Plex Mono',monospace;--r:10px;
+  --shadow:0 1px 4px rgba(0,0,0,.06);--shadow2:0 4px 16px rgba(0,0,0,.10);
+}
+
+/* ── Header ── */
+.hdr{
+  background:var(--hdr);padding:0 28px;height:56px;
+  display:flex;align-items:center;justify-content:space-between;
+  border-bottom:2px solid var(--accent);position:sticky;top:0;z-index:100;
+}
+.hdr-left{display:flex;align-items:center;gap:12px}
+.hdr-badge{
+  background:var(--accent);color:#fff;font-size:.58rem;font-weight:700;
+  letter-spacing:.14em;text-transform:uppercase;padding:3px 9px;border-radius:4px;
+}
+.hdr-title{color:#E8EEF5;font-size:1rem;font-weight:600}
+.hdr-meta{color:#7A90A8;font-size:.72rem;font-family:var(--mono)}
+.hdr-nav a{
+  color:#7A90A8;font-size:.78rem;text-decoration:none;
+  padding:6px 12px;border-radius:6px;border:1px solid rgba(255,255,255,.1);
+  transition:all .15s;
+}
+.hdr-nav a:hover{background:rgba(255,255,255,.08);color:#E8EEF5}
+
+/* ── Wrapper ── */
+.wrapper{max-width:1100px;margin:0 auto;padding:28px 24px 64px}
+
+/* ── Section label ── */
+.section-label{
+  font-size:.67rem;font-weight:700;letter-spacing:.14em;
+  color:var(--muted);text-transform:uppercase;
+  display:flex;align-items:center;gap:10px;margin-bottom:16px;
+}
+.section-label::after{content:'';flex:1;height:1px;background:var(--border)}
+
+/* ── Search ── */
+.search-wrap{margin-bottom:20px}
+.search-input{
+  width:100%;max-width:360px;padding:8px 14px;
+  border:1px solid var(--border);border-radius:var(--r);
+  background:var(--card);color:var(--txt);font-size:.88rem;
+  font-family:'Noto Sans JP',sans-serif;outline:none;
+  transition:border-color .15s;
+}
+.search-input:focus{border-color:var(--accent)}
+
+/* ── Dept Cards Grid ── */
+.dept-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(320px,1fr));
+  gap:14px;
+}
+.dept-card{
+  background:var(--card);border-radius:var(--r);
+  border:1px solid var(--border);border-left:4px solid var(--border);
+  box-shadow:var(--shadow);
+  text-decoration:none;color:inherit;display:block;
+  padding:16px 18px 14px;
+  transition:transform .15s,box-shadow .15s;
+}
+.dept-card:hover{transform:translateY(-2px);box-shadow:var(--shadow2)}
+.dept-card.ok  {border-left-color:var(--status-good)}
+.dept-card.warn{border-left-color:var(--status-warn)}
+.dept-card.ng  {border-left-color:var(--status-bad)}
+.dept-card.neutral{border-left-color:var(--muted)}
+.dept-card.hidden{display:none}
+
+.dept-card-head{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:10px;
+}
+.dept-name{font-size:.96rem;font-weight:700;color:var(--txt)}
+.dept-badge{
+  font-size:.65rem;font-weight:700;padding:2px 9px;
+  border-radius:999px;white-space:nowrap;flex-shrink:0;
+}
+.dept-badge.ok  {background:#dcfce7;color:#166534}
+.dept-badge.warn{background:#fef3c7;color:#92400e}
+.dept-badge.ng  {background:#fee2e2;color:#991b1b}
+.dept-badge.neutral{background:var(--elevated);color:var(--muted)}
+
+/* ── KPI mini row ── */
+.kpi-mini{
+  display:grid;grid-template-columns:repeat(4,1fr);
+  gap:8px;margin-bottom:10px;
+}
+.kpi-mini-item{text-align:center}
+.kmi-label{font-size:.6rem;font-weight:700;letter-spacing:.06em;color:var(--muted);text-transform:uppercase;margin-bottom:2px}
+.kmi-value{font-size:.82rem;font-weight:700;font-family:var(--mono)}
+.kmi-value.ok  {color:var(--status-good)}
+.kmi-value.warn{color:var(--status-warn)}
+.kmi-value.ng  {color:var(--status-bad)}
+.kmi-value.neutral{color:var(--muted)}
+
+/* ── Progress bar ── */
+.bar-wrap{
+  display:grid;grid-template-columns:repeat(4,1fr);
+  gap:4px;
+}
+.bar-track{height:3px;background:var(--elevated);border-radius:99px;overflow:hidden}
+.bar-fill{height:100%;border-radius:99px;transition:width .6s}
+.bar-fill.ok   {background:var(--status-good)}
+.bar-fill.warn {background:var(--status-warn)}
+.bar-fill.ng   {background:var(--status-bad)}
+.bar-fill.neutral{background:var(--muted)}
+
+/* ── Footer ── */
+.page-footer{
+  margin-top:32px;padding-top:16px;
+  border-top:1px solid var(--border);
+  font-size:.72rem;color:var(--muted);
+  display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;
+}
+
+/* ── Legend ── */
+.legend{
+  display:flex;gap:16px;flex-wrap:wrap;
+  font-size:.72rem;color:var(--txt2);
+  margin-bottom:18px;
+}
+.legend-item{display:flex;align-items:center;gap:5px}
+.legend-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+
+/* ── Responsive ── */
+@media(max-width:640px){
+  .dept-grid{grid-template-columns:1fr}
+  .hdr-meta{display:none}
+  .wrapper{padding:16px 14px 48px}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ HEADER ═══ -->
+<header class="hdr">
+  <div class="hdr-left">
+    <span class="hdr-badge">科別</span>
+    <span class="hdr-title">📋 診療科別レポート一覧</span>
+  </div>
+  <div style="display:flex;align-items:center;gap:16px">
+    <nav class="hdr-nav">
+      <a href="../portal.html">🏠 ポータル</a>
+      <a href="../doctor.html">🩺 医師版</a>
+      <a href="../nurse.html">👩‍⚕️ 看護師版</a>
+    </nav>
+    <span class="hdr-meta">📅 {{ generated_at }} 更新 ｜ 基準日: {{ base_date }}</span>
+  </div>
+</header>
+
+<div class="wrapper">
+
+<!-- ── 凡例 + 検索 ── -->
+<div class="legend">
+  <span style="font-weight:600;color:var(--txt)">達成率 (在院患者数基準)</span>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--status-good)"></div>≥ 105%（達成）</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--status-warn)"></div>95〜104%（注意）</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--status-bad)"></div>&lt; 95%（未達）</div>
+</div>
+
+<div class="search-wrap">
+  <input type="text" class="search-input" placeholder="🔍 診療科名で絞り込み..." oninput="filterCards(this.value)" />
+</div>
+
+<div class="section-label">全 {{ depts|length }} 診療科</div>
+
+<!-- ── Card Grid ── -->
+<div class="dept-grid" id="deptGrid">
+  {% for d in depts %}
+  {% set overall = d.inp_status %}
+  <a href="{{ d.filename }}" class="dept-card {{ overall }}" data-name="{{ d.name }}">
+
+    <div class="dept-card-head">
+      <div class="dept-name">{{ d.name }}</div>
+      <span class="dept-badge {{ overall }}">
+        {% if overall == 'ok' %}達成
+        {% elif overall == 'warn' %}注意
+        {% elif overall == 'ng' %}未達
+        {% else %}—
+        {% endif %}
+      </span>
+    </div>
+
+    <div class="kpi-mini">
+      <div class="kpi-mini-item">
+        <div class="kmi-label">在院</div>
+        <div class="kmi-value {{ d.inp_status }}">
+          {% if d.inp_ach and d.inp_ach > 0 %}{{ "%.0f"|format(d.inp_ach) }}%{% else %}—{% endif %}
+        </div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">新入院</div>
+        <div class="kmi-value {{ d.nadm_status }}">
+          {% if d.nadm_ach and d.nadm_ach > 0 %}{{ "%.0f"|format(d.nadm_ach) }}%{% else %}—{% endif %}
+        </div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">全麻</div>
+        <div class="kmi-value {{ d.surg_status }}">
+          {% if d.surg_ach and d.surg_ach > 0 %}{{ "%.0f"|format(d.surg_ach) }}%{% else %}—{% endif %}
+        </div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">粗利</div>
+        <div class="kmi-value {{ d.profit_status }}">
+          {% if d.profit_ach and d.profit_ach > 0 %}{{ "%.0f"|format(d.profit_ach) }}%{% else %}—{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="bar-wrap">
+      {% for st, ach in [
+          (d.inp_status,    d.inp_ach),
+          (d.nadm_status,   d.nadm_ach),
+          (d.surg_status,   d.surg_ach),
+          (d.profit_status, d.profit_ach)
+      ] %}
+      <div class="bar-track">
+        <div class="bar-fill {{ st }}"
+             style="width:{{ [[ach or 0, 0]|max, 120]|min / 120 * 100 | round }}%">
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+  </a>
+  {% endfor %}
+</div>
+
+<div class="page-footer">
+  <span>📋 診療科別レポート一覧</span>
+  <span>生成: {{ generated_at }} ｜ 基準日: {{ base_date }}</span>
+</div>
+
+</div><!-- /wrapper -->
+
+<script>
+function filterCards(q) {
+  const term = q.trim().toLowerCase();
+  document.querySelectorAll('#deptGrid .dept-card').forEach(card => {
+    const name = (card.dataset.name || '').toLowerCase();
+    card.classList.toggle('hidden', term !== '' && !name.includes(term));
+  });
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>診療科別レポート一覧 | 診療ダッシュボード</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--txt);font-size:14px;line-height:1.6;min-height:100vh}
+:root{
+  --bg:#F0F2F5;--card:#FFF;--elevated:#F7F9FC;
+  --hdr:#1D2B3A;--border:#DCE1E9;--accent:#3A6EA5;--accent-lt:#EEF3FA;
+  --txt:#1A2535;--txt2:#5A6A82;--muted:#94A3B8;
+  --ok:#1A9E6A;--warn:#C87A00;--ng:#C0293B;
+  --status-good:#16a34a;--status-warn:#d97706;--status-bad:#dc2626;
+  --mono:'IBM Plex Mono',monospace;--r:10px;
+  --shadow:0 1px 4px rgba(0,0,0,.06);--shadow2:0 4px 16px rgba(0,0,0,.10);
+}
+.hdr{background:var(--hdr);padding:0 28px;height:56px;display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid var(--accent);position:sticky;top:0;z-index:100}
+.hdr-left{display:flex;align-items:center;gap:12px}
+.hdr-badge{background:var(--accent);color:#fff;font-size:.58rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;padding:3px 9px;border-radius:4px}
+.hdr-title{color:#E8EEF5;font-size:1rem;font-weight:600}
+.hdr-meta{color:#7A90A8;font-size:.72rem;font-family:var(--mono)}
+.hdr-nav a{color:#7A90A8;font-size:.78rem;text-decoration:none;padding:6px 12px;border-radius:6px;border:1px solid rgba(255,255,255,.1);transition:all .15s}
+.hdr-nav a:hover{background:rgba(255,255,255,.08);color:#E8EEF5}
+.wrapper{max-width:1100px;margin:0 auto;padding:28px 24px 64px}
+.section-label{font-size:.67rem;font-weight:700;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.section-label::after{content:'';flex:1;height:1px;background:var(--border)}
+.search-input{width:100%;max-width:360px;padding:8px 14px;border:1px solid var(--border);border-radius:var(--r);background:var(--card);color:var(--txt);font-size:.88rem;font-family:'Noto Sans JP',sans-serif;outline:none;transition:border-color .15s;margin-bottom:20px;display:block}
+.search-input:focus{border-color:var(--accent)}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:.72rem;color:var(--txt2);margin-bottom:18px;align-items:center}
+.legend-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;display:inline-block;margin-right:4px}
+.dept-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+.dept-card{background:var(--card);border-radius:var(--r);border:1px solid var(--border);border-left:4px solid var(--muted);box-shadow:var(--shadow);text-decoration:none;color:inherit;display:block;padding:16px 18px 14px;transition:transform .15s,box-shadow .15s}
+.dept-card:hover{transform:translateY(-2px);box-shadow:var(--shadow2)}
+.dept-card.ok{border-left-color:var(--status-good)}
+.dept-card.warn{border-left-color:var(--status-warn)}
+.dept-card.ng{border-left-color:var(--status-bad)}
+.dept-card.hidden{display:none}
+.dept-card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.dept-name{font-size:.96rem;font-weight:700;color:var(--txt)}
+.dept-badge{font-size:.65rem;font-weight:700;padding:2px 9px;border-radius:999px;white-space:nowrap}
+.dept-badge.ok{background:#dcfce7;color:#166534}
+.dept-badge.warn{background:#fef3c7;color:#92400e}
+.dept-badge.ng{background:#fee2e2;color:#991b1b}
+.dept-badge.neutral{background:var(--elevated);color:var(--muted)}
+.kpi-mini{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}
+.kpi-mini-item{text-align:center}
+.kmi-label{font-size:.6rem;font-weight:700;letter-spacing:.06em;color:var(--muted);text-transform:uppercase;margin-bottom:2px}
+.kmi-value{font-size:.82rem;font-weight:700;font-family:var(--mono)}
+.kmi-value.ok{color:var(--status-good)}
+.kmi-value.warn{color:var(--status-warn)}
+.kmi-value.ng{color:var(--status-bad)}
+.kmi-value.neutral{color:var(--muted)}
+.bar-wrap{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+.bar-track{height:3px;background:var(--elevated);border-radius:99px;overflow:hidden}
+.bar-fill{height:100%;border-radius:99px;transition:width .6s}
+.bar-fill.ok{background:var(--status-good)}
+.bar-fill.warn{background:var(--status-warn)}
+.bar-fill.ng{background:var(--status-bad)}
+.bar-fill.neutral{background:var(--muted)}
+.page-footer{margin-top:32px;padding-top:16px;border-top:1px solid var(--border);font-size:.72rem;color:var(--muted);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+@media(max-width:640px){.dept-grid{grid-template-columns:1fr}.hdr-meta{display:none}.wrapper{padding:16px 14px 48px}}
+</style>
+</head>
+<body>
+<header class="hdr">
+  <div class="hdr-left">
+    <span class="hdr-badge">科別</span>
+    <span class="hdr-title">📋 診療科別レポート一覧</span>
+  </div>
+  <div style="display:flex;align-items:center;gap:16px">
+    <nav class="hdr-nav">
+      <a href="../portal.html">🏠 ポータル</a>
+      <a href="../doctor.html">🩺 医師版</a>
+      <a href="../nurse.html">👩‍⚕️ 看護師版</a>
+    </nav>
+    <span class="hdr-meta">📅 2026/04/01 07:14 更新 ｜ 基準日: 2026/03/31</span>
+  </div>
+</header>
+<div class="wrapper">
+  <div class="legend">
+    <span style="font-weight:600;color:var(--txt)">達成率（在院患者数基準）</span>
+    <span><span class="legend-dot" style="background:var(--status-good)"></span>≥ 105%（達成）</span>
+    <span><span class="legend-dot" style="background:var(--status-warn)"></span>95〜104%（注意）</span>
+    <span><span class="legend-dot" style="background:var(--status-bad)"></span>&lt; 95%（未達）</span>
+  </div>
+  <input type="text" class="search-input" placeholder="🔍 診療科名で絞り込み..." oninput="filterCards(this.value)" />
+  <div class="section-label">全 23 診療科</div>
+  <div class="dept-grid" id="deptGrid">
+  <a href="dept_リウマチ膠原病内科.html" class="dept-card ok" data-name="リウマチ膠原病内科">
+    <div class="dept-card-head">
+      <div class="dept-name">リウマチ膠原病内科</div>
+      <span class="dept-badge ok">達成</span>
+    </div>
+    <div class="kpi-mini">
+      <div class="kpi-mini-item">
+        <div class="kmi-label">在院</div>
+        <div class="kmi-value ok">183%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">新入院</div>
+        <div class="kmi-value ok">114%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">全麻</div>
+        <div class="kmi-value neutral">—</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">粗利</div>
+        <div class="kmi-value ng">92%</div>
+      </div>
+    </div>
+    <div class="bar-wrap">
+      <div class="bar-track"><div class="bar-fill ok"    style="width:100%"></div></div>
+      <div class="bar-track"><div class="bar-fill ok"   style="width:95%"></div></div>
+      <div class="bar-track"><div class="bar-fill neutral"   style="width:0%"></div></div>
+      <div class="bar-track"><div class="bar-fill ng" style="width:77%"></div></div>
+    </div>
+  </a>
+  <a href="dept_一般消化器外科.html" class="dept-card ok" data-name="一般消化器外科">
+    <div class="dept-card-head">
+      <div class="dept-name">一般消化器外科</div>
+      <span class="dept-badge ok">達成</span>
+    </div>
+    <div class="kpi-mini">
+      <div class="kpi-mini-item">
+        <div class="kmi-label">在院</div>
+        <div class="kmi-value ok">118%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">新入院</div>
+        <div class="kmi-value ng">90%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">全麻</div>
+        <div class="kmi-value ng">92%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">粗利</div>
+        <div class="kmi-value warn">99%</div>
+      </div>
+    </div>
+    <div class="bar-wrap">
+      <div class="bar-track"><div class="bar-fill ok"    style="width:98%"></div></div>
+      <div class="bar-track"><div class="bar-fill ng"   style="width:75%"></div></div>
+      <div class="bar-track"><div class="bar-fill ng"   style="width:77%"></div></div>
+      <div class="bar-track"><div class="bar-fill warn" style="width:83%"></div></div>
+    </div>
+  </a>
+  <a href="dept_乳腺外科.html" class="dept-card ng" data-name="乳腺外科">
+    <div class="dept-card-head">
+      <div class="dept-name">乳腺外科</div>
+      <span class="dept-badge ng">未達</span>
+    </div>
+    <div class="kpi-mini">
+      <div class="kpi-mini-item">
+        <div class="kmi-label">在院</div>
+        <div class="kmi-value ng">32%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">新入院</div>
+        <div class="kmi-value ng">14%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">全麻</div>
+        <div class="kmi-value ng">—</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">粗利</div>
+        <div class="kmi-value ng">81%</div>
+      </div>
+    </div>
+    <div class="bar-wrap">
+      <div class="bar-track"><div class="bar-fill ng"    style="width:27%"></div></div>
+      <div class="bar-track"><div class="bar-fill ng"   style="width:12%"></div></div>
+      <div class="bar-track"><div class="bar-fill ng"   style="width:0%"></div></div>
+      <div class="bar-track"><div class="bar-fill ng" style="width:67%"></div></div>
+    </div>
+  </a>
+  <a href="dept_呼吸器内科.html" class="dept-card warn" data-name="呼吸器内科">
+    <div class="dept-card-head">
+      <div class="dept-name">呼吸器内科</div>
+      <span class="dept-badge warn">注意</span>
+    </div>
+    <div class="kpi-mini">
+      <div class="kpi-mini-item">
+        <div class="kmi-label">在院</div>
+        <div class="kmi-value warn">102%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">新入院</div>
+        <div class="kmi-value ok">100%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">全麻</div>
+        <div class="kmi-value neutral">—</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">粗利</div>
+        <div class="kmi-value ng">88%</div>
+      </div>
+    </div>
+    <div class="bar-wrap">
+      <div class="bar-track"><div class="bar-fill warn"    style="width:85%"></div></div>
+      <div class="bar-track"><div class="bar-fill ok"   style="width:83%"></div></div>
+      <div class="bar-track"><div class="bar-fill neutral"   style="width:0%"></div></div>
+      <div class="bar-track"><div class="bar-fill ng" style="width:74%"></div></div>
+    </div>
+  </a>
+  <a href="dept_呼吸器外科.html" class="dept-card ng" data-name="呼吸器外科">
+    <div class="dept-card-head">
+      <div class="dept-name">呼吸器外科</div>
+      <span class="dept-badge ng">未達</span>
+    </div>
+    <div class="kpi-mini">
+      <div class="kpi-mini-item">
+        <div class="kmi-label">在院</div>
+        <div class="kmi-value ng">83%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">新入院</div>
+        <div class="kmi-value ok">143%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">全麻</div>
+        <div class="kmi-value ok">143%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">粗利</div>
+        <div class="kmi-value ok">104%</div>
+      </div>
+    </div>
+    <div class="bar-wrap">
+      <div class="bar-track"><div class="bar-fill ng"    style="width:69%"></div></div>
+      <div class="bar-track"><div class="bar-fill ok"   style="width:100%"></div></div>
+      <div class="bar-track"><div class="bar-fill ok"   style="width:100%"></div></div>
+      <div class="bar-track"><div class="bar-fill ok" style="width:86%"></div></div>
+    </div>
+  </a>
+  <a href="dept_小児科.html" class="dept-card ng" data-name="小児科">
+    <div class="dept-card-head">
+      <div class="dept-name">小児科</div>
+      <span class="dept-badge ng">未達</span>
+    </div>
+    <div class="kpi-mini">
+      <div class="kpi-mini-item">
+        <div class="kmi-label">在院</div>
+        <div class="kmi-value ng">39%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">新入院</div>
+        <div class="kmi-value ng">69%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">全麻</div>
+        <div class="kmi-value neutral">—</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">粗利</div>
+        <div class="kmi-value ng">65%</div>
+      </div>
+    </div>
+    <div class="bar-wrap">
+      <div class="bar-track"><div class="bar-fill ng"    style="width:32%"></div></div>
+      <div class="bar-track"><div class="bar-fill ng"   style="width:57%"></div></div>
+      <div class="bar-track"><div class="bar-fill neutral"   style="width:0%"></div></div>
+      <div class="bar-track"><div class="bar-fill ng" style="width:54%"></div></div>
+    </div>
+  </a>
+  <a href="dept_形成外科.html" class="dept-card ng" data-name="形成外科">
+    <div class="dept-card-head">
+      <div class="dept-name">形成外科</div>
+      <span class="dept-badge ng">未達</span>
+    </div>
+    <div class="kpi-mini">
+      <div class="kpi-mini-item">
+        <div class="kmi-label">在院</div>
+        <div class="kmi-value ng">40%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">新入院</div>
+        <div class="kmi-value ng">67%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">全麻</div>
+        <div class="kmi-value ng">67%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">粗利</div>
+        <div class="kmi-value ng">76%</div>
+      </div>
+    </div>
+    <div class="bar-wrap">
+      <div class="bar-track"><div class="bar-fill ng"    style="width:33%"></div></div>
+      <div class="bar-track"><div class="bar-fill ng"   style="width:56%"></div></div>
+      <div class="bar-track"><div class="bar-fill ng"   style="width:56%"></div></div>
+      <div class="bar-track"><div class="bar-fill ng" style="width:63%"></div></div>
+    </div>
+  </a>
+  <a href="dept_循環器内科.html" class="dept-card warn" data-name="循環器内科">
+    <div class="dept-card-head">
+      <div class="dept-name">循環器内科</div>
+      <span class="dept-badge warn">注意</span>
+    </div>
+    <div class="kpi-mini">
+      <div class="kpi-mini-item">
+        <div class="kmi-label">在院</div>
+        <div class="kmi-value warn">100%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">新入院</div>
+        <div class="kmi-value ng">60%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">全麻</div>
+        <div class="kmi-value neutral">—</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">粗利</div>
+        <div class="kmi-value ok">108%</div>
+      </div>
+    </div>
+    <div class="bar-wrap">
+      <div class="bar-track"><div class="bar-fill warn"    style="width:83%"></div></div>
+      <div class="bar-track"><div class="bar-fill ng"   style="width:50%"></div></div>
+      <div class="bar-track"><div class="bar-fill neutral"   style="width:0%"></div></div>
+      <div class="bar-track"><div class="bar-fill ok" style="width:90%"></div></div>
+    </div>
+  </a>
+  <a href="dept_心臓血管外科.html" class="dept-card warn" data-name="心臓血管外科">
+    <div class="dept-card-head">
+      <div class="dept-name">心臓血管外科</div>
+      <span class="dept-badge warn">注意</span>
+    </div>
+    <div class="kpi-mini">
+      <div class="kpi-mini-item">
+        <div class="kmi-label">在院</div>
+        <div class="kmi-value warn">100%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">新入院</div>
+        <div class="kmi-value ng">—</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">全麻</div>
+        <div class="kmi-value ng">48%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">粗利</div>
+        <div class="kmi-value ok">102%</div>
+      </div>
+    </div>
+    <div class="bar-wrap">
+      <div class="bar-track"><div class="bar-fill warn"    style="width:83%"></div></div>
+      <div class="bar-track"><div class="bar-fill ng"   style="width:0%"></div></div>
+      <div class="bar-track"><div class="bar-fill ng"   style="width:40%"></div></div>
+      <div class="bar-track"><div class="bar-fill ok" style="width:85%"></div></div>
+    </div>
+  </a>
+  <a href="dept_救急科.html" class="dept-card warn" data-name="救急科">
+    <div class="dept-card-head">
+      <div class="dept-name">救急科</div>
+      <span class="dept-badge warn">注意</span>
+    </div>
+    <div class="kpi-mini">
+      <div class="kpi-mini-item">
+        <div class="kmi-label">在院</div>
+        <div class="kmi-value warn">100%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">新入院</div>
+        <div class="kmi-value ng">92%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">全麻</div>
+        <div class="kmi-value neutral">—</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">粗利</div>
+        <div class="kmi-value ng">92%</div>
+      </div>
+    </div>
+    <div class="bar-wrap">
+      <div class="bar-track"><div class="bar-fill warn"    style="width:83%"></div></div>
+      <div class="bar-track"><div class="bar-fill ng"   style="width:76%"></div></div>
+      <div class="bar-track"><div class="bar-fill neutral"   style="width:0%"></div></div>
+      <div class="bar-track"><div class="bar-fill ng" style="width:76%"></div></div>
+    </div>
+  </a>
+  <a href="dept_整形外科.html" class="dept-card ok" data-name="整形外科">
+    <div class="dept-card-head">
+      <div class="dept-name">整形外科</div>
+      <span class="dept-badge ok">達成</span>
+    </div>
+    <div class="kpi-mini">
+      <div class="kpi-mini-item">
+        <div class="kmi-label">在院</div>
+        <div class="kmi-value ok">112%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">新入院</div>
+        <div class="kmi-value ok">153%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">全麻</div>
+        <div class="kmi-value ok">132%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">粗利</div>
+        <div class="kmi-value ng">94%</div>
+      </div>
+    </div>
+    <div class="bar-wrap">
+      <div class="bar-track"><div class="bar-fill ok"    style="width:93%"></div></div>
+      <div class="bar-track"><div class="bar-fill ok"   style="width:100%"></div></div>
+      <div class="bar-track"><div class="bar-fill ok"   style="width:100%"></div></div>
+      <div class="bar-track"><div class="bar-fill ng" style="width:78%"></div></div>
+    </div>
+  </a>
+  <a href="dept_歯科口腔外科.html" class="dept-card ok" data-name="歯科口腔外科">
+    <div class="dept-card-head">
+      <div class="dept-name">歯科口腔外科</div>
+      <span class="dept-badge ok">達成</span>
+    </div>
+    <div class="kpi-mini">
+      <div class="kpi-mini-item">
+        <div class="kmi-label">在院</div>
+        <div class="kmi-value ok">175%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">新入院</div>
+        <div class="kmi-value ok">163%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">全麻</div>
+        <div class="kmi-value ok">156%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">粗利</div>
+        <div class="kmi-value ok">108%</div>
+      </div>
+    </div>
+    <div class="bar-wrap">
+      <div class="bar-track"><div class="bar-fill ok"    style="width:100%"></div></div>
+      <div class="bar-track"><div class="bar-fill ok"   style="width:100%"></div></div>
+      <div class="bar-track"><div class="bar-fill ok"   style="width:100%"></div></div>
+      <div class="bar-track"><div class="bar-fill ok" style="width:90%"></div></div>
+    </div>
+  </a>
+  <a href="dept_泌尿器科.html" class="dept-card ng" data-name="泌尿器科">
+    <div class="dept-card-head">
+      <div class="dept-name">泌尿器科</div>
+      <span class="dept-badge ng">未達</span>
+    </div>
+    <div class="kpi-mini">
+      <div class="kpi-mini-item">
+        <div class="kmi-label">在院</div>
+        <div class="kmi-value ng">57%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">新入院</div>
+        <div class="kmi-value ng">56%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">全麻</div>
+        <div class="kmi-value ng">20%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">粗利</div>
+        <div class="kmi-value ng">89%</div>
+      </div>
+    </div>
+    <div class="bar-wrap">
+      <div class="bar-track"><div class="bar-fill ng"    style="width:47%"></div></div>
+      <div class="bar-track"><div class="bar-fill ng"   style="width:46%"></div></div>
+      <div class="bar-track"><div class="bar-fill ng"   style="width:16%"></div></div>
+      <div class="bar-track"><div class="bar-fill ng" style="width:74%"></div></div>
+    </div>
+  </a>
+  <a href="dept_消化器内科.html" class="dept-card ok" data-name="消化器内科">
+    <div class="dept-card-head">
+      <div class="dept-name">消化器内科</div>
+      <span class="dept-badge ok">達成</span>
+    </div>
+    <div class="kpi-mini">
+      <div class="kpi-mini-item">
+        <div class="kmi-label">在院</div>
+        <div class="kmi-value ok">120%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">新入院</div>
+        <div class="kmi-value ok">100%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">全麻</div>
+        <div class="kmi-value neutral">—</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">粗利</div>
+        <div class="kmi-value warn">97%</div>
+      </div>
+    </div>
+    <div class="bar-wrap">
+      <div class="bar-track"><div class="bar-fill ok"    style="width:100%"></div></div>
+      <div class="bar-track"><div class="bar-fill ok"   style="width:84%"></div></div>
+      <div class="bar-track"><div class="bar-fill neutral"   style="width:0%"></div></div>
+      <div class="bar-track"><div class="bar-fill warn" style="width:81%"></div></div>
+    </div>
+  </a>
+  <a href="dept_産婦人科.html" class="dept-card ng" data-name="産婦人科">
+    <div class="dept-card-head">
+      <div class="dept-name">産婦人科</div>
+      <span class="dept-badge ng">未達</span>
+    </div>
+    <div class="kpi-mini">
+      <div class="kpi-mini-item">
+        <div class="kmi-label">在院</div>
+        <div class="kmi-value ng">50%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">新入院</div>
+        <div class="kmi-value ng">85%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">全麻</div>
+        <div class="kmi-value warn">96%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">粗利</div>
+        <div class="kmi-value ng">76%</div>
+      </div>
+    </div>
+    <div class="bar-wrap">
+      <div class="bar-track"><div class="bar-fill ng"    style="width:42%"></div></div>
+      <div class="bar-track"><div class="bar-fill ng"   style="width:71%"></div></div>
+      <div class="bar-track"><div class="bar-fill warn"   style="width:80%"></div></div>
+      <div class="bar-track"><div class="bar-fill ng" style="width:64%"></div></div>
+    </div>
+  </a>
+  <a href="dept_皮膚科.html" class="dept-card ok" data-name="皮膚科">
+    <div class="dept-card-head">
+      <div class="dept-name">皮膚科</div>
+      <span class="dept-badge ok">達成</span>
+    </div>
+    <div class="kpi-mini">
+      <div class="kpi-mini-item">
+        <div class="kmi-label">在院</div>
+        <div class="kmi-value ok">140%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">新入院</div>
+        <div class="kmi-value ok">200%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">全麻</div>
+        <div class="kmi-value ng">83%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">粗利</div>
+        <div class="kmi-value ok">103%</div>
+      </div>
+    </div>
+    <div class="bar-wrap">
+      <div class="bar-track"><div class="bar-fill ok"    style="width:100%"></div></div>
+      <div class="bar-track"><div class="bar-fill ok"   style="width:100%"></div></div>
+      <div class="bar-track"><div class="bar-fill ng"   style="width:69%"></div></div>
+      <div class="bar-track"><div class="bar-fill ok" style="width:86%"></div></div>
+    </div>
+  </a>
+  <a href="dept_眼科.html" class="dept-card ng" data-name="眼科">
+    <div class="dept-card-head">
+      <div class="dept-name">眼科</div>
+      <span class="dept-badge ng">未達</span>
+    </div>
+    <div class="kpi-mini">
+      <div class="kpi-mini-item">
+        <div class="kmi-label">在院</div>
+        <div class="kmi-value ng">76%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">新入院</div>
+        <div class="kmi-value ok">126%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">全麻</div>
+        <div class="kmi-value neutral">—</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">粗利</div>
+        <div class="kmi-value ok">100%</div>
+      </div>
+    </div>
+    <div class="bar-wrap">
+      <div class="bar-track"><div class="bar-fill ng"    style="width:63%"></div></div>
+      <div class="bar-track"><div class="bar-fill ok"   style="width:100%"></div></div>
+      <div class="bar-track"><div class="bar-fill neutral"   style="width:0%"></div></div>
+      <div class="bar-track"><div class="bar-fill ok" style="width:83%"></div></div>
+    </div>
+  </a>
+  <a href="dept_総合内科.html" class="dept-card ng" data-name="総合内科">
+    <div class="dept-card-head">
+      <div class="dept-name">総合内科</div>
+      <span class="dept-badge ng">未達</span>
+    </div>
+    <div class="kpi-mini">
+      <div class="kpi-mini-item">
+        <div class="kmi-label">在院</div>
+        <div class="kmi-value ng">92%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">新入院</div>
+        <div class="kmi-value ok">100%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">全麻</div>
+        <div class="kmi-value neutral">—</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">粗利</div>
+        <div class="kmi-value warn">99%</div>
+      </div>
+    </div>
+    <div class="bar-wrap">
+      <div class="bar-track"><div class="bar-fill ng"    style="width:76%"></div></div>
+      <div class="bar-track"><div class="bar-fill ok"   style="width:84%"></div></div>
+      <div class="bar-track"><div class="bar-fill neutral"   style="width:0%"></div></div>
+      <div class="bar-track"><div class="bar-fill warn" style="width:82%"></div></div>
+    </div>
+  </a>
+  <a href="dept_耳鼻咽喉科.html" class="dept-card ng" data-name="耳鼻咽喉科">
+    <div class="dept-card-head">
+      <div class="dept-name">耳鼻咽喉科</div>
+      <span class="dept-badge ng">未達</span>
+    </div>
+    <div class="kpi-mini">
+      <div class="kpi-mini-item">
+        <div class="kmi-label">在院</div>
+        <div class="kmi-value ng">87%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">新入院</div>
+        <div class="kmi-value ok">101%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">全麻</div>
+        <div class="kmi-value ok">136%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">粗利</div>
+        <div class="kmi-value ng">89%</div>
+      </div>
+    </div>
+    <div class="bar-wrap">
+      <div class="bar-track"><div class="bar-fill ng"    style="width:72%"></div></div>
+      <div class="bar-track"><div class="bar-fill ok"   style="width:84%"></div></div>
+      <div class="bar-track"><div class="bar-fill ok"   style="width:100%"></div></div>
+      <div class="bar-track"><div class="bar-fill ng" style="width:74%"></div></div>
+    </div>
+  </a>
+  <a href="dept_脳神経内科.html" class="dept-card warn" data-name="脳神経内科">
+    <div class="dept-card-head">
+      <div class="dept-name">脳神経内科</div>
+      <span class="dept-badge warn">注意</span>
+    </div>
+    <div class="kpi-mini">
+      <div class="kpi-mini-item">
+        <div class="kmi-label">在院</div>
+        <div class="kmi-value warn">100%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">新入院</div>
+        <div class="kmi-value ng">81%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">全麻</div>
+        <div class="kmi-value neutral">—</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">粗利</div>
+        <div class="kmi-value ng">82%</div>
+      </div>
+    </div>
+    <div class="bar-wrap">
+      <div class="bar-track"><div class="bar-fill warn"    style="width:83%"></div></div>
+      <div class="bar-track"><div class="bar-fill ng"   style="width:68%"></div></div>
+      <div class="bar-track"><div class="bar-fill neutral"   style="width:0%"></div></div>
+      <div class="bar-track"><div class="bar-fill ng" style="width:68%"></div></div>
+    </div>
+  </a>
+  <a href="dept_脳神経外科.html" class="dept-card ng" data-name="脳神経外科">
+    <div class="dept-card-head">
+      <div class="dept-name">脳神経外科</div>
+      <span class="dept-badge ng">未達</span>
+    </div>
+    <div class="kpi-mini">
+      <div class="kpi-mini-item">
+        <div class="kmi-label">在院</div>
+        <div class="kmi-value ng">93%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">新入院</div>
+        <div class="kmi-value ng">48%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">全麻</div>
+        <div class="kmi-value ok">133%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">粗利</div>
+        <div class="kmi-value ok">102%</div>
+      </div>
+    </div>
+    <div class="bar-wrap">
+      <div class="bar-track"><div class="bar-fill ng"    style="width:78%"></div></div>
+      <div class="bar-track"><div class="bar-fill ng"   style="width:40%"></div></div>
+      <div class="bar-track"><div class="bar-fill ok"   style="width:100%"></div></div>
+      <div class="bar-track"><div class="bar-fill ok" style="width:85%"></div></div>
+    </div>
+  </a>
+  <a href="dept_腎内科.html" class="dept-card ng" data-name="腎内科">
+    <div class="dept-card-head">
+      <div class="dept-name">腎内科</div>
+      <span class="dept-badge ng">未達</span>
+    </div>
+    <div class="kpi-mini">
+      <div class="kpi-mini-item">
+        <div class="kmi-label">在院</div>
+        <div class="kmi-value ng">73%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">新入院</div>
+        <div class="kmi-value ng">56%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">全麻</div>
+        <div class="kmi-value neutral">—</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">粗利</div>
+        <div class="kmi-value warn">97%</div>
+      </div>
+    </div>
+    <div class="bar-wrap">
+      <div class="bar-track"><div class="bar-fill ng"    style="width:61%"></div></div>
+      <div class="bar-track"><div class="bar-fill ng"   style="width:46%"></div></div>
+      <div class="bar-track"><div class="bar-fill neutral"   style="width:0%"></div></div>
+      <div class="bar-track"><div class="bar-fill warn" style="width:81%"></div></div>
+    </div>
+  </a>
+  <a href="dept_血液内科.html" class="dept-card ng" data-name="血液内科">
+    <div class="dept-card-head">
+      <div class="dept-name">血液内科</div>
+      <span class="dept-badge ng">未達</span>
+    </div>
+    <div class="kpi-mini">
+      <div class="kpi-mini-item">
+        <div class="kmi-label">在院</div>
+        <div class="kmi-value ng">76%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">新入院</div>
+        <div class="kmi-value ng">86%</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">全麻</div>
+        <div class="kmi-value neutral">—</div>
+      </div>
+      <div class="kpi-mini-item">
+        <div class="kmi-label">粗利</div>
+        <div class="kmi-value warn">98%</div>
+      </div>
+    </div>
+    <div class="bar-wrap">
+      <div class="bar-track"><div class="bar-fill ng"    style="width:63%"></div></div>
+      <div class="bar-track"><div class="bar-fill ng"   style="width:72%"></div></div>
+      <div class="bar-track"><div class="bar-fill neutral"   style="width:0%"></div></div>
+      <div class="bar-track"><div class="bar-fill warn" style="width:82%"></div></div>
+    </div>
+  </a>
+  </div>
+  <div class="page-footer">
+    <span>📋 診療科別レポート一覧</span>
+    <span>生成: 2026/04/01 07:14 ｜ 基準日: 2026/03/31</span>
+  </div>
+</div>
+<script>
+function filterCards(q) {
+  const term = q.trim().toLowerCase();
+  document.querySelectorAll('#deptGrid .dept-card').forEach(card => {
+    const name = (card.dataset.name || '').toLowerCase();
+    card.classList.toggle('hidden', term !== '' && !name.includes(term));
+  });
+}
+</script>
+</body>
+</html>

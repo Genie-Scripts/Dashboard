@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ dept_name }} — 診療科レポート | 診療ダッシュボード</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#F0F2F5; --card:#FFF; --elevated:#F7F9FC; --hdr:#1D2B3A;
+  --border:#DCE1E9; --accent:#3A6EA5; --accent-lt:#EEF3FA;
+  --txt:#1A2535; --txt2:#5A6A82; --muted:#94A3B8;
+  --ok:#1A9E6A; --ok-bg:#EDFAF4; --warn:#C87A00; --warn-bg:#FEF6E4;
+  --ng:#C0293B; --ng-bg:#FEF0F2;
+  --mono:'IBM Plex Mono',monospace; --r:10px;
+  --shadow:0 1px 4px rgba(0,0,0,.06); --shadow2:0 4px 16px rgba(0,0,0,.10);
+}
+body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--txt);font-size:14px;line-height:1.6}
+
+/* Header */
+.hdr{background:var(--hdr);padding:0 28px;height:56px;display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid var(--accent);position:sticky;top:0;z-index:100}
+.hdr-left{display:flex;align-items:center;gap:12px}
+.hdr-badge{background:var(--accent);color:#fff;font-size:.58rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;padding:3px 9px;border-radius:4px}
+.hdr-title{color:#E8EEF5;font-size:1rem;font-weight:600}
+.hdr-meta{color:#7A90A8;font-size:.72rem;font-family:var(--mono)}
+.hdr-back{color:#7A90A8;font-size:.78rem;text-decoration:none;padding:5px 12px;border:1px solid #3A5068;border-radius:5px;transition:all .12s}
+.hdr-back:hover{background:#253A4D;color:#E8EEF5}
+
+/* Wrapper */
+.wrapper{max-width:1300px;margin:0 auto;padding:20px 20px 60px}
+
+/* Page title */
+.page-title{margin-bottom:20px}
+.page-title h1{font-size:1.3rem;font-weight:700;color:var(--txt);display:flex;align-items:center;gap:10px}
+.page-title .sub{font-size:.8rem;color:var(--txt2);margin-top:4px}
+
+/* Controls */
+.controls{display:flex;gap:8px;align-items:center;padding:10px 0 16px;flex-wrap:wrap}
+.ctrl-btn{padding:6px 14px;border-radius:6px;font-size:.78rem;font-weight:500;border:1px solid var(--border);background:var(--card);color:var(--txt2);cursor:pointer;transition:all .12s}
+.ctrl-btn:hover{background:var(--accent-lt);border-color:var(--accent);color:var(--accent)}
+.ctrl-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.ctrl-sep{color:var(--muted);font-size:.82rem;margin:0 4px}
+
+/* Section */
+.section{margin-bottom:28px}
+.section-head{font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin-bottom:12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);padding-bottom:8px}
+
+/* KPI row */
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.kpi-card{background:var(--card);border-radius:var(--r);padding:18px;border:1px solid var(--border);border-top:3px solid var(--accent);box-shadow:var(--shadow)}
+.kpi-card.ok{border-top-color:var(--ok)}
+.kpi-card.ng{border-top-color:var(--ng)}
+.kpi-card.warn{border-top-color:var(--warn)}
+.kpi-label{font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:6px}
+.kpi-value{font-size:1.7rem;font-weight:700;font-family:var(--mono);line-height:1}
+.kpi-card.ok .kpi-value{color:var(--ok)}
+.kpi-card.ng .kpi-value{color:var(--ng)}
+.kpi-card.warn .kpi-value{color:var(--warn)}
+.kpi-unit{font-size:.72rem;color:var(--txt2);margin-top:2px}
+.kpi-meta{font-size:.75rem;color:var(--txt2);margin-top:8px;border-top:1px solid var(--border);padding-top:8px}
+.progress{width:100%;height:3px;background:var(--elevated);border-radius:99px;margin:8px 0 0;overflow:hidden}
+.progress-fill{height:100%;border-radius:99px;background:var(--accent);transition:width .6s}
+.kpi-card.ok .progress-fill{background:var(--ok)}
+.kpi-card.ng .progress-fill{background:var(--ng)}
+.kpi-card.warn .progress-fill{background:var(--warn)}
+.up{color:var(--ok);font-weight:600}
+.down{color:var(--ng);font-weight:600}
+
+/* Grid 2col */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+
+/* Panel */
+.panel{background:var(--card);border-radius:var(--r);border:1px solid var(--border);box-shadow:var(--shadow);overflow:hidden}
+.panel-head{padding:12px 18px;font-size:.88rem;font-weight:600;background:var(--elevated);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.chart-box{background:var(--card);border-radius:var(--r);border:1px solid var(--border);box-shadow:var(--shadow);padding:16px 16px 8px}
+.chart-title{font-size:.82rem;font-weight:600;margin-bottom:4px;color:var(--txt)}
+
+/* Badge */
+.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:.72rem;font-weight:700;margin:0 2px}
+.badge-ok{background:var(--ok-bg);color:var(--ok)}
+.badge-ng{background:var(--ng-bg);color:var(--ng)}
+.badge-warn{background:var(--warn-bg);color:var(--warn)}
+.badge-neutral{background:var(--elevated);color:var(--muted)}
+
+/* Profit Table */
+.profit-table{width:100%;border-collapse:collapse;font-size:.82rem}
+.profit-table th{text-align:right;padding:7px 12px;font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);border-bottom:1px solid var(--border);background:var(--elevated)}
+.profit-table th:first-child{text-align:left}
+.profit-table td{padding:7px 12px;border-bottom:1px solid #F0F2F5;text-align:right;font-family:var(--mono);font-size:.82rem}
+.profit-table td:first-child{text-align:left;font-family:'Noto Sans JP',sans-serif;font-weight:500}
+.profit-table tr:last-child td{border-bottom:none;font-weight:600;background:var(--elevated)}
+.profit-table tr:hover td{background:var(--accent-lt)}
+.profit-table .ok-txt{color:var(--ok)}
+.profit-table .ng-txt{color:var(--ng)}
+.profit-table .warn-txt{color:var(--warn)}
+
+/* Year comparison bar */
+.yoy-bar{display:flex;align-items:center;gap:8px;margin-top:4px}
+.yoy-bar-track{flex:1;height:8px;background:var(--elevated);border-radius:4px;overflow:hidden}
+.yoy-bar-fill{height:100%;border-radius:4px;background:var(--accent);transition:width .6s}
+.yoy-bar-fill.ok{background:var(--ok)}
+.yoy-bar-fill.warn{background:var(--warn)}
+.yoy-bar-fill.ng{background:var(--ng)}
+
+/* Footnote */
+.footnote{background:var(--card);border:1px solid var(--border);border-radius:var(--r);margin-top:20px;overflow:hidden}
+.footnote-head{padding:10px 18px;font-size:.82rem;font-weight:600;background:var(--elevated);border-bottom:1px solid var(--border);cursor:pointer;display:flex;align-items:center;justify-content:space-between;user-select:none}
+.footnote-body{padding:16px 18px;font-size:.78rem;color:var(--txt2);line-height:1.8;display:none}
+.footnote-body.open{display:block}
+.footnote-body dl{display:grid;grid-template-columns:auto 1fr;gap:4px 16px}
+.footnote-body dt{font-weight:600;color:var(--txt);white-space:nowrap}
+
+@media(max-width:900px){
+  .kpi-row{grid-template-columns:1fr 1fr}
+  .grid2,.grid3{grid-template-columns:1fr}
+}
+@media(max-width:600px){
+  .kpi-row{grid-template-columns:1fr}
+  .wrapper{padding:12px 12px 40px}
+}
+</style>
+</head>
+<body>
+
+<header class="hdr">
+  <div class="hdr-left">
+    <a href="index.html" class="hdr-back">← 一覧へ</a>
+    <span class="hdr-badge">科別</span>
+    <span class="hdr-title">{{ dept_name }} レポート</span>
+  </div>
+  <span class="hdr-meta">📅 {{ generated_at }} 更新 ｜ 基準日: {{ base_date }}</span>
+</header>
+
+<div class="wrapper">
+
+<!-- ページタイトル -->
+<div class="page-title">
+  <h1>🏥 {{ dept_name }}
+    {% if dept_status %}<span class="badge badge-{{ dept_status }}">{{ dept_achievement }}%</span>{% endif %}
+  </h1>
+  <div class="sub">在院・新入院・手術・粗利の統合レポート ｜ 基準日: {{ base_date }}</div>
+</div>
+
+<!-- 期間切替 -->
+<div class="controls">
+  <button class="ctrl-btn"        data-period="7d"   onclick="setPeriod(this,'7d')">直近7日</button>
+  <button class="ctrl-btn active" data-period="28d"  onclick="setPeriod(this,'28d')">直近28日</button>
+  <button class="ctrl-btn"        data-period="365d" onclick="setPeriod(this,'365d')">直近365日</button>
+  <button class="ctrl-btn"        data-period="fy"   onclick="setPeriod(this,'fy')">今年度平均</button>
+</div>
+
+<!-- ═══ 1. KPIサマリー ═══ -->
+<div class="section">
+  <div class="section-head">📊 KPIサマリー（{{ base_date }}現在）<span id="period-label" style="margin-left:10px;font-size:.72rem;font-weight:400;color:var(--muted)">直近28日の週平均</span></div>
+  <div class="kpi-row">
+
+    <!-- 在院 -->
+    <div class="kpi-card {{ inp_status }}">
+      <div class="kpi-label">在院患者数</div>
+      <div class="kpi-value">{{ inp_value }}</div>
+      <div class="kpi-unit">人</div>
+      <div class="kpi-meta">
+        目標 <strong>{{ inp_target }}</strong> 人
+        ｜ 達成 <strong class="{{ inp_status }}-txt">{{ inp_achievement }}%</strong>
+        ｜ 前週比 <span id="inpWow">—</span>
+      </div>
+      {% if inp_achievement %}
+      <div class="progress">
+        <div class="progress-fill" style="width:{{ [inp_progress, 100]|min|round }}%"></div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- 新入院 -->
+    <div class="kpi-card" id="kpi-nadm-card">
+      <div class="kpi-label">新入院患者数</div>
+      <div class="kpi-value" id="kpi-nadm-value">—</div>
+      <div class="kpi-unit" id="kpi-nadm-unit">人/週</div>
+      <div class="kpi-meta">
+        <span id="kpi-nadm-sub">—</span>
+        ｜ 週目標 <strong>{{ nadm_target }}</strong>人
+        ｜ 達成率 <strong id="kpi-nadm-ach" class="">—</strong>
+      </div>
+      <div class="progress">
+        <div class="progress-fill" id="kpi-nadm-bar" style="width:0%"></div>
+      </div>
+    </div>
+
+    <!-- 全麻 -->
+    <div class="kpi-card" id="kpi-surg-card">
+      <div class="kpi-label">全身麻酔手術</div>
+      <div class="kpi-value" id="kpi-surg-value">—</div>
+      <div class="kpi-unit" id="kpi-surg-unit">件/週</div>
+      <div class="kpi-meta">
+        <span id="kpi-surg-sub">—</span>
+        ｜ 週目標 <strong>{{ surg_target }}</strong>件
+        ｜ 達成率 <strong id="kpi-surg-ach" class="">—</strong>
+      </div>
+      <div class="progress">
+        <div class="progress-fill" id="kpi-surg-bar" style="width:0%"></div>
+      </div>
+    </div>
+
+    <!-- 粗利 -->
+    <div class="kpi-card {{ profit_status }}">
+      <div class="kpi-label">粗利（直近月）</div>
+      <div class="kpi-value">{{ profit_value }}</div>
+      <div class="kpi-unit">百万円（{{ profit_month }}）</div>
+      <div class="kpi-meta">
+        月次目標 <strong>{{ profit_target }}</strong> M
+        ｜ 達成 <strong class="{{ profit_status }}-txt">{{ profit_achievement }}%</strong>
+        ｜ 前月比 <span id="profitMom">{{ profit_mom }}</span>
+      </div>
+      {% if profit_achievement %}
+      <div class="progress">
+        <div class="progress-fill" style="width:{{ [profit_progress, 100]|min|round }}%"></div>
+      </div>
+      {% endif %}
+    </div>
+
+  </div><!-- /kpi-row -->
+</div>
+
+<!-- ═══ 2. 入院・手術トレンド ═══ -->
+<div class="section">
+  <div class="section-head">📈 患者数・手術トレンド</div>
+  <div class="grid2">
+    <div class="chart-box">
+      <div class="chart-title">在院患者数（移動平均）</div>
+      <div id="chart-inp" style="height:260px"></div>
+    </div>
+    <div class="chart-box">
+      <div class="chart-title">新入院患者数（移動平均）</div>
+      <div id="chart-nadm" style="height:260px"></div>
+    </div>
+  </div>
+  {% if has_surgery %}
+  <div style="margin-top:14px">
+    <div class="chart-box">
+      <div class="chart-title">全身麻酔件数</div>
+      <div id="chart-surg" style="height:220px"></div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- ═══ 3. 粗利レポート ═══ -->
+<div class="section">
+  <div class="section-head">💰 粗利レポート</div>
+  <div class="grid2">
+    <div class="chart-box">
+      <div class="chart-title">月次粗利推移</div>
+      <div id="chart-profit" style="height:280px"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">📅 月次明細（直近12ヶ月）</div>
+      <div style="overflow-x:auto">
+        <table class="profit-table" id="profitTable">
+          <thead>
+            <tr>
+              <th style="text-align:left">月</th>
+              <th>粗利(百万円)</th>
+              <th>目標(百万円)</th>
+              <th>達成率</th>
+              <th>前月比</th>
+            </tr>
+          </thead>
+          <tbody id="profitTableBody"><!-- JS で描画 --></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- 年度累計サマリー -->
+  <div style="margin-top:14px">
+    <div class="panel">
+      <div class="panel-head">📊 今年度 累計実績</div>
+      <div style="padding:16px 20px">
+        <div class="grid3">
+          <div>
+            <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:4px">年度累計粗利</div>
+            <div style="font-size:1.6rem;font-weight:700;font-family:var(--mono)" id="ytdTotal">—</div>
+            <div style="font-size:.75rem;color:var(--txt2)">百万円</div>
+          </div>
+          <div>
+            <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:4px">年度目標（月次×12）</div>
+            <div style="font-size:1.6rem;font-weight:700;font-family:var(--mono)" id="ytdTarget">—</div>
+            <div style="font-size:.75rem;color:var(--txt2)">百万円</div>
+          </div>
+          <div>
+            <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:4px">年度進捗率</div>
+            <div style="font-size:1.6rem;font-weight:700;font-family:var(--mono)" id="ytdAch">—</div>
+            <div id="ytdBar" style="margin-top:6px">
+              <div class="yoy-bar-track" style="height:6px">
+                <div class="yoy-bar-fill" id="ytdBarFill" style="width:0%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /粗利セクション -->
+
+<!-- ═══ 脚注 ═══ -->
+<div class="footnote">
+  <div class="footnote-head" onclick="toggleFootnote()">
+    <span>📖 指標定義・注意事項</span>
+    <span id="footnoteArrow">▼</span>
+  </div>
+  <div class="footnote-body" id="footnoteBody">
+    <dl>
+      <dt>在院患者数</dt><dd>各日の在院患者総数（新入院患者数 = 入院+緊急入院）</dd>
+      <dt>全身麻酔</dt><dd>「全身麻酔(20分以上：吸入もしくは静脈麻酔薬)」を含む手術件数</dd>
+      <dt>粗利</dt><dd>単位: 千円（テーブル）/ 百万円（グラフ・KPI）。達成率 = 実績÷月次目標×100</dd>
+      <dt>年度進捗率</dt><dd>年度累計 ÷ (月次目標 × 経過月数) × 100</dd>
+      <dt>移動平均</dt><dd>直近7日の単純移動平均</dd>
+      <dt>基準日</dt><dd>{{ base_date }}</dd>
+    </dl>
+  </div>
+</div>
+
+</div><!-- /wrapper -->
+
+<!-- ═══ EMBEDDED DATA ═══ -->
+<script>
+const DEPT     = {{ dept_name_json | safe }};
+const SERIES   = {{ series_json    | safe }};
+const PROFIT   = {{ profit_json    | safe }};
+const BASE_DATE= {{ base_date_raw  | safe }};
+
+let STATE = { period: '28d' };
+
+/* ── Layout base ────────────────────────── */
+const BASE_LAYOUT = {
+  paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)',
+  font:{family:'Noto Sans JP, IBM Plex Mono, sans-serif', size:11, color:'#5A6A82'},
+  margin:{t:28,b:36,l:46,r:14},
+  xaxis:{gridcolor:'#DCE1E9',linecolor:'#DCE1E9',tickfont:{size:10,color:'#5A6A82'},type:'date'},
+  yaxis:{gridcolor:'#DCE1E9',linecolor:'#DCE1E9',tickfont:{size:10,color:'#5A6A82'},rangemode:'tozero',zeroline:false},
+  legend:{orientation:'h',x:0,y:-0.22,font:{size:10},bgcolor:'rgba(0,0,0,0)'},
+  hovermode:'x unified',
+  hoverlabel:{bgcolor:'#1D2B3A',font:{color:'#E8EEF5',size:11},bordercolor:'#3A6EA5'},
+};
+const CFG = {displayModeBar:false, responsive:true};
+
+const COLORS = {
+  ma:'#0D9488', bar:'rgba(58,110,165,0.45)',
+  target:'#C0293B', yoy:'#94A3B8',
+};
+
+/* ── Period filter ──────────────────────── */
+function filterByPeriod(dates, values, period) {
+  const bd = new Date(BASE_DATE);
+  let start;
+  if      (period==='7d')   start = new Date(bd-6*864e5);
+  else if (period==='28d')  start = new Date(bd-27*864e5);
+  else if (period==='365d') start = new Date(bd-364*864e5);
+  else if (period==='fy'){
+    const m=bd.getMonth(); const y=m>=3?bd.getFullYear():bd.getFullYear()-1;
+    start=new Date(y,3,1);
+  }
+  const s=start.toISOString().slice(0,10), e=bd.toISOString().slice(0,10);
+  const idx=dates.reduce((a,d,i)=>{if(d>=s&&d<=e)a.push(i);return a;},[]);
+  return {dates:idx.map(i=>dates[i]), values:idx.map(i=>values[i])};
+}
+
+function movingAvg(vals, w=7){
+  return vals.map((_,i)=>{
+    const sl=vals.slice(Math.max(0,i-w+1),i+1).filter(v=>v!=null);
+    return sl.length?+(sl.reduce((a,b)=>a+b,0)/sl.length).toFixed(1):null;
+  });
+}
+
+function targetLine(tgt, d0, d1, lbl){
+  return {
+    shapes:[{type:'line',x0:d0,x1:d1,y0:tgt,y1:tgt,
+              line:{color:COLORS.target,width:1.5,dash:'dash'}}],
+    annots:[{x:d1,y:tgt,text:lbl,showarrow:false,xanchor:'right',yanchor:'bottom',
+              font:{size:9,color:COLORS.target}}],
+  };
+}
+
+/* ── 在院グラフ ─────────────────────────── */
+function renderInpatient(){
+  const src = SERIES.inpatient || {dates:[],values:[]};
+  const {dates,values} = filterByPeriod(src.dates, src.values, STATE.period);
+  if(!dates.length) return;
+  const win = STATE.period==='7d'?7:STATE.period==='28d'?7:14;
+  const ma  = movingAvg(values, win);
+  const tgt = SERIES.targets?.inpatient || null;
+  const tl  = tgt ? targetLine(tgt, dates[0], dates[dates.length-1], `目標 ${tgt}人`) : {shapes:[],annots:[]};
+  const layout = Object.assign({},BASE_LAYOUT,{
+    title:{text:'在院患者数',font:{size:12,color:'#1A2535'},x:0},
+    shapes:tl.shapes, annotations:tl.annots,
+  });
+  Plotly.react('chart-inp',[
+    {type:'bar',name:'実績',x:dates,y:values,marker:{color:COLORS.bar},opacity:.5,
+     hovertemplate:'%{y}人<extra>実績</extra>'},
+    {type:'scatter',mode:'lines',name:`${win}日MA`,x:dates,y:ma,
+     line:{color:COLORS.ma,width:2.5},hovertemplate:'%{y:.1f}人<extra>MA</extra>'},
+  ],layout,CFG);
+}
+
+/* ── 新入院グラフ ────────────────────────── */
+function renderNewAdm(){
+  const src = SERIES.new_admission || {dates:[],values:[]};
+  const {dates,values} = filterByPeriod(src.dates, src.values, STATE.period);
+  if(!dates.length) return;
+  const win=STATE.period==='7d'?7:STATE.period==='28d'?7:14;
+  const ma=movingAvg(values,win);
+  const wkTgt = SERIES.targets?.new_admission_weekly || null;
+  const dTgt  = wkTgt ? wkTgt/7 : null;
+  const tl = dTgt ? targetLine(dTgt,dates[0],dates[dates.length-1],`週${Math.round(wkTgt)}/日${dTgt.toFixed(0)}`) : {shapes:[],annots:[]};
+  const layout = Object.assign({},BASE_LAYOUT,{
+    title:{text:'新入院患者数',font:{size:12,color:'#1A2535'},x:0},
+    shapes:tl.shapes, annotations:tl.annots,
+    yaxis:Object.assign({},BASE_LAYOUT.yaxis,{title:{text:'人/日',font:{size:10}}}),
+  });
+  Plotly.react('chart-nadm',[
+    {type:'bar',name:'実績',x:dates,y:values,marker:{color:COLORS.bar},opacity:.45,
+     hovertemplate:'%{y}人<extra>実績</extra>'},
+    {type:'scatter',mode:'lines',name:`${win}日MA`,x:dates,y:ma,
+     line:{color:COLORS.ma,width:2.5},hovertemplate:'%{y:.1f}人<extra>MA</extra>'},
+  ],layout,CFG);
+}
+
+/* ── 全麻グラフ ─────────────────────────── */
+function renderSurgery(){
+  if(!document.getElementById('chart-surg')) return;
+  const src = SERIES.surgery_ga || {dates:[],values:[]};
+  const {dates,values} = filterByPeriod(src.dates, src.values, STATE.period);
+  if(!dates.length) return;
+  const win=STATE.period==='7d'?7:STATE.period==='28d'?7:14;
+  const ma=movingAvg(values,win);
+  const wkTgt = SERIES.targets?.surgery_ga_weekly || null;
+  const tl = wkTgt ? targetLine(wkTgt,dates[0],dates[dates.length-1],`週目標 ${wkTgt}件`) : {shapes:[],annots:[]};
+  const layout = Object.assign({},BASE_LAYOUT,{
+    title:{text:'全身麻酔件数',font:{size:12,color:'#1A2535'},x:0},
+    height:220,
+    shapes:tl.shapes, annotations:tl.annots,
+  });
+  Plotly.react('chart-surg',[
+    {type:'bar',name:'全麻件数',x:dates,y:values,
+     marker:{color:'rgba(13,148,136,0.50)'},
+     hovertemplate:'%{y}件<extra>実績</extra>'},
+    {type:'scatter',mode:'lines+markers',name:`${win}日MA`,x:dates,y:ma,
+     line:{color:'#0D9488',width:2.5},marker:{size:4},
+     hovertemplate:'%{y:.1f}件<extra>MA</extra>'},
+  ],layout,CFG);
+}
+
+/* ── 粗利グラフ ─────────────────────────── */
+function renderProfit(){
+  if(!PROFIT || !PROFIT.months) return;
+  const months = PROFIT.months;
+  const values = PROFIT.values;
+  const target = PROFIT.target;
+  const achs   = PROFIT.achievements || [];
+
+  // 色付け（達成率ベース、粗利は100/95%基準）
+  const colors = achs.map(a =>
+    a == null ? 'rgba(58,110,165,0.55)' :
+    a >= 100  ? 'rgba(22,163,74,0.65)'  :
+    a >= 95   ? 'rgba(217,119,6,0.65)'  :
+                'rgba(220,38,38,0.55)'
+  );
+
+  const shapes=[], annots=[];
+  if(target && months.length){
+    shapes.push({type:'line',x0:months[0],x1:months[months.length-1],
+                  y0:target,y1:target,line:{color:'#C0293B',width:1.5,dash:'dash'}});
+    annots.push({x:months[months.length-1],y:target,text:`目標 ${target}M`,
+                  showarrow:false,xanchor:'right',yanchor:'bottom',
+                  font:{size:9,color:'#C0293B'}});
+  }
+
+  const layout = Object.assign({},BASE_LAYOUT,{
+    title:{text:'月次粗利推移（百万円）',font:{size:12,color:'#1A2535'},x:0},
+    height:280,
+    xaxis:Object.assign({},BASE_LAYOUT.xaxis,{type:'category',tickangle:-30}),
+    yaxis:Object.assign({},BASE_LAYOUT.yaxis,{title:{text:'百万円',font:{size:10}}}),
+    shapes, annotations:annots,
+  });
+
+  Plotly.react('chart-profit',[
+    {type:'bar',name:'粗利',x:months,y:values,
+     marker:{color:colors},
+     text:values.map(v=>`${v.toFixed(0)}`),
+     textposition:'outside',textfont:{size:9},
+     hovertemplate:'%{x}: %{y:.1f}百万円<extra></extra>'},
+  ],layout,CFG);
+}
+
+/* ── 粗利テーブル ────────────────────────── */
+function renderProfitTable(){
+  const tbody = document.getElementById('profitTableBody');
+  if(!tbody || !PROFIT || !PROFIT.months) return;
+
+  const months = PROFIT.months.slice().reverse().slice(0,12);
+  const vals   = PROFIT.values.slice().reverse().slice(0,12);
+  const tgt    = PROFIT.target;
+  const achs   = (PROFIT.achievements||[]).slice().reverse().slice(0,12);
+
+  let html='';
+  let cumTotal=0, cumTgt=0;
+  months.forEach((m,i)=>{
+    const v = vals[i];
+    const a = achs[i];
+    const cls = a==null?'':a>=100?'ok-txt':a>=95?'warn-txt':'ng-txt';
+    const diff = i<vals.length-1 ? v - vals[i+1] : null;
+    const diffStr = diff!=null ? `<span class="${diff>=0?'up':'down'}">${diff>=0?'+':''}${diff.toFixed(1)}</span>` : '—';
+    cumTotal += v;
+    if(tgt) cumTgt += tgt;
+    html += `<tr>
+      <td>${m}</td>
+      <td>${v.toFixed(1)}</td>
+      <td>${tgt!=null?tgt.toFixed(1):'—'}</td>
+      <td class="${cls}">${a!=null?a.toFixed(1)+'%':'—'}</td>
+      <td>${diffStr}</td>
+    </tr>`;
+  });
+  // 合計行
+  const cumAch = cumTgt>0 ? (cumTotal/cumTgt*100).toFixed(1)+'%' : '—';
+  html += `<tr>
+    <td>合計/平均</td>
+    <td>${cumTotal.toFixed(1)}</td>
+    <td>${cumTgt>0?cumTgt.toFixed(1):'—'}</td>
+    <td>${cumAch}</td>
+    <td>—</td>
+  </tr>`;
+  tbody.innerHTML = html;
+}
+
+/* ── 年度累計 KPI ────────────────────────── */
+function renderYtdKpi(){
+  if(!PROFIT || !PROFIT.months) return;
+  // 今年度の月（4月以降）を抽出
+  const bd = new Date(BASE_DATE);
+  const fyYear = bd.getMonth()>=3 ? bd.getFullYear() : bd.getFullYear()-1;
+  const fyStart = `${fyYear}-04`;
+
+  let ytdTotal=0, ytdMonths=0;
+  const tgt = PROFIT.target || 0;
+  PROFIT.months.forEach((m,i)=>{
+    if(m >= fyStart){
+      ytdTotal += PROFIT.values[i]||0;
+      ytdMonths++;
+    }
+  });
+  const ytdTgt   = tgt * 12;
+  const ytdProgTgt = tgt * ytdMonths;
+  const ytdAch   = ytdProgTgt>0 ? (ytdTotal/ytdProgTgt*100) : null;
+
+  const el = (id,val) => { const e=document.getElementById(id); if(e) e.textContent=val; };
+  el('ytdTotal',  ytdTotal.toFixed(1));
+  el('ytdTarget', ytdTgt.toFixed(1));
+  el('ytdAch',    ytdAch!=null ? ytdAch.toFixed(1)+'%' : '—');
+
+  const fill = document.getElementById('ytdBarFill');
+  if(fill && ytdAch!=null){
+    const pct = Math.min(ytdAch, 120)/120*100;
+    fill.style.width = pct+'%';
+    fill.className = 'yoy-bar-fill ' + (ytdAch>=100?'ok':ytdAch>=95?'warn':'ng');
+  }
+}
+
+/* ── イベント ───────────────────────────── */
+/* ── 期間別 KPI カード更新 ─────────────── */
+const PERIOD_LABELS = {
+  '7d':   '直近7日合計',
+  '28d':  '直近28日の週平均',
+  '365d': '直近365日の週平均',
+  'fy':   '今年度の週平均',
+};
+
+function calcPeriodSum(dates, values, period) {
+  /* 期間内の合計と日数を返す */
+  const bd = new Date(BASE_DATE);
+  let start;
+  if      (period==='7d')   start = new Date(bd-6*864e5);
+  else if (period==='28d')  start = new Date(bd-27*864e5);
+  else if (period==='365d') start = new Date(bd-364*864e5);
+  else if (period==='fy'){
+    const m=bd.getMonth(), y=m>=3?bd.getFullYear():bd.getFullYear()-1;
+    start = new Date(y,3,1);
+  }
+  const s = start.toISOString().slice(0,10);
+  const e = bd.toISOString().slice(0,10);
+  let total=0, days=0;
+  dates.forEach((d,i)=>{ if(d>=s&&d<=e){ total+=values[i]||0; days++; } });
+  return {total, days};
+}
+
+function updateKpiCards() {
+  const period = STATE.period;
+  const lbl = PERIOD_LABELS[period] || '';
+
+  // 期間ラベル更新
+  const pl = document.getElementById('period-label');
+  if(pl) pl.textContent = lbl;
+
+  const nadmTgt = SERIES.targets?.new_admission_weekly || null;
+  const surgTgt = SERIES.targets?.surgery_ga_weekly    || null;
+
+  /* --- 新入院カード --- */
+  const nadmSrc = SERIES.new_admission || {dates:[],values:[]};
+  const {total:nadmTotal, days:nadmDays} = calcPeriodSum(nadmSrc.dates, nadmSrc.values, period);
+  const nadmWeekly = nadmDays > 0 ? nadmTotal / nadmDays * 7 : 0;
+  const nadmAch    = nadmTgt  ? nadmWeekly / nadmTgt * 100 : null;
+  const nadmSt     = nadmAch==null?'neutral':nadmAch>=100?'ok':nadmAch>=95?'warn':'ng';
+
+  const setEl = (id, val) => { const e=document.getElementById(id); if(e) e.textContent=val; };
+  const setClass = (id, cls) => {
+    const e=document.getElementById(id); if(!e) return;
+    e.className = cls;
+    // kpi-card のボーダー色も連動
+  };
+
+  if(period==='7d'){
+    setEl('kpi-nadm-value', nadmTotal);
+    setEl('kpi-nadm-unit',  '人（7日合計）');
+    setEl('kpi-nadm-sub',   `週換算 ${nadmWeekly.toFixed(1)}人/週`);
+  } else {
+    setEl('kpi-nadm-value', nadmWeekly.toFixed(1));
+    setEl('kpi-nadm-unit',  '人/週（平均）');
+    setEl('kpi-nadm-sub',   `期間合計 ${nadmTotal}人 / ${nadmDays}日`);
+  }
+  setEl('kpi-nadm-ach', nadmAch!=null ? nadmAch.toFixed(1)+'%' : '—');
+  const nadmAchEl = document.getElementById('kpi-nadm-ach');
+  if(nadmAchEl) nadmAchEl.className = nadmSt+'-txt';
+  const nadmCard = document.getElementById('kpi-nadm-card');
+  if(nadmCard) nadmCard.className = 'kpi-card '+nadmSt;
+  const nadmBar = document.getElementById('kpi-nadm-bar');
+  if(nadmBar){ nadmBar.style.width=Math.min(nadmAch||0,100)+'%'; nadmBar.className='progress-fill '+nadmSt; }
+
+  /* --- 全麻カード --- */
+  const surgSrc = SERIES.surgery_ga || {dates:[],values:[]};
+  const {total:surgTotal, days:surgDays} = calcPeriodSum(surgSrc.dates, surgSrc.values, period);
+  const surgWeekly = surgDays > 0 ? surgTotal / surgDays * 7 : 0;
+  const surgAch    = surgTgt  ? surgWeekly / surgTgt * 100 : null;
+  const surgSt     = surgAch==null?'neutral':surgAch>=100?'ok':surgAch>=95?'warn':'ng';
+
+  if(period==='7d'){
+    setEl('kpi-surg-value', surgTotal);
+    setEl('kpi-surg-unit',  '件（7日合計）');
+    setEl('kpi-surg-sub',   `週換算 ${surgWeekly.toFixed(1)}件/週`);
+  } else {
+    setEl('kpi-surg-value', surgWeekly.toFixed(1));
+    setEl('kpi-surg-unit',  '件/週（平均）');
+    setEl('kpi-surg-sub',   `期間合計 ${surgTotal}件 / ${surgDays}日`);
+  }
+  setEl('kpi-surg-ach', surgAch!=null ? surgAch.toFixed(1)+'%' : '—');
+  const surgAchEl = document.getElementById('kpi-surg-ach');
+  if(surgAchEl) surgAchEl.className = surgSt+'-txt';
+  const surgCard = document.getElementById('kpi-surg-card');
+  if(surgCard) surgCard.className = 'kpi-card '+surgSt;
+  const surgBar = document.getElementById('kpi-surg-bar');
+  if(surgBar){ surgBar.style.width=Math.min(surgAch||0,100)+'%'; surgBar.className='progress-fill '+surgSt; }
+}
+
+function setPeriod(btn, key){
+  STATE.period = key;
+  document.querySelectorAll('[data-period]').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  updateKpiCards();
+  renderInpatient();
+  renderNewAdm();
+  renderSurgery();
+}
+
+function toggleFootnote(){
+  const b=document.getElementById('footnoteBody');
+  const a=document.getElementById('footnoteArrow');
+  b.classList.toggle('open');
+  if(a) a.textContent=b.classList.contains('open')?'▲':'▼';
+}
+
+/* ── 初期化 ─────────────────────────────── */
+window.addEventListener('DOMContentLoaded',()=>{
+  updateKpiCards();
+  renderInpatient();
+  renderNewAdm();
+  renderSurgery();
+  renderProfit();
+  renderProfitTable();
+  renderYtdKpi();
+});
+</script>
+</body>
+</html>

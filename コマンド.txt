@@ -1,0 +1,15 @@
+cd ~/streamlit_project
+source streamlit_env/bin/activate
+cd /Users/Genie/streamlit_project/GitHub/Dashboard
+make deploy
+streamlit run streamlit_app.py
+
+
+
+make serve
+これで `python3 -m http.server 8080` が起動し、以下の URL でアクセスできます。
+http://localhost:8080/portal.html          ← ポータル（起点）
+http://localhost:8080/doctor.html
+http://localhost:8080/nurse.html
+http://localhost:8080/admission/index.html
+http://localhost:8080/reports/index.html

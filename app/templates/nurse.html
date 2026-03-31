@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>診療ダッシュボード（看護師版）</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+/* ── Reset & Base ── */
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--txt);font-size:14px;line-height:1.6;min-height:100vh}
+
+/* ── CSS Variables ── */
+:root{
+  --bg:#F0F2F5;--card:#FFF;--elevated:#F7F9FC;
+  --hdr:#1D2B3A;--border:#DCE1E9;--accent:#0D9488;--accent-lt:#ECFDF5;
+  --txt:#1A2535;--txt2:#5A6A82;--muted:#94A3B8;
+  --ok:#1A9E6A;--ok-bg:#EDFAF4;--warn:#C87A00;--warn-bg:#FEF6E4;
+  --ng:#C0293B;--ng-bg:#FEF0F2;
+  --mono:'IBM Plex Mono',monospace;--r:10px;
+  --shadow:0 1px 4px rgba(0,0,0,.06);--shadow2:0 4px 16px rgba(0,0,0,.10);
+  --status-good:#16a34a;--status-warn:#d97706;--status-bad:#dc2626;
+  --gap-pos:#16a34a;--gap-neg:#dc2626;
+  --nurse-accent:#0D9488;
+}
+
+/* ── Header ── */
+.hdr{background:var(--hdr);padding:0 28px;height:56px;display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid var(--nurse-accent);position:sticky;top:0;z-index:100}
+.hdr-left{display:flex;align-items:center;gap:12px}
+.hdr-badge{background:var(--nurse-accent);color:#fff;font-size:.58rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;padding:3px 9px;border-radius:4px}
+.hdr-role{background:rgba(255,255,255,.12);color:#E8EEF5;font-size:.68rem;font-weight:600;padding:3px 10px;border-radius:4px;border:1px solid rgba(255,255,255,.2)}
+.hdr-title{color:#E8EEF5;font-size:1rem;font-weight:600}
+.hdr-meta{color:#7A90A8;font-size:.72rem;font-family:var(--mono)}
+.hdr-nav a{color:#7A90A8;font-size:.78rem;text-decoration:none;padding:6px 12px;border-radius:6px;border:1px solid rgba(255,255,255,.1);transition:all .15s}
+.hdr-nav a:hover{background:rgba(255,255,255,.08);color:#E8EEF5}
+
+/* ── Wrapper ── */
+.wrapper{max-width:1440px;margin:0 auto;padding:20px 20px 60px}
+
+/* ── Role Brief ── */
+.role-brief{display:flex;gap:12px;flex-wrap:wrap;background:var(--elevated);border:1px solid var(--border);border-radius:var(--r);padding:12px 18px;margin-bottom:20px}
+.role-brief__item{display:flex;align-items:center;gap:6px;font-size:.84rem;color:var(--txt)}
+
+/* ── KPI Cards ── */
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+.kpi-card{background:var(--card);border-radius:var(--r);padding:20px;border:1px solid var(--border);border-top:3px solid var(--nurse-accent);box-shadow:var(--shadow)}
+.kpi-card.ok{border-top-color:var(--status-good)}
+.kpi-card.warn{border-top-color:var(--status-warn)}
+.kpi-card.ng{border-top-color:var(--status-bad)}
+.kpi-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
+.kpi-title{font-size:.82rem;font-weight:600;color:var(--txt);margin-bottom:2px}
+.kpi-period{font-size:.68rem;color:var(--muted)}
+.kpi-badge{padding:3px 10px;border-radius:999px;font-size:.7rem;font-weight:700;white-space:nowrap}
+.kpi-badge.ok{background:#dcfce7;color:#166534}
+.kpi-badge.warn{background:#fef3c7;color:#92400e}
+.kpi-badge.ng{background:#fee2e2;color:#991b1b}
+.kpi-badge.neutral{background:var(--elevated);color:var(--muted)}
+.kpi-value{font-size:1.9rem;font-weight:700;font-family:var(--mono);line-height:1;margin-bottom:3px}
+.kpi-card.ok .kpi-value{color:var(--status-good)}
+.kpi-card.warn .kpi-value{color:var(--status-warn)}
+.kpi-card.ng .kpi-value{color:var(--status-bad)}
+.kpi-unit{font-size:.75rem;color:var(--txt2);font-weight:400;margin-left:3px}
+.kpi-gap{font-size:.82rem;font-weight:600;margin-top:4px}
+.kpi-gap.gap-pos{color:var(--gap-pos)}
+.kpi-gap.gap-neg{color:var(--gap-neg)}
+.kpi-gap.gap-neu{color:var(--muted)}
+.kpi-meta{display:grid;grid-template-columns:1fr 1fr;gap:5px 10px;padding-top:10px;border-top:1px solid var(--border);margin-top:10px}
+.kpi-meta-item{display:flex;justify-content:space-between;font-size:.72rem}
+.kpi-meta-lbl{color:var(--muted)}
+.kpi-meta-val{font-weight:600;color:var(--txt);font-family:var(--mono)}
+.progress{width:100%;height:3px;background:var(--elevated);border-radius:99px;margin-top:10px;overflow:hidden}
+.progress-fill{height:100%;border-radius:99px;background:var(--nurse-accent);transition:width .6s}
+.kpi-card.ok .progress-fill{background:var(--status-good)}
+.kpi-card.warn .progress-fill{background:var(--status-warn)}
+.kpi-card.ng .progress-fill{background:var(--status-bad)}
+.up{color:var(--ok)}.down{color:var(--ng)}
+
+/* ── Toolbar ── */
+.toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;margin-bottom:16px;flex-wrap:wrap}
+.toolbar-left{display:flex;gap:8px;align-items:center}
+.toolbar-right{display:flex;gap:10px;align-items:center}
+.ctrl-btn{padding:6px 14px;border-radius:6px;font-size:.78rem;font-weight:500;border:1px solid var(--border);background:var(--card);color:var(--txt2);cursor:pointer;transition:all .12s}
+.ctrl-btn:hover{background:var(--accent-lt);border-color:var(--accent);color:var(--accent)}
+.ctrl-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.ctrl-toggle{padding:6px 14px;border-radius:6px;font-size:.78rem;font-weight:500;border:1px solid var(--border);background:var(--card);color:var(--txt2);cursor:pointer;transition:all .12s}
+.ctrl-toggle.on{background:var(--accent-lt);color:var(--accent);border-color:#A7F3D0}
+.ward-select{padding:7px 32px 7px 12px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--txt);font-size:.82rem;font-family:'Noto Sans JP',sans-serif;cursor:pointer;outline:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%235A6A82' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;min-width:160px}
+.ward-select:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(13,148,136,.15)}
+
+/* ── Grid Layouts ── */
+.grid-2-1{display:grid;grid-template-columns:minmax(0,2fr) minmax(300px,1fr);gap:16px;margin-bottom:20px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+.grid-1{display:grid;grid-template-columns:1fr;gap:16px;margin-bottom:20px}
+
+/* ── Panel ── */
+.panel{background:var(--card);border-radius:var(--r);border:1px solid var(--border);box-shadow:var(--shadow);overflow:hidden}
+.panel--hero{box-shadow:var(--shadow2)}
+.panel-head{padding:12px 18px;font-size:.88rem;font-weight:600;background:var(--elevated);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px}
+
+/* ── Chart Heights ── */
+.chart-lg{height:420px}
+.chart-md{height:320px}
+.chart-xl{height:460px}
+
+/* ── Rank List ── */
+.rank-list{display:flex;flex-direction:column;gap:8px;padding:12px}
+.rank-item{display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--card);transition:background .1s}
+.rank-item:hover{background:var(--elevated)}
+.rank-item.ok{border-left:4px solid var(--ok)}
+.rank-item.warn{border-left:4px solid var(--warn)}
+.rank-item.ng{border-left:4px solid var(--ng)}
+.rank-item.neutral{border-left:4px solid var(--muted)}
+.rank-no{font-family:var(--mono);font-weight:700;color:var(--muted);font-size:.82rem;text-align:center}
+.rank-no.top1{color:#B45309}
+.rank-no.top2{color:#6B7280}
+.rank-no.top3{color:#C2410C}
+.rank-body{}
+.rank-name{font-weight:600;font-size:.86rem;color:var(--txt);margin-bottom:2px}
+.rank-note{font-size:.72rem;color:var(--txt2)}
+.rank-val{text-align:right;font-family:var(--mono);font-weight:700;font-size:.86rem}
+.rank-val.ok{color:var(--ok)}
+.rank-val.warn{color:var(--warn)}
+.rank-val.ng{color:var(--ng)}
+.rank-val.neutral{color:var(--muted)}
+.rank-empty{padding:20px;text-align:center;color:var(--muted);font-size:.84rem}
+
+/* ── Footnote ── */
+.footnote{background:var(--card);border:1px solid var(--border);border-radius:var(--r);margin-top:20px;overflow:hidden}
+.footnote-head{padding:10px 18px;font-size:.82rem;font-weight:600;background:var(--elevated);border-bottom:1px solid var(--border);cursor:pointer;display:flex;align-items:center;justify-content:space-between;user-select:none}
+.footnote-body{padding:16px 18px;font-size:.78rem;color:var(--txt2);line-height:1.8;display:none}
+.footnote-body.open{display:block}
+.footnote-body dl{display:grid;grid-template-columns:auto 1fr;gap:4px 16px}
+.footnote-body dt{font-weight:600;color:var(--txt);white-space:nowrap}
+.footnote-body dd{margin:0}
+
+/* ── Loading placeholder ── */
+.chart-loading{display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:.84rem;flex-direction:column;gap:8px}
+.chart-loading::before{content:'';width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--nurse-accent);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Responsive ── */
+@media(max-width:1100px){
+  .kpi-row{grid-template-columns:1fr 1fr}
+  .grid-2-1,.grid-2{grid-template-columns:1fr}
+  .chart-lg{height:360px}
+  .chart-xl{height:400px}
+}
+@media(max-width:640px){
+  .kpi-row{grid-template-columns:1fr}
+  .hdr-meta{display:none}
+  .wrapper{padding:12px 12px 40px}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ HEADER ═══ -->
+<header class="hdr">
+  <div class="hdr-left">
+    <span class="hdr-badge">KPI</span>
+    <span class="hdr-title">👩‍⚕️ 診療ダッシュボード</span>
+    <span class="hdr-role">看護師版</span>
+  </div>
+  <div style="display:flex;align-items:center;gap:16px">
+    <nav class="hdr-nav">
+      <a href="portal.html">🏠 ポータル</a>
+      <a href="doctor.html">🩺 医師版</a>
+      <a href="admission/index.html">📥 新入院詳細</a>
+    </nav>
+    <span class="hdr-meta">📅 {{ generated_at }} 更新 ｜ 基準日: {{ base_date }}</span>
+  </div>
+</header>
+
+<div class="wrapper nurse-page">
+
+<!-- ═══ ROLE BRIEF ═══ -->
+<div class="role-brief" id="nurseRoleBrief"><!-- JS 生成 --></div>
+
+<!-- ═══ KPI ROW ═══ -->
+<div class="kpi-row" id="nurseKpiRow">
+  {% for card in nurse_kpi_cards %}
+  <div class="kpi-card {{ card.status }}" id="nkpi-{{ card.id }}">
+    <div class="kpi-head">
+      <div>
+        <div class="kpi-title">{{ card.label }}</div>
+        <div class="kpi-period">{{ card.period }}</div>
+      </div>
+      <span class="kpi-badge {{ card.status }}">{{ card.badge }}</span>
+    </div>
+    <div class="kpi-main">
+      <div class="kpi-value">{{ card.value }}<span class="kpi-unit">{{ card.unit }}</span></div>
+      <div class="kpi-gap {{ card.gap_css | default('gap-neu') }}">{{ card.gap }}</div>
+    </div>
+    <div class="kpi-meta">
+      {% for m in card.meta %}
+      <div class="kpi-meta-item">
+        <span class="kpi-meta-lbl">{{ m.lbl }}</span>
+        <span class="kpi-meta-val">{{ m.val | safe }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% if card.achievement %}
+    <div class="progress"><div class="progress-fill" style="width:{{ [card.progress, 100] | min | round }}%"></div></div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+<!-- ═══ TOOLBAR ═══ -->
+<div class="toolbar">
+  <div class="toolbar-left" id="nursePeriodGroup">
+    <button class="ctrl-btn active" data-period="24w"  onclick="setPeriod(this,'24w')">直近24週</button>
+    <button class="ctrl-btn"        data-period="365d" onclick="setPeriod(this,'365d')">直近1年</button>
+    <button class="ctrl-btn"        data-period="fy"   onclick="setPeriod(this,'fy')">今年度</button>
+  </div>
+  <div class="toolbar-right">
+    <button class="ctrl-toggle" id="nurseYoyBtn" onclick="toggleYoy(this)">📊 昨年度比較</button>
+    <label for="nurseWardSelect" style="font-size:.82rem;font-weight:600;color:var(--txt2)">🏥 病棟</label>
+    <select id="nurseWardSelect" class="ward-select" onchange="selectWard(this.value)">
+      <option value="__all__">全病棟</option>
+    </select>
+  </div>
+</div>
+
+<!-- ═══ ROW A: 病棟稼働ヒートマップ + 要対応病棟ランキング ═══ -->
+<section class="grid-2-1">
+  <div class="panel panel--hero">
+    <div class="panel-head">🏥 病棟別稼働ヒートマップ</div>
+    <div id="nurse-chart-occupancy-heatmap" class="chart-lg"></div>
+  </div>
+  <div class="panel">
+    <div class="panel-head">🔴 要対応病棟ランキング</div>
+    <div id="nurse-rank-watch" class="rank-list"></div>
+  </div>
+</section>
+
+<!-- ═══ ROW B: 入退院負荷積み上げ棒 ═══ -->
+<section class="grid-1">
+  <div class="panel panel--hero">
+    <div class="panel-head">📦 病棟別 入退院負荷の積み上げ棒</div>
+    <div id="nurse-chart-load-stack" class="chart-lg"></div>
+  </div>
+</section>
+
+<!-- ═══ ROW C: 入退院負荷ランキング + フローバランスチャート ═══ -->
+<section class="grid-2">
+  <div class="panel">
+    <div class="panel-head">📋 入退院負荷ランキング</div>
+    <div id="nurse-rank-load" class="rank-list"></div>
+  </div>
+  <div class="panel">
+    <div class="panel-head">🔄 病棟フローバランスチャート</div>
+    <div id="nurse-chart-balance" class="chart-md"></div>
+  </div>
+</section>
+
+<!-- ═══ ROW D: 時系列チャート 2本（既存） ═══ -->
+<section class="grid-2">
+  <div class="panel">
+    <div class="panel-head">🛏 在院患者数推移</div>
+    <div id="nurse-chart-inpatient" class="chart-md"></div>
+  </div>
+  <div class="panel">
+    <div class="panel-head">📥 新入院患者数推移</div>
+    <div id="nurse-chart-newadm" class="chart-md"></div>
+  </div>
+</section>
+
+<!-- ═══ FOOTNOTE ═══ -->
+<div class="footnote">
+  <div class="footnote-head" onclick="toggleFootnote()">
+    <span>📖 指標定義・注意事項（看護師向け）</span>
+    <span id="footnoteArrow">▼</span>
+  </div>
+  <div class="footnote-body" id="footnoteBody">
+    <dl>
+      <dt>在院患者数</dt><dd>各日の在院患者総数（慣習上「入院患者数」とも呼ぶが実態は在院数）</dd>
+      <dt>新入院患者数</dt><dd>入院患者数 + 緊急入院患者数の合計</dd>
+      <dt>退院患者数</dt><dd>退院 + 死亡退院の合計</dd>
+      <dt>入退院負荷</dt><dd>新入院 + 転入 + 退院 + 転出の合計。病棟の業務量の目安</dd>
+      <dt>稼働率</dt><dd>在院患者数 ÷ 病床数 × 100%</dd>
+      <dt>要対応スコア</dt><dd>稼働率超過度・入退院負荷の加重合計。スコアが高いほど要対応</dd>
+      <dt>達成率</dt><dd>実績 ÷ 目標 × 100。緑 ≥105% / 橙 ≥95% / 赤 &lt;95%</dd>
+      <dt>03B病棟</dt><dd>目標未設定のため達成率非表示。データは集計に含む</dd>
+      <dt>データ基準日</dt><dd>{{ base_date }} のデータまでを集計対象とする</dd>
+    </dl>
+  </div>
+</div>
+
+</div><!-- /wrapper -->
+
+<!-- ═══ EMBEDDED DATA ═══ -->
+<script>
+const DASH_DATA   = {{ chart_data_json | safe }};
+const NURSE_CHART = {{ nurse_chart_json | safe }};
+const ROLE_BRIEF  = {{ nurse_highlight | safe }};
+const NURSE_WATCH = {{ nurse_watch_json | safe }};
+const NURSE_LOAD  = {{ nurse_load_json  | safe }};
+const WARD_LIST   = {{ ward_list_json  | safe }};
+const RANK_DATA   = {
+  ward_inp:  {{ rank_ward_inp_json  | safe }},
+  ward_nadm: {{ rank_ward_nadm_json | safe }},
+};
+
+let STATE = {period:'24w', yoy:false, ward:'__all__'};
+
+// ─── 共通ユーティリティ ───
+const COLORS = {
+  actual:'#0D9488', ma:'#3A6EA5', target:'#C0293B', yoy:'#94A3B8',
+  ok:'#16a34a', warn:'#d97706', ng:'#dc2626',
+  barAdm:'rgba(13,148,136,0.55)', barDis:'rgba(192,41,59,0.45)',
+  barTin:'rgba(13,148,136,0.30)', barTout:'rgba(192,41,59,0.25)',
+};
+const BASE_LAYOUT = {
+  paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)',
+  font:{family:'Noto Sans JP, IBM Plex Mono, sans-serif',size:11,color:'#5A6A82'},
+  margin:{t:32,b:36,l:46,r:14},
+  xaxis:{gridcolor:'#DCE1E9',linecolor:'#DCE1E9',tickfont:{size:10,color:'#5A6A82'},type:'date'},
+  yaxis:{gridcolor:'#DCE1E9',linecolor:'#DCE1E9',tickfont:{size:10,color:'#5A6A82'},rangemode:'tozero',zeroline:false},
+  legend:{orientation:'h',x:0,y:-0.22,font:{size:10},bgcolor:'rgba(0,0,0,0)'},
+  hovermode:'x unified',
+  hoverlabel:{bgcolor:'#1D2B3A',font:{color:'#E8EEF5',size:11},bordercolor:'#0D9488'},
+};
+const CHART_CONFIG = {displayModeBar:false,responsive:true};
+
+function movingAvg(values,w=7){
+  return values.map((_,i)=>{
+    const sl=values.slice(Math.max(0,i-w+1),i+1).filter(v=>v!=null);
+    return sl.length?+(sl.reduce((a,b)=>a+b,0)/sl.length).toFixed(1):null;
+  });
+}
+function weeklyAgg(dates,values){
+  const map={};
+  dates.forEach((d,i)=>{
+    const dt=new Date(d),day=dt.getDay();
+    const mon=new Date(dt-((day===0?6:day-1)*864e5));
+    const key=mon.toISOString().slice(0,10);
+    if(!map[key])map[key]={sum:0,cnt:0};
+    if(values[i]!=null){map[key].sum+=values[i];map[key].cnt++;}
+  });
+  const keys=Object.keys(map).sort();
+  return{dates:keys,values:keys.map(k=>map[k].cnt?+(map[k].sum/map[k].cnt).toFixed(1):null)};
+}
+function filterSeries(src,periodKey){
+  const dates=src.dates,values=src.values,bd=DASH_DATA.base_date;
+  const end=new Date(bd);let start;
+  if(periodKey==='7d')start=new Date(end-6*864e5);
+  else if(periodKey==='12w')start=new Date(end-84*864e5);
+  else if(periodKey==='24w')start=new Date(end-168*864e5);
+  else if(periodKey==='365d')start=new Date(end-364*864e5);
+  else if(periodKey==='fy'){const m=end.getMonth(),y=m>=3?end.getFullYear():end.getFullYear()-1;start=new Date(y,3,1);}
+  const s=start.toISOString().slice(0,10),e=end.toISOString().slice(0,10);
+  const idx=dates.reduce((a,d,i)=>{if(d>=s&&d<=e)a.push(i);return a;},[]);
+  const fd=idx.map(i=>dates[i]),fv=idx.map(i=>values[i]);
+  if(periodKey!=='7d'&&fd.length>0)return weeklyAgg(fd,fv);
+  return{dates:fd,values:fv};
+}
+function getWardSeries(key){
+  if(STATE.ward==='__all__')return DASH_DATA.global[key]||{dates:[],values:[]};
+  const w=DASH_DATA.by_ward[STATE.ward];
+  return(w&&w[key])||DASH_DATA.global[key]||{dates:[],values:[]};
+}
+function wardSuffix(){
+  if(STATE.ward==='__all__')return'';
+  return`（${WARD_LIST[STATE.ward]||STATE.ward}）`;
+}
+function targetLine(target,d0,d1,label='目標'){
+  return{
+    shapes:[{type:'line',x0:d0,x1:d1,y0:target,y1:target,line:{color:COLORS.target,width:1.5,dash:'dash'}}],
+    annotations:[{x:d1,y:target,text:label,showarrow:false,xanchor:'right',yanchor:'bottom',font:{size:9,color:COLORS.target}}],
+  };
+}
+
+// ─── Role Brief ───
+const RB_ICON={ok:'🟢',warn:'🟡',ng:'🔴',neutral:'⚪'};
+function renderRoleBrief(){
+  const el=document.getElementById('nurseRoleBrief');
+  if(!el||!Array.isArray(ROLE_BRIEF))return;
+  el.innerHTML=ROLE_BRIEF.map(item=>`<div class="role-brief__item"><span>${RB_ICON[item.status]||'⚪'}</span>${item.text}</div>`).join('');
+}
+
+// ─── 病棟プルダウン初期化 ───
+function initWardSelect(){
+  const sel=document.getElementById('nurseWardSelect');
+  if(!sel)return;
+  Object.entries(WARD_LIST).sort((a,b)=>a[0].localeCompare(b[0])).forEach(([code,name])=>{
+    const opt=document.createElement('option');
+    opt.value=code;opt.textContent=name;
+    sel.appendChild(opt);
+  });
+}
+
+// ═══════════════════════════════════════════
+// 新ランキング描画
+// ═══════════════════════════════════════════
+function rankNoClass(i){return i===0?'top1':i===1?'top2':i===2?'top3':'';}
+
+function renderNurseWatchRank(){
+  const rows=NURSE_WATCH||[];
+  const el=document.getElementById('nurse-rank-watch');
+  if(!rows.length){el.innerHTML='<div class="rank-empty">データなし</div>';return;}
+  el.innerHTML=rows.map((r,i)=>`
+    <div class="rank-item ${r.status}">
+      <div class="rank-no ${rankNoClass(i)}">${i+1}</div>
+      <div class="rank-body">
+        <div class="rank-name">${r.ward_name}</div>
+        <div class="rank-note">${r.note}</div>
+      </div>
+      <div class="rank-val ${r.status}">${r.watch_score.toFixed(1)}<span style="font-size:.65rem;color:var(--muted);margin-left:2px">pt</span></div>
+    </div>`).join('');
+}
+
+function renderNurseLoadRank(){
+  const rows=NURSE_LOAD||[];
+  const el=document.getElementById('nurse-rank-load');
+  if(!rows.length){el.innerHTML='<div class="rank-empty">データなし</div>';return;}
+  el.innerHTML=rows.map((r,i)=>`
+    <div class="rank-item ${r.status}">
+      <div class="rank-no ${rankNoClass(i)}">${i+1}</div>
+      <div class="rank-body">
+        <div class="rank-name">${r.ward_name}</div>
+        <div class="rank-note">新入院 ${r.nadm}人 / 退院 ${r.discharge}人</div>
+      </div>
+      <div class="rank-val ${r.status}">${r.load}<span style="font-size:.65rem;color:var(--muted);margin-left:2px">件</span></div>
+    </div>`).join('');
+}
+
+// ═══════════════════════════════════════════
+// Plotlyチャート描画
+// ═══════════════════════════════════════════
+
+// ─ 病棟別稼働ヒートマップ（実データ版）─
+function renderOccupancyHeatmap(){
+  document.getElementById('nurse-chart-occupancy-heatmap').innerHTML='';
+  const hm = NURSE_CHART.occupancy_heatmap;
+  const useReal = hm && hm.x && hm.x.length && hm.y && hm.y.length;
+
+  if(!useReal){
+    document.getElementById('nurse-chart-occupancy-heatmap').innerHTML=
+      '<div class="chart-loading" style="animation:none">ヒートマップデータなし</div>';return;
+  }
+
+  const layout=Object.assign({},BASE_LAYOUT,{
+    title:{text:`病棟別稼働率ヒートマップ（直近${hm.x.length}週）`,font:{size:12,color:'#1A2535'},x:0},
+    xaxis:{...BASE_LAYOUT.xaxis,type:'category',tickangle:-30,tickfont:{size:9}},
+    yaxis:{...BASE_LAYOUT.yaxis,type:'category',autorange:'reversed',tickfont:{size:9}},
+    margin:{t:32,b:60,l:90,r:60},
+  });
+
+  Plotly.react('nurse-chart-occupancy-heatmap',[{
+    type:'heatmap',z:hm.z,x:hm.x,y:hm.y,
+    colorscale:[
+      [0,'#1A9E6A'],[0.7,'#1A9E6A'],
+      [0.75,'#C87A00'],[0.9,'#C87A00'],
+      [0.95,'#C0293B'],[1,'#C0293B'],
+    ],
+    zmin:60,zmax:110,
+    hovertemplate:'%{y}<br>%{x}週<br>稼働率: %{z}%<extra></extra>',
+    colorbar:{title:{text:'稼働率%',side:'right'},thickness:14,len:0.7,
+              tickvals:[70,80,90,100,110],ticktext:['70%','80%','90%','100%','110%']},
+  }],layout,CHART_CONFIG);
+}
+
+// ─ 入退院負荷積み上げ棒（実データ版）─
+function renderLoadStackChart(){
+  document.getElementById('nurse-chart-load-stack').innerHTML='';
+  const ls = NURSE_CHART.load_stack;
+  const useReal = ls && ls.wards && ls.wards.length;
+
+  if(!useReal){
+    // fallback: NURSE_LOAD
+    const rows=NURSE_LOAD.slice(0,10);
+    if(!rows.length)return;
+    const x=rows.map(r=>r.ward_name);
+    const layout=Object.assign({},BASE_LAYOUT,{
+      title:{text:'病棟別 入退院負荷内訳（昨日・概算）',font:{size:12,color:'#1A2535'},x:0},
+      barmode:'stack',xaxis:{...BASE_LAYOUT.xaxis,type:'category',tickangle:-30,tickfont:{size:9}},
+      yaxis:{...BASE_LAYOUT.yaxis,title:{text:'件数',font:{size:10}}},
+      margin:{t:32,b:70,l:46,r:14},
+    });
+    Plotly.react('nurse-chart-load-stack',[
+      {type:'bar',name:'新入院',x,y:rows.map(r=>r.nadm),marker:{color:COLORS.barAdm}},
+      {type:'bar',name:'退院', x,y:rows.map(r=>r.discharge),marker:{color:COLORS.barDis}},
+    ],layout,CHART_CONFIG); return;
+  }
+
+  const x = ls.wards;
+  const dateLabel = ls.date ? `（${ls.date}）` : '';
+  const layout=Object.assign({},BASE_LAYOUT,{
+    title:{text:`病棟別 入退院負荷内訳${dateLabel}`,font:{size:12,color:'#1A2535'},x:0},
+    barmode:'stack',
+    xaxis:{...BASE_LAYOUT.xaxis,type:'category',tickangle:-30,tickfont:{size:9}},
+    yaxis:{...BASE_LAYOUT.yaxis,title:{text:'件数',font:{size:10}}},
+    margin:{t:32,b:70,l:46,r:14},
+  });
+
+  const traces = [];
+  if(ls.nadm&&ls.nadm.some(v=>v>0))
+    traces.push({type:'bar',name:'予定入院',x,y:ls.nadm,
+                 marker:{color:'rgba(58,110,165,0.70)'},
+                 hovertemplate:'%{y}件<extra>予定入院</extra>'});
+  if(ls.emg&&ls.emg.some(v=>v>0))
+    traces.push({type:'bar',name:'緊急入院',x,y:ls.emg,
+                 marker:{color:'rgba(200,122,0,0.70)'},
+                 hovertemplate:'%{y}件<extra>緊急入院</extra>'});
+  if(ls.tin&&ls.tin.some(v=>v>0))
+    traces.push({type:'bar',name:'転入',x,y:ls.tin,
+                 marker:{color:'rgba(58,110,165,0.35)'},
+                 hovertemplate:'%{y}件<extra>転入</extra>'});
+  if(ls.dis&&ls.dis.some(v=>v>0))
+    traces.push({type:'bar',name:'退院',x,y:ls.dis,
+                 marker:{color:'rgba(192,41,59,0.60)'},
+                 hovertemplate:'%{y}件<extra>退院</extra>'});
+  if(ls.tout&&ls.tout.some(v=>v>0))
+    traces.push({type:'bar',name:'転出',x,y:ls.tout,
+                 marker:{color:'rgba(192,41,59,0.30)'},
+                 hovertemplate:'%{y}件<extra>転出</extra>'});
+
+  if(traces.length) Plotly.react('nurse-chart-load-stack',traces,layout,CHART_CONFIG);
+}
+
+// ─ フローバランスチャート（実データ版）─
+function renderFlowBalanceChart(){
+  document.getElementById('nurse-chart-balance').innerHTML='';
+  const fb = NURSE_CHART.flow_balance;
+  const useReal = fb && fb.dates_nadm && fb.dates_nadm.length;
+
+  if(!useReal){
+    // fallback: 既存時系列データ
+    _renderFlowBalanceFallback(); return;
+  }
+
+  // 期間フィルタ適用
+  const bd   = fb.base_date || DASH_DATA.base_date;
+  const end  = new Date(bd);
+  let startMs;
+  if(STATE.period==='365d')     startMs=end-364*864e5;
+  else if(STATE.period==='fy'){ const m=end.getMonth(),y=m>=3?end.getFullYear():end.getFullYear()-1;startMs=new Date(y,3,1).getTime();}
+  else                          startMs=end-168*864e5; // default 24w
+
+  const startStr=new Date(startMs).toISOString().slice(0,10);
+
+  function _filt(dates,vals){
+    const idx=dates.reduce((a,d,i)=>{if(d>=startStr)a.push(i);return a;},[]);
+    return{d:idx.map(i=>dates[i]),v:idx.map(i=>vals[i])};
+  }
+
+  const fN=_filt(fb.dates_nadm,fb.nadm);
+  const fD=_filt(fb.dates_dis, fb.dis);
+  const fI=_filt(fb.dates_inp, fb.inp);
+
+  const layout=Object.assign({},BASE_LAYOUT,{
+    title:{text:'病棟フローバランス'+wardSuffix(),font:{size:12,color:'#1A2535'},x:0},
+    yaxis:{...BASE_LAYOUT.yaxis,title:{text:'週合計（人）',font:{size:10}}},
+    yaxis2:{overlaying:'y',side:'right',tickfont:{size:10,color:'#94A3B8'},
+            gridcolor:'transparent',title:{text:'週平均在院',font:{size:9,color:'#94A3B8'}}},
+    barmode:'group',
+    legend:{orientation:'h',x:0,y:-0.22,font:{size:10},bgcolor:'rgba(0,0,0,0)'},
+  });
+
+  Plotly.react('nurse-chart-balance',[
+    {type:'bar',name:'流入（新入院/週）',x:fN.d,y:fN.v,
+     marker:{color:'rgba(13,148,136,0.65)'},
+     hovertemplate:'%{y}人/週<extra>流入</extra>'},
+    {type:'bar',name:'流出（退院/週）',x:fD.d,y:fD.v,
+     marker:{color:'rgba(192,41,59,0.55)'},
+     hovertemplate:'%{y}人/週<extra>流出</extra>'},
+    {type:'scatter',mode:'lines',name:'在院数（週平均）',
+     x:fI.d,y:fI.v,yaxis:'y2',
+     line:{color:'#5A6A82',width:2},
+     hovertemplate:'%{y:.0f}人<extra>在院</extra>'},
+  ],layout,CHART_CONFIG);
+}
+
+function _renderFlowBalanceFallback(){
+  const nadmSrc=getWardSeries('new_admission');
+  const disSrc=getWardSeries('discharge');
+  const inpSrc=getWardSeries('inpatient');
+  const{dates:dN,values:vN}=filterSeries(nadmSrc,STATE.period);
+  const{dates:dD,values:vD}=filterSeries(disSrc, STATE.period);
+  const{dates:dI,values:vI}=filterSeries(inpSrc, STATE.period);
+  if(!dN.length)return;
+  const layout=Object.assign({},BASE_LAYOUT,{
+    title:{text:'病棟フローバランス'+wardSuffix(),font:{size:12,color:'#1A2535'},x:0},
+    yaxis:{...BASE_LAYOUT.yaxis,title:{text:'人',font:{size:10}}},
+    yaxis2:{overlaying:'y',side:'right',tickfont:{size:10,color:'#94A3B8'},gridcolor:'transparent'},
+    barmode:'group',
+  });
+  Plotly.react('nurse-chart-balance',[
+    {type:'bar',name:'流入（新入院）',x:dN,y:vN,marker:{color:COLORS.barAdm}},
+    {type:'bar',name:'流出（退院）',  x:dD,y:vD,marker:{color:COLORS.barDis}},
+    {type:'scatter',mode:'lines',name:'在院数',x:dI,y:vI,yaxis:'y2',
+     line:{color:'#5A6A82',width:2}},
+  ],layout,CHART_CONFIG);
+}
+
+// ─ YoYトレース追加ユーティリティ ─
+function addYoyTrace(traces, yoyKey, currentDates, label, extraLabel){
+  if(!STATE.yoy) return;
+  const src = DASH_DATA.global[yoyKey];
+  if(!src||!src.dates.length) return;
+  const d0=currentDates[0], d1=currentDates[currentDates.length-1];
+  const pairs=src.dates.reduce((acc,d,i)=>{
+    if(d>=d0&&d<=d1) acc.push([d,src.values[i]]);
+    return acc;
+  },[]);
+  if(!pairs.length) return;
+  traces.push({
+    type:'scatter', mode:'lines', name:label||'前年度',
+    x:pairs.map(p=>p[0]), y:pairs.map(p=>p[1]),
+    line:{color:'#94A3B8', width:1.5, dash:'dot'},
+    opacity:0.65,
+    hovertemplate:`%{y}${extraLabel||''}<extra>前年度</extra>`,
+  });
+}
+
+// ─ 在院患者数推移（YoY対応・hover改善）─
+function renderInpatientChart(){
+  const src=getWardSeries('inpatient');
+  const{dates,values}=filterSeries(src,STATE.period);
+  if(!dates.length)return;
+  const ma=movingAvg(values,STATE.period==='7d'?7:3);
+  const layout=Object.assign({},BASE_LAYOUT,{
+    title:{text:'在院患者数'+wardSuffix(),font:{size:12,color:'#1A2535'},x:0},
+    yaxis:{...BASE_LAYOUT.yaxis,title:{text:'人',font:{size:10}}},
+  });
+  const traces=[
+    {type:'bar',name:'実績',x:dates,y:values,
+     marker:{color:'rgba(13,148,136,0.45)'},opacity:0.55,
+     hovertemplate:'<b>%{x}</b><br>在院: %{y}人<extra>実績</extra>'},
+    {type:'scatter',mode:'lines',name:'移動平均',x:dates,y:ma,
+     line:{color:COLORS.actual,width:2.5},
+     hovertemplate:'MA: %{y:.1f}人<extra>移動平均</extra>'},
+  ];
+  addYoyTrace(traces,'yoy_inpatient',dates,'前年度（在院）','人');
+  Plotly.react('nurse-chart-inpatient',traces,layout,CHART_CONFIG);
+}
+
+function renderNewAdmChart(){
+  const src=getWardSeries('new_admission');
+  const{dates,values}=filterSeries(src,STATE.period);
+  if(!dates.length)return;
+  const ma=movingAvg(values,STATE.period==='7d'?7:3);
+  const layout=Object.assign({},BASE_LAYOUT,{
+    title:{text:'新入院患者数'+wardSuffix(),font:{size:12,color:'#1A2535'},x:0},
+    yaxis:{...BASE_LAYOUT.yaxis,title:{text:'人',font:{size:10}}},
+  });
+  const traces=[
+    {type:'bar',name:'実績',x:dates,y:values,
+     marker:{color:COLORS.barAdm},opacity:0.6,
+     hovertemplate:'<b>%{x}</b><br>新入院: %{y}人<extra>実績</extra>'},
+    {type:'scatter',mode:'lines',name:'移動平均',x:dates,y:ma,
+     line:{color:COLORS.actual,width:2.5},
+     hovertemplate:'MA: %{y:.1f}人<extra>移動平均</extra>'},
+  ];
+  addYoyTrace(traces,'yoy_new_admission',dates,'前年度（新入院）','人');
+  Plotly.react('nurse-chart-newadm',traces,layout,CHART_CONFIG);
+}
+
+function renderAllCharts(){
+  renderOccupancyHeatmap();
+  renderLoadStackChart();
+  renderFlowBalanceChart();
+  renderInpatientChart();
+  renderNewAdmChart();
+}
+
+// ═══════════════════════════════════════════
+// イベントハンドラ
+// ═══════════════════════════════════════════
+function setPeriod(btn,key){
+  STATE.period=key;
+  document.querySelectorAll('[data-period]').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  // 期間変更：時系列チャートとフローバランスを再描画
+  renderFlowBalanceChart();
+  renderInpatientChart();
+  renderNewAdmChart();
+}
+function toggleYoy(btn){
+  STATE.yoy=!STATE.yoy;
+  btn.classList.toggle('on',STATE.yoy);
+  btn.textContent=STATE.yoy?'📊 昨年度比較 ON':'📊 昨年度比較';
+  if(STATE.yoy){
+    const yoy = DASH_DATA.global.yoy_inpatient||{};
+    const bd = DASH_DATA.base_date;
+    const hasYoy = yoy.dates && yoy.dates.some(d=>d<=bd);
+    if(!hasYoy){
+      btn.title='前年同期データがありません（データ範囲外）';
+      btn.style.opacity='0.55';
+    }
+  } else {
+    btn.title=''; btn.style.opacity='';
+  }
+  renderInpatientChart(); renderNewAdmChart();
+}
+function selectWard(val){
+  STATE.ward=val;
+  renderFlowBalanceChart();
+  renderInpatientChart();
+  renderNewAdmChart();
+}
+function toggleFootnote(){
+  const b=document.getElementById('footnoteBody'),a=document.getElementById('footnoteArrow');
+  b.classList.toggle('open');
+  if(a)a.textContent=b.classList.contains('open')?'▲':'▼';
+}
+
+// ═══════════════════════════════════════════
+// 初期化
+// ═══════════════════════════════════════════
+window.addEventListener('DOMContentLoaded',()=>{
+  initWardSelect();
+  renderRoleBrief();
+  renderNurseWatchRank();
+  renderNurseLoadRank();
+  renderAllCharts();
+});
+</script>
+</body>
+</html>
