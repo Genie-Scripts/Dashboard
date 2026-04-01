@@ -161,6 +161,29 @@ body{
   border:1px solid var(--border);margin-left:8px;vertical-align:middle;
 }
 
+/* ── Headline Banner (v1.8) ── */
+.headline-banner{background:var(--card);border-left:4px solid var(--muted);padding:16px 20px;border-radius:var(--r);margin-bottom:20px;display:flex;align-items:flex-start;gap:14px;box-shadow:var(--shadow)}
+.headline-banner.ok{border-left-color:#1A9E6A}
+.headline-banner.warn{border-left-color:#C87A00}
+.headline-banner.ng{border-left-color:#C0293B}
+.headline-icon{font-size:1.5rem;flex-shrink:0;line-height:1}
+.headline-body{flex:1;min-width:0}
+.headline-main{font-size:.95rem;font-weight:700;color:var(--txt);margin-bottom:2px}
+.headline-detail{font-size:.82rem;color:var(--txt2);line-height:1.5}
+
+/* ── Day-over-Day Alert Cards (v1.8) ── */
+.dod-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:20px}
+.dod-card{background:var(--card);border-radius:var(--r);padding:14px 16px;border-left:3px solid var(--muted);box-shadow:var(--shadow);display:flex;align-items:flex-start;gap:10px}
+.dod-card.up{border-left-color:#3A6EA5}
+.dod-card.down{border-left-color:#C0293B}
+.dod-icon{font-size:1.1rem;flex-shrink:0;line-height:1}
+.dod-body{flex:1;min-width:0}
+.dod-entity{font-weight:700;font-size:.85rem;color:var(--txt)}
+.dod-metric{font-size:.72rem;color:var(--muted)}
+.dod-delta{font-size:.82rem;font-weight:600;font-family:var(--mono);margin-top:2px}
+.dod-delta.up{color:#3A6EA5}
+.dod-delta.down{color:#C0293B}
+
 /* ── Footer ── */
 .portal-footer{
   margin-top:40px;padding-top:18px;
@@ -190,7 +213,7 @@ body{
     <span class="hdr-badge">PORTAL</span>
     <span class="hdr-title">🏥 診療ダッシュボード</span>
   </div>
-  <span class="hdr-meta">📅 2026/04/01 16:46 更新 ｜ 基準日: 2026/03/31</span>
+  <span class="hdr-meta">📅 2026/04/02 07:36 更新 ｜ 基準日: 2026/04/01</span>
 </header>
 
 <div class="wrapper">
@@ -199,8 +222,62 @@ body{
 <div class="hero">
   <div class="hero-title">診療 KPI ポータル</div>
   <div class="hero-sub">各ダッシュボードへのアクセスと主要指標のサマリー</div>
-  <div class="hero-date">📊 基準日: 2026-03-31</div>
+  <div class="hero-date">📊 基準日: 2026-04-01</div>
 </div>
+
+<!-- ── Headline Banner (v1.8) ── -->
+
+<div class="headline-banner ng">
+  <div class="headline-icon">🔴</div>
+  <div class="headline-body">
+    <div class="headline-main">新入院が目標を大きく下回っています</div>
+    <div class="headline-detail">直近7日 327人 / 目標385人（達成率85%）。とが不足の主因です</div>
+  </div>
+</div>
+
+
+<!-- ── Day-over-Day Alerts (v1.8) ── -->
+
+<div class="dod-row">
+  
+  <div class="dod-card down">
+    <div class="dod-icon">📉</div>
+    <div class="dod-body">
+      <div class="dod-entity">消化器内科</div>
+      <div class="dod-metric">新入院</div>
+      <div class="dod-delta down">前日比 -6人</div>
+    </div>
+  </div>
+  
+  <div class="dod-card up">
+    <div class="dod-icon">📈</div>
+    <div class="dod-body">
+      <div class="dod-entity">救急科</div>
+      <div class="dod-metric">新入院</div>
+      <div class="dod-delta up">前日比 +6人</div>
+    </div>
+  </div>
+  
+  <div class="dod-card up">
+    <div class="dod-icon">📈</div>
+    <div class="dod-body">
+      <div class="dod-entity">眼科</div>
+      <div class="dod-metric">新入院</div>
+      <div class="dod-delta up">前日比 +5人</div>
+    </div>
+  </div>
+  
+  <div class="dod-card up">
+    <div class="dod-icon">📈</div>
+    <div class="dod-body">
+      <div class="dod-entity">歯科口腔外科</div>
+      <div class="dod-metric">全身麻酔</div>
+      <div class="dod-delta up">前日比 +3件</div>
+    </div>
+  </div>
+  
+</div>
+
 
 <!-- ── KPI Summary ── -->
 <div class="section-label">本日の主要 KPI</div>
@@ -210,12 +287,12 @@ body{
     <div class="kpi-head">
       <div>
         <div class="kpi-title">在院患者数</div>
-        <div class="kpi-period">3/31時点</div>
+        <div class="kpi-period">4/1時点</div>
       </div>
       <span class="kpi-badge ng">未達</span>
     </div>
-    <div class="kpi-value">540<span class="kpi-unit">人</span></div>
-    <div class="kpi-gap gap-neg">目標まで -40.0人</div>
+    <div class="kpi-value">545<span class="kpi-unit">人</span></div>
+    <div class="kpi-gap gap-neg">目標まで -35.0人</div>
     <div class="progress">
       <div class="progress-fill" style="width:78.0%"></div>
     </div>
@@ -229,8 +306,8 @@ body{
       </div>
       <span class="kpi-badge ng">未達</span>
     </div>
-    <div class="kpi-value">329<span class="kpi-unit">人</span></div>
-    <div class="kpi-gap gap-neg">目標まで -56.0人</div>
+    <div class="kpi-value">327<span class="kpi-unit">人</span></div>
+    <div class="kpi-gap gap-neg">目標まで -58.0人</div>
     <div class="progress">
       <div class="progress-fill" style="width:71.0%"></div>
     </div>
@@ -244,10 +321,10 @@ body{
       </div>
       <span class="kpi-badge ng">未達</span>
     </div>
-    <div class="kpi-value">19.3<span class="kpi-unit">件/日</span></div>
-    <div class="kpi-gap gap-neg">目標まで -1.7件/日</div>
+    <div class="kpi-value">19.0<span class="kpi-unit">件/日</span></div>
+    <div class="kpi-gap gap-neg">目標まで -2.0件/日</div>
     <div class="progress">
-      <div class="progress-fill" style="width:77.0%"></div>
+      <div class="progress-fill" style="width:75.0%"></div>
     </div>
   </div>
   
@@ -409,7 +486,7 @@ body{
 <!-- ── Footer ── -->
 <div class="portal-footer">
   <span>🏥 診療ダッシュボード ポータル</span>
-  <span>生成: 2026/04/01 16:46 ｜ 基準日: 2026/03/31</span>
+  <span>生成: 2026/04/02 07:36 ｜ 基準日: 2026/04/01</span>
 </div>
 
 </div><!-- /wrapper -->
