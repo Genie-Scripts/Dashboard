@@ -535,7 +535,7 @@
                 <div class="header-meta-row">
                     <span>&#128202; 全身麻酔のみ</span>
                     <span>&#128197; 最新: 2026年03月31日</span>
-                    <span>&#128336; 出力: 2026年04月01日 13:42</span>
+                    <span>&#128336; 出力: 2026年04月01日 13:58</span>
                 </div>
             </div>
             <div class="header-actions">
@@ -549,7 +549,7 @@
             <h1>🏥 全身麻酔手術レポート年度版</h1>
             <p>分析対象: <strong>全身麻酔のみ</strong></p>
             <div class="latest-data-date">📊 最新データ取得日: 2026年03月31日</div>
-            <div class="update-time">🕐 レポート作成日時: 2026年04月01日 13:42</div>
+            <div class="update-time">🕐 レポート作成日時: 2026年04月01日 13:58</div>
         </div>
 
         <!-- モード切替バー -->
@@ -846,16 +846,18 @@
             function switchDeptTab(w) {
                 document.querySelectorAll('.dept-tab-btn').forEach((b,i) => {
                     b.classList.toggle('active',
-                        (i===0 && w==='7') || (i===1 && w==='28') || (i===2 && w==='fy'));
+                        (i===0 && w==='7') || (i===1 && w==='28') || (i===2 && w==='fy') || (i===3 && w==='py'));
                 });
                 document.getElementById('dept-panel-7').classList.toggle('active',  w==='7');
                 document.getElementById('dept-panel-28').classList.toggle('active', w==='28');
                 // fyタブ: annual/rolling 両パネルの表示を currentMode で制御
                 const isFy = (w === 'fy');
+                const isPy = (w === 'py');
                 const isRollingNow = (typeof currentMode !== 'undefined' && currentMode === 'rolling');
                 const annPanel = document.getElementById('dept-panel-fy-annual');
                 const rolPanel = document.getElementById('dept-panel-fy-rolling');
                 const defPanel = document.getElementById('dept-panel-fy');
+                const pyPanel  = document.getElementById('dept-panel-py');
                 if (annPanel && rolPanel) {
                     annPanel.style.display = (isFy && !isRollingNow) ? 'block' : 'none';
                     rolPanel.style.display = (isFy &&  isRollingNow) ? 'block' : 'none';
@@ -864,6 +866,7 @@
                     // フォールバック（dual モードなし）
                     if (defPanel) defPanel.style.display = isFy ? 'block' : 'none';
                 }
+                if (pyPanel) pyPanel.style.display = isPy ? 'block' : 'none';
             }
             
             // タブ切り替え機能
@@ -1045,6 +1048,7 @@
                     <span id="dept-fy-btn-label">今年度</span><br>
                     <small id="dept-fy-period-label">2025-04-01 〜 2026-03-31</small>
                 </button>
+                <button class="dept-tab-btn" id="dept-btn-py" onclick="switchDeptTab('py')">昨年度<br><small>2024年度（2024-04-01〜2025-03-31）</small></button>
             </div>
             <div class="dept-panel active" id="dept-panel-7">
             <div class="dept-row">
@@ -1711,6 +1715,139 @@
                 <div class="dept-target-line" style="left:7.3%"></div>
               </div>
               <div class="dept-rate">64%</div>
+              <div class="dept-badge below"></div>
+            </div></div>
+            <!-- 昨年度パネル -->
+            <div class="dept-panel" id="dept-panel-py" style="display:none">
+            <div class="dept-row">
+              <div class="dept-name near" title="泌尿器科">泌尿器科</div>
+              <div class="dept-act-tgt">9.6件/週 / 目標10.2件</div>
+              <div class="dept-bar-wrap">
+                <div class="dept-bar-fill near" style="width:35.5%"></div>
+                <div class="dept-target-line" style="left:37.5%"></div>
+              </div>
+              <div class="dept-rate">95%</div>
+              <div class="dept-badge near"></div>
+            </div>
+
+            <div class="dept-row">
+              <div class="dept-name near" title="整形外科">整形外科</div>
+              <div class="dept-act-tgt">25.3件/週 / 目標27.2件</div>
+              <div class="dept-bar-wrap">
+                <div class="dept-bar-fill near" style="width:93.1%"></div>
+                <div class="dept-target-line" style="left:100.0%"></div>
+              </div>
+              <div class="dept-rate">93%</div>
+              <div class="dept-badge near"></div>
+            </div>
+
+            <div class="dept-row">
+              <div class="dept-name near" title="一般消化器外科">一般消化器外科</div>
+              <div class="dept-act-tgt">12.8件/週 / 目標14.1件</div>
+              <div class="dept-bar-wrap">
+                <div class="dept-bar-fill near" style="width:47.2%"></div>
+                <div class="dept-target-line" style="left:51.8%"></div>
+              </div>
+              <div class="dept-rate">91%</div>
+              <div class="dept-badge near"></div>
+            </div>
+
+            <div class="dept-row">
+              <div class="dept-name near" title="乳腺外科">乳腺外科</div>
+              <div class="dept-act-tgt">7.1件/週 / 目標8.1件</div>
+              <div class="dept-bar-wrap">
+                <div class="dept-bar-fill near" style="width:26.0%"></div>
+                <div class="dept-target-line" style="left:29.8%"></div>
+              </div>
+              <div class="dept-rate">87%</div>
+              <div class="dept-badge near"></div>
+            </div>
+
+            <div class="dept-row">
+              <div class="dept-name near" title="歯科口腔外科">歯科口腔外科</div>
+              <div class="dept-act-tgt">2.8件/週 / 目標3.2件</div>
+              <div class="dept-bar-wrap">
+                <div class="dept-bar-fill near" style="width:10.2%"></div>
+                <div class="dept-target-line" style="left:11.8%"></div>
+              </div>
+              <div class="dept-rate">87%</div>
+              <div class="dept-badge near"></div>
+            </div>
+
+            <div class="dept-row">
+              <div class="dept-name near" title="皮膚科">皮膚科</div>
+              <div class="dept-act-tgt">1.0件/週 / 目標1.2件</div>
+              <div class="dept-bar-wrap">
+                <div class="dept-bar-fill near" style="width:3.7%"></div>
+                <div class="dept-target-line" style="left:4.4%"></div>
+              </div>
+              <div class="dept-rate">85%</div>
+              <div class="dept-badge near"></div>
+            </div>
+
+            <div class="dept-row">
+              <div class="dept-name near" title="耳鼻咽喉科">耳鼻咽喉科</div>
+              <div class="dept-act-tgt">6.8件/週 / 目標8.1件</div>
+              <div class="dept-bar-wrap">
+                <div class="dept-bar-fill near" style="width:25.2%"></div>
+                <div class="dept-target-line" style="left:29.8%"></div>
+              </div>
+              <div class="dept-rate">85%</div>
+              <div class="dept-badge near"></div>
+            </div>
+
+            <div class="dept-row">
+              <div class="dept-name near" title="産婦人科">産婦人科</div>
+              <div class="dept-act-tgt">10.5件/週 / 目標12.5件</div>
+              <div class="dept-bar-wrap">
+                <div class="dept-bar-fill near" style="width:38.7%"></div>
+                <div class="dept-target-line" style="left:46.0%"></div>
+              </div>
+              <div class="dept-rate">84%</div>
+              <div class="dept-badge near"></div>
+            </div>
+
+            <div class="dept-row">
+              <div class="dept-name below" title="呼吸器外科">呼吸器外科</div>
+              <div class="dept-act-tgt">2.2件/週 / 目標2.8件</div>
+              <div class="dept-bar-wrap">
+                <div class="dept-bar-fill below" style="width:8.2%"></div>
+                <div class="dept-target-line" style="left:10.3%"></div>
+              </div>
+              <div class="dept-rate">79%</div>
+              <div class="dept-badge below"></div>
+            </div>
+
+            <div class="dept-row">
+              <div class="dept-name below" title="脳神経外科">脳神経外科</div>
+              <div class="dept-act-tgt">2.2件/週 / 目標3.0件</div>
+              <div class="dept-bar-wrap">
+                <div class="dept-bar-fill below" style="width:8.1%"></div>
+                <div class="dept-target-line" style="left:11.0%"></div>
+              </div>
+              <div class="dept-rate">74%</div>
+              <div class="dept-badge below"></div>
+            </div>
+
+            <div class="dept-row">
+              <div class="dept-name below" title="心臓血管外科">心臓血管外科</div>
+              <div class="dept-act-tgt">1.4件/週 / 目標2.1件</div>
+              <div class="dept-bar-wrap">
+                <div class="dept-bar-fill below" style="width:5.3%"></div>
+                <div class="dept-target-line" style="left:7.7%"></div>
+              </div>
+              <div class="dept-rate">68%</div>
+              <div class="dept-badge below"></div>
+            </div>
+
+            <div class="dept-row">
+              <div class="dept-name below" title="形成外科">形成外科</div>
+              <div class="dept-act-tgt">2.0件/週 / 目標3.0件</div>
+              <div class="dept-bar-wrap">
+                <div class="dept-bar-fill below" style="width:7.4%"></div>
+                <div class="dept-target-line" style="left:11.0%"></div>
+              </div>
+              <div class="dept-rate">67%</div>
               <div class="dept-badge below"></div>
             </div></div>
         </div>
