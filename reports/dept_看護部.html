@@ -131,7 +131,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--txt)
     <span class="hdr-badge">科別</span>
     <span class="hdr-title">看護部 レポート</span>
   </div>
-  <span class="hdr-meta">📅 2026/04/01 16:46 更新 ｜ 基準日: 2026/03/31</span>
+  <span class="hdr-meta">📅 2026/04/02 07:48 更新 ｜ 基準日: 2026/04/01</span>
 </header>
 
 <div class="wrapper">
@@ -141,7 +141,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--txt)
   <h1>🏥 看護部
     <span class="badge badge-neutral">—%</span>
   </h1>
-  <div class="sub">在院・新入院・手術・粗利の統合レポート ｜ 基準日: 2026/03/31</div>
+  <div class="sub">在院・新入院・手術・粗利の統合レポート ｜ 基準日: 2026/04/01</div>
 </div>
 
 <!-- 期間切替 -->
@@ -154,7 +154,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--txt)
 
 <!-- ═══ 1. KPIサマリー ═══ -->
 <div class="section">
-  <div class="section-head">📊 KPIサマリー（2026/03/31現在）<span id="period-label" style="margin-left:10px;font-size:.72rem;font-weight:400;color:var(--muted)">直近28日の週平均</span></div>
+  <div class="section-head">📊 KPIサマリー（2026/04/01現在）<span id="period-label" style="margin-left:10px;font-size:.72rem;font-weight:400;color:var(--muted)">直近28日の週平均</span></div>
   <div class="kpi-row">
 
     <!-- 在院 -->
@@ -304,7 +304,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--txt)
       <dt>粗利</dt><dd>単位: 千円（テーブル）/ 百万円（グラフ・KPI）。達成率 = 実績÷月次目標×100</dd>
       <dt>年度進捗率</dt><dd>年度累計 ÷ (月次目標 × 経過月数) × 100</dd>
       <dt>移動平均</dt><dd>直近7日の単純移動平均</dd>
-      <dt>基準日</dt><dd>2026/03/31</dd>
+      <dt>基準日</dt><dd>2026/04/01</dd>
     </dl>
   </div>
 </div>
@@ -316,7 +316,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--txt)
 const DEPT     = "看護部";
 const SERIES   = {"inpatient": {"dates": ["2024-09-30", "2025-07-10", "2025-09-20"], "values": [0.0, 1.0, 0.0]}, "new_admission": {"dates": ["2024-09-30", "2025-07-10", "2025-09-20"], "values": [1.0, 1.0, 1.0]}, "surgery_ga": {"dates": [], "values": []}, "surgery_ga_weekly": {"dates": [], "values": []}, "targets": {"inpatient": null, "new_admission_weekly": null, "surgery_ga_weekly": null}};
 const PROFIT   = {};
-const BASE_DATE= "2026-03-31";
+const BASE_DATE= "2026-04-01";
 
 let STATE = { period: '28d' };
 
