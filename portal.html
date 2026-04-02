@@ -227,7 +227,7 @@ body{
     <span class="hdr-badge">PORTAL</span>
     <span class="hdr-title">🏥 診療ダッシュボード</span>
   </div>
-  <span class="hdr-meta">📅 2026/04/02 15:23 更新 ｜ 基準日: 2026/04/01</span>
+  <span class="hdr-meta">📅 2026/04/03 07:28 更新 ｜ 基準日: 2026/04/02</span>
 </header>
 
 <div class="wrapper">
@@ -236,7 +236,7 @@ body{
 <div class="hero">
   <div class="hero-title">診療 KPI ポータル</div>
   <div class="hero-sub">各ダッシュボードへのアクセスと主要指標のサマリー</div>
-  <div class="hero-date">📊 基準日: 2026-04-01</div>
+  <div class="hero-date">📊 基準日: 2026-04-02</div>
 </div>
 
 <!-- ── Headline Banner (v1.8) ── -->
@@ -244,8 +244,8 @@ body{
 <div class="headline-banner ng">
   <div class="headline-icon">🔴</div>
   <div class="headline-body">
-    <div class="headline-main">新入院が目標を大きく下回っています</div>
-    <div class="headline-detail">在院 545人/目標580.0人（-35人）、新入院7日 327人/目標385人（-58人）、全麻 19.0件/目標21件（-2.0件）</div>
+    <div class="headline-main">新入院と全麻が目標を大きく下回っています</div>
+    <div class="headline-detail">在院 556人/目標580.0人（-24人）、新入院7日 320人/目標385人（-65人）、全麻 18.0件/目標21件（-3.0件）</div>
   </div>
 </div>
 
@@ -255,17 +255,17 @@ body{
 <div class="synced-row">
   
   <div class="synced-card ng">
-    <div class="synced-entity">泌尿器科</div>
+    <div class="synced-entity">循環器内科</div>
     <div class="synced-metric">新入院</div>
-    <div class="synced-gap ng">-14人</div>
-    <div class="synced-detail">実績 17 / 目標 30.5</div>
+    <div class="synced-gap ng">-16人</div>
+    <div class="synced-detail">実績 9 / 目標 24.9</div>
   </div>
   
   <div class="synced-card ng">
-    <div class="synced-entity">循環器内科</div>
+    <div class="synced-entity">産婦人科</div>
     <div class="synced-metric">新入院</div>
-    <div class="synced-gap ng">-13人</div>
-    <div class="synced-detail">実績 12 / 目標 24.9</div>
+    <div class="synced-gap ng">-10人</div>
+    <div class="synced-detail">実績 21 / 目標 30.5</div>
   </div>
   
   <div class="synced-card ng">
@@ -283,17 +283,17 @@ body{
   </div>
   
   <div class="synced-card ng">
-    <div class="synced-entity">7階B病棟</div>
+    <div class="synced-entity">2階A病棟</div>
     <div class="synced-metric">在院患者数</div>
-    <div class="synced-gap ng">-7人</div>
-    <div class="synced-detail">実績 23 / 目標 30.6</div>
+    <div class="synced-gap ng">-6人</div>
+    <div class="synced-detail">実績 41 / 目標 47.5</div>
   </div>
   
   <div class="synced-card ng">
-    <div class="synced-entity">5階B病棟</div>
+    <div class="synced-entity">7階B病棟</div>
     <div class="synced-metric">在院患者数</div>
-    <div class="synced-gap ng">-6人</div>
-    <div class="synced-detail">実績 31 / 目標 37.8</div>
+    <div class="synced-gap ng">-4人</div>
+    <div class="synced-detail">実績 26 / 目標 30.6</div>
   </div>
   
 </div>
@@ -303,12 +303,30 @@ body{
 
 <div class="dod-row">
   
+  <div class="dod-card down">
+    <div class="dod-icon">📉</div>
+    <div class="dod-body">
+      <div class="dod-entity">産婦人科</div>
+      <div class="dod-metric">在院患者数</div>
+      <div class="dod-delta down">前週同曜日比 -9人</div>
+    </div>
+  </div>
+  
   <div class="dod-card up">
     <div class="dod-icon">📈</div>
     <div class="dod-body">
       <div class="dod-entity">乳腺外科</div>
-      <div class="dod-metric">新入院</div>
-      <div class="dod-delta up">前週同曜日比 +5人</div>
+      <div class="dod-metric">全身麻酔</div>
+      <div class="dod-delta up">前週同曜日比 +2件</div>
+    </div>
+  </div>
+  
+  <div class="dod-card up">
+    <div class="dod-icon">📈</div>
+    <div class="dod-body">
+      <div class="dod-entity">泌尿器科</div>
+      <div class="dod-metric">全身麻酔</div>
+      <div class="dod-delta up">前週同曜日比 +2件</div>
     </div>
   </div>
   
@@ -319,18 +337,18 @@ body{
 <div class="section-label">本日の主要 KPI</div>
 <div class="kpi-row">
   
-  <div class="kpi-card ng">
+  <div class="kpi-card warn">
     <div class="kpi-head">
       <div>
         <div class="kpi-title">在院患者数</div>
-        <div class="kpi-period">4/1時点</div>
+        <div class="kpi-period">4/2時点</div>
       </div>
-      <span class="kpi-badge ng">未達</span>
+      <span class="kpi-badge warn">注意</span>
     </div>
-    <div class="kpi-value">545<span class="kpi-unit">人</span></div>
-    <div class="kpi-gap gap-neg">目標まで -35.0人</div>
+    <div class="kpi-value">556<span class="kpi-unit">人</span></div>
+    <div class="kpi-gap gap-neg">目標まで -24.0人</div>
     <div class="progress">
-      <div class="progress-fill" style="width:78.0%"></div>
+      <div class="progress-fill" style="width:80.0%"></div>
     </div>
   </div>
   
@@ -342,10 +360,10 @@ body{
       </div>
       <span class="kpi-badge ng">未達</span>
     </div>
-    <div class="kpi-value">327<span class="kpi-unit">人</span></div>
-    <div class="kpi-gap gap-neg">目標まで -58.0人</div>
+    <div class="kpi-value">320<span class="kpi-unit">人</span></div>
+    <div class="kpi-gap gap-neg">目標まで -65.0人</div>
     <div class="progress">
-      <div class="progress-fill" style="width:71.0%"></div>
+      <div class="progress-fill" style="width:69.0%"></div>
     </div>
   </div>
   
@@ -357,10 +375,10 @@ body{
       </div>
       <span class="kpi-badge ng">未達</span>
     </div>
-    <div class="kpi-value">19.0<span class="kpi-unit">件/日</span></div>
-    <div class="kpi-gap gap-neg">目標まで -2.0件/日</div>
+    <div class="kpi-value">18.0<span class="kpi-unit">件/日</span></div>
+    <div class="kpi-gap gap-neg">目標まで -3.0件/日</div>
     <div class="progress">
-      <div class="progress-fill" style="width:75.0%"></div>
+      <div class="progress-fill" style="width:71.0%"></div>
     </div>
   </div>
   
@@ -522,7 +540,7 @@ body{
 <!-- ── Footer ── -->
 <div class="portal-footer">
   <span>🏥 診療ダッシュボード ポータル</span>
-  <span>生成: 2026/04/02 15:23 ｜ 基準日: 2026/04/01</span>
+  <span>生成: 2026/04/03 07:28 ｜ 基準日: 2026/04/02</span>
 </div>
 
 </div><!-- /wrapper -->
