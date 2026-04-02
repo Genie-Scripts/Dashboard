@@ -184,6 +184,20 @@ body{
 .dod-delta.up{color:#3A6EA5}
 .dod-delta.down{color:#C0293B}
 
+/* ── Synced Cards (v1.9) ── */
+.synced-row{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+.synced-card{flex:1;min-width:180px;max-width:260px;background:var(--card);border-radius:var(--r);padding:14px 16px;box-shadow:var(--shadow);border-left:3px solid var(--muted)}
+.synced-card.ng{border-left-color:var(--ng)}
+.synced-card.warn{border-left-color:var(--warn)}
+.synced-card.ok{border-left-color:var(--ok)}
+.synced-entity{font-weight:700;font-size:.88rem}
+.synced-metric{font-size:.72rem;color:var(--muted);margin-top:2px}
+.synced-gap{font-size:1rem;font-weight:700;font-family:var(--mono);margin-top:4px}
+.synced-gap.ng{color:var(--ng)}
+.synced-gap.warn{color:var(--warn)}
+.synced-gap.ok{color:var(--ok)}
+.synced-detail{font-size:.72rem;color:var(--txt2);margin-top:2px}
+
 /* ── Footer ── */
 .portal-footer{
   margin-top:40px;padding-top:18px;
@@ -213,7 +227,7 @@ body{
     <span class="hdr-badge">PORTAL</span>
     <span class="hdr-title">🏥 診療ダッシュボード</span>
   </div>
-  <span class="hdr-meta">📅 2026/04/02 14:05 更新 ｜ 基準日: 2026/04/01</span>
+  <span class="hdr-meta">📅 2026/04/02 15:23 更新 ｜ 基準日: 2026/04/01</span>
 </header>
 
 <div class="wrapper">
@@ -231,8 +245,57 @@ body{
   <div class="headline-icon">🔴</div>
   <div class="headline-body">
     <div class="headline-main">新入院が目標を大きく下回っています</div>
-    <div class="headline-detail">直近7日 327人 / 目標385人（達成率85%）</div>
+    <div class="headline-detail">在院 545人/目標580.0人（-35人）、新入院7日 327人/目標385人（-58人）、全麻 19.0件/目標21件（-2.0件）</div>
   </div>
+</div>
+
+
+<!-- ── Synced Cards (v1.9) ── -->
+
+<div class="synced-row">
+  
+  <div class="synced-card ng">
+    <div class="synced-entity">泌尿器科</div>
+    <div class="synced-metric">新入院</div>
+    <div class="synced-gap ng">-14人</div>
+    <div class="synced-detail">実績 17 / 目標 30.5</div>
+  </div>
+  
+  <div class="synced-card ng">
+    <div class="synced-entity">循環器内科</div>
+    <div class="synced-metric">新入院</div>
+    <div class="synced-gap ng">-13人</div>
+    <div class="synced-detail">実績 12 / 目標 24.9</div>
+  </div>
+  
+  <div class="synced-card ng">
+    <div class="synced-entity">小児科</div>
+    <div class="synced-metric">新入院</div>
+    <div class="synced-gap ng">-10人</div>
+    <div class="synced-detail">実績 18 / 目標 27.7</div>
+  </div>
+  
+  <div class="synced-card ng">
+    <div class="synced-entity">5階A病棟</div>
+    <div class="synced-metric">在院患者数</div>
+    <div class="synced-gap ng">-7人</div>
+    <div class="synced-detail">実績 37 / 目標 44.1</div>
+  </div>
+  
+  <div class="synced-card ng">
+    <div class="synced-entity">7階B病棟</div>
+    <div class="synced-metric">在院患者数</div>
+    <div class="synced-gap ng">-7人</div>
+    <div class="synced-detail">実績 23 / 目標 30.6</div>
+  </div>
+  
+  <div class="synced-card ng">
+    <div class="synced-entity">5階B病棟</div>
+    <div class="synced-metric">在院患者数</div>
+    <div class="synced-gap ng">-6人</div>
+    <div class="synced-detail">実績 31 / 目標 37.8</div>
+  </div>
+  
 </div>
 
 
@@ -459,7 +522,7 @@ body{
 <!-- ── Footer ── -->
 <div class="portal-footer">
   <span>🏥 診療ダッシュボード ポータル</span>
-  <span>生成: 2026/04/02 14:05 ｜ 基準日: 2026/04/01</span>
+  <span>生成: 2026/04/02 15:23 ｜ 基準日: 2026/04/01</span>
 </div>
 
 </div><!-- /wrapper -->
