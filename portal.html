@@ -213,7 +213,7 @@ body{
     <span class="hdr-badge">PORTAL</span>
     <span class="hdr-title">🏥 診療ダッシュボード</span>
   </div>
-  <span class="hdr-meta">📅 2026/04/02 13:05 更新 ｜ 基準日: 2026/03/01</span>
+  <span class="hdr-meta">📅 2026/04/02 13:09 更新 ｜ 基準日: 2026/04/01</span>
 </header>
 
 <div class="wrapper">
@@ -222,39 +222,52 @@ body{
 <div class="hero">
   <div class="hero-title">診療 KPI ポータル</div>
   <div class="hero-sub">各ダッシュボードへのアクセスと主要指標のサマリー</div>
-  <div class="hero-date">📊 基準日: 2026-03-01</div>
+  <div class="hero-date">📊 基準日: 2026-04-01</div>
 </div>
 
 <!-- ── Headline Banner (v1.8) ── -->
 
-<div class="headline-banner warn">
-  <div class="headline-icon">🟡</div>
+<div class="headline-banner ng">
+  <div class="headline-icon">🔴</div>
   <div class="headline-body">
-    <div class="headline-main">一部KPIに注意が必要です</div>
-    <div class="headline-detail">在院患者数は達成（98%）ですが、新入院（91%）が目標を下回っています</div>
+    <div class="headline-main">新入院が目標を大きく下回っています</div>
+    <div class="headline-detail">直近7日 327人 / 目標385人（達成率85%）</div>
   </div>
 </div>
 
 
 <!-- ── Day-over-Day Alerts (v1.8) ── -->
 
+<div class="dod-row">
+  
+  <div class="dod-card up">
+    <div class="dod-icon">📈</div>
+    <div class="dod-body">
+      <div class="dod-entity">乳腺外科</div>
+      <div class="dod-metric">新入院</div>
+      <div class="dod-delta up">前週同曜日比 +5人</div>
+    </div>
+  </div>
+  
+</div>
+
 
 <!-- ── KPI Summary ── -->
 <div class="section-label">本日の主要 KPI</div>
 <div class="kpi-row">
   
-  <div class="kpi-card warn">
+  <div class="kpi-card ng">
     <div class="kpi-head">
       <div>
         <div class="kpi-title">在院患者数</div>
-        <div class="kpi-period">3/1時点</div>
+        <div class="kpi-period">4/1時点</div>
       </div>
-      <span class="kpi-badge warn">注意</span>
+      <span class="kpi-badge ng">未達</span>
     </div>
-    <div class="kpi-value">529<span class="kpi-unit">人</span></div>
-    <div class="kpi-gap gap-neg">目標まで -11.0人</div>
+    <div class="kpi-value">545<span class="kpi-unit">人</span></div>
+    <div class="kpi-gap gap-neg">目標まで -35.0人</div>
     <div class="progress">
-      <div class="progress-fill" style="width:82.0%"></div>
+      <div class="progress-fill" style="width:78.0%"></div>
     </div>
   </div>
   
@@ -266,25 +279,25 @@ body{
       </div>
       <span class="kpi-badge ng">未達</span>
     </div>
-    <div class="kpi-value">349<span class="kpi-unit">人</span></div>
-    <div class="kpi-gap gap-neg">目標まで -36.0人</div>
+    <div class="kpi-value">327<span class="kpi-unit">人</span></div>
+    <div class="kpi-gap gap-neg">目標まで -58.0人</div>
     <div class="progress">
-      <div class="progress-fill" style="width:76.0%"></div>
+      <div class="progress-fill" style="width:71.0%"></div>
     </div>
   </div>
   
-  <div class="kpi-card warn">
+  <div class="kpi-card ng">
     <div class="kpi-head">
       <div>
         <div class="kpi-title">全身麻酔手術</div>
         <div class="kpi-period">直近7平日平均</div>
       </div>
-      <span class="kpi-badge warn">注意</span>
+      <span class="kpi-badge ng">未達</span>
     </div>
-    <div class="kpi-value">20.9<span class="kpi-unit">件/日</span></div>
-    <div class="kpi-gap gap-neg">目標まで -0.1件/日</div>
+    <div class="kpi-value">19.0<span class="kpi-unit">件/日</span></div>
+    <div class="kpi-gap gap-neg">目標まで -2.0件/日</div>
     <div class="progress">
-      <div class="progress-fill" style="width:83.0%"></div>
+      <div class="progress-fill" style="width:75.0%"></div>
     </div>
   </div>
   
@@ -446,7 +459,7 @@ body{
 <!-- ── Footer ── -->
 <div class="portal-footer">
   <span>🏥 診療ダッシュボード ポータル</span>
-  <span>生成: 2026/04/02 13:05 ｜ 基準日: 2026/03/01</span>
+  <span>生成: 2026/04/02 13:09 ｜ 基準日: 2026/04/01</span>
 </div>
 
 </div><!-- /wrapper -->
