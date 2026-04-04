@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>v2 Detail — スマホ版</title>
+<style>
+:root{--bg:#f6f8fb;--s:#fff;--ink:#1a2332;--sub:#5f7084;--mu:#9daab8;--ln:#dfe5ed;--br:#0e4da4;--bl:#e8f0fe;--bd:#0a3671;--dr:#c4314b;--dr-bg:#fdf0f2;--wr:#b45309;--wr-bg:#fef7ee;--ok:#0e7a54;--ok-bg:#ecfdf5;--inf:#2563eb;--r:16px;--sh:0 4px 14px rgba(10,22,42,.08)}
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
+.hdr{position:sticky;top:0;z-index:10;background:var(--bd);color:#fff;padding:10px 16px;box-shadow:var(--sh)}.hdr .t{display:flex;align-items:center;gap:8px}.back{color:#a8bdd4;text-decoration:none;font-size:12px;font-weight:800}.badge{font-size:10px;background:var(--br);padding:2px 8px;border-radius:999px;font-weight:800}.title{font-size:14px;font-weight:900}.hdr .row2{display:flex;align-items:center;gap:10px;margin-top:6px;flex-wrap:wrap}.role{display:flex;gap:4px}.role a{font-size:11px;font-weight:800;text-decoration:none;padding:4px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.25);color:#a8bdd4}.role a.active{background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.4)}.meta{font-size:11px;color:#a8bdd4}
+.w{max-width:430px;margin:0 auto;padding:12px 14px 40px}
+/* Tabs */
+.tabs{display:flex;gap:8px;overflow:auto;-webkit-overflow-scrolling:touch;padding:2px 0 4px;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}.tab{flex:0 0 auto;min-width:125px;background:var(--s);border:1px solid var(--ln);border-radius:14px;padding:10px 12px;box-shadow:var(--sh);text-decoration:none;color:inherit;cursor:pointer}.tab.active{background:var(--br);color:#fff;border-color:var(--br)}.tab .nm{font-size:12px;font-weight:900}.tab .vl{font-size:10px;margin-top:3px}.tab .st{display:inline-block;font-size:9px;font-weight:900;padding:2px 6px;border-radius:999px;background:var(--dr-bg);color:#8c1d35;margin-left:4px}.tab.active .st{background:rgba(255,255,255,.18);color:#fff}
+/* Toolbar */
+.tb{display:grid;gap:8px;margin:10px 0}.seg{background:var(--s);border:1px solid var(--ln);border-radius:14px;padding:8px;box-shadow:var(--sh)}.seg .lb{font-size:11px;font-weight:800;color:var(--sub);margin-bottom:5px}.seg .row{display:grid;gap:5px}.seg .row.c2{grid-template-columns:1fr 1fr}.seg .row.c3{grid-template-columns:repeat(3,1fr)}.btn{background:#f8fafc;border:1px solid var(--ln);border-radius:10px;padding:9px 8px;text-align:center;font-size:12px;font-weight:800;color:var(--sub);cursor:pointer}.btn.active{background:var(--bl);border-color:#93b4e4;color:var(--br)}
+/* Summary */
+.sum{background:var(--s);border:1px solid var(--ln);border-radius:var(--r);padding:12px 14px;margin:10px 0;box-shadow:var(--sh)}.sum h2{font-size:15px;margin:0 0 8px}.sum .g{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px}.sum .i{font-size:12px;color:var(--sub)}.sum .i strong{color:var(--ink)}
+/* Block */
+.blk{background:var(--s);border:1px solid var(--ln);border-radius:var(--r);padding:14px;margin:10px 0;box-shadow:var(--sh)}.blk h3{font-size:13px;font-weight:800;margin:0 0 10px}
+/* Chart placeholder */
+.chart{height:200px;border:2px dashed var(--ln);border-radius:14px;background:#f8fafc;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--mu);text-align:center;font-size:12px;padding:12px}.chart .big{font-size:32px;margin-bottom:6px}
+/* Rank */
+.rk{display:grid;gap:7px}.ri{display:grid;grid-template-columns:26px 1fr auto;gap:8px;align-items:center;padding:10px;border:1px solid var(--ln);border-radius:12px;background:#fbfdff}.num{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900}.n-ok{background:#d1fae5;color:#065f42}.n-wr{background:#fef3c7;color:#92400e}.n-dr{background:#fce4ec;color:#8c1d35}.nm{font-size:13px;font-weight:900}.mt{font-size:10px;color:var(--sub)}.rt{font-size:13px;font-weight:900;text-align:right}.rt.ok{color:var(--ok)}.rt.wr{color:var(--wr)}.rt.dr{color:var(--dr)}
+.legend{display:flex;gap:12px;justify-content:center;margin-top:10px;font-size:11px;color:var(--sub)}.ld{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:3px;vertical-align:middle}
+/* Drill */
+.drill{margin:10px 0}.drill details{background:var(--s);border:1px solid var(--ln);border-radius:var(--r);box-shadow:var(--sh);overflow:hidden}.drill summary{list-style:none;cursor:pointer;padding:12px 14px;font-size:13px;font-weight:900}.drill summary::-webkit-details-marker{display:none}
+.drill .bd{padding:0 14px 14px}.mgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px}.mc{background:#f8fafc;border-radius:12px;padding:10px;text-align:center}.mc .l{font-size:10px;color:var(--sub)}.mc .v{font-size:18px;font-weight:900;margin:3px 0}.mc .v.dr{color:var(--dr)}.mc .s{font-size:10px;color:var(--mu)}
+.v2{position:fixed;right:8px;top:50px;background:#7c3aed;color:#fff;padding:3px 8px;border-radius:0 0 6px 6px;font-size:10px;font-weight:800;z-index:20}
+</style>
+</head>
+<body>
+<div class="v2">v2 FINAL / SP / L2</div>
+<header class="hdr">
+  <div class="t"><a class="back" href="v2_portal_sp.html">‹ ポータル</a><span class="badge">DETAIL</span><span class="title">統合詳細</span></div>
+  <div class="row2">
+    <div class="role"><a href="#" class="active">🩺 医師向け</a><a href="#">🏥 看護師向け</a></div>
+    <span class="meta">📅 2026-04-01</span>
+  </div>
+</header>
+<div class="w">
+  <nav class="tabs">
+    <div class="tab" onclick="sw('inpatient',this)"><div class="nm">🛏️ 在院患者 <span class="st">▼ 未達</span></div><div class="vl">545人 / 目標567</div></div>
+    <div class="tab active" onclick="sw('admission',this)"><div class="nm">🚪 新入院 <span class="st">▼ 未達</span></div><div class="vl">327人 / 目標385</div></div>
+    <div class="tab" onclick="sw('operation',this)"><div class="nm">💉 手術 <span class="st">▼ 未達</span></div><div class="vl">19.0件/日 / 目標21</div></div>
+  </nav>
+
+  <div class="tb">
+    <div class="seg"><div class="lb">軸</div><div class="row c2"><div class="btn active">🩺 診療科別</div><div class="btn">🏥 病棟別</div></div></div>
+    <div class="seg"><div class="lb">期間</div><div class="row c3"><div class="btn active">直近7日</div><div class="btn">直近28日</div><div class="btn">今年度</div></div></div>
+  </div>
+
+  <div class="sum"><h2>🚪 新入院患者数</h2><div class="g">
+    <div class="i">週目標<br><strong>385人</strong></div>
+    <div class="i">年度平均<br><strong>378.0人</strong></div>
+    <div class="i">直近7日<br><strong style="color:#8c1d35">329人（85.5%）</strong></div>
+    <div class="i">前年平均<br><strong>355.8人</strong></div>
+  </div></div>
+
+  <section class="blk"><h3>📊 推移グラフ</h3><div class="chart"><div class="big">📈</div><div>新入院患者数 推移</div><div style="margin-top:4px">実線: 7日移動平均 / 破線: 28日 / 赤点線: 目標</div></div></section>
+
+  <section class="blk"><h3>🏆 診療科別 達成状況</h3>
+    <div class="rk">
+      <div class="ri"><div class="num n-ok">1</div><div><div class="nm">皮膚科</div><div class="mt">7人 / 目標 3.5</div></div><div class="rt ok">▲ 200%</div></div>
+      <div class="ri"><div class="num n-ok">2</div><div><div class="nm">歯科口腔外科</div><div class="mt">7人 / 目標 4.3</div></div><div class="rt ok">▲ 163%</div></div>
+      <div class="ri"><div class="num n-ok">3</div><div><div class="nm">整形外科</div><div class="mt">35人 / 目標 24.2</div></div><div class="rt ok">▲ 145%</div></div>
+      <div class="ri"><div class="num n-wr">5</div><div><div class="nm">消化器内科</div><div class="mt">20人 / 目標 21.9</div></div><div class="rt wr">― 91%</div></div>
+      <div class="ri"><div class="num n-dr">8</div><div><div class="nm">泌尿器科</div><div class="mt">17人 / 目標 30.5</div></div><div class="rt dr">▼ 56%</div></div>
+      <div class="ri"><div class="num n-dr">9</div><div><div class="nm">循環器内科</div><div class="mt">12人 / 目標 24.9</div></div><div class="rt dr">▼ 48%</div></div>
+      <div class="ri"><div class="num n-dr">10</div><div><div class="nm">心臓血管外科</div><div class="mt">0人 / 目標 2.8</div></div><div class="rt dr">▼ 0%</div></div>
+    </div>
+    <div class="legend"><span><span class="ld" style="background:#0e7a54"></span>▲ 達成</span><span><span class="ld" style="background:#b45309"></span>― 接近</span><span><span class="ld" style="background:#c4314b"></span>▼ 未達</span></div>
+  </section>
+
+  <section class="drill"><details open>
+    <summary>📋 泌尿器科 の詳細</summary>
+    <div class="bd">
+      <div class="mgrid">
+        <div class="mc"><div class="l">🚪 新入院</div><div class="v dr">17</div><div class="s">目標 30.5</div></div>
+        <div class="mc"><div class="l">🛏️ 在院</div><div class="v">28</div><div class="s">目標 32.0</div></div>
+        <div class="mc"><div class="l">💉 全麻</div><div class="v">2</div><div class="s">目標 10.2</div></div>
+      </div>
+      <div class="chart" style="height:130px"><div class="big">📉</div><div>泌尿器科 新入院 推移（直近24週）</div></div>
+    </div>
+  </details></section>
+</div>
+<script>
+function sw(id,el){document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));el.classList.add('active')}
+</script>
+</body></html>

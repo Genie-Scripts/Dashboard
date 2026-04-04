@@ -1,0 +1,2746 @@
+<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>提案B 統合仕様書 v2.1</title><style>
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;background:#fff;color:#1a2332;line-height:1.75;padding:40px 24px 80px;max-width:980px;margin:0 auto}
+h1{font-size:26px;border-bottom:3px solid #0e4da4;padding-bottom:12px;margin-top:40px;font-weight:900}
+h2{font-size:20px;border-bottom:2px solid #dfe5ed;padding-bottom:8px;margin-top:36px;color:#0e4da4;font-weight:800}
+h3{font-size:16px;margin-top:24px;color:#1a2332;font-weight:700}
+h4{font-size:14px;margin-top:18px;font-weight:700}
+p{font-size:13.5px;color:#3a4a5c}
+table{width:100%;border-collapse:collapse;margin:12px 0;font-size:12.5px}
+th,td{padding:8px 10px;border:1px solid #dfe5ed;text-align:left;vertical-align:top}
+th{background:#f0f4fa;font-weight:700;color:#1a2332;white-space:nowrap}
+td del{color:#9daab8}
+code{background:#f0f4fa;padding:2px 5px;border-radius:4px;font-size:11.5px;font-family:"IBM Plex Mono","Menlo",monospace}
+pre{background:#f6f8fb;border:1px solid #dfe5ed;border-radius:8px;padding:14px;overflow-x:auto;font-size:11.5px;line-height:1.55}
+pre code{background:none;padding:0}
+ul,ol{font-size:13.5px;color:#3a4a5c}
+li{margin-bottom:3px}
+strong{color:#1a2332}
+hr{border:none;border-top:1px solid #dfe5ed;margin:30px 0}
+@media print{body{padding:16px;font-size:11px}h1{font-size:20px}h2{font-size:16px}table{font-size:10px}pre{font-size:9px}}
+</style></head><body><h1>提案B 2層ハブ＆スポーク型 診療ダッシュボード 統合仕様書</h1>
+<table>
+<thead>
+<tr>
+<th>項目</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>バージョン</td>
+<td>2.1</td>
+</tr>
+<tr>
+<td>作成日</td>
+<td>2026-04-03</td>
+</tr>
+<tr>
+<td>前版</td>
+<td>v1.0（2026-04-02）</td>
+</tr>
+<tr>
+<td>対象リポジトリ</td>
+<td>Genie-Scripts/Dashboard</td>
+</tr>
+<tr>
+<td>対象構造</td>
+<td>portal.html（Layer-1）+ detail.html（Layer-2）</td>
+</tr>
+<tr>
+<td>参照ワイヤーフレーム</td>
+<td>v2_portal_pc/sp.html, v2_detail_pc/sp.html</td>
+</tr>
+<tr>
+<td>参照デザインシステム</td>
+<td>design_system.html</td>
+</tr>
+</tbody>
+</table>
+<h3>変更履歴</h3>
+<table>
+<thead>
+<tr>
+<th>版</th>
+<th>日付</th>
+<th>変更内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1.0</td>
+<td>2026-04-02</td>
+<td>初版。データ基盤・KPI算出・画面表示仕様</td>
+</tr>
+<tr>
+<td>2.0</td>
+<td>2026-04-03</td>
+<td>デザインシステム統合、v2ワイヤーフレームUI要素マッピング、レスポンシブ・ロール最適化</td>
+</tr>
+<tr>
+<td>2.1</td>
+<td>2026-04-03</td>
+<td>目標値改定(在院600/550/583、新入院380)、ステータス閾値90%化、稼働率→利用率統一、術者別軸廃止、手術集計の営業平日/全日二重基準明文化</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h1>第I部 デザインシステム</h1>
+<h2>第1章 カラーパレット</h2>
+<h3>1.1 設計原則</h3>
+<ul>
+<li><strong>色覚多様性対応</strong>: 日本人男性の約5%（P型/D型色覚）が赤-緑の判別困難。赤系は青み寄りに、緑系は青緑寄りに補正し、さらに形状（▼▲●）と文言で冗長表現する</li>
+<li><strong>WCAG 2.2 AA準拠</strong>: 通常テキスト 4.5:1以上、大きい文字 3:1以上のコントラスト比を確保</li>
+<li><strong>医療施設の落ち着き</strong>: ベースカラーは寒色系（ネイビー）で信頼感を演出。背景は薄いグレーブルーで目の疲労を低減</li>
+</ul>
+<h3>1.2 ベースカラー</h3>
+<table>
+<thead>
+<tr>
+<th>トークン名</th>
+<th>CSS変数</th>
+<th>カラーコード</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Background</td>
+<td><code>--bg</code></td>
+<td><code>#f6f8fb</code></td>
+<td>ページ背景</td>
+</tr>
+<tr>
+<td>Surface</td>
+<td><code>--surface</code></td>
+<td><code>#ffffff</code></td>
+<td>カード・パネル背景</td>
+</tr>
+<tr>
+<td>Ink</td>
+<td><code>--ink</code></td>
+<td><code>#1a2332</code></td>
+<td>本文テキスト</td>
+</tr>
+<tr>
+<td>Sub</td>
+<td><code>--sub</code></td>
+<td><code>#5f7084</code></td>
+<td>補足テキスト</td>
+</tr>
+<tr>
+<td>Muted</td>
+<td><code>--muted</code></td>
+<td><code>#9daab8</code></td>
+<td>注記・フッター</td>
+</tr>
+<tr>
+<td>Line</td>
+<td><code>--line</code></td>
+<td><code>#dfe5ed</code></td>
+<td>罫線・ボーダー</td>
+</tr>
+<tr>
+<td>Hover</td>
+<td><code>--hover</code></td>
+<td><code>#f0f4f9</code></td>
+<td>ホバー背景</td>
+</tr>
+</tbody>
+</table>
+<h3>1.3 ブランドカラー</h3>
+<table>
+<thead>
+<tr>
+<th>トークン名</th>
+<th>CSS変数</th>
+<th>カラーコード</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Brand</td>
+<td><code>--brand</code></td>
+<td><code>#0e4da4</code></td>
+<td>ヘッダー、選択中タブ、主要ボタン</td>
+</tr>
+<tr>
+<td>Brand Light</td>
+<td><code>--brand-light</code></td>
+<td><code>#e8f0fe</code></td>
+<td>選択中ボタン背景、ホバー</td>
+</tr>
+<tr>
+<td>Brand Dark</td>
+<td><code>--brand-dark</code></td>
+<td><code>#0a3671</code></td>
+<td>ヘッダー背景</td>
+</tr>
+</tbody>
+</table>
+<h3>1.4 ステータスカラー（色覚多様性対応版）</h3>
+<table>
+<thead>
+<tr>
+<th>状態</th>
+<th>CSS変数(前景)</th>
+<th>コード</th>
+<th>CSS変数(背景)</th>
+<th>背景色</th>
+<th>CSS変数(テキスト)</th>
+<th>テキスト色</th>
+<th>コントラスト比</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>未達(Danger)</td>
+<td><code>--st-danger</code></td>
+<td><code>#c4314b</code></td>
+<td><code>--st-danger-bg</code></td>
+<td><code>#fdf0f2</code></td>
+<td><code>--st-danger-text</code></td>
+<td><code>#8c1d35</code></td>
+<td>5.8:1</td>
+</tr>
+<tr>
+<td>接近(Warning)</td>
+<td><code>--st-warn</code></td>
+<td><code>#b45309</code></td>
+<td><code>--st-warn-bg</code></td>
+<td><code>#fef7ee</code></td>
+<td><code>--st-warn-text</code></td>
+<td><code>#7c3a06</code></td>
+<td>5.2:1</td>
+</tr>
+<tr>
+<td>達成(OK)</td>
+<td><code>--st-ok</code></td>
+<td><code>#0e7a54</code></td>
+<td><code>--st-ok-bg</code></td>
+<td><code>#ecfdf5</code></td>
+<td><code>--st-ok-text</code></td>
+<td><code>#065f42</code></td>
+<td>5.4:1</td>
+</tr>
+<tr>
+<td>情報(Info)</td>
+<td><code>--st-info</code></td>
+<td><code>#2563eb</code></td>
+<td><code>--st-info-bg</code></td>
+<td><code>#eff6ff</code></td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h3>1.5 三重エンコーディング規則</h3>
+<p>色＋形状＋文言を常にセットで表示する。</p>
+<table>
+<thead>
+<tr>
+<th>状態</th>
+<th>色</th>
+<th>形状</th>
+<th>文言</th>
+<th>表示例</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>未達（達成率&lt;90%）</td>
+<td><code>#c4314b</code></td>
+<td>▼ 下向き三角</td>
+<td>「▼ 未達」</td>
+<td>KPIカードバッジ、ランキング行</td>
+</tr>
+<tr>
+<td>接近（90%≤達成率&lt;100%）</td>
+<td><code>#b45309</code></td>
+<td>― 横線</td>
+<td>「― 接近」</td>
+<td>ランキング行</td>
+</tr>
+<tr>
+<td>達成（達成率≥100%）</td>
+<td><code>#0e7a54</code></td>
+<td>▲ 上向き三角</td>
+<td>「▲ 達成」</td>
+<td>ランキング行</td>
+</tr>
+<tr>
+<td>情報</td>
+<td><code>#2563eb</code></td>
+<td>→ 矢印</td>
+<td>「参考」</td>
+<td>前年比較値</td>
+</tr>
+</tbody>
+</table>
+<h3>1.6 グラフカラートークン</h3>
+<table>
+<thead>
+<tr>
+<th>用途</th>
+<th>カラーコード</th>
+<th>線種</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>実績（棒/線）</td>
+<td><code>#3A6EA5</code></td>
+<td>実線</td>
+</tr>
+<tr>
+<td>移動平均</td>
+<td><code>#0D9488</code></td>
+<td>実線</td>
+</tr>
+<tr>
+<td>目標ライン</td>
+<td><code>#C0293B</code></td>
+<td>破線</td>
+</tr>
+<tr>
+<td>前年度</td>
+<td><code>#94A3B8</code></td>
+<td>点線</td>
+</tr>
+<tr>
+<td>棒グラフ塗り</td>
+<td><code>rgba(58,110,165,0.6)</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>全麻棒グラフ塗り</td>
+<td><code>rgba(13,148,136,0.6)</code></td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h3>1.7 シャドウ・角丸</h3>
+<table>
+<thead>
+<tr>
+<th>トークン</th>
+<th>CSS変数</th>
+<th>値</th>
+<th>適用先</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Shadow SM</td>
+<td><code>--shadow-sm</code></td>
+<td><code>0 1px 3px rgba(10,22,42,.06)</code></td>
+<td>ボタン、ランキング行</td>
+</tr>
+<tr>
+<td>Shadow MD</td>
+<td><code>--shadow-md</code></td>
+<td><code>0 4px 14px rgba(10,22,42,.08)</code></td>
+<td>KPIカード、ドリルダウン</td>
+</tr>
+<tr>
+<td>Shadow LG</td>
+<td><code>--shadow-lg</code></td>
+<td><code>0 8px 28px rgba(10,22,42,.10)</code></td>
+<td>カードhover</td>
+</tr>
+<tr>
+<td>Radius SM</td>
+<td><code>--r-sm</code></td>
+<td><code>10px</code></td>
+<td>ボタン</td>
+</tr>
+<tr>
+<td>Radius MD</td>
+<td><code>--r-md</code></td>
+<td><code>14px</code></td>
+<td>ランキング行</td>
+</tr>
+<tr>
+<td>Radius LG</td>
+<td><code>--r-lg</code></td>
+<td><code>18px</code></td>
+<td>KPIカード、タブバー、パネル</td>
+</tr>
+</tbody>
+</table>
+<h3>1.8 フォント</h3>
+<div class="codehilite"><pre><span></span><code><span class="nt">--font</span><span class="o">:</span><span class="w"> </span><span class="nt">-apple-system</span><span class="o">,</span><span class="w"> </span><span class="nt">BlinkMacSystemFont</span><span class="o">,</span><span class="w"> </span><span class="s2">&quot;Hiragino Sans&quot;</span><span class="o">,</span><span class="w"> </span><span class="s2">&quot;Noto Sans JP&quot;</span><span class="o">,</span><span class="w"> </span><span class="s2">&quot;Segoe UI&quot;</span><span class="o">,</span><span class="w"> </span><span class="nt">sans-serif</span><span class="o">;</span>
+</code></pre></div>
+
+<table>
+<thead>
+<tr>
+<th>要素</th>
+<th>PC (size/weight)</th>
+<th>SP (size/weight)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>KPIメイン数値</td>
+<td>40px / 900</td>
+<td>30px / 900</td>
+</tr>
+<tr>
+<td>セクション見出し</td>
+<td>18px / 800</td>
+<td>16px / 800</td>
+</tr>
+<tr>
+<td>カード名・ランキング名</td>
+<td>14px / 700</td>
+<td>13px / 700</td>
+</tr>
+<tr>
+<td>補足説明</td>
+<td>13px / 400</td>
+<td>12px / 400</td>
+</tr>
+<tr>
+<td>注記・フッター</td>
+<td>11px / 400</td>
+<td>11px / 400</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>第2章 アイコン設計</h2>
+<p>絵文字ベース。KPIごとに固有アイコンを割り当て全画面で統一。</p>
+<h3>2.1 KPIアイコン</h3>
+<table>
+<thead>
+<tr>
+<th>KPI</th>
+<th>アイコン</th>
+<th>意味</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>在院患者数</td>
+<td>🛏️</td>
+<td>ベッド＝「今いる患者」</td>
+</tr>
+<tr>
+<td>新入院患者数</td>
+<td>🚪</td>
+<td>ドア＝「入ってくる患者」</td>
+</tr>
+<tr>
+<td>全身麻酔手術</td>
+<td>💉</td>
+<td>注射器＝手術・麻酔</td>
+</tr>
+</tbody>
+</table>
+<h3>2.2 ナビゲーション・軸切替アイコン</h3>
+<table>
+<thead>
+<tr>
+<th>軸</th>
+<th>アイコン</th>
+<th>意味</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>診療科別</td>
+<td>🩺</td>
+<td>聴診器＝医師視点</td>
+</tr>
+<tr>
+<td>病棟別</td>
+<td>🏥</td>
+<td>病院＝看護師視点</td>
+</tr>
+<tr>
+<td>術者別</td>
+<td>👨‍⚕️</td>
+<td>※本版では公開ダッシュボード上非表示（個人名のため）</td>
+</tr>
+</tbody>
+</table>
+<h3>2.3 ステータス・アクションアイコン</h3>
+<table>
+<thead>
+<tr>
+<th>用途</th>
+<th>アイコン</th>
+<th>使用箇所</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>要注視</td>
+<td>🔴</td>
+<td>ヘッドラインアラート</td>
+</tr>
+<tr>
+<td>改善</td>
+<td>📈</td>
+<td>改善トピック</td>
+</tr>
+<tr>
+<td>推移グラフ</td>
+<td>📊</td>
+<td>グラフセクション見出し</td>
+</tr>
+<tr>
+<td>ランキング</td>
+<td>🏆</td>
+<td>達成状況セクション見出し</td>
+</tr>
+<tr>
+<td>詳細展開</td>
+<td>📋</td>
+<td>ドリルダウン見出し</td>
+</tr>
+<tr>
+<td>印刷</td>
+<td>🖨️</td>
+<td>ヘッダー右端アクション</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>第3章 ボタン文言・文言トーン</h2>
+<h3>3.1 ツールバーボタン文言</h3>
+<table>
+<thead>
+<tr>
+<th>用途</th>
+<th>推奨文言</th>
+<th>ボタンスタイル</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>軸: 診療科</td>
+<td><code>🩺 診療科別</code></td>
+<td>Primary（選択中軸）</td>
+</tr>
+<tr>
+<td>軸: 病棟</td>
+<td><code>🏥 病棟別</code></td>
+<td>Active（選択中軸）</td>
+</tr>
+<tr>
+<td>~~軸: 術者~~</td>
+<td>~~<code>👨‍⚕️ 術者別</code>~~</td>
+<td>v2.1で廃止（個人名が公開不可）</td>
+</tr>
+<tr>
+<td>期間: 7日</td>
+<td><code>直近7日</code></td>
+<td>Ghost/Active</td>
+</tr>
+<tr>
+<td>期間: 28日</td>
+<td><code>直近28日</code></td>
+<td>Ghost/Active</td>
+</tr>
+<tr>
+<td>期間: 年度</td>
+<td><code>今年度</code></td>
+<td>Ghost/Active</td>
+</tr>
+<tr>
+<td>比較</td>
+<td><code>🔄 前年度と比較</code></td>
+<td>Ghost</td>
+</tr>
+<tr>
+<td>印刷</td>
+<td><code>🖨️ 印刷</code></td>
+<td>Ghost</td>
+</tr>
+</tbody>
+</table>
+<p>ボタンスタイル定義:
+- <strong>Primary</strong>: <code>background:--brand; color:#fff; border-color:--brand</code>
+- <strong>Active</strong>: <code>background:--brand-light; color:--brand; border-color:#93b4e4</code>
+- <strong>Ghost</strong>: <code>background:transparent; color:--sub</code></p>
+<h3>3.2 KPIカード内文言</h3>
+<table>
+<thead>
+<tr>
+<th>要素</th>
+<th>推奨</th>
+<th>禁止</th>
+<th>理由</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ステータスバッジ</td>
+<td><code>▼ 未達</code> / <code>― 接近</code> / <code>▲ 達成</code></td>
+<td>「赤」「黄」「緑」</td>
+<td>色名でなく状態名。色覚対応</td>
+</tr>
+<tr>
+<td>差分表示</td>
+<td><code>目標まで −35.0人</code></td>
+<td>「ギャップ -35」</td>
+<td>英語排除、単位明示</td>
+</tr>
+<tr>
+<td>期間表示</td>
+<td><code>4/1 時点</code> / <code>直近7日累計</code></td>
+<td>「7d」「as of」</td>
+<td>英語略語排除</td>
+</tr>
+<tr>
+<td>導線ヒント</td>
+<td><code>詳細を見る ›</code></td>
+<td>「Click here」</td>
+<td>日本語・行動誘導</td>
+</tr>
+</tbody>
+</table>
+<h3>3.3 文言トーン5原則</h3>
+<ol>
+<li><strong>事実ベース</strong>: 「悪い」「良い」の価値判断を避け、数値差分で客観的に伝える</li>
+<li><strong>アクション示唆</strong>: 「何に注目すべきか」を暗示する</li>
+<li><strong>短く、敬語不使用</strong>: ダッシュボードはUI。体言止めで最短に</li>
+<li><strong>責任追及しない</strong>: 「○○科が悪い」→「○○科 新入院 目標差 −14人」（数値のみ）</li>
+<li><strong>改善も伝える</strong>: 未達だけでなく改善トピック1件を必ず表示</li>
+</ol>
+<h3>3.4 ヘッドライン自動生成ロジック</h3>
+<table>
+<thead>
+<tr>
+<th>条件</th>
+<th>ヘッドライン</th>
+<th>アイコン</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>3 KPI すべて達成</td>
+<td>全指標が目標を達成しています</td>
+<td>🟢</td>
+</tr>
+<tr>
+<td>2 達成/1 未達</td>
+<td>〔未達KPI名〕が目標をやや下回っています</td>
+<td>🟡</td>
+</tr>
+<tr>
+<td>1 達成/2 未達</td>
+<td>〔主要未達KPI名〕が目標を下回っています</td>
+<td>🔴</td>
+</tr>
+<tr>
+<td>3 KPI すべて未達</td>
+<td>〔最大乖離KPI名〕が目標を大きく下回っています</td>
+<td>🔴</td>
+</tr>
+</tbody>
+</table>
+<h3>3.5 印刷対応</h3>
+<ul>
+<li>ヘッダー・ツールバー: <code>@media print</code> で非表示</li>
+<li>KPIタブ: 全タブ展開して縦並べ</li>
+<li>グラフ: Plotly の <code>toImage()</code> で静的画像出力</li>
+</ul>
+<hr />
+<h1>第II部 データ基盤</h1>
+<h2>第4章 データソース</h2>
+<h3>4.1 入力データ一覧</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>フォルダ</th>
+<th>内容</th>
+<th>形式</th>
+<th>エンコーディング</th>
+<th>複数ファイル</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>patient_data/</td>
+<td>入院データ</td>
+<td>.xlsx/.csv</td>
+<td>utf-8-sig</td>
+<td>✅自動マージ</td>
+</tr>
+<tr>
+<td>2</td>
+<td>patient_target/</td>
+<td>在院・新入院目標</td>
+<td>.csv</td>
+<td>utf-8-sig</td>
+<td>—</td>
+</tr>
+<tr>
+<td>3</td>
+<td>op_data/</td>
+<td>手術データ</td>
+<td>.csv/.xlsx</td>
+<td>cp932</td>
+<td>✅自動マージ</td>
+</tr>
+<tr>
+<td>4</td>
+<td>op_target/</td>
+<td>手術目標</td>
+<td>.csv</td>
+<td>utf-8-sig</td>
+<td>—</td>
+</tr>
+<tr>
+<td>5</td>
+<td>profit_data/</td>
+<td>粗利データ</td>
+<td>.xlsx</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td>6</td>
+<td>profit_target/</td>
+<td>粗利目標</td>
+<td>.xlsx</td>
+<td>—</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h3>4.2 必須カラム定義</h3>
+<h4>patient_data（入院データ）</h4>
+<table>
+<thead>
+<tr>
+<th>カラム名</th>
+<th>型</th>
+<th>説明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>日付</td>
+<td>date</td>
+<td>集計日</td>
+</tr>
+<tr>
+<td>病棟コード</td>
+<td>str</td>
+<td>病棟識別子（02A, 05B 等）</td>
+</tr>
+<tr>
+<td>診療科名</td>
+<td>str</td>
+<td>診療科名（合算前）</td>
+</tr>
+<tr>
+<td>在院患者数</td>
+<td>int</td>
+<td>当日在院数</td>
+</tr>
+<tr>
+<td>入院患者数</td>
+<td>int</td>
+<td>予定入院数</td>
+</tr>
+<tr>
+<td>緊急入院患者数</td>
+<td>int</td>
+<td>緊急入院数</td>
+</tr>
+<tr>
+<td>転入患者数</td>
+<td>int</td>
+<td>他病棟からの転入</td>
+</tr>
+<tr>
+<td>退院患者数</td>
+<td>int</td>
+<td>退院数</td>
+</tr>
+<tr>
+<td>転出患者数</td>
+<td>int</td>
+<td>他病棟への転出</td>
+</tr>
+<tr>
+<td>死亡患者数</td>
+<td>int</td>
+<td>死亡退院数</td>
+</tr>
+</tbody>
+</table>
+<h4>patient_target（目標データ）</h4>
+<table>
+<thead>
+<tr>
+<th>カラム名</th>
+<th>型</th>
+<th>説明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>部門コード</td>
+<td>str</td>
+<td>病棟コードまたは診療科コード</td>
+</tr>
+<tr>
+<td>部門名</td>
+<td>str</td>
+<td>表示名</td>
+</tr>
+<tr>
+<td>部門種別</td>
+<td>str</td>
+<td>"病棟"/"診療科"</td>
+</tr>
+<tr>
+<td>指標タイプ</td>
+<td>str</td>
+<td>"在院"/"新入院"</td>
+</tr>
+<tr>
+<td>期間区分</td>
+<td>str</td>
+<td>"平日"/"休日"/"全日"/"週"</td>
+</tr>
+<tr>
+<td>単位</td>
+<td>str</td>
+<td>"人"/"人/週"</td>
+</tr>
+<tr>
+<td>目標値</td>
+<td>float</td>
+<td>目標数値</td>
+</tr>
+<tr>
+<td>病床数</td>
+<td>int</td>
+<td>許可病床数</td>
+</tr>
+</tbody>
+</table>
+<h4>op_data（手術データ）</h4>
+<table>
+<thead>
+<tr>
+<th>カラム名</th>
+<th>型</th>
+<th>説明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>手術実施日</td>
+<td>date</td>
+<td>手術日</td>
+</tr>
+<tr>
+<td>実施診療科</td>
+<td>str</td>
+<td>執刀科</td>
+</tr>
+<tr>
+<td>実施手術室</td>
+<td>str</td>
+<td>手術室名（正規化前）</td>
+</tr>
+<tr>
+<td>麻酔科関与</td>
+<td>str</td>
+<td>麻酔科の関与有無</td>
+</tr>
+<tr>
+<td>入外区分</td>
+<td>str</td>
+<td>入院/外来</td>
+</tr>
+<tr>
+<td>申込区分</td>
+<td>str</td>
+<td>予定/緊急</td>
+</tr>
+<tr>
+<td>実施術者</td>
+<td>str</td>
+<td>術者名</td>
+</tr>
+<tr>
+<td>麻酔種別</td>
+<td>str</td>
+<td>全身麻酔判定に使用</td>
+</tr>
+<tr>
+<td>入室時刻</td>
+<td>datetime</td>
+<td>手術室入室時刻</td>
+</tr>
+<tr>
+<td>退室時刻</td>
+<td>datetime</td>
+<td>手術室退室時刻</td>
+</tr>
+<tr>
+<td>予定手術時間</td>
+<td>float</td>
+<td>予定時間（分）</td>
+</tr>
+<tr>
+<td>予定手術時間(OR)</td>
+<td>float</td>
+<td>手術室ベースの予定時間</td>
+</tr>
+</tbody>
+</table>
+<h4>op_target / profit_data / profit_target</h4>
+<table>
+<thead>
+<tr>
+<th>ファイル</th>
+<th>カラム</th>
+<th>型</th>
+<th>説明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>op_target</td>
+<td>実施診療科, 週目標</td>
+<td>str, float</td>
+<td>科別全麻週目標</td>
+</tr>
+<tr>
+<td>profit_data</td>
+<td>診療科名, 月, 粗利（千円）</td>
+<td>str, date, float</td>
+<td>月次粗利実績</td>
+</tr>
+<tr>
+<td>profit_target</td>
+<td>診療科名, 月次目標（千円）</td>
+<td>str, float</td>
+<td>月次粗利目標</td>
+</tr>
+</tbody>
+</table>
+<h3>4.3 前処理ルール</h3>
+<table>
+<thead>
+<tr>
+<th>処理</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>診療科合算</td>
+<td><code>DEPT_MERGE = {"感染症":"総合内科","内科":"総合内科"}</code></td>
+</tr>
+<tr>
+<td>非表示科</td>
+<td><code>DEPT_HIDDEN = {"健診センター","麻酔科","放射線診断科",None,""}</code></td>
+</tr>
+<tr>
+<td>病棟変換</td>
+<td><code>WARD_NAMES</code> 辞書（02A→2階A病棟 等、全17棟）</td>
+</tr>
+<tr>
+<td>除外病棟</td>
+<td><code>WARD_HIDDEN = {"03B"}</code></td>
+</tr>
+<tr>
+<td>手術室正規化</td>
+<td>全角→半角変換（<code>ZEN2HAN</code>）、OP-1〜OP-10,OP-12の11室が稼働対象</td>
+</tr>
+<tr>
+<td>全身麻酔判定</td>
+<td>麻酔種別に「全身麻酔(20分以上：吸入もしくは静脈麻酔薬)」を含む</td>
+</tr>
+<tr>
+<td>派生: 新入院患者数</td>
+<td>入院患者数 + 緊急入院患者数</td>
+</tr>
+<tr>
+<td>派生: 退院合計</td>
+<td>退院患者数 + 死亡患者数</td>
+</tr>
+<tr>
+<td>派生: 出入り負荷</td>
+<td>新入院 + 転入 + 退院合計 + 転出</td>
+</tr>
+<tr>
+<td>マージ戦略</td>
+<td><code>newer_wins</code>（同一日付は更新日時が新しいファイルで上書き）</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>第5章 期間定義</h2>
+<h3>5.1 営業平日</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">is_operational_day</span><span class="p">(</span><span class="n">dt</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+    <span class="c1"># 除外1: 土曜・日曜（weekday &gt;= 5）</span>
+    <span class="c1"># 除外2: 国民の祝日（jpholiday で動的判定、振替休日も対応）</span>
+    <span class="c1"># 除外3: 年末年始（12/29〜12/31、1/1〜1/3）</span>
+</code></pre></div>
+
+<h3>5.2 評価期間一覧</h3>
+<table>
+<thead>
+<tr>
+<th>期間名</th>
+<th>定義</th>
+<th>主な用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>直近7日</td>
+<td>base_date−6 〜 base_date（暦日7日間）</td>
+<td>KPIカード、ランキング</td>
+</tr>
+<tr>
+<td>直近28日</td>
+<td>base_date−27 〜 base_date</td>
+<td>期間タブ</td>
+</tr>
+<tr>
+<td>今年度</td>
+<td>4/1〜base_date（月&lt;4なら前年4/1起算）</td>
+<td>年度集計</td>
+</tr>
+<tr>
+<td>直近365日</td>
+<td>base_date−364 〜 base_date</td>
+<td>長期平均</td>
+</tr>
+<tr>
+<td>直近7平日</td>
+<td>base_dateから遡り営業平日7日分</td>
+<td>全身麻酔手術の日平均</td>
+</tr>
+<tr>
+<td>週（月曜始まり）</td>
+<td>当該日の月曜〜日曜</td>
+<td>週単位集計</td>
+</tr>
+</tbody>
+</table>
+<h3>5.3 年度計算</h3>
+<div class="codehilite"><pre><span></span><code><span class="n">fy_start_year</span> <span class="o">=</span> <span class="n">date</span><span class="o">.</span><span class="n">year</span> <span class="k">if</span> <span class="n">date</span><span class="o">.</span><span class="n">month</span> <span class="o">&gt;=</span> <span class="mi">4</span> <span class="k">else</span> <span class="n">date</span><span class="o">.</span><span class="n">year</span> <span class="o">-</span> <span class="mi">1</span>
+<span class="n">fy_start</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Timestamp</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">fy_start_year</span><span class="si">}</span><span class="s2">-04-01&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+<hr />
+<h2>第6章 KPI算出ロジック</h2>
+<h3>6.1 在院患者数</h3>
+<table>
+<thead>
+<tr>
+<th>項目</th>
+<th>計算式</th>
+<th>単位</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>当日在院</td>
+<td><code>SUM(在院患者数) WHERE 日付=base_date</code></td>
+<td>人</td>
+</tr>
+<tr>
+<td>目標（平日/休日/全日）</td>
+<td>600 / 550 / 583</td>
+<td>人</td>
+</tr>
+<tr>
+<td>7日移動平均</td>
+<td><code>rolling(7, min_periods=1).mean()</code></td>
+<td>人</td>
+</tr>
+<tr>
+<td>28日移動平均</td>
+<td><code>rolling(28, min_periods=1).mean()</code></td>
+<td>人</td>
+</tr>
+<tr>
+<td>達成率</td>
+<td><code>actual/target×100</code> (round 1)</td>
+<td>%</td>
+</tr>
+<tr>
+<td>年度平均</td>
+<td>FY開始〜base_dateの日次在院平均</td>
+<td>人</td>
+</tr>
+<tr>
+<td>前年同期差</td>
+<td>当年度値−前年度同日値</td>
+<td>人</td>
+</tr>
+</tbody>
+</table>
+<h3>6.2 新入院患者数</h3>
+<table>
+<thead>
+<tr>
+<th>項目</th>
+<th>計算式</th>
+<th>単位</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>日次新入院</td>
+<td><code>SUM(入院+緊急入院) WHERE 日付=base_date</code></td>
+<td>人</td>
+</tr>
+<tr>
+<td>直近7日累計</td>
+<td><code>SUM(新入院) WHERE base_date−6〜base_date</code></td>
+<td>人</td>
+</tr>
+<tr>
+<td>週目標</td>
+<td>385（目標ファイルから動的読込）</td>
+<td>人/週</td>
+</tr>
+<tr>
+<td>直近7日達成率</td>
+<td><code>7日累計/385×100</code></td>
+<td>%</td>
+</tr>
+<tr>
+<td>365日週平均</td>
+<td><code>過去364日合計/52</code></td>
+<td>人/週</td>
+</tr>
+<tr>
+<td>年度平均</td>
+<td><code>FY合計/経過週数</code></td>
+<td>人/週</td>
+</tr>
+<tr>
+<td>年度達成率</td>
+<td><code>年度平均/385×100</code></td>
+<td>%</td>
+</tr>
+</tbody>
+</table>
+<h3>6.3 全身麻酔手術</h3>
+<h4>6.3.1 二重集計基準（重要）</h4>
+<p>手術KPIは、<strong>病院全体</strong>と<strong>診療科別</strong>で集計基準が異なる。</p>
+<table>
+<thead>
+<tr>
+<th>集計対象</th>
+<th>日数基準</th>
+<th>目標</th>
+<th>移動平均の計算</th>
+<th>使用箇所</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>病院全体</strong></td>
+<td>営業平日（土日祝日年末年始除外）</td>
+<td>21件/営業平日</td>
+<td>営業平日7日のrolling</td>
+<td>Portal KPIカード、Detailサマリーバー、病院全体推移グラフ</td>
+</tr>
+<tr>
+<td><strong>診療科別</strong></td>
+<td>全日（暦日7日）</td>
+<td>週目標（op_targetの週目標）</td>
+<td>暦日7日のrolling</td>
+<td>診療科別ランキング、診療科別推移グラフ、ドリルダウン</td>
+</tr>
+</tbody>
+</table>
+<p><strong>背景</strong>: 病院重点目標「全麻21件/日」は営業平日基準。一方、診療科の目標は「週○件」という全日（暦日7日）基準で設定されているため。</p>
+<h4>6.3.2 病院全体KPI（営業平日基準）</h4>
+<table>
+<thead>
+<tr>
+<th>項目</th>
+<th>計算式</th>
+<th>単位</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>日次件数</td>
+<td><code>COUNT WHERE 全麻=True AND 日付=base_date</code></td>
+<td>件</td>
+</tr>
+<tr>
+<td>直近7平日平均</td>
+<td><code>SUM(直近営業平日7日の全麻)/7</code></td>
+<td>件/営業平日</td>
+</tr>
+<tr>
+<td>目標</td>
+<td>21</td>
+<td>件/営業平日</td>
+</tr>
+<tr>
+<td>達成率</td>
+<td><code>7平日平均/21×100</code></td>
+<td>%</td>
+</tr>
+<tr>
+<td>週間合計</td>
+<td><code>月曜〜base_dateの全麻SUM</code>（全日）</td>
+<td>件</td>
+</tr>
+<tr>
+<td>年度平均（平日）</td>
+<td><code>FY全麻合計/FY営業平日数</code></td>
+<td>件/営業平日</td>
+</tr>
+<tr>
+<td>月次予測</td>
+<td><code>当月営業平日数×直近7平日平均</code></td>
+<td>件</td>
+</tr>
+<tr>
+<td>年度予測</td>
+<td><code>累積+残営業平日×直近平均</code></td>
+<td>件</td>
+</tr>
+<tr>
+<td>時間内稼働率</td>
+<td><code>SUM(稼働分)/(510×11)×100</code></td>
+<td>%</td>
+</tr>
+<tr>
+<td>時間外比率</td>
+<td><code>17:15以降稼働分/全稼働分×100</code></td>
+<td>%</td>
+</tr>
+</tbody>
+</table>
+<p>手術室パラメータ: 8:45〜17:15（510分/室）、11室（OP-1〜OP-10,OP-12）</p>
+<h4>6.3.3 診療科別KPI（全日基準）</h4>
+<table>
+<thead>
+<tr>
+<th>項目</th>
+<th>計算式</th>
+<th>単位</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>直近7日合計</td>
+<td><code>SUM(全麻) WHERE base_date−6〜base_date</code>（暦日）</td>
+<td>件/週</td>
+</tr>
+<tr>
+<td>週目標</td>
+<td><code>op_targetの週目標</code>（科別）</td>
+<td>件/週</td>
+</tr>
+<tr>
+<td>達成率</td>
+<td><code>7日合計/週目標×100</code></td>
+<td>%</td>
+</tr>
+<tr>
+<td>直近28日平均</td>
+<td><code>28暦日のSUM/4</code>（過去4週平均）</td>
+<td>件/週</td>
+</tr>
+<tr>
+<td>年度平均</td>
+<td><code>FY全麻合計/FY経過週数</code></td>
+<td>件/週</td>
+</tr>
+<tr>
+<td>年度達成率</td>
+<td><code>年度平均/週目標×100</code></td>
+<td>%</td>
+</tr>
+</tbody>
+</table>
+<h3>6.4 退院・病棟負荷</h3>
+<table>
+<thead>
+<tr>
+<th>項目</th>
+<th>計算式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>退院関連件数</td>
+<td>退院患者数 + 死亡患者数</td>
+</tr>
+<tr>
+<td>出入り負荷</td>
+<td>新入院 + 転入 + 退院合計 + 転出</td>
+</tr>
+<tr>
+<td>フローバランス</td>
+<td>(新入院+転入) − (退院合計+転出)</td>
+</tr>
+</tbody>
+</table>
+<h3>6.5 粗利</h3>
+<table>
+<thead>
+<tr>
+<th>項目</th>
+<th>計算式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>月次達成率</td>
+<td><code>粗利/月次目標×100</code></td>
+</tr>
+<tr>
+<td>前月比</td>
+<td><code>当月粗利−前月粗利</code></td>
+</tr>
+<tr>
+<td>年度累計</td>
+<td><code>FY開始月〜当月のSUM</code></td>
+</tr>
+<tr>
+<td>年度達成率</td>
+<td><code>累計/(月次目標×経過月数)×100</code></td>
+</tr>
+</tbody>
+</table>
+<h3>6.6 達成率共通ルール</h3>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">achievement_rate</span><span class="p">(</span><span class="n">actual</span><span class="p">,</span> <span class="n">target</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">target</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">target</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">pd</span><span class="o">.</span><span class="n">isna</span><span class="p">(</span><span class="n">target</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">return</span> <span class="nb">round</span><span class="p">(</span><span class="n">actual</span> <span class="o">/</span> <span class="n">target</span> <span class="o">*</span> <span class="mi">100</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+</code></pre></div>
+
+<hr />
+<h2>第7章 ランキング・スコアリング</h2>
+<h3>7.1 達成率ランキング</h3>
+<p>ソート: 達成率降順（NaN末尾）。代替: 実績降順。</p>
+<h3>7.2 ステータス区分</h3>
+<table>
+<thead>
+<tr>
+<th>区分</th>
+<th>条件</th>
+<th>色</th>
+<th>形状</th>
+<th>文言</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>未達</td>
+<td>&lt;90%</td>
+<td><code>#c4314b</code></td>
+<td>▼</td>
+<td>未達</td>
+</tr>
+<tr>
+<td>接近</td>
+<td>90-99%</td>
+<td><code>#b45309</code></td>
+<td>―</td>
+<td>接近</td>
+</tr>
+<tr>
+<td>達成</td>
+<td>≥100%</td>
+<td><code>#0e7a54</code></td>
+<td>▲</td>
+<td>達成</td>
+</tr>
+</tbody>
+</table>
+<h3>7.3 医師ウォッチスコア</h3>
+<div class="codehilite"><pre><span></span><code>score = 新入院未達分 × 0.5 + 7日MA乖離 × 0.3 + 手術未達分 × 0.2
+</code></pre></div>
+
+<h3>7.4 看護師ウォッチスコア</h3>
+<div class="codehilite"><pre><span></span><code>score = 利用率超過(95%超) × 1.5 + 入退院負荷スコア
+</code></pre></div>
+
+<h3>7.5 差分ランキング</h3>
+<p><code>gap = actual − target</code>、負の大きい順にソート。</p>
+<hr />
+<h1>第III部 画面仕様（v2ワイヤーフレーム準拠）</h1>
+<h2>第8章 Layer-1 Portal（v2_portal_pc/sp準拠）</h2>
+<h3>8.1 ヘッダー（CSSクラス: <code>.hdr</code>）</h3>
+<table>
+<thead>
+<tr>
+<th>要素</th>
+<th>PC版</th>
+<th>SP版</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>配置</td>
+<td><code>position:sticky; top:0</code></td>
+<td>同左</td>
+</tr>
+<tr>
+<td>背景</td>
+<td><code>--brand-dark</code> (#0a3671)</td>
+<td>同左</td>
+</tr>
+<tr>
+<td>左側</td>
+<td>badge「KPI」(<code>--brand</code>) + タイトル「🏥 診療ダッシュボード」(15px/900)</td>
+<td>同左</td>
+</tr>
+<tr>
+<td>右側</td>
+<td>📅基準日 + 🕐更新時刻(12px)</td>
+<td>同左(11px)</td>
+</tr>
+</tbody>
+</table>
+<h3>8.2 ヘッドラインアラート（<code>.alert</code>）</h3>
+<table>
+<thead>
+<tr>
+<th>属性</th>
+<th>値</th>
+<th>データソース</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>背景</td>
+<td><code>--st-danger-bg</code> (#fdf0f2)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>左ボーダー</td>
+<td><code>4px solid --st-danger</code> (#c4314b)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>h2テキスト</td>
+<td>第3章3.4のロジックで自動生成</td>
+<td><code>headline.text</code></td>
+</tr>
+<tr>
+<td>pテキスト</td>
+<td>3KPIの「実績/目標(差分)」を1行</td>
+<td><code>headline.detail</code></td>
+</tr>
+<tr>
+<td>角丸</td>
+<td><code>--r-lg</code> (18px)</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h3>8.3 KPIカード×3（<code>.kpi &gt; .kc</code>）</h3>
+<p>各カードは <code>&lt;a&gt;</code> リンクで detail.html へ遷移。</p>
+<table>
+<thead>
+<tr>
+<th>要素</th>
+<th>CSSクラス</th>
+<th>データソース</th>
+<th>表示ルール</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>アイコン+ラベル</td>
+<td><code>.lb</code></td>
+<td>固定文言</td>
+<td>🛏️在院患者数 / 🚪新入院患者数 / 💉全身麻酔手術</td>
+</tr>
+<tr>
+<td>期間説明</td>
+<td><code>.sb</code></td>
+<td>固定文言</td>
+<td>「{base_date}時点」/「直近7日累計」/「直近7平日平均」</td>
+</tr>
+<tr>
+<td>主値</td>
+<td><code>.vl</code></td>
+<td><code>kpi.{id}.actual</code> / <code>actual_7d</code> / <code>daily_avg</code></td>
+<td>30px(SP)/42px(PC)、font-weight:900</td>
+</tr>
+<tr>
+<td>差分</td>
+<td><code>.gp</code></td>
+<td><code>kpi.{id}.gap</code></td>
+<td>「目標まで −{gap}{単位}」、色: <code>--st-danger-text</code></td>
+</tr>
+<tr>
+<td>ステータスバッジ</td>
+<td><code>.st</code></td>
+<td><code>kpi.{id}.rate</code></td>
+<td>rate&lt;90: <code>▼未達</code>/90-99: <code>―接近</code>/≥100: <code>▲達成</code></td>
+</tr>
+<tr>
+<td>border-top</td>
+<td>—</td>
+<td>ステータスに連動</td>
+<td>未達: <code>--st-danger</code> / 接近: <code>--st-warn</code> / 達成: <code>--st-ok</code></td>
+</tr>
+<tr>
+<td>リンク先</td>
+<td><code>href</code></td>
+<td>—</td>
+<td><code>detail.html#inpatient</code> / <code>#admission</code> / <code>#operation</code></td>
+</tr>
+<tr>
+<td>ヒントテキスト</td>
+<td><code>.ht</code></td>
+<td>固定</td>
+<td>「詳細を見る ›」</td>
+</tr>
+</tbody>
+</table>
+<p><strong>PC版</strong>: <code>grid 3列</code>、hover時 <code>shadow-lg + translateY(-2px)</code>
+<strong>SP版</strong>: <code>1列</code>、タップ導線</p>
+<h3>8.4 要注視カード×3（<code>.sec .at</code>）</h3>
+<table>
+<thead>
+<tr>
+<th>属性</th>
+<th>データソース</th>
+<th>表示</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>対象名</td>
+<td><code>attention[i].name</code></td>
+<td><code>.nm</code> (13px/900)</td>
+</tr>
+<tr>
+<td>KPI種別</td>
+<td><code>attention[i].kpi</code> + アイコン</td>
+<td><code>.mt</code> (🚪新入院 等)</td>
+</tr>
+<tr>
+<td>差分値</td>
+<td><code>attention[i].gap</code></td>
+<td><code>.dl</code> (22px/900, <code>--st-danger-text</code>)</td>
+</tr>
+<tr>
+<td>実績/目標</td>
+<td><code>attention[i].actual/target</code></td>
+<td><code>.dt</code> (11px)</td>
+</tr>
+<tr>
+<td>border-left</td>
+<td>—</td>
+<td><code>4px solid --st-danger</code></td>
+</tr>
+</tbody>
+</table>
+<p>選出ロジック: 医師ウォッチスコア上位2件 + 看護師ウォッチスコア上位1件 = <strong>計3件</strong></p>
+<p><strong>PC版</strong>: 2カラム（左: 要注視3件、右: 改善トピック）
+<strong>SP版</strong>: 1カラム縦積み</p>
+<h3>8.5 改善トピック×1（<code>.at.imp</code>）</h3>
+<table>
+<thead>
+<tr>
+<th>属性</th>
+<th>データソース</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>対象名</td>
+<td><code>improvement.name</code></td>
+</tr>
+<tr>
+<td>差分値</td>
+<td><code>improvement.delta</code></td>
+</tr>
+<tr>
+<td>比較軸</td>
+<td><code>improvement.compare</code></td>
+</tr>
+<tr>
+<td>border-left</td>
+<td><code>4px solid --st-info</code> (#2563eb)</td>
+</tr>
+</tbody>
+</table>
+<p>選出: 前週同曜日比で最大改善1件</p>
+<h3>8.6 SP専用固定ナビ（<code>.nav</code>）</h3>
+<table>
+<thead>
+<tr>
+<th>ボタン</th>
+<th>アイコン</th>
+<th>リンク先</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>新入院</td>
+<td>🚪</td>
+<td><code>detail_sp.html#admission</code></td>
+</tr>
+<tr>
+<td>在院</td>
+<td>🛏️</td>
+<td><code>detail_sp.html#inpatient</code></td>
+</tr>
+<tr>
+<td>手術</td>
+<td>💉</td>
+<td><code>detail_sp.html#operation</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>position:fixed; bottom:0</code>、backdrop-filter付き。PC版では非表示。</p>
+<hr />
+<h2>第9章 Layer-2 Detail（v2_detail_pc/sp準拠）</h2>
+<h3>9.1 ヘッダー（<code>.hdr</code>）</h3>
+<table>
+<thead>
+<tr>
+<th>要素</th>
+<th>PC配置</th>
+<th>SP配置</th>
+<th>動作</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>‹ポータル</td>
+<td><code>.back</code> 左端</td>
+<td>同左</td>
+<td><code>portal.html</code> へ戻る</td>
+</tr>
+<tr>
+<td>badge</td>
+<td><code>DETAIL</code></td>
+<td>同左</td>
+<td>—</td>
+</tr>
+<tr>
+<td>タイトル</td>
+<td>📊 統合詳細ダッシュボード</td>
+<td>短縮: 統合詳細</td>
+<td>—</td>
+</tr>
+<tr>
+<td>ロールセレクタ</td>
+<td><code>.role</code> 右側</td>
+<td><code>.row2</code> 2行目</td>
+<td>下記参照</td>
+</tr>
+<tr>
+<td>印刷</td>
+<td><code>.act</code> 右端</td>
+<td>非表示</td>
+<td><code>window.print()</code></td>
+</tr>
+<tr>
+<td>基準日</td>
+<td><code>.meta</code> 右端</td>
+<td><code>.meta</code> 2行目</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p><strong>ロールセレクタ動作</strong>:
+- <code>🩺 医師向け</code> → <code>switchTab('admission')</code> + <code>setAxis('dept')</code> + <code>setPeriod('7d')</code>
+- <code>🏥 看護師向け</code> → <code>switchTab('inpatient')</code> + <code>setAxis('ward')</code> + <code>setPeriod('7d')</code>
+- ページ遷移なし、URL hash+query書換</p>
+<h3>9.2 KPIタブバー（<code>.tabs</code>）</h3>
+<table>
+<thead>
+<tr>
+<th>タブ</th>
+<th>data-tab</th>
+<th>表示テキスト</th>
+<th>概況値</th>
+<th>バッジ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>在院患者</td>
+<td><code>inpatient</code></td>
+<td>🛏️ 在院患者</td>
+<td><code>{kpi.inpatient.actual}人/目標{target}</code></td>
+<td>ステータス</td>
+</tr>
+<tr>
+<td>新入院</td>
+<td><code>admission</code></td>
+<td>🚪 新入院</td>
+<td><code>{kpi.admission.actual_7d}人/目標{target}</code></td>
+<td>ステータス</td>
+</tr>
+<tr>
+<td>手術</td>
+<td><code>operation</code></td>
+<td>💉 全身麻酔手術</td>
+<td><code>{kpi.operation.daily_avg}件/日/目標{target}</code></td>
+<td>ステータス</td>
+</tr>
+</tbody>
+</table>
+<p><strong>PC</strong>: <code>grid 3列固定</code>、active → <code>background:--brand; color:#fff</code>
+<strong>SP</strong>: <code>flex横スクロール</code>、<code>min-width:125px/タブ</code>、<code>scrollbar-width:none</code></p>
+<h3>9.3 サマリーバー（<code>.sum</code>）</h3>
+<h4>在院患者タブ</h4>
+<table>
+<thead>
+<tr>
+<th>PC列位置</th>
+<th>ラベル(<code>.k</code>)</th>
+<th>値(<code>.v</code>)</th>
+<th>データソース</th>
+<th>値が未達時</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1 (230px)</td>
+<td>🛏️ 在院患者数</td>
+<td>— (h2)</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td>2</td>
+<td>目標日平均</td>
+<td>567人</td>
+<td>固定</td>
+<td>—</td>
+</tr>
+<tr>
+<td>3</td>
+<td>今年度平均</td>
+<td>{fy_avg}人</td>
+<td><code>kpi.inpatient.fy_avg</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>4</td>
+<td>直近7日</td>
+<td>{avg_7d}人</td>
+<td><code>kpi.inpatient.avg_7d</code></td>
+<td><code>.v.dr</code> (--st-danger)</td>
+</tr>
+<tr>
+<td>5</td>
+<td>前年平均</td>
+<td>{prev_avg}人</td>
+<td><code>kpi.inpatient.prev_avg</code></td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h4>新入院タブ</h4>
+<table>
+<thead>
+<tr>
+<th>PC列位置</th>
+<th>ラベル</th>
+<th>値</th>
+<th>データソース</th>
+<th>未達時色</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>🚪 新入院患者数</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td>2</td>
+<td>週目標</td>
+<td>380人</td>
+<td>固定</td>
+<td>—</td>
+</tr>
+<tr>
+<td>3</td>
+<td>年度平均</td>
+<td>{fy_avg}人</td>
+<td><code>kpi.admission.fy_avg</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>4</td>
+<td>直近7日</td>
+<td>{actual_7d}人({rate_7d}%)</td>
+<td><code>kpi.admission.actual_7d</code></td>
+<td><code>.v.dr</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td>前年平均</td>
+<td>{prev_avg}人</td>
+<td><code>kpi.admission.prev_avg</code></td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h4>手術タブ</h4>
+<table>
+<thead>
+<tr>
+<th>PC列位置</th>
+<th>ラベル</th>
+<th>値</th>
+<th>データソース</th>
+<th>未達時色</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>💉 全身麻酔手術</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td>2</td>
+<td>目標</td>
+<td>21件/日</td>
+<td>固定</td>
+<td>—</td>
+</tr>
+<tr>
+<td>3</td>
+<td>平日平均</td>
+<td>{daily_avg}件</td>
+<td><code>kpi.operation.daily_avg</code></td>
+<td><code>.v.dr</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>時間内稼働率</td>
+<td>{in_hours_rate}%</td>
+<td><code>kpi.operation.in_hours_rate</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>5</td>
+<td>時間外比率</td>
+<td>{overtime_rate}%</td>
+<td><code>kpi.operation.overtime_rate</code></td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p><strong>PC</strong>: <code>grid: 230px repeat(4,1fr)</code>、gap:12px
+<strong>SP</strong>: <code>grid: 1fr 1fr</code> × 2行 + h2を独立行</p>
+<h3>9.4 ツールバー（<code>.tb</code>）</h3>
+<h4>軸切替グループ（<code>.grp</code>）</h4>
+<table>
+<thead>
+<tr>
+<th>KPIタブ</th>
+<th>軸1 (医師デフォルト)</th>
+<th>軸2 (看護師デフォルト)</th>
+<th>軸3</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>在院患者</td>
+<td><code>🩺 診療科別</code></td>
+<td><code>🏥 病棟別</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>新入院</td>
+<td><code>🩺 診療科別</code></td>
+<td><code>🏥 病棟別</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>手術</td>
+<td><code>🩺 診療科別</code></td>
+<td>—</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h4>期間切替グループ</h4>
+<table>
+<thead>
+<tr>
+<th>KPIタブ</th>
+<th>期間1</th>
+<th>期間2</th>
+<th>期間3</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>在院患者</td>
+<td><code>直近7日</code></td>
+<td><code>直近28日</code></td>
+<td><code>今年度</code></td>
+</tr>
+<tr>
+<td>新入院</td>
+<td><code>直近7日</code></td>
+<td><code>直近28日</code></td>
+<td><code>今年度</code></td>
+</tr>
+<tr>
+<td>手術</td>
+<td><code>年度比較</code></td>
+<td><code>直近365日</code></td>
+<td><code>今年度</code></td>
+</tr>
+</tbody>
+</table>
+<h4>オプショングループ</h4>
+<p><code>🔄 前年度と比較</code> / <code>🖨️ 印刷</code></p>
+<p><strong>PC</strong>: <code>flex 1行</code>、gap:6px、グループ間にセパレータ
+<strong>SP</strong>: <code>grid 2段</code>（軸セグメント + 期間セグメント）</p>
+<h3>9.5 メインコンテンツグリッド（<code>.main</code>）</h3>
+<p><strong>PC</strong>: <code>grid: 1.15fr 0.85fr</code>（左グラフ + 右ランキング）、gap:16px
+<strong>SP</strong>: <code>1列</code>（グラフ → ランキング の縦積み）</p>
+<h3>9.6 グラフ仕様（左ペイン <code>.pnl &gt; .chart</code>）</h3>
+<h4>共通仕様</h4>
+<table>
+<thead>
+<tr>
+<th>項目</th>
+<th>値</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ライブラリ</td>
+<td>Plotly.js（CDN）</td>
+</tr>
+<tr>
+<td>フォント</td>
+<td>Noto Sans JP, IBM Plex Mono</td>
+</tr>
+<tr>
+<td>テキスト色</td>
+<td><code>#5A6A82</code></td>
+</tr>
+<tr>
+<td>軸グリッド</td>
+<td><code>#DCE1E9</code></td>
+</tr>
+<tr>
+<td>Y軸</td>
+<td><code>rangemode:"tozero"</code></td>
+</tr>
+<tr>
+<td>凡例</td>
+<td>下部水平（<code>orientation:"h", y:-0.18</code>）</td>
+</tr>
+<tr>
+<td>ホバー</td>
+<td><code>hovermode:"x unified"</code>, 背景 <code>#1D2B3A</code>, テキスト <code>#E8EEF5</code></td>
+</tr>
+<tr>
+<td>PC高さ</td>
+<td>360px</td>
+</tr>
+<tr>
+<td>SP高さ</td>
+<td>200px</td>
+</tr>
+</tbody>
+</table>
+<h4>在院患者タブ × 診療科別</h4>
+<table>
+<thead>
+<tr>
+<th>系列名</th>
+<th>Plotly type</th>
+<th>データソース</th>
+<th>色</th>
+<th>線種</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>7日移動平均</td>
+<td><code>scatter (mode:"lines")</code></td>
+<td><code>trend.inpatient.ma7</code></td>
+<td><code>#0D9488</code></td>
+<td>実線</td>
+</tr>
+<tr>
+<td>28日移動平均</td>
+<td><code>scatter</code></td>
+<td><code>trend.inpatient.ma28</code></td>
+<td><code>#0D9488</code></td>
+<td><code>dash:"dash"</code></td>
+</tr>
+<tr>
+<td>目標ライン</td>
+<td><code>scatter (hline)</code></td>
+<td>583 (固定)</td>
+<td><code>#C0293B</code></td>
+<td><code>dash:"dash"</code></td>
+</tr>
+<tr>
+<td>前年度実績</td>
+<td><code>scatter</code></td>
+<td><code>trend.inpatient.yoy</code></td>
+<td><code>#94A3B8</code></td>
+<td><code>dash:"dot"</code></td>
+</tr>
+</tbody>
+</table>
+<p>X軸: <code>trend.inpatient.dates</code>、type: date</p>
+<h4>在院患者タブ × 病棟別 → ヒートマップに切替</h4>
+<p>推移グラフに代えて <strong>病棟別利用率ヒートマップ</strong> を表示。</p>
+<table>
+<thead>
+<tr>
+<th>軸</th>
+<th>内容</th>
+<th>データ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>X軸</td>
+<td>日付（直近8週）</td>
+<td><code>charts.occupancy_heatmap.dates</code></td>
+</tr>
+<tr>
+<td>Y軸</td>
+<td>病棟名</td>
+<td><code>charts.occupancy_heatmap.wards</code></td>
+</tr>
+<tr>
+<td>値</td>
+<td>利用率%（在院/病床数×100）</td>
+<td><code>charts.occupancy_heatmap.values</code></td>
+</tr>
+<tr>
+<td>色スケール</td>
+<td>85%以下=赤系、85-95%=オレンジ系、95%超=緑系</td>
+<td>—</td>
+</tr>
+<tr>
+<td>PC高さ</td>
+<td>280px</td>
+<td>—</td>
+</tr>
+<tr>
+<td>SP高さ</td>
+<td>180px</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h4>新入院タブ × 診療科別</h4>
+<table>
+<thead>
+<tr>
+<th>系列名</th>
+<th>type</th>
+<th>データ</th>
+<th>色</th>
+<th>線種</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>7日移動平均</td>
+<td><code>scatter</code></td>
+<td><code>trend.admission.ma7</code></td>
+<td><code>#0D9488</code></td>
+<td>実線</td>
+</tr>
+<tr>
+<td>28日移動平均</td>
+<td><code>scatter</code></td>
+<td><code>trend.admission.ma28</code></td>
+<td><code>#0D9488</code></td>
+<td><code>dash</code></td>
+</tr>
+<tr>
+<td>目標(日割り)</td>
+<td><code>scatter</code></td>
+<td>380/7≈54</td>
+<td><code>#C0293B</code></td>
+<td><code>dash</code></td>
+</tr>
+<tr>
+<td>前年度実績</td>
+<td><code>scatter</code></td>
+<td><code>trend.admission.yoy</code></td>
+<td><code>#94A3B8</code></td>
+<td><code>dot</code></td>
+</tr>
+</tbody>
+</table>
+<p>表示範囲切替: 直近24週(デフォルト) / 今年度 / 直近365日</p>
+<h4>新入院タブ × 病棟別</h4>
+<p>全体推移と同じ線グラフ。選択病棟のデータのみ抽出。</p>
+<h4>手術タブ × 診療科別</h4>
+<p>† 手術タブは「病院全体表示」と「診療科別表示」で集計基準が異なる（第6章6.3.1参照）。</p>
+<p><strong>病院全体表示時</strong>（デフォルト）:</p>
+<table>
+<thead>
+<tr>
+<th>系列名</th>
+<th>type</th>
+<th>データ</th>
+<th>色</th>
+<th>線種</th>
+<th>備考</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>営業平日移動平均</td>
+<td><code>scatter</code></td>
+<td><code>trend.operation.ma7</code></td>
+<td><code>#0D9488</code></td>
+<td>実線</td>
+<td>営業平日7日のrolling</td>
+</tr>
+<tr>
+<td>目標ライン</td>
+<td><code>scatter</code></td>
+<td>21</td>
+<td><code>#C0293B</code></td>
+<td><code>dash</code></td>
+<td>営業平日基準</td>
+</tr>
+<tr>
+<td>前年度実績</td>
+<td><code>scatter</code></td>
+<td><code>trend.operation.yoy</code></td>
+<td><code>#94A3B8</code></td>
+<td><code>dot</code></td>
+<td>営業平日ベース</td>
+</tr>
+</tbody>
+</table>
+<p><strong>診療科選択時</strong>（ランキングで科名を選択した場合）:</p>
+<table>
+<thead>
+<tr>
+<th>系列名</th>
+<th>type</th>
+<th>データ</th>
+<th>色</th>
+<th>線種</th>
+<th>備考</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>暦日7日移動平均</td>
+<td><code>scatter</code></td>
+<td><code>trend.operation.dept[name].ma7</code></td>
+<td><code>#0D9488</code></td>
+<td>実線</td>
+<td><strong>暦日</strong>7日のrolling</td>
+</tr>
+<tr>
+<td>週目標ライン</td>
+<td><code>scatter</code></td>
+<td><code>op_target[科名].週目標/7</code></td>
+<td><code>#C0293B</code></td>
+<td><code>dash</code></td>
+<td>週目標の日割り</td>
+</tr>
+<tr>
+<td>前年度実績</td>
+<td><code>scatter</code></td>
+<td><code>trend.operation.dept[name].yoy</code></td>
+<td><code>#94A3B8</code></td>
+<td><code>dot</code></td>
+<td>暦日ベース</td>
+</tr>
+</tbody>
+</table>
+<h4>手術タブ × 年度比較モード</h4>
+<p>PC: 1カラムで今年度(<code>compare.period2</code>)をlineで、前年度(<code>compare.period1</code>)をscatterで併記。
+KPIグリッドは今年度の値。このモードは営業平日基準（病院全体KPI）。</p>
+<h3>9.7 ランキング仕様（右ペイン <code>.pnl &gt; .rk</code>）</h3>
+<h4>共通構造（各行 <code>.ri</code>）</h4>
+<table>
+<thead>
+<tr>
+<th>PC列</th>
+<th>CSSクラス</th>
+<th>内容</th>
+<th>サイズ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1 (28px)</td>
+<td><code>.num</code></td>
+<td>順位（丸数字）</td>
+<td>28×28px丸</td>
+</tr>
+<tr>
+<td>2 (1fr)</td>
+<td><code>.nm</code> + <code>.mt2</code></td>
+<td>名前 + 実績/目標</td>
+<td>13px/900 + 11px</td>
+</tr>
+<tr>
+<td>3 (130px)</td>
+<td><code>.bar &gt; .fill</code></td>
+<td>達成率バー</td>
+<td>高さ8px</td>
+</tr>
+<tr>
+<td>4 (60px)</td>
+<td><code>.rt</code></td>
+<td>達成率% + ▼▲―</td>
+<td>13px/900</td>
+</tr>
+<tr>
+<td>5 (70px)</td>
+<td><code>.stl</code></td>
+<td>ステータスバッジ</td>
+<td>10px/800</td>
+</tr>
+<tr>
+<td>6 (18px)</td>
+<td><code>.arrow</code></td>
+<td><code>›</code> 遷移矢印</td>
+<td>16px</td>
+</tr>
+</tbody>
+</table>
+<p><strong>SP列</strong>: <code>26px 1fr auto</code>（バー非表示、ステータスをauto幅に）</p>
+<p><strong>順位丸の色分け</strong>:
+- <code>.n-ok</code>: <code>background:#d1fae5; color:#065f42</code>
+- <code>.n-wr</code>: <code>background:#fef3c7; color:#92400e</code>
+- <code>.n-dr</code>: <code>background:#fce4ec; color:#8c1d35</code></p>
+<h4>凡例（<code>.legend</code>）</h4>
+<div class="codehilite"><pre><span></span><code>▲達成(≥100%) #0e7a54 / ―接近(80-99%) #b45309 / ▼未達(&lt;80%) #c4314b
+</code></pre></div>
+
+<h4>タブ×軸別の対象</h4>
+<table>
+<thead>
+<tr>
+<th>タブ</th>
+<th>診療科軸 対象</th>
+<th>病棟軸 対象</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>在院患者</td>
+<td>23科 (NADM_DISPLAY_DEPTS)</td>
+<td>17棟 (WARD_HIDDEN除く)</td>
+</tr>
+<tr>
+<td>新入院</td>
+<td>23科</td>
+<td>17棟</td>
+</tr>
+<tr>
+<td>手術</td>
+<td>12科 (SURGERY_DISPLAY_DEPTS)</td>
+<td>12科 (SURGERY_DISPLAY_DEPTS)</td>
+</tr>
+</tbody>
+</table>
+<p>データソース: <code>perf.{kpi}.{axis}.{period}</code>（例: <code>perf.admission.dept.7</code>）</p>
+<p>期間切替でデータが <code>perf.*.*.7</code> → <code>perf.*.*.28</code> → <code>perf.*.*.fy</code> に連動。</p>
+<h3>9.8 ドリルダウン（<code>.drill</code>）</h3>
+<h4>トリガー: ランキング行（<code>.ri</code>）クリック</h4>
+<h4>PC版（<code>.dr-head</code> + <code>.dr-body</code>）</h4>
+<table>
+<thead>
+<tr>
+<th>要素</th>
+<th>CSSクラス</th>
+<th>レイアウト</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ヘッダー</td>
+<td><code>.dr-head</code></td>
+<td>全幅</td>
+<td>📋 {科名/病棟名} の詳細 + ▼</td>
+</tr>
+<tr>
+<td>KPIグリッド</td>
+<td><code>.dgrid</code></td>
+<td><code>grid 4列</code></td>
+<td>4ミニカード(下表)</td>
+</tr>
+<tr>
+<td>下段</td>
+<td><code>.d2</code></td>
+<td><code>grid: 1fr 280px</code></td>
+<td>左:推移グラフ(180px) + 右:注視理由+アクション</td>
+</tr>
+</tbody>
+</table>
+<p><strong>ミニカード4枚（<code>.mc</code>）</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>ラベル(<code>.l</code>)</th>
+<th>値(<code>.v</code>)</th>
+<th>補足(<code>.s</code>)</th>
+<th>データソース</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>🚪 新入院（直近7日）</td>
+<td>{actual_7d}人</td>
+<td>目標{target}({rate}%)</td>
+<td><code>drill[name].admission</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>🛏️ 在院患者数</td>
+<td>{actual}人</td>
+<td>目標{target}({rate}%)</td>
+<td><code>drill[name].inpatient</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>💉 全身麻酔（直近7日）</td>
+<td>{actual}件</td>
+<td>目標{target}({rate}%)</td>
+<td><code>drill[name].operation</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>💰 粗利（月次）</td>
+<td>¥{monthly/1000}M</td>
+<td>前月比{mom}</td>
+<td><code>drill[name].profit</code></td>
+</tr>
+</tbody>
+</table>
+<p>未達時: <code>.v</code> に <code>.dr</code> クラス付与 → color: <code>--st-danger</code></p>
+<p>推移グラフ: <code>drill[name].trend.dates</code> / <code>drill[name].trend.values</code></p>
+<h4>SP版（<code>&lt;details&gt;</code> アコーディオン）</h4>
+<table>
+<thead>
+<tr>
+<th>要素</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>&lt;summary&gt;</code></td>
+<td>📋 {科名} の詳細</td>
+</tr>
+<tr>
+<td><code>.mgrid</code></td>
+<td><code>grid 3列</code>: 新入院/在院/手術のミニカード</td>
+</tr>
+<tr>
+<td><code>.chart</code></td>
+<td>推移グラフ(130px)</td>
+</tr>
+</tbody>
+</table>
+<h3>9.9 手術タブ専用: 期間比較サマリー（<code>.compare</code>）</h3>
+<p>PC版の手術タブ下段、<code>grid 3列</code>。</p>
+<table>
+<thead>
+<tr>
+<th>カード(<code>.c</code>)</th>
+<th>ラベル(<code>.t</code>)</th>
+<th>値(<code>.v</code>)</th>
+<th>デルタ(<code>.d</code>)</th>
+<th>データ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>平日平均件数の変化</td>
+<td>{delta.daily_avg}件</td>
+<td>▼/▲ {%}</td>
+<td><code>compare.delta.daily_avg</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>月次実績の変化</td>
+<td>{delta.month}件</td>
+<td>▼/▲ {%}</td>
+<td><code>compare.delta.month</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>年度予測の変化</td>
+<td>{delta.fy}件</td>
+<td>▼/▲ {%}</td>
+<td><code>compare.delta.fy</code></td>
+</tr>
+</tbody>
+</table>
+<p>負の値: <code>.neg</code> (color: <code>--st-danger</code>)、正の値: <code>.pos</code> (color: <code>--st-ok</code>)</p>
+<hr />
+<h1>第IV部 レスポンシブ・ロール・URL設計</h1>
+<h2>第10章 レスポンシブ差分総覧</h2>
+<table>
+<thead>
+<tr>
+<th>要素</th>
+<th>PC (≥768px)</th>
+<th>SP (&lt;768px)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Portal KPIカード</td>
+<td><code>grid 3列</code></td>
+<td><code>1列</code></td>
+</tr>
+<tr>
+<td>Portal 注視+改善</td>
+<td><code>2カラム</code></td>
+<td><code>1列縦積み</code></td>
+</tr>
+<tr>
+<td>Portal 下部ナビ</td>
+<td>なし</td>
+<td><code>固定ナビ (.nav)</code></td>
+</tr>
+<tr>
+<td>Detail KPIタブ</td>
+<td><code>grid 3列固定</code></td>
+<td><code>flex横スクロール</code></td>
+</tr>
+<tr>
+<td>Detail サマリー</td>
+<td><code>grid: 230px+4列</code></td>
+<td><code>grid 2列×2行</code></td>
+</tr>
+<tr>
+<td>Detail ツールバー</td>
+<td><code>flex 1行</code></td>
+<td><code>grid 2段</code></td>
+</tr>
+<tr>
+<td>Detail メイン</td>
+<td><code>grid: 1.15fr+0.85fr</code></td>
+<td><code>1列縦積み</code></td>
+</tr>
+<tr>
+<td>Detail ランキング列</td>
+<td><code>28px 1fr 130px 60px 70px 18px</code></td>
+<td><code>26px 1fr auto</code></td>
+</tr>
+<tr>
+<td>Detail ドリルダウン</td>
+<td><code>下段固定パネル</code></td>
+<td><code>&lt;details&gt;アコーディオン</code></td>
+</tr>
+<tr>
+<td>Detail ロールセレクタ</td>
+<td><code>ヘッダー右 (.role)</code></td>
+<td><code>ヘッダー2行目 (.row2)</code></td>
+</tr>
+</tbody>
+</table>
+<h3>グラフサイズ</h3>
+<table>
+<thead>
+<tr>
+<th>種類</th>
+<th>PC</th>
+<th>SP</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>推移グラフ</td>
+<td>360px</td>
+<td>200px</td>
+</tr>
+<tr>
+<td>ドリルダウングラフ</td>
+<td>180px</td>
+<td>130px</td>
+</tr>
+<tr>
+<td>ヒートマップ</td>
+<td>280px</td>
+<td>180px</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>第11章 ロール別初期表示</h2>
+<h3>11.1 ブックマークURL</h3>
+<table>
+<thead>
+<tr>
+<th>ロール</th>
+<th>URL</th>
+<th>初期タブ</th>
+<th>初期軸</th>
+<th>初期期間</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>医師</td>
+<td><code>detail.html#admission?axis=dept</code></td>
+<td>新入院</td>
+<td>🩺診療科別</td>
+<td>直近7日</td>
+</tr>
+<tr>
+<td>看護師</td>
+<td><code>detail.html#inpatient?axis=ward</code></td>
+<td>在院患者</td>
+<td>🏥病棟別</td>
+<td>直近7日</td>
+</tr>
+<tr>
+<td>経営層</td>
+<td><code>portal.html</code></td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td>手術室</td>
+<td><code>detail.html#operation?axis=dept</code></td>
+<td>手術</td>
+<td>🩺診療科別</td>
+<td>年度比較</td>
+</tr>
+</tbody>
+</table>
+<h3>11.2 プリセットJS動作</h3>
+<div class="codehilite"><pre><span></span><code><span class="kd">function</span><span class="w"> </span><span class="nx">presetDoctor</span><span class="p">(</span><span class="nx">e</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">switchTab</span><span class="p">(</span><span class="s1">&#39;admission&#39;</span><span class="p">);</span>
+<span class="w">  </span><span class="nx">setAxis</span><span class="p">(</span><span class="s1">&#39;dept&#39;</span><span class="p">);</span>
+<span class="w">  </span><span class="nx">setPeriod</span><span class="p">(</span><span class="s1">&#39;7d&#39;</span><span class="p">);</span>
+<span class="w">  </span><span class="nx">updateURL</span><span class="p">();</span>
+<span class="p">}</span>
+<span class="kd">function</span><span class="w"> </span><span class="nx">presetNurse</span><span class="p">(</span><span class="nx">e</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">switchTab</span><span class="p">(</span><span class="s1">&#39;inpatient&#39;</span><span class="p">);</span>
+<span class="w">  </span><span class="nx">setAxis</span><span class="p">(</span><span class="s1">&#39;ward&#39;</span><span class="p">);</span>
+<span class="w">  </span><span class="nx">setPeriod</span><span class="p">(</span><span class="s1">&#39;7d&#39;</span><span class="p">);</span>
+<span class="w">  </span><span class="nx">updateURL</span><span class="p">();</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3>11.3 医師が開いた瞬間（v2_detail_pc参照）</h3>
+<ul>
+<li>タブ: 🚪新入院(active、<code>--brand</code>背景)</li>
+<li>軸: 🩺診療科別(active、<code>--brand-light</code>背景)</li>
+<li>期間: 直近7日(active)</li>
+<li>左ペイン: 新入院推移グラフ(直近24週+目標ライン)</li>
+<li>右ペイン: 23科の新入院達成率ランキング</li>
+<li>想定アクション: 自科の未達確認 → 紹介受入・入院判断の改善検討</li>
+</ul>
+<h3>11.4 看護師が開いた瞬間（v2_detail_pc参照）</h3>
+<ul>
+<li>タブ: 🛏️在院患者(active)</li>
+<li>軸: 🏥病棟別(active)</li>
+<li>期間: 直近7日(active)</li>
+<li>左ペイン: 病棟別稼働ヒートマップ(直近8週)</li>
+<li>右ペイン: 17棟の在院達成率ランキング（目標差分降順）</li>
+<li>想定アクション: 自病棟の空床確認 → 入退院調整優先度判断</li>
+</ul>
+<hr />
+<h1>第V部 付録</h1>
+<h2>付録A 目標値一覧</h2>
+<table>
+<thead>
+<tr>
+<th>KPI</th>
+<th>目標値</th>
+<th>備考</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>在院患者数（平日）</td>
+<td>600人</td>
+<td></td>
+</tr>
+<tr>
+<td>在院患者数（休日）</td>
+<td>550人</td>
+<td></td>
+</tr>
+<tr>
+<td>在院患者数（全日）</td>
+<td>583人</td>
+<td>年間加重平均（平日約245日×600＋休日約120日×550）/365</td>
+</tr>
+<tr>
+<td>新入院患者数</td>
+<td>380人/週</td>
+<td>目標ファイルから動的読込</td>
+</tr>
+<tr>
+<td>全身麻酔手術</td>
+<td>21件/日</td>
+<td>営業平日ベース</td>
+</tr>
+</tbody>
+</table>
+<h2>付録B 対象一覧</h2>
+<h3>新入院ダッシュボード表示対象（23科）</h3>
+<p>リウマチ膠原病内科、一般消化器外科、眼科、救急科、形成外科、血液内科、呼吸器外科、呼吸器内科、産婦人科、歯科口腔外科、耳鼻咽喉科、循環器内科、小児科、消化器内科、心臓血管外科、腎内科、整形外科、総合内科、乳腺外科、脳神経外科、脳神経内科、泌尿器科、皮膚科</p>
+<h3>手術ダッシュボード表示対象（12科）</h3>
+<p>皮膚科、整形外科、産婦人科、歯科口腔外科、耳鼻咽喉科、泌尿器科、一般消化器外科、呼吸器外科、心臓血管外科、乳腺外科、形成外科、脳神経外科</p>
+<h3>病棟（17棟、除外1棟）</h3>
+<p>2階A、2階B、3階A、4階A、ICU(04B)、4階C、HCU(04D)、5階A、5階B、6階A、6階B、7階A、7階B、8階A、8階B、9階A、9階B
+※除外: 03B（目標未設定）</p>
+<h3>手術室（11室）</h3>
+<p>OP-1〜OP-10、OP-12 ※除外: OP-11</p>
+<h2>付録C 現行→提案B画面マッピング</h2>
+<table>
+<thead>
+<tr>
+<th>現行画面</th>
+<th>提案Bでの配置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>portal.html</td>
+<td>portal.html（信号機版に簡略化）</td>
+</tr>
+<tr>
+<td>doctor.html</td>
+<td>detail.html 診療科別軸</td>
+</tr>
+<tr>
+<td>nurse.html</td>
+<td>detail.html 病棟別軸</td>
+</tr>
+<tr>
+<td>admission/index.html</td>
+<td>detail.html 新入院タブ</td>
+</tr>
+<tr>
+<td>inpatient/index.html</td>
+<td>detail.html 在院患者タブ</td>
+</tr>
+<tr>
+<td>operation/index.html</td>
+<td>detail.html 手術タブ</td>
+</tr>
+<tr>
+<td>reports/dept_*.html</td>
+<td>detail.html ドリルダウン展開</td>
+</tr>
+</tbody>
+</table>
+<h2>付録D データJSON全体スキーマ</h2>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;meta&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;base_date&quot;</span><span class="p">:</span><span class="s2">&quot;2026-04-01&quot;</span><span class="p">,</span><span class="nt">&quot;generated&quot;</span><span class="p">:</span><span class="s2">&quot;2026-04-02T15:23:00&quot;</span><span class="p">},</span>
+<span class="w">  </span><span class="nt">&quot;headline&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;level&quot;</span><span class="p">:</span><span class="s2">&quot;danger|warn|ok&quot;</span><span class="p">,</span><span class="nt">&quot;text&quot;</span><span class="p">:</span><span class="s2">&quot;...&quot;</span><span class="p">,</span><span class="nt">&quot;detail&quot;</span><span class="p">:</span><span class="s2">&quot;...&quot;</span><span class="p">},</span>
+<span class="w">  </span><span class="nt">&quot;kpi&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;inpatient&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;actual&quot;</span><span class="p">:</span><span class="mi">545</span><span class="p">,</span><span class="nt">&quot;target&quot;</span><span class="p">:</span><span class="mi">567</span><span class="p">,</span><span class="nt">&quot;rate&quot;</span><span class="p">:</span><span class="mf">96.1</span><span class="p">,</span><span class="nt">&quot;avg_7d&quot;</span><span class="p">:</span><span class="mf">545.0</span><span class="p">,</span><span class="nt">&quot;avg_28d&quot;</span><span class="p">:</span><span class="mf">544.2</span><span class="p">,</span><span class="nt">&quot;fy_avg&quot;</span><span class="p">:</span><span class="mf">545.0</span><span class="p">,</span><span class="nt">&quot;prev_avg&quot;</span><span class="p">:</span><span class="mf">550.0</span><span class="p">,</span><span class="nt">&quot;gap&quot;</span><span class="p">:</span><span class="mf">-22.0</span><span class="p">},</span>
+<span class="w">    </span><span class="nt">&quot;admission&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;actual_7d&quot;</span><span class="p">:</span><span class="mi">329</span><span class="p">,</span><span class="nt">&quot;target_weekly&quot;</span><span class="p">:</span><span class="mi">385</span><span class="p">,</span><span class="nt">&quot;rate_7d&quot;</span><span class="p">:</span><span class="mf">85.5</span><span class="p">,</span><span class="nt">&quot;fy_avg&quot;</span><span class="p">:</span><span class="mf">378.0</span><span class="p">,</span><span class="nt">&quot;fy_rate&quot;</span><span class="p">:</span><span class="mf">98.2</span><span class="p">,</span><span class="nt">&quot;prev_avg&quot;</span><span class="p">:</span><span class="mf">355.8</span><span class="p">,</span><span class="nt">&quot;daily_actual&quot;</span><span class="p">:</span><span class="mi">54</span><span class="p">,</span><span class="nt">&quot;daily_target&quot;</span><span class="p">:</span><span class="mi">55</span><span class="p">},</span>
+<span class="w">    </span><span class="nt">&quot;operation&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;daily_avg&quot;</span><span class="p">:</span><span class="mf">18.0</span><span class="p">,</span><span class="nt">&quot;target&quot;</span><span class="p">:</span><span class="mi">21</span><span class="p">,</span><span class="nt">&quot;rate&quot;</span><span class="p">:</span><span class="mf">85.7</span><span class="p">,</span><span class="nt">&quot;week_total&quot;</span><span class="p">:</span><span class="mi">54</span><span class="p">,</span><span class="nt">&quot;fy_avg&quot;</span><span class="p">:</span><span class="mf">18.0</span><span class="p">,</span><span class="nt">&quot;month_forecast&quot;</span><span class="p">:</span><span class="mi">378</span><span class="p">,</span><span class="nt">&quot;fy_forecast&quot;</span><span class="p">:</span><span class="mi">4320</span><span class="p">,</span><span class="nt">&quot;in_hours_rate&quot;</span><span class="p">:</span><span class="mf">56.6</span><span class="p">,</span><span class="nt">&quot;overtime_rate&quot;</span><span class="p">:</span><span class="mf">8.6</span><span class="p">}</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">&quot;attention&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[{</span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="s2">&quot;泌尿器科&quot;</span><span class="p">,</span><span class="nt">&quot;kpi&quot;</span><span class="p">:</span><span class="s2">&quot;admission&quot;</span><span class="p">,</span><span class="nt">&quot;icon&quot;</span><span class="p">:</span><span class="s2">&quot;🚪&quot;</span><span class="p">,</span><span class="nt">&quot;gap&quot;</span><span class="p">:</span><span class="mi">-14</span><span class="p">,</span><span class="nt">&quot;actual&quot;</span><span class="p">:</span><span class="mi">17</span><span class="p">,</span><span class="nt">&quot;target&quot;</span><span class="p">:</span><span class="mf">30.5</span><span class="p">,</span><span class="nt">&quot;score&quot;</span><span class="p">:</span><span class="mf">8.2</span><span class="p">}],</span>
+<span class="w">  </span><span class="nt">&quot;improvement&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="s2">&quot;乳腺外科&quot;</span><span class="p">,</span><span class="nt">&quot;kpi&quot;</span><span class="p">:</span><span class="s2">&quot;admission&quot;</span><span class="p">,</span><span class="nt">&quot;delta&quot;</span><span class="p">:</span><span class="mi">5</span><span class="p">,</span><span class="nt">&quot;compare&quot;</span><span class="p">:</span><span class="s2">&quot;前週同曜日比&quot;</span><span class="p">},</span>
+<span class="w">  </span><span class="nt">&quot;perf&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;admission&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;dept&quot;</span><span class="p">:{</span><span class="nt">&quot;7&quot;</span><span class="p">:[{</span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="s2">&quot;皮膚科&quot;</span><span class="p">,</span><span class="nt">&quot;actual&quot;</span><span class="p">:</span><span class="mi">7</span><span class="p">,</span><span class="nt">&quot;target&quot;</span><span class="p">:</span><span class="mf">3.5</span><span class="p">,</span><span class="nt">&quot;rate&quot;</span><span class="p">:</span><span class="mf">200.0</span><span class="p">,</span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="s2">&quot;ok&quot;</span><span class="p">}],</span><span class="nt">&quot;28&quot;</span><span class="p">:[],</span><span class="nt">&quot;fy&quot;</span><span class="p">:[]},</span><span class="nt">&quot;ward&quot;</span><span class="p">:{</span><span class="nt">&quot;7&quot;</span><span class="p">:[],</span><span class="nt">&quot;28&quot;</span><span class="p">:[],</span><span class="nt">&quot;fy&quot;</span><span class="p">:[]}},</span>
+<span class="w">    </span><span class="nt">&quot;inpatient&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;dept&quot;</span><span class="p">:{},</span><span class="nt">&quot;ward&quot;</span><span class="p">:{}},</span>
+<span class="w">    </span><span class="nt">&quot;operation&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;dept&quot;</span><span class="p">:{},</span><span class="nt">&quot;surgeon&quot;</span><span class="p">:{}}</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">&quot;trend&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;admission&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;dates&quot;</span><span class="p">:[],</span><span class="nt">&quot;values&quot;</span><span class="p">:[],</span><span class="nt">&quot;ma7&quot;</span><span class="p">:[],</span><span class="nt">&quot;ma28&quot;</span><span class="p">:[],</span><span class="nt">&quot;target_line&quot;</span><span class="p">:[],</span><span class="nt">&quot;yoy&quot;</span><span class="p">:[]},</span>
+<span class="w">    </span><span class="nt">&quot;inpatient&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;dates&quot;</span><span class="p">:[],</span><span class="nt">&quot;values&quot;</span><span class="p">:[],</span><span class="nt">&quot;ma7&quot;</span><span class="p">:[],</span><span class="nt">&quot;ma28&quot;</span><span class="p">:[],</span><span class="nt">&quot;target_line&quot;</span><span class="p">:[],</span><span class="nt">&quot;yoy&quot;</span><span class="p">:[]},</span>
+<span class="w">    </span><span class="nt">&quot;operation&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;dates&quot;</span><span class="p">:[],</span><span class="nt">&quot;values&quot;</span><span class="p">:[],</span><span class="nt">&quot;ma7&quot;</span><span class="p">:[],</span><span class="nt">&quot;target_line&quot;</span><span class="p">:[],</span><span class="nt">&quot;yoy&quot;</span><span class="p">:[]}</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">&quot;drill&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;泌尿器科&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;admission&quot;</span><span class="p">:{</span><span class="nt">&quot;actual_7d&quot;</span><span class="p">:</span><span class="mi">17</span><span class="p">,</span><span class="nt">&quot;target&quot;</span><span class="p">:</span><span class="mf">30.5</span><span class="p">,</span><span class="nt">&quot;rate&quot;</span><span class="p">:</span><span class="mf">55.7</span><span class="p">},</span>
+<span class="w">      </span><span class="nt">&quot;inpatient&quot;</span><span class="p">:{</span><span class="nt">&quot;actual&quot;</span><span class="p">:</span><span class="mi">28</span><span class="p">,</span><span class="nt">&quot;target&quot;</span><span class="p">:</span><span class="mf">32.0</span><span class="p">,</span><span class="nt">&quot;rate&quot;</span><span class="p">:</span><span class="mf">87.5</span><span class="p">},</span>
+<span class="w">      </span><span class="nt">&quot;operation&quot;</span><span class="p">:{</span><span class="nt">&quot;actual&quot;</span><span class="p">:</span><span class="mi">2</span><span class="p">,</span><span class="nt">&quot;target&quot;</span><span class="p">:</span><span class="mf">10.2</span><span class="p">,</span><span class="nt">&quot;rate&quot;</span><span class="p">:</span><span class="mf">19.6</span><span class="p">},</span>
+<span class="w">      </span><span class="nt">&quot;profit&quot;</span><span class="p">:{</span><span class="nt">&quot;monthly&quot;</span><span class="p">:</span><span class="mi">12400</span><span class="p">,</span><span class="nt">&quot;target&quot;</span><span class="p">:</span><span class="mi">15000</span><span class="p">,</span><span class="nt">&quot;mom&quot;</span><span class="p">:</span><span class="mi">500</span><span class="p">},</span>
+<span class="w">      </span><span class="nt">&quot;trend&quot;</span><span class="p">:{</span><span class="nt">&quot;dates&quot;</span><span class="p">:[],</span><span class="nt">&quot;values&quot;</span><span class="p">:[]}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">&quot;charts&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;occupancy_heatmap&quot;</span><span class="p">:{</span><span class="nt">&quot;wards&quot;</span><span class="p">:[],</span><span class="nt">&quot;dates&quot;</span><span class="p">:[],</span><span class="nt">&quot;values&quot;</span><span class="p">:[[]]},</span>
+<span class="w">    </span><span class="nt">&quot;load_stack&quot;</span><span class="p">:{</span><span class="nt">&quot;wards&quot;</span><span class="p">:[],</span><span class="nt">&quot;new_adm&quot;</span><span class="p">:[],</span><span class="nt">&quot;transfer_in&quot;</span><span class="p">:[],</span><span class="nt">&quot;discharge&quot;</span><span class="p">:[],</span><span class="nt">&quot;transfer_out&quot;</span><span class="p">:[]},</span>
+<span class="w">    </span><span class="nt">&quot;flow_balance&quot;</span><span class="p">:{</span><span class="nt">&quot;dates&quot;</span><span class="p">:[],</span><span class="nt">&quot;values&quot;</span><span class="p">:[]},</span>
+<span class="w">    </span><span class="nt">&quot;surgery_bubble&quot;</span><span class="p">:{</span><span class="nt">&quot;depts&quot;</span><span class="p">:[],</span><span class="nt">&quot;x&quot;</span><span class="p">:[],</span><span class="nt">&quot;y&quot;</span><span class="p">:[],</span><span class="nt">&quot;size&quot;</span><span class="p">:[]},</span>
+<span class="w">    </span><span class="nt">&quot;waterfall&quot;</span><span class="p">:{</span><span class="nt">&quot;depts&quot;</span><span class="p">:[],</span><span class="nt">&quot;values&quot;</span><span class="p">:[]}</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">&quot;compare&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;period2&quot;</span><span class="p">:{</span><span class="nt">&quot;label&quot;</span><span class="p">:</span><span class="s2">&quot;今年度&quot;</span><span class="p">,</span><span class="nt">&quot;daily_avg&quot;</span><span class="p">:</span><span class="mf">18.0</span><span class="p">,</span><span class="nt">&quot;rate&quot;</span><span class="p">:</span><span class="mf">85.7</span><span class="p">,</span><span class="nt">&quot;month&quot;</span><span class="p">:</span><span class="mi">378</span><span class="p">,</span><span class="nt">&quot;fy&quot;</span><span class="p">:</span><span class="mi">4320</span><span class="p">,</span><span class="nt">&quot;in_hours&quot;</span><span class="p">:</span><span class="mf">56.6</span><span class="p">,</span><span class="nt">&quot;overtime&quot;</span><span class="p">:</span><span class="mf">8.6</span><span class="p">},</span>
+<span class="w">    </span><span class="nt">&quot;period1&quot;</span><span class="p">:{</span><span class="nt">&quot;label&quot;</span><span class="p">:</span><span class="s2">&quot;昨年度&quot;</span><span class="p">,</span><span class="nt">&quot;daily_avg&quot;</span><span class="p">:</span><span class="mf">19.6</span><span class="p">,</span><span class="nt">&quot;rate&quot;</span><span class="p">:</span><span class="mf">93.4</span><span class="p">,</span><span class="nt">&quot;month&quot;</span><span class="p">:</span><span class="mi">373</span><span class="p">,</span><span class="nt">&quot;fy&quot;</span><span class="p">:</span><span class="mi">4818</span><span class="p">,</span><span class="nt">&quot;in_hours&quot;</span><span class="p">:</span><span class="mf">57.7</span><span class="p">,</span><span class="nt">&quot;overtime&quot;</span><span class="p">:</span><span class="mf">9.1</span><span class="p">},</span>
+<span class="w">    </span><span class="nt">&quot;delta&quot;</span><span class="p">:{</span><span class="nt">&quot;daily_avg&quot;</span><span class="p">:</span><span class="mf">-1.6</span><span class="p">,</span><span class="nt">&quot;month&quot;</span><span class="p">:</span><span class="mi">5</span><span class="p">,</span><span class="nt">&quot;fy&quot;</span><span class="p">:</span><span class="mi">-498</span><span class="p">,</span><span class="nt">&quot;in_hours&quot;</span><span class="p">:</span><span class="mf">-1.1</span><span class="p">,</span><span class="nt">&quot;overtime&quot;</span><span class="p">:</span><span class="mf">-0.5</span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h2>付録E 参照ワイヤーフレーム</h2>
+<table>
+<thead>
+<tr>
+<th>ファイル</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>design_system.html</td>
+<td>デザインシステム総合資料（色・アイコン・文言・トーン）</td>
+</tr>
+<tr>
+<td>v2_portal_pc.html</td>
+<td>PC版ポータル ワイヤーフレーム</td>
+</tr>
+<tr>
+<td>v2_portal_sp.html</td>
+<td>SP版ポータル ワイヤーフレーム</td>
+</tr>
+<tr>
+<td>v2_detail_pc.html</td>
+<td>PC版統合詳細 ワイヤーフレーム</td>
+</tr>
+<tr>
+<td>v2_detail_sp.html</td>
+<td>SP版統合詳細 ワイヤーフレーム</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<p>以上</p></body></html>

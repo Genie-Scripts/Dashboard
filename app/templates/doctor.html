@@ -39,10 +39,6 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--txt)
 /* ── Wrapper ── */
 .wrapper{max-width:1440px;margin:0 auto;padding:20px 20px 60px}
 
-/* ── Role Brief ── */
-.role-brief{display:flex;gap:12px;flex-wrap:wrap;background:var(--elevated);border:1px solid var(--border);border-radius:var(--r);padding:12px 18px;margin-bottom:20px}
-.role-brief__item{display:flex;align-items:center;gap:6px;font-size:.84rem;color:var(--txt)}
-
 /* ── KPI Cards ── */
 .kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
 .kpi-card{background:var(--card);border-radius:var(--r);padding:20px;border:1px solid var(--border);border-top:3px solid var(--accent);box-shadow:var(--shadow)}
@@ -147,7 +143,22 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--txt)
 .rank-card__meta{display:flex;justify-content:space-between;font-size:.7rem;color:var(--txt2)}
 .rank-card__gap{font-family:var(--mono);font-size:.75rem;font-weight:600}
 .rank-card__score{font-size:.7rem;color:var(--muted)}
+.rank-card__reason{font-size:.72rem;color:var(--txt2);line-height:1.4;margin-top:2px}
+.rank-card__reason.ng{color:var(--ng)}.rank-card__reason.warn{color:var(--warn)}.rank-card__reason.ok{color:var(--ok)}
 .rank-card__note{font-size:.69rem;color:var(--txt2);line-height:1.4}
+
+/* ── Summary Panel (v1.9) ── */
+.summary-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin:12px 0}
+.summary-panel{border-radius:10px;padding:10px 14px;border:1px solid var(--border)}
+.summary-panel__head{font-size:.78rem;font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:4px}
+.summary-panel__item{display:flex;align-items:baseline;gap:6px;padding:3px 0;font-size:.75rem;line-height:1.4}
+.summary-panel__marker{flex-shrink:0;font-size:.6rem}
+.summary-panel__dept{font-weight:700;white-space:nowrap}
+.summary-panel__reason{color:var(--txt2)}
+.summary-panel--ng .summary-panel__head{color:var(--ng)}
+.summary-panel--ok .summary-panel__head{color:var(--ok)}
+.summary-panel--improving .summary-panel__head{color:#3A6EA5}
+.summary-panel--improving{border-color:#3A6EA5;border-style:dashed}
 
 /* ── Score Badge ── */
 .score-badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:.68rem;font-weight:700}
@@ -160,6 +171,50 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--txt)
 .badge-ok{background:var(--ok-bg);color:var(--ok)}
 .badge-ng{background:var(--ng-bg);color:var(--ng)}
 .badge-warn{background:var(--warn-bg);color:var(--warn)}
+
+/* ── Synced Cards (v1.9) ── */
+.synced-row{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+.synced-card{flex:1;min-width:180px;max-width:260px;background:var(--card);border-radius:var(--r);padding:14px 16px;box-shadow:var(--shadow);border-left:3px solid var(--muted)}
+.synced-card.ng{border-left-color:var(--ng)}
+.synced-card.warn{border-left-color:var(--warn)}
+.synced-card.ok{border-left-color:var(--ok)}
+.synced-entity{font-weight:700;font-size:.88rem}
+.synced-metric{font-size:.72rem;color:var(--muted);margin-top:2px}
+.synced-gap{font-size:1rem;font-weight:700;font-family:var(--mono);margin-top:4px}
+.synced-gap.ng{color:var(--ng)}
+.synced-gap.warn{color:var(--warn)}
+.synced-gap.ok{color:var(--ok)}
+.synced-detail{font-size:.72rem;color:var(--txt2);margin-top:2px}
+
+/* ── Headline Banner (v1.8) ── */
+.headline-banner{background:var(--card);border-left:4px solid var(--muted);padding:16px 20px;border-radius:var(--r);margin-bottom:20px;display:flex;align-items:flex-start;gap:14px;box-shadow:var(--shadow)}
+.headline-banner.ok{border-left-color:#1A9E6A}
+.headline-banner.warn{border-left-color:#C87A00}
+.headline-banner.ng{border-left-color:#C0293B}
+.headline-icon{font-size:1.5rem;flex-shrink:0;line-height:1}
+.headline-body{flex:1;min-width:0}
+.headline-main{font-size:.95rem;font-weight:700;color:var(--txt);margin-bottom:2px}
+.headline-detail{font-size:.82rem;color:var(--txt2);line-height:1.5}
+
+/* ── Day-over-Day Alert Cards (v1.8) ── */
+.dod-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:20px}
+.dod-card{background:var(--card);border-radius:var(--r);padding:14px 16px;border-left:3px solid var(--muted);box-shadow:var(--shadow);display:flex;align-items:flex-start;gap:10px}
+.dod-card.up{border-left-color:#3A6EA5}
+.dod-card.down{border-left-color:#C0293B}
+.dod-icon{font-size:1.1rem;flex-shrink:0;line-height:1}
+.dod-body{flex:1;min-width:0}
+.dod-entity{font-weight:700;font-size:.85rem;color:var(--txt)}
+.dod-metric{font-size:.72rem;color:var(--muted)}
+.dod-delta{font-size:.82rem;font-weight:600;font-family:var(--mono);margin-top:2px}
+.dod-delta.up{color:#3A6EA5}
+.dod-delta.down{color:#C0293B}
+
+/* ── Section Collapsible (v1.8) ── */
+.section-collapsible{margin-top:24px}
+.section-toggle{width:100%;background:var(--elevated);border:1px solid var(--border);padding:12px 18px;border-radius:var(--r);font-size:.85rem;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:space-between;color:var(--txt);font-family:'Noto Sans JP',sans-serif;transition:background .15s}
+.section-toggle:hover{background:var(--border)}
+.toggle-icon{float:right;transition:transform .2s}
+.section-content{padding-top:20px}
 
 /* ── Footnote ── */
 .footnote{background:var(--card);border:1px solid var(--border);border-radius:var(--r);margin-top:20px;overflow:hidden}
@@ -212,8 +267,89 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--txt)
 
 <div class="wrapper doctor-page">
 
-<!-- ═══ ROLE BRIEF ═══ -->
-<div class="role-brief" id="roleBrief"><!-- JS 生成 --></div>
+<!-- ═══ HEADLINE BANNER (v1.8) ═══ -->
+{% if headline %}
+<div class="headline-banner {{ headline.overall_status | default('') }}">
+  <div class="headline-icon">{{ headline.icon | default('') }}</div>
+  <div class="headline-body">
+    <div class="headline-main">{{ headline.main_message | default('') }}</div>
+    <div class="headline-detail">{{ headline.detail_message | default('') }}</div>
+  </div>
+</div>
+{% endif %}
+
+<!-- ═══ SYNCED CARDS (v1.9) ═══ -->
+{% if synced_cards %}
+<div class="synced-row">
+  {% for sc in synced_cards %}
+  <div class="synced-card {{ sc.status }}">
+    <div class="synced-entity">{{ sc.entity_name }}</div>
+    <div class="synced-metric">{{ sc.metric_label }}</div>
+    <div class="synced-gap {{ sc.status }}">{{ sc.gap_str }}</div>
+    <div class="synced-detail">実績 {{ sc.actual }} / 目標 {{ sc.target }}</div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- ═══ DAY-OVER-DAY ALERTS (v1.8) ═══ -->
+{% if dod_alerts %}
+<div class="dod-row">
+  {% for alert in dod_alerts %}
+  <div class="dod-card {{ alert.direction }}">
+    <div class="dod-icon">{{ '📈' if alert.direction == 'up' else '📉' }}</div>
+    <div class="dod-body">
+      <div class="dod-entity">{{ alert.entity_name }}</div>
+      <div class="dod-metric">{{ alert.metric_label }}</div>
+      <div class="dod-delta {{ alert.direction }}">前週同曜日比 {{ '%+d' | format(alert.delta) }}{{ '件' if alert.metric == 'surgery' else '人' }}</div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- ═══ DEPARTMENT SUMMARY PANEL (v1.9) ═══ -->
+{% set ds = dept_summary | default({}) %}
+{% if ds.get('watch') or ds.get('praise') or ds.get('improving') %}
+<div class="summary-row">
+  {% if ds.get('watch') %}
+  <div class="summary-panel summary-panel--ng">
+    <div class="summary-panel__head">🔴 要注視</div>
+    {% for r in ds['watch'] %}
+    <div class="summary-panel__item">
+      <span class="summary-panel__marker">●</span>
+      <span class="summary-panel__dept">{{ r.department_name }}</span>
+      <span class="summary-panel__reason">{{ r.watch_reason }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% if ds.get('praise') %}
+  <div class="summary-panel summary-panel--ok">
+    <div class="summary-panel__head">🟢 好調</div>
+    {% for r in ds['praise'] %}
+    <div class="summary-panel__item">
+      <span class="summary-panel__marker">✦</span>
+      <span class="summary-panel__dept">{{ r.department_name }}</span>
+      <span class="summary-panel__reason">{{ r.praise_reason }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% if ds.get('improving') %}
+  <div class="summary-panel summary-panel--improving">
+    <div class="summary-panel__head">📈 改善顕著</div>
+    {% for r in ds['improving'] %}
+    <div class="summary-panel__item">
+      <span class="summary-panel__marker">▲</span>
+      <span class="summary-panel__dept">{{ r.department_name }}</span>
+      <span class="summary-panel__reason">{{ r.improve_reason }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endif %}
 
 <!-- ═══ KPI ROW ═══ -->
 <div class="kpi-row" id="doctorKpiRow">
@@ -284,6 +420,14 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--txt)
   </div>
 </section>
 
+<!-- ═══ COLLAPSIBLE DETAIL SECTION (v1.8) ═══ -->
+<div class="section-collapsible">
+  <button class="section-toggle" onclick="toggleSection(this)">
+    <span class="section-toggle-text">📊 詳細分析を表示</span>
+    <span class="toggle-icon">▼</span>
+  </button>
+  <div class="section-content" style="display:none">
+
 <!-- ═══ ROW B: 全麻差分ランキング + 新入院差分ランキング ═══ -->
 <section class="grid-2">
   <div class="panel">
@@ -328,6 +472,9 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--txt)
   </div>
 </section>
 
+  </div><!-- /section-content -->
+</div><!-- /section-collapsible -->
+
 <!-- ═══ FOOTNOTE ═══ -->
 <div class="footnote">
   <div class="footnote-head" onclick="toggleFootnote()">
@@ -340,7 +487,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--txt)
       <dt>新入院患者数</dt><dd>入院患者数 + 緊急入院患者数の合計</dd>
       <dt>全身麻酔（全麻）</dt><dd>麻酔種別に「全身麻酔(20分以上：吸入もしくは静脈麻酔薬)」を含む手術件数</dd>
       <dt>達成率</dt><dd>実績 ÷ 目標 × 100。緑 ≥105% / 橙 ≥95% / 赤 &lt;95%</dd>
-      <dt>要注視スコア</dt><dd>目標未達度・7日MA乖離・全麻未達度の加重合計。スコアが高いほど要注視</dd>
+      <dt>要注視理由</dt><dd>新入院達成率・7日移動平均トレンド・全麻達成率の主因を自然言語で表示。赤=要対応、橙=注意、緑=維持</dd>
       <dt>目標値</dt><dd>在院 580人(平日)/540人(休日) | 新入院 385人/週 | 全麻 21件/日（平日）</dd>
       <dt>データ基準日</dt><dd>{{ base_date }} のデータまでを集計対象とする</dd>
     </dl>
@@ -453,14 +600,6 @@ function targetLine(target,d0,d1,label='目標'){
   };
 }
 
-// ─── Role Brief ───
-const RB_ICON={ok:'🟢',warn:'🟡',ng:'🔴',neutral:'⚪'};
-function renderRoleBrief(){
-  const el=document.getElementById('roleBrief');
-  if(!el||!Array.isArray(ROLE_BRIEF))return;
-  el.innerHTML=ROLE_BRIEF.map(item=>`<div class="role-brief__item"><span>${RB_ICON[item.status]||'⚪'}</span>${item.text}</div>`).join('');
-}
-
 // ═══════════════════════════════════════════
 // 新ランキング描画
 // ═══════════════════════════════════════════
@@ -488,7 +627,7 @@ function renderDoctorWatchRank(){
         <span>新入院 <b class="rank-card__gap ${r.nadm_gap!=null?(r.nadm_gap>=0?'rank-gap-pos':'rank-gap-neg'):''}">${r.nadm_gap!=null?(r.nadm_gap>=0?'+':'')+r.nadm_gap+'人':'—'}</b> <span class="${nadmSt}" style="font-family:var(--mono);font-size:.7rem">${nadmAch!=null?nadmAch.toFixed(1)+'%':'—'}</span></span>
         <span>全麻 <b class="rank-card__gap ${r.surg_gap!=null?(r.surg_gap>=0?'rank-gap-pos':'rank-gap-neg'):''}">${r.surg_gap!=null?(r.surg_gap>=0?'+':'')+r.surg_gap+'件':'—'}</b> <span class="${surgSt}" style="font-family:var(--mono);font-size:.7rem">${surgAch!=null?surgAch.toFixed(1)+'%':'—'}</span></span>
       </div>
-      <div class="rank-card__score">スコア ${r.watch_score.toFixed(1)} pt</div>
+      <div class="rank-card__reason ${r.status}">${r.watch_reason}</div>
     </div>`;
   }).join('');
 }
@@ -887,6 +1026,21 @@ function selectDept(val){
   renderNewAdmChart(); renderSurgeryChart();
   renderWaterfallChart(); renderBubbleChart();
 }
+// ─── Section Collapsible (v1.8) ───
+function toggleSection(btn){
+  const content=btn.nextElementSibling;
+  const icon=btn.querySelector('.toggle-icon');
+  const textEl=btn.querySelector('.section-toggle-text');
+  const isHidden=content.style.display==='none';
+  content.style.display=isHidden?'block':'none';
+  icon.textContent=isHidden?'▲':'▼';
+  textEl.textContent=isHidden?'📊 詳細分析を隠す':'📊 詳細分析を表示';
+  // 展開時にPlotlyチャートをリサイズ（非表示中はサイズ0になるため）
+  if(isHidden){
+    window.dispatchEvent(new Event('resize'));
+  }
+}
+
 function toggleFootnote(){
   const b=document.getElementById('footnoteBody'),a=document.getElementById('footnoteArrow');
   b.classList.toggle('open');
@@ -897,7 +1051,6 @@ function toggleFootnote(){
 // 初期化
 // ═══════════════════════════════════════════
 window.addEventListener('DOMContentLoaded',()=>{
-  renderRoleBrief();
   renderDoctorWatchRank();
   renderDoctorSurgeryGapRank();
   renderDoctorAdmissionGapRank();

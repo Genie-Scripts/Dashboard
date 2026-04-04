@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>v2 Portal — タブレット・PC版</title>
+<style>
+:root{--bg:#f6f8fb;--s:#fff;--ink:#1a2332;--sub:#5f7084;--mu:#9daab8;--ln:#dfe5ed;--br:#0e4da4;--bl:#e8f0fe;--bd:#0a3671;--dr:#c4314b;--dr-bg:#fdf0f2;--wr:#b45309;--wr-bg:#fef7ee;--ok:#0e7a54;--ok-bg:#ecfdf5;--inf:#2563eb;--r:18px;--sh:0 8px 24px rgba(10,22,42,.08)}
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
+.hdr{position:sticky;top:0;z-index:10;background:var(--bd);color:#fff;padding:14px 28px;display:flex;justify-content:space-between;align-items:center;box-shadow:var(--sh)}.left{display:flex;align-items:center;gap:12px}.badge{font-size:11px;background:var(--br);padding:3px 10px;border-radius:999px;font-weight:800}.title{font-size:18px;font-weight:900}.meta{font-size:12px;color:#a8bdd4}
+.w{max-width:1180px;margin:0 auto;padding:22px 22px 48px}
+/* Hero */
+.hero{display:grid;grid-template-columns:1fr;gap:16px;margin-bottom:16px}.alert{background:var(--dr-bg);border:1px solid #f5c6cb;border-left:5px solid var(--dr);border-radius:var(--r);padding:20px 22px;box-shadow:var(--sh)}.alert h2{margin:0 0 6px;font-size:18px;color:#8c1d35;display:flex;align-items:center;gap:8px}.alert p{margin:0;color:var(--sub);font-size:14px;line-height:1.7}
+/* KPI */
+.kpi{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px}
+.kc{display:block;text-decoration:none;color:inherit;background:var(--s);border:1px solid var(--ln);border-radius:var(--r);padding:20px;box-shadow:var(--sh);position:relative;border-top:5px solid var(--dr);transition:all .2s}.kc:hover{box-shadow:0 12px 32px rgba(10,22,42,.14);transform:translateY(-2px)}
+.kc .st{position:absolute;right:16px;top:16px;font-size:11px;font-weight:900;padding:3px 10px;border-radius:999px;display:flex;align-items:center;gap:3px;background:var(--dr-bg);color:#8c1d35}
+.kc .lb{font-size:14px;color:var(--sub)}.kc .sb{font-size:12px;color:var(--mu);margin-top:2px}.kc .vl{font-size:42px;font-weight:900;line-height:1.05;margin:10px 0 6px}.kc .gp{font-size:15px;font-weight:800;color:#8c1d35}.kc .ht{font-size:12px;color:var(--mu);margin-top:10px}
+/* Two col */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px}.pnl{background:var(--s);border:1px solid var(--ln);border-radius:var(--r);padding:18px;box-shadow:var(--sh)}.pnl h3{margin:0 0 12px;font-size:15px;font-weight:800}
+.at{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;border:1px solid var(--ln);border-radius:14px;padding:12px 14px;margin-bottom:8px;background:#fbfdff}
+.at .nm{font-weight:900;font-size:14px}.at .mt{font-size:11px;color:var(--sub)}.at .dl{font-size:24px;font-weight:900;color:#8c1d35}.at .dt{font-size:11px;color:var(--mu);text-align:right}.at.imp .dl{color:var(--inf)}
+.ft{text-align:center;font-size:11px;color:var(--mu);padding:24px 0}
+.v2{position:fixed;right:14px;top:58px;background:#7c3aed;color:#fff;padding:3px 8px;border-radius:0 0 8px 8px;font-size:10px;font-weight:800;z-index:20}
+</style>
+</head>
+<body>
+<div class="v2">v2 FINAL / PC / L1</div>
+<header class="hdr"><div class="left"><span class="badge">KPI</span><span class="title">🏥 診療ダッシュボード</span></div><div class="meta">📅 基準日 2026-04-01 ｜ 🕐 2026/04/02 15:23 更新</div></header>
+<div class="w">
+  <section class="hero">
+    <div class="alert"><h2><span>🔴</span> 新入院が目標を大きく下回っています</h2><p>在院 545人/目標580人（−35人）、新入院7日 327人/目標385人（−58人）、全麻 19.0件/目標21件（−2.0件）</p></div>
+  </section>
+
+  <section class="kpi">
+    <a class="kc" href="v2_detail_pc.html#inpatient"><span class="st">▼ 未達</span><div class="lb">🛏️ 在院患者数</div><div class="sb">4/1 時点</div><div class="vl">545<small style="font-size:18px;font-weight:400">人</small></div><div class="gp">目標まで −35.0人</div><div class="ht">詳細を見る ›</div></a>
+    <a class="kc" href="v2_detail_pc.html#admission"><span class="st">▼ 未達</span><div class="lb">🚪 新入院患者数</div><div class="sb">直近7日累計</div><div class="vl">327<small style="font-size:18px;font-weight:400">人</small></div><div class="gp">目標まで −58.0人</div><div class="ht">詳細を見る ›</div></a>
+    <a class="kc" href="v2_detail_pc.html#operation"><span class="st">▼ 未達</span><div class="lb">💉 全身麻酔手術</div><div class="sb">直近7平日平均</div><div class="vl">19.0<small style="font-size:18px;font-weight:400">件/日</small></div><div class="gp">目標まで −2.0件/日</div><div class="ht">詳細を見る ›</div></a>
+  </section>
+
+  <section class="g2">
+    <div class="pnl"><h3>🔴 要注視（上位3件）</h3>
+      <div class="at"><div><div class="nm">泌尿器科</div><div class="mt">🚪 新入院</div></div><div class="dl">−14人</div><div class="dt">実績 17<br>目標 30.5</div></div>
+      <div class="at"><div><div class="nm">循環器内科</div><div class="mt">🚪 新入院</div></div><div class="dl">−13人</div><div class="dt">実績 12<br>目標 24.9</div></div>
+      <div class="at"><div><div class="nm">5階A病棟</div><div class="mt">🛏️ 在院患者数</div></div><div class="dl">−7人</div><div class="dt">実績 37<br>目標 44.1</div></div>
+    </div>
+    <div class="pnl"><h3>📈 改善トピック</h3>
+      <div class="at imp"><div><div class="nm">乳腺外科</div><div class="mt">🚪 新入院</div></div><div class="dl">+5人</div><div class="dt">前週<br>同曜日比</div></div>
+    </div>
+  </section>
+
+  <div class="ft">🏥 診療ダッシュボード ポータル ｜ 生成 2026/04/02 15:23 ｜ 基準日 2026/04/01</div>
+</div>
+</body></html>

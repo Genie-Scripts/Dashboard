@@ -1,0 +1,1298 @@
+<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>仕様書 v2.0 差分更新</title><style>
+*{box-sizing:border-box}
+body{margin:0;font-family:"Hiragino Sans","Noto Sans JP",-apple-system,sans-serif;background:#fff;color:#1a2332;line-height:1.75;padding:40px 24px 80px;max-width:960px;margin:0 auto}
+h1{font-size:24px;border-bottom:3px solid #0e4da4;padding-bottom:10px;margin-top:36px}
+h2{font-size:19px;border-bottom:2px solid #dfe5ed;padding-bottom:6px;margin-top:32px;color:#0e4da4}
+h3{font-size:15px;margin-top:20px}
+h4{font-size:14px;margin-top:16px}
+p{font-size:13px;color:#3a4a5c}
+blockquote{background:#fff7ed;border-left:4px solid #e67e22;padding:10px 16px;margin:16px 0;font-size:13px;color:#7c3a06}
+table{width:100%;border-collapse:collapse;margin:10px 0;font-size:12px}
+th,td{padding:7px 10px;border:1px solid #dfe5ed;text-align:left;vertical-align:top}
+th{background:#f0f4fa;font-weight:700;color:#1a2332}
+code{background:#f0f4fa;padding:2px 5px;border-radius:3px;font-size:11px;font-family:"IBM Plex Mono",monospace}
+pre{background:#f6f8fb;border:1px solid #dfe5ed;border-radius:6px;padding:12px;overflow-x:auto;font-size:11px}
+pre code{background:none;padding:0}
+ul,ol{font-size:13px;color:#3a4a5c}
+strong{color:#1a2332}
+hr{border:none;border-top:1px solid #dfe5ed;margin:24px 0}
+@media print{body{padding:16px;font-size:11px}h1{font-size:18px}h2{font-size:15px}table{font-size:10px}}
+</style></head><body><h1>診療ダッシュボード システム仕様書 v2.0 差分更新</h1>
+<blockquote>
+<p><strong>本文書は v1.8 からの差分です。v1.8 仕様書の該当箇所に追記・上書きしてください。</strong>
+<strong>★v2.0更新 = 既存セクションの変更、★v2.0新規 = 新規セクション追加</strong></p>
+</blockquote>
+<hr />
+<h2>改訂履歴（末尾に追加）</h2>
+<table>
+<thead>
+<tr>
+<th>Ver</th>
+<th>更新日</th>
+<th>主な変更内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2.0</td>
+<td>2026-04-03</td>
+<td>提案B「2層ハブ＆スポーク型」への全面再構築。7画面→2画面（portal.html + detail.html）に集約。デザインシステム統合（色覚多様性対応カラー・三重エンコーディング）。目標値改定（在院600/550/583、新入院380）。ステータス閾値90%化。稼働率→利用率用語統一。術者別軸廃止。手術KPIの二重集計基準（病院全体=営業平日/診療科=全日）。グラフ仕様刷新（棒グラフ廃止→線グラフ中心、ゾーン色分け、平日/休日チェックボックス）。ランキング折りたたみ。ドリルダウンにミニグラフ3本+コメント自動生成。要注視カードを絶対差ベースに改定。ヘッドライン複数KPI列挙対応。Makefile v2.1対応。</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>第1章 システム概要 ★v2.0更新</h2>
+<h3>変更内容</h3>
+<p>v2.0で「提案B: 2層ハブ＆スポーク型」を採用し、画面構成を全面再構築した。</p>
+<table>
+<thead>
+<tr>
+<th>項目</th>
+<th>v1.8（旧）</th>
+<th>v2.0（新）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>画面構成</td>
+<td>7画面・4層</td>
+<td><strong>2画面・2層</strong></td>
+</tr>
+<tr>
+<td>Layer-1</td>
+<td>portal.html（ポータルハブ）</td>
+<td>portal.html（<strong>信号機ポータル</strong>に簡略化）</td>
+</tr>
+<tr>
+<td>Layer-2</td>
+<td>doctor.html / nurse.html / admission / inpatient / reports</td>
+<td><strong>detail.html 1画面に統合</strong></td>
+</tr>
+<tr>
+<td>役割別表示</td>
+<td>医師/看護師で専用ページ</td>
+<td><strong>1画面内でプリセットボタン切替</strong></td>
+</tr>
+<tr>
+<td>診療科詳細</td>
+<td>reports/dept_*.html</td>
+<td><strong>detail.html内ドリルダウン展開</strong></td>
+</tr>
+<tr>
+<td>旧URL互換</td>
+<td>—</td>
+<td><strong>自動リダイレクトHTML 5件</strong></td>
+</tr>
+</tbody>
+</table>
+<h4>廃止されたファイル</h4>
+<ul>
+<li><code>doctor.html</code>（→ <code>detail.html#admission?axis=dept</code> にリダイレクト）</li>
+<li><code>nurse.html</code>（→ <code>detail.html#inpatient?axis=ward</code> にリダイレクト）</li>
+<li><code>admission/index.html</code>（→ <code>detail.html#admission</code> にリダイレクト）</li>
+<li><code>inpatient/index.html</code>（→ <code>detail.html#inpatient</code> にリダイレクト）</li>
+<li><code>operation/index.html</code>（→ <code>detail.html#operation</code> にリダイレクト）</li>
+<li><code>reports/index.html</code>, <code>reports/dept_*.html</code>（→ detail.htmlドリルダウンに統合）</li>
+<li><code>doctor_summary.json</code>, <code>nurse_summary.json</code>（不要）</li>
+<li><code>admission_app.py</code>, <code>inpatient_app.py</code>（不要）</li>
+</ul>
+<hr />
+<h2>第2章 ファイル構成 ★v2.0更新</h2>
+<h3>2.1 出力HTMLファイル（v2.0 確定構成）</h3>
+<table>
+<thead>
+<tr>
+<th>ファイル</th>
+<th>役割</th>
+<th>v2.0変更</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>portal.html</td>
+<td>信号機ポータル。ヘッドライン+KPIカード3枚+要注視3件+改善1件</td>
+<td>★大幅簡略化（ナビカード6枚→KPIカードがリンクに）</td>
+</tr>
+<tr>
+<td>detail.html</td>
+<td>統合詳細ダッシュボード。KPIタブ×軸切替×期間切替×ランキング×ドリルダウン</td>
+<td>★新規</td>
+</tr>
+<tr>
+<td>doctor.html</td>
+<td>リダイレクト → detail.html#admission?axis=dept</td>
+<td>★リダイレクトのみ</td>
+</tr>
+<tr>
+<td>nurse.html</td>
+<td>リダイレクト → detail.html#inpatient?axis=ward</td>
+<td>★リダイレクトのみ</td>
+</tr>
+<tr>
+<td>admission/index.html</td>
+<td>リダイレクト → detail.html#admission</td>
+<td>★リダイレクトのみ</td>
+</tr>
+<tr>
+<td>inpatient/index.html</td>
+<td>リダイレクト → detail.html#inpatient</td>
+<td>★リダイレクトのみ</td>
+</tr>
+<tr>
+<td>operation/index.html</td>
+<td>リダイレクト → detail.html#operation</td>
+<td>★リダイレクトのみ</td>
+</tr>
+</tbody>
+</table>
+<h3>2.2 ソースファイル（v2.0 確定構成）</h3>
+<table>
+<thead>
+<tr>
+<th>ファイル</th>
+<th>役割</th>
+<th>v2.0変更</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>generate_html.py</td>
+<td>2ファイル生成CLI（portal.html + detail.html）</td>
+<td>★全面書換</td>
+</tr>
+<tr>
+<td>app/lib/config.py</td>
+<td>定数・目標値・閾値・デザイントークン・ヘッドライン生成</td>
+<td>★大幅更新</td>
+</tr>
+<tr>
+<td>app/lib/metrics.py</td>
+<td>KPI算出・二重集計基準・ウォッチスコア</td>
+<td>★大幅更新</td>
+</tr>
+<tr>
+<td>app/lib/charts.py</td>
+<td>グラフデータ生成（線グラフ中心・ゾーン色分け）</td>
+<td>★全面書換</td>
+</tr>
+<tr>
+<td>app/lib/html_builder.py</td>
+<td>portal/detailコンテキスト生成・要注視カード選出・JSON一括生成</td>
+<td>★全面書換</td>
+</tr>
+<tr>
+<td>app/templates/portal.html</td>
+<td>信号機ポータルJinja2テンプレート</td>
+<td>★新規</td>
+</tr>
+<tr>
+<td>app/templates/detail.html</td>
+<td>統合詳細Jinja2テンプレート（Plotly.js + JS制御込み）</td>
+<td>★新規</td>
+</tr>
+<tr>
+<td>app/lib/data_loader.py</td>
+<td>データ読込・マージ</td>
+<td>変更なし</td>
+</tr>
+<tr>
+<td>app/lib/preprocess.py</td>
+<td>前処理・目標ルックアップ構築</td>
+<td>変更なし</td>
+</tr>
+<tr>
+<td>app/lib/profit.py</td>
+<td>粗利KPI算出</td>
+<td>変更なし</td>
+</tr>
+<tr>
+<td>app/lib/validate.py</td>
+<td>データ検証</td>
+<td>変更なし</td>
+</tr>
+<tr>
+<td>Makefile</td>
+<td>ビルド・デプロイ（v2.1対応）</td>
+<td>★更新</td>
+</tr>
+</tbody>
+</table>
+<h3>2.3 データフォルダ構成</h3>
+<p>変更なし（v1.8と同一）。</p>
+<hr />
+<h2>第8章 ビルド・デプロイ仕様（Makefile v2.1）★v2.0更新</h2>
+<table>
+<thead>
+<tr>
+<th>コマンド</th>
+<th>動作</th>
+<th>v2.0変更</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>make build</td>
+<td>portal.html + detail.html + 旧URLリダイレクト生成</td>
+<td>★出力ファイル変更</td>
+</tr>
+<tr>
+<td>make build-fast</td>
+<td>--no-redirect（旧URLリダイレクトスキップ）</td>
+<td>★変更</td>
+</tr>
+<tr>
+<td>make deploy</td>
+<td>make build + git add portal.html detail.html + git push</td>
+<td>★対象ファイル変更</td>
+</tr>
+<tr>
+<td>make serve</td>
+<td>ビルド後にローカルサーバー起動。ロール別URL案内表示</td>
+<td>★案内URL変更</td>
+</tr>
+<tr>
+<td>make serve-only</td>
+<td>サーバーのみ起動</td>
+<td>変更なし</td>
+</tr>
+<tr>
+<td>make clean</td>
+<td>portal.html / detail.html / 旧ファイル全削除</td>
+<td>★対象追加</td>
+</tr>
+<tr>
+<td>make clean-legacy</td>
+<td>旧バージョン固有ファイル削除（reports/、*_summary.json等）</td>
+<td>★新規</td>
+</tr>
+<tr>
+<td>make setup</td>
+<td>データフォルダ初期化</td>
+<td>変更なし</td>
+</tr>
+<tr>
+<td>make check</td>
+<td>データ検証のみ</td>
+<td>変更なし</td>
+</tr>
+<tr>
+<td>make help</td>
+<td>コマンド一覧+ロール別URL表示</td>
+<td>★表示内容更新</td>
+</tr>
+<tr>
+<td>make lint</td>
+<td>Python構文チェック</td>
+<td>変更なし</td>
+</tr>
+<tr>
+<td>make install</td>
+<td>依存ライブラリインストール</td>
+<td>変更なし</td>
+</tr>
+</tbody>
+</table>
+<h4>廃止されたMakefileターゲット</h4>
+<table>
+<thead>
+<tr>
+<th>旧コマンド</th>
+<th>理由</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>make dept DEPT=○○</td>
+<td>detail.html内ドリルダウンに統合</td>
+</tr>
+<tr>
+<td>make streamlit-admission</td>
+<td>admission_app.py廃止</td>
+</tr>
+<tr>
+<td>make streamlit-inpatient</td>
+<td>inpatient_app.py廃止</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>第9章 KPI算出仕様 ★v2.0更新</h2>
+<h3>9.1 病院全体目標値 ★v2.0改定</h3>
+<table>
+<thead>
+<tr>
+<th>KPI</th>
+<th>v1.8目標値</th>
+<th>v2.0目標値</th>
+<th>集計単位</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>在院患者数（平日）</td>
+<td>580人</td>
+<td><strong>600人</strong></td>
+<td>日次</td>
+</tr>
+<tr>
+<td>在院患者数（休日）</td>
+<td>540人</td>
+<td><strong>550人</strong></td>
+<td>日次</td>
+</tr>
+<tr>
+<td>在院患者数（全日）</td>
+<td>567人</td>
+<td><strong>583人</strong></td>
+<td>年間加重平均（平日約245日×600+休日約120日×550）/365</td>
+</tr>
+<tr>
+<td>新入院患者数（直近7日）</td>
+<td>385人</td>
+<td><strong>380人</strong></td>
+<td>直近7日ローリング累計</td>
+</tr>
+<tr>
+<td>新入院患者数（1日・平日）</td>
+<td>80人</td>
+<td>80人</td>
+<td>変更なし</td>
+</tr>
+<tr>
+<td>新入院患者数（1日・休日）</td>
+<td>40人</td>
+<td>40人</td>
+<td>変更なし</td>
+</tr>
+<tr>
+<td>全身麻酔手術</td>
+<td>21件</td>
+<td>21件</td>
+<td>営業平日1日あたり（変更なし）</td>
+</tr>
+</tbody>
+</table>
+<h3>9.2 ステータス色分け基準 ★v2.0改定</h3>
+<table>
+<thead>
+<tr>
+<th>ステータス</th>
+<th>v1.8条件</th>
+<th>v2.0条件</th>
+<th>v1.8表示色</th>
+<th>v2.0表示色</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>達成</td>
+<td>≥105%</td>
+<td><strong>≥100%</strong></td>
+<td>緑(#1A9E6A)</td>
+<td><strong>緑(#0e7a54)</strong></td>
+</tr>
+<tr>
+<td>接近</td>
+<td>95-104%</td>
+<td><strong>90-99%</strong></td>
+<td>橙(#C87A00)</td>
+<td><strong>橙(#b45309)</strong></td>
+</tr>
+<tr>
+<td>未達</td>
+<td>&lt;95%</td>
+<td><strong>&lt;90%</strong></td>
+<td>赤(#C0293B)</td>
+<td><strong>赤(#c4314b)</strong></td>
+</tr>
+<tr>
+<td>neutral</td>
+<td>目標なし</td>
+<td>目標なし</td>
+<td>灰(#94A3B8)</td>
+<td>灰(#9daab8)</td>
+</tr>
+</tbody>
+</table>
+<h3>9.3 色覚多様性対応カラー ★v2.0新規</h3>
+<p>P型/D型色覚（日本人男性の約5%）で赤-緑の混同を避けるため、赤を青み寄り、緑を青緑寄りにシフト。WCAG 2.2 AA準拠。</p>
+<table>
+<thead>
+<tr>
+<th>状態</th>
+<th>前景色</th>
+<th>背景色</th>
+<th>テキスト色</th>
+<th>コントラスト比(白背景)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>未達</td>
+<td>#c4314b</td>
+<td>#fdf0f2</td>
+<td>#8c1d35</td>
+<td>5.8:1</td>
+</tr>
+<tr>
+<td>接近</td>
+<td>#b45309</td>
+<td>#fef7ee</td>
+<td>#7c3a06</td>
+<td>5.2:1</td>
+</tr>
+<tr>
+<td>達成</td>
+<td>#0e7a54</td>
+<td>#ecfdf5</td>
+<td>#065f42</td>
+<td>5.4:1</td>
+</tr>
+</tbody>
+</table>
+<h3>9.4 三重エンコーディング規則 ★v2.0新規</h3>
+<p>色だけに頼らず、色＋形状＋文言を常にセットで表示する。</p>
+<table>
+<thead>
+<tr>
+<th>状態</th>
+<th>色</th>
+<th>形状</th>
+<th>文言</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>未達(&lt;90%)</td>
+<td>#c4314b</td>
+<td>▼</td>
+<td>「▼ 未達」</td>
+</tr>
+<tr>
+<td>接近(90-99%)</td>
+<td>#b45309</td>
+<td>―</td>
+<td>「― 接近」</td>
+</tr>
+<tr>
+<td>達成(≥100%)</td>
+<td>#0e7a54</td>
+<td>▲</td>
+<td>「▲ 達成」</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>第10章 設定定数一覧（config.py）★v2.0更新</h2>
+<table>
+<thead>
+<tr>
+<th>定数名</th>
+<th>内容</th>
+<th>v2.0変更</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TARGET_INPATIENT_WEEKDAY</td>
+<td>在院平日目標: 600</td>
+<td>★新規（旧は目標ファイル参照）</td>
+</tr>
+<tr>
+<td>TARGET_INPATIENT_HOLIDAY</td>
+<td>在院休日目標: 550</td>
+<td>★新規</td>
+</tr>
+<tr>
+<td>TARGET_INPATIENT_ALLDAY</td>
+<td>在院全日目標: 583</td>
+<td>★新規</td>
+</tr>
+<tr>
+<td>TARGET_ADMISSION_WEEKLY</td>
+<td>新入院週目標: 380</td>
+<td>★新規</td>
+</tr>
+<tr>
+<td>TARGET_GA_DAILY</td>
+<td>全麻日目標: 21</td>
+<td>★新規</td>
+</tr>
+<tr>
+<td>THRESHOLD_DANGER</td>
+<td>ステータス未達閾値: 90</td>
+<td>★新規</td>
+</tr>
+<tr>
+<td>THRESHOLD_OK</td>
+<td>ステータス達成閾値: 100</td>
+<td>★新規</td>
+</tr>
+<tr>
+<td>status_label()</td>
+<td>達成率→ステータス文字列</td>
+<td>★新規関数</td>
+</tr>
+<tr>
+<td>status_display()</td>
+<td>達成率→色・形状・文言の辞書</td>
+<td>★新規関数</td>
+</tr>
+<tr>
+<td>build_headline()</td>
+<td>3KPI達成率→ヘッドラインメッセージ自動生成（複数KPI列挙対応）</td>
+<td>★新規関数（v1.8のhtml_builder版を移動・拡張）</td>
+</tr>
+<tr>
+<td>UI_TOKENS</td>
+<td>CSSデザイントークン辞書（ベース/ブランド/ステータス色）</td>
+<td>★新規</td>
+</tr>
+<tr>
+<td>KPI_ICONS</td>
+<td>KPIアイコン辞書（🛏️在院/🚪新入院/💉手術）</td>
+<td>★新規</td>
+</tr>
+<tr>
+<td>AXIS_ICONS</td>
+<td>軸アイコン辞書（🩺診療科/🏥病棟）</td>
+<td>★新規</td>
+</tr>
+<tr>
+<td>HEATMAP_SCALE</td>
+<td>利用率ヒートマップ色スケール（85%以下=赤、85-95%=オレンジ、95%超=緑）</td>
+<td>★新規</td>
+</tr>
+<tr>
+<td>DEPT_HIDDEN</td>
+<td>変更なし</td>
+<td></td>
+</tr>
+<tr>
+<td>DEPT_MERGE</td>
+<td>変更なし</td>
+<td></td>
+</tr>
+<tr>
+<td>WARD_HIDDEN</td>
+<td>変更なし</td>
+<td></td>
+</tr>
+<tr>
+<td>SURGERY_DISPLAY_DEPTS</td>
+<td>変更なし</td>
+<td></td>
+</tr>
+<tr>
+<td>NADM_DISPLAY_DEPTS</td>
+<td>変更なし</td>
+<td></td>
+</tr>
+<tr>
+<td>OR_ROOMS_ACTIVE</td>
+<td>変更なし</td>
+<td></td>
+</tr>
+<tr>
+<td>GA_KEYWORD</td>
+<td>変更なし</td>
+<td></td>
+</tr>
+<tr>
+<td>DOD_THRESHOLDS</td>
+<td>v1.8新規（変更なし）</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>第11章 バグ修正ログ</h2>
+<h3>11.5 v2.0 変更ファイル一覧 ★v2.0新規</h3>
+<table>
+<thead>
+<tr>
+<th>ファイル</th>
+<th>変更内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>generate_html.py</td>
+<td>7ファイル生成→2ファイル生成に全面書換。load_all()→build_target_lookup()フロー。旧URLリダイレクト自動生成。</td>
+</tr>
+<tr>
+<td>app/lib/config.py</td>
+<td>目標値定数化、閾値90%化、status_label/status_display/build_headline関数追加、デザイントークン追加</td>
+</tr>
+<tr>
+<td>app/lib/metrics.py</td>
+<td>二重集計基準（ga_rolling_calendar_dept新設）、rolling28_surgery_dept新設、build_kpi_summary v2.1化</td>
+</tr>
+<tr>
+<td>app/lib/charts.py</td>
+<td>全面書換。棒グラフ廃止→線グラフ化。build_surgery_chart_hospital/dept分離。年度比較1カラム化。利用率ヒートマップ色反転。</td>
+</tr>
+<tr>
+<td>app/lib/html_builder.py</td>
+<td>全面書換。build_portal_context/build_detail_json新設。_build_attention_cards（絶対差ベース）新設。旧build_doctor/nurse_context廃止。病棟ドリルダウンデータ・コメント自動生成追加。平日フラグ(is_weekday)追加。</td>
+</tr>
+<tr>
+<td>app/templates/portal.html</td>
+<td>新規。信号機ポータルJinja2テンプレート。要注視に選出理由・期間ラベル表示。SP固定ナビ。</td>
+</tr>
+<tr>
+<td>app/templates/detail.html</td>
+<td>新規。統合詳細Jinja2テンプレート。Plotly.js描画。タブ/軸/期間切替。平日休日・描画線チェックボックス。ランキング折りたたみ。ドリルダウン（ミニグラフ3本+コメント）。全データMA→期間切り取りアルゴリズム。</td>
+</tr>
+<tr>
+<td>Makefile</td>
+<td>v2.1対応。2ファイル出力。clean-legacy新設。</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>第13章 ヘッドライン自動生成 ★v2.0更新</h2>
+<h3>13.1 build_headline() 仕様 ★v2.0変更</h3>
+<p>v2.0で未達(&lt;90%)と接近(90-100%)を分離し、未達KPIを「と」で列挙する方式に変更。</p>
+<table>
+<thead>
+<tr>
+<th>条件</th>
+<th>ヘッドライン</th>
+<th>アイコン</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>3 KPI すべて達成(≥100%)</td>
+<td>全指標が目標を達成しています</td>
+<td>🟢</td>
+</tr>
+<tr>
+<td>未達なし・接近のみ</td>
+<td>〔接近KPI名〕が目標をやや下回っています</td>
+<td>🟡</td>
+</tr>
+<tr>
+<td>未達1件</td>
+<td>〔未達KPI名〕が目標を下回っています</td>
+<td>🔴</td>
+</tr>
+<tr>
+<td>未達2件以上</td>
+<td>〔未達KPI名〕と〔未達KPI名〕が目標を大きく下回っています</td>
+<td>🔴</td>
+</tr>
+</tbody>
+</table>
+<p>KPI名は短縮表示: 在院患者数→「在院」、新入院患者数→「新入院」、全身麻酔手術→「全麻」</p>
+<p>例: <code>🔴 新入院と全麻が目標を大きく下回っています</code></p>
+<hr />
+<h2>第16章 提案B 2層構造設計 ★v2.0新規</h2>
+<h3>16.1 設計思想</h3>
+<p>7画面4層構造を2画面2層に集約。Progressive Disclosure（重要情報を先に、詳細は操作で出す）の原則に基づく。</p>
+<ul>
+<li><strong>Layer-1 portal.html</strong>: 10秒で状況把握。気になるKPIカードをクリックしてLayer-2へ。</li>
+<li><strong>Layer-2 detail.html</strong>: KPIタブ×軸切替×期間切替で全組合せをカバー。医師/看護師の視点差は「軸切替」で吸収。</li>
+</ul>
+<h3>16.2 Layer-1 portal.html</h3>
+<h4>ヘッダー</h4>
+<ul>
+<li>sticky、背景 <code>--brand-dark</code> (#0a3671)</li>
+<li>左: badge「KPI」+ タイトル「🏥 診療ダッシュボード」</li>
+<li>右: 基準日 + 更新時刻</li>
+</ul>
+<h4>ヘッドラインアラート</h4>
+<ul>
+<li>背景: <code>--st-danger-bg</code>、左ボーダー4px <code>--st-danger</code></li>
+<li>テキスト: build_headline()による自動生成</li>
+<li>補足行: 3KPIの「実績/目標(差分)」を1行表示</li>
+</ul>
+<h4>KPIカード×3</h4>
+<p>各カードは<code>&lt;a&gt;</code>リンクでdetail.htmlへ遷移。</p>
+<table>
+<thead>
+<tr>
+<th>カード</th>
+<th>アイコン</th>
+<th>主値</th>
+<th>期間ラベル</th>
+<th>リンク先</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>在院患者数</td>
+<td>🛏️</td>
+<td>当日在院数（28px太字）</td>
+<td>「{base_date}時点の在院数」</td>
+<td>detail.html#inpatient</td>
+</tr>
+<tr>
+<td>新入院患者数</td>
+<td>🚪</td>
+<td>直近7日累計（28px太字）</td>
+<td>「直近7日累計」</td>
+<td>detail.html#admission</td>
+</tr>
+<tr>
+<td>全身麻酔手術</td>
+<td>💉</td>
+<td>直近7平日平均（28px太字）</td>
+<td>「直近7平日平均」</td>
+<td>detail.html#operation</td>
+</tr>
+</tbody>
+</table>
+<h4>要注視カード×3</h4>
+<p><strong>選出ロジック</strong>: 目標との絶対差（人・件）が大きい順。目標以上（gap≥0）は除外。
+- 診療科（新入院直近7日）: 絶対差が大きい順に上位2件
+- 病棟（在院当日時点）: 絶対差が大きい順に上位1件</p>
+<p>各カードに表示: 対象名 + KPIアイコン + 期間ラベル + 差分値 + 実績/目標 + 選出理由</p>
+<h4>改善トピック×1</h4>
+<p>前週同曜日比で最大改善1件。</p>
+<h4>SP専用固定ナビ</h4>
+<p>画面下部固定、3ボタン（🚪新入院/🛏️在院/💉手術）。</p>
+<h3>16.3 Layer-2 detail.html</h3>
+<h4>KPIタブバー</h4>
+<p>3タブ（在院/新入院/手術）。各タブにKPI値を大きく表示（28px太字）+ 期間ラベル + ステータスバッジ。</p>
+<h4>サマリーバー</h4>
+<p>タブ切替に連動。5列grid（KPI名 + 4指標）。</p>
+<h4>ツールバー</h4>
+<table>
+<thead>
+<tr>
+<th>グループ</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>軸</td>
+<td>🩺診療科別 / 🏥病棟別（手術タブは診療科のみ）</td>
+</tr>
+<tr>
+<td>期間</td>
+<td>直近12週 / 直近24週 / 直近365日</td>
+</tr>
+<tr>
+<td>日種</td>
+<td>☑平日 ☑休日（チェックボックス）</td>
+</tr>
+<tr>
+<td>描画</td>
+<td>☑日次実績 ☑7日MA ☑28日MA（チェックボックス）</td>
+</tr>
+</tbody>
+</table>
+<h4>ロールプリセット</h4>
+<p>ヘッダー右側に「🩺医師向け」「🏥看護師向け」ボタン。ページ遷移なし。</p>
+<table>
+<thead>
+<tr>
+<th>プリセット</th>
+<th>KPIタブ</th>
+<th>軸</th>
+<th>期間</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>🩺 医師向け</td>
+<td>新入院</td>
+<td>診療科別</td>
+<td>直近12週</td>
+</tr>
+<tr>
+<td>🏥 看護師向け</td>
+<td>在院患者</td>
+<td>病棟別</td>
+<td>直近12週</td>
+</tr>
+</tbody>
+</table>
+<h3>16.4 グラフ仕様</h3>
+<h4>メイングラフ系列</h4>
+<table>
+<thead>
+<tr>
+<th>系列</th>
+<th>スタイル</th>
+<th>色</th>
+<th>チェックボックス</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>日次実績</td>
+<td>細い点線</td>
+<td>グレー #94A3B8</td>
+<td>☑日次実績</td>
+</tr>
+<tr>
+<td>7日移動平均</td>
+<td>太実線</td>
+<td>緑 #0D9488</td>
+<td>☑7日MA</td>
+</tr>
+<tr>
+<td>28日移動平均</td>
+<td>実線</td>
+<td>オレンジ #e67e22</td>
+<td>☑28日MA</td>
+</tr>
+<tr>
+<td>目標ライン</td>
+<td>細かい点線（太め）</td>
+<td>赤 #C0293B</td>
+<td>常時表示</td>
+</tr>
+<tr>
+<td>達成ゾーン</td>
+<td>背景塗り（目標以上）</td>
+<td>薄緑 rgba(22,163,74,0.08)</td>
+<td>常時表示</td>
+</tr>
+<tr>
+<td>注意ゾーン</td>
+<td>背景塗り（目標-5%〜目標）</td>
+<td>薄オレンジ rgba(245,158,11,0.10)</td>
+<td>常時表示</td>
+</tr>
+</tbody>
+</table>
+<h4>集計アルゴリズム</h4>
+<div class="codehilite"><pre><span></span><code><span class="err">正しい順序</span><span class="o">:</span>
+<span class="err">①</span><span class="w"> </span><span class="err">全データで平日</span><span class="o">/</span><span class="err">休日フィルタ</span>
+<span class="err">②</span><span class="w"> </span><span class="err">フィルタ後の全データで</span><span class="n">MA7</span><span class="o">/</span><span class="n">MA28を計算</span>
+<span class="err">③</span><span class="w"> </span><span class="err">期間（</span><span class="mi">12</span><span class="err">週</span><span class="sr">/24週/</span><span class="mi">365</span><span class="err">日）で切り取り</span>
+<span class="err">→</span><span class="w"> </span><span class="err">切り取り時点で既に</span><span class="n">MAが完全に計算済みなので左端が欠けない</span>
+</code></pre></div>
+
+<h4>Y軸</h4>
+<p>MAの最大/最小に±8%マージンの自動レンジ。rangemode:'tozero'は使用しない。</p>
+<h3>16.5 ランキング</h3>
+<ul>
+<li>初期表示10件。「もっと見る（+N件）▾」ボタンで展開/折りたたみ。</li>
+<li>達成率降順。NaN末尾。</li>
+<li>各行: 順位 + 名前 + 達成率バー + %値 + ステータスバッジ + 遷移矢印</li>
+<li>クリックでドリルダウン展開。</li>
+</ul>
+<h3>16.6 ドリルダウン（診療科）</h3>
+<ul>
+<li>KPIミニカード3枚: 新入院(直近7日)/在院(当日)/手術(直近7日)</li>
+<li>コメント自動生成: 達成率&lt;90%のKPIを列挙（例:「新入院が目標の56%（17/30.5）」）</li>
+<li>ミニグラフ3本: 新入院推移/在院推移/手術推移（週間件数）</li>
+<li>手術ミニグラフは7日ローリング合計で表示、目標は週目標そのまま</li>
+<li>メイン期間・描画チェックボックスと連動</li>
+<li>展開時アニメーション + スムーズスクロール</li>
+</ul>
+<h3>16.7 ドリルダウン（病棟）</h3>
+<ul>
+<li>KPIミニカード4枚: 新入院/在院/退院関連/利用率</li>
+<li>手術グラフなし（「病棟単位の手術データなし」表示）</li>
+<li>目標以上の病棟は要注視から自動除外</li>
+</ul>
+<hr />
+<h2>第17章 ロール別初期表示 ★v2.0新規</h2>
+<h3>17.1 ブックマークURL</h3>
+<table>
+<thead>
+<tr>
+<th>ロール</th>
+<th>URL</th>
+<th>初期タブ</th>
+<th>初期軸</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>医師</td>
+<td>detail.html#admission?axis=dept</td>
+<td>新入院</td>
+<td>診療科別</td>
+</tr>
+<tr>
+<td>看護師</td>
+<td>detail.html#inpatient?axis=ward</td>
+<td>在院患者</td>
+<td>病棟別</td>
+</tr>
+<tr>
+<td>経営層</td>
+<td>portal.html</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td>手術室</td>
+<td>detail.html#operation?axis=dept</td>
+<td>手術</td>
+<td>診療科別</td>
+</tr>
+</tbody>
+</table>
+<h3>17.2 プリセットボタン動作</h3>
+<div class="codehilite"><pre><span></span><code><span class="kd">function</span><span class="w"> </span><span class="nx">presetDoctor</span><span class="p">(</span><span class="nx">e</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">switchTab</span><span class="p">(</span><span class="s1">&#39;admission&#39;</span><span class="p">);</span><span class="w"> </span><span class="nx">setAxis</span><span class="p">(</span><span class="s1">&#39;dept&#39;</span><span class="p">);</span><span class="w"> </span><span class="nx">setPeriod</span><span class="p">(</span><span class="s1">&#39;12w&#39;</span><span class="p">);</span>
+<span class="w">  </span><span class="c1">// ページ遷移なし、URL hash+query書換</span>
+<span class="p">}</span>
+<span class="kd">function</span><span class="w"> </span><span class="nx">presetNurse</span><span class="p">(</span><span class="nx">e</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">switchTab</span><span class="p">(</span><span class="s1">&#39;inpatient&#39;</span><span class="p">);</span><span class="w"> </span><span class="nx">setAxis</span><span class="p">(</span><span class="s1">&#39;ward&#39;</span><span class="p">);</span><span class="w"> </span><span class="nx">setPeriod</span><span class="p">(</span><span class="s1">&#39;12w&#39;</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<hr />
+<h2>第18章 レスポンシブ設計 ★v2.0新規</h2>
+<table>
+<thead>
+<tr>
+<th>要素</th>
+<th>PC (≥768px)</th>
+<th>SP (&lt;768px)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>KPIタブ</td>
+<td>grid 3列固定</td>
+<td>flex横スクロール</td>
+</tr>
+<tr>
+<td>サマリー</td>
+<td>grid: 200px+4列</td>
+<td>grid 2列×2行</td>
+</tr>
+<tr>
+<td>ツールバー</td>
+<td>flex 1行</td>
+<td>flex wrap</td>
+</tr>
+<tr>
+<td>メインコンテンツ</td>
+<td>grid: 1.15fr+0.85fr</td>
+<td>1列（グラフ→ランキング縦積み）</td>
+</tr>
+<tr>
+<td>ランキング列</td>
+<td>6列</td>
+<td>3列（バー・ステータス非表示）</td>
+</tr>
+<tr>
+<td>ドリルダウン</td>
+<td>下段固定パネル</td>
+<td>アニメーション展開</td>
+</tr>
+<tr>
+<td>ロールセレクタ</td>
+<td>ヘッダー右</td>
+<td>非表示</td>
+</tr>
+<tr>
+<td>ポータル下部ナビ</td>
+<td>なし</td>
+<td>固定ナビ</td>
+</tr>
+<tr>
+<td>推移グラフ高さ</td>
+<td>380px</td>
+<td>200px</td>
+</tr>
+<tr>
+<td>ミニグラフ高さ</td>
+<td>225px</td>
+<td>160px</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>第19章 手術KPIの二重集計基準 ★v2.0新規</h2>
+<h3>19.1 病院全体（営業平日基準）</h3>
+<table>
+<thead>
+<tr>
+<th>項目</th>
+<th>計算式</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>直近7平日平均</td>
+<td>SUM(直近営業平日7日の全麻)/7</td>
+<td>Portal KPIカード、Detailサマリー</td>
+</tr>
+<tr>
+<td>目標</td>
+<td>21件/営業平日</td>
+<td>目標ライン</td>
+</tr>
+<tr>
+<td>移動平均</td>
+<td>営業平日7日のrolling</td>
+<td>病院全体推移グラフ</td>
+</tr>
+</tbody>
+</table>
+<h3>19.2 診療科別（全日基準）</h3>
+<table>
+<thead>
+<tr>
+<th>項目</th>
+<th>計算式</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>直近7日合計</td>
+<td>SUM(全麻) WHERE 暦日7日</td>
+<td>診療科ランキング</td>
+</tr>
+<tr>
+<td>週目標</td>
+<td>op_targetの週目標</td>
+<td>達成率計算</td>
+</tr>
+<tr>
+<td>移動平均</td>
+<td>暦日7日のrolling</td>
+<td>診療科別推移グラフ</td>
+</tr>
+</tbody>
+</table>
+<h3>19.3 ミニグラフ（手術専用）</h3>
+<ul>
+<li>7日ローリング合計（週間件数）で表示</li>
+<li>目標は週目標そのまま（日割りしない）</li>
+<li>KPIカードの達成率とグラフが一致</li>
+</ul>
+<hr />
+<h2>第20章 デザインシステム ★v2.0新規</h2>
+<h3>20.1 カラーパレット</h3>
+<h4>ベースカラー</h4>
+<table>
+<thead>
+<tr>
+<th>トークン</th>
+<th>CSS変数</th>
+<th>カラーコード</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Background</td>
+<td>--bg</td>
+<td>#f6f8fb</td>
+<td>ページ背景</td>
+</tr>
+<tr>
+<td>Surface</td>
+<td>--surface</td>
+<td>#ffffff</td>
+<td>カード背景</td>
+</tr>
+<tr>
+<td>Ink</td>
+<td>--ink</td>
+<td>#1a2332</td>
+<td>本文テキスト</td>
+</tr>
+<tr>
+<td>Sub</td>
+<td>--sub</td>
+<td>#5f7084</td>
+<td>補足テキスト</td>
+</tr>
+<tr>
+<td>Muted</td>
+<td>--muted</td>
+<td>#9daab8</td>
+<td>注記</td>
+</tr>
+<tr>
+<td>Line</td>
+<td>--line</td>
+<td>#dfe5ed</td>
+<td>罫線</td>
+</tr>
+<tr>
+<td>Brand</td>
+<td>--brand</td>
+<td>#0e4da4</td>
+<td>ヘッダー・選択中タブ</td>
+</tr>
+<tr>
+<td>Brand Light</td>
+<td>--brand-light</td>
+<td>#e8f0fe</td>
+<td>選択中ボタン背景</td>
+</tr>
+<tr>
+<td>Brand Dark</td>
+<td>--brand-dark</td>
+<td>#0a3671</td>
+<td>ヘッダー背景</td>
+</tr>
+</tbody>
+</table>
+<h4>グラフカラー</h4>
+<table>
+<thead>
+<tr>
+<th>用途</th>
+<th>カラーコード</th>
+<th>線種</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>日次実績</td>
+<td>#94A3B8</td>
+<td>細い点線</td>
+</tr>
+<tr>
+<td>7日MA</td>
+<td>#0D9488</td>
+<td>太実線</td>
+</tr>
+<tr>
+<td>28日MA</td>
+<td>#e67e22</td>
+<td>実線</td>
+</tr>
+<tr>
+<td>目標ライン</td>
+<td>#C0293B</td>
+<td>細かい点線（太め）</td>
+</tr>
+</tbody>
+</table>
+<h3>20.2 アイコン</h3>
+<table>
+<thead>
+<tr>
+<th>用途</th>
+<th>アイコン</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>在院患者数</td>
+<td>🛏️</td>
+</tr>
+<tr>
+<td>新入院患者数</td>
+<td>🚪</td>
+</tr>
+<tr>
+<td>全身麻酔手術</td>
+<td>💉</td>
+</tr>
+<tr>
+<td>診療科別</td>
+<td>🩺</td>
+</tr>
+<tr>
+<td>病棟別</td>
+<td>🏥</td>
+</tr>
+<tr>
+<td>要注視</td>
+<td>🔴</td>
+</tr>
+<tr>
+<td>改善</td>
+<td>📈</td>
+</tr>
+</tbody>
+</table>
+<h3>20.3 文言トーン5原則</h3>
+<ol>
+<li>事実ベース（価値判断を避ける）</li>
+<li>アクション示唆</li>
+<li>短く、敬語不使用（体言止め）</li>
+<li>責任追及しない（数値のみ）</li>
+<li>改善も伝える</li>
+</ol>
+<h3>20.4 フォントサイズ</h3>
+<table>
+<thead>
+<tr>
+<th>要素</th>
+<th>PC</th>
+<th>SP</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>KPIメイン数値</td>
+<td>28px/900</td>
+<td>22px/900</td>
+</tr>
+<tr>
+<td>セクション見出し</td>
+<td>18px/800</td>
+<td>16px/800</td>
+</tr>
+<tr>
+<td>カード名</td>
+<td>14px/700</td>
+<td>13px/700</td>
+</tr>
+<tr>
+<td>補足</td>
+<td>13px/400</td>
+<td>12px/400</td>
+</tr>
+<tr>
+<td>注記</td>
+<td>11px/400</td>
+<td>11px/400</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>第21章 データJSON構造 ★v2.0新規</h2>
+<p>detail.htmlに埋め込むJSONの全体スキーマ:</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;meta&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;base_date&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-04-01&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;generated&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-04-02T15:23:00&quot;</span><span class="p">},</span>
+<span class="w">  </span><span class="nt">&quot;headline&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;level&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;danger|warn|ok&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;icon&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;🔴|🟡|🟢&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;text&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;detail&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="p">},</span>
+<span class="w">  </span><span class="nt">&quot;kpi&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;inpatient&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="s2">&quot;actual&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;target&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;rate&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;avg_7d&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;avg_28d&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;fy_avg&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;prev_avg&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;gap&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;status&quot;</span><span class="p">},</span>
+<span class="w">    </span><span class="nt">&quot;admission&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="s2">&quot;actual_7d&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;target_weekly&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;rate_7d&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;fy_avg&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;fy_rate&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;prev_avg&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;gap&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;status&quot;</span><span class="p">},</span>
+<span class="w">    </span><span class="nt">&quot;operation&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="s2">&quot;daily_avg&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;target&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;rate&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;week_total&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;fy_avg&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;gap&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;in_hours_rate&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;status&quot;</span><span class="p">}</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">&quot;attention&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[{</span><span class="s2">&quot;name&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;kpi&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;icon&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;gap&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;actual&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;target&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;period_label&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;reason&quot;</span><span class="p">}],</span>
+<span class="w">  </span><span class="nt">&quot;improvement&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="s2">&quot;name&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;kpi&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;delta&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;compare&quot;</span><span class="p">},</span>
+<span class="w">  </span><span class="nt">&quot;perf&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;admission&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;dept_7&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="err">...</span><span class="p">],</span><span class="w"> </span><span class="nt">&quot;dept_28&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="err">...</span><span class="p">],</span><span class="w"> </span><span class="nt">&quot;dept_fy&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="err">...</span><span class="p">],</span><span class="w"> </span><span class="nt">&quot;ward_7&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="err">...</span><span class="p">],</span><span class="w"> </span><span class="err">...</span><span class="p">},</span>
+<span class="w">    </span><span class="nt">&quot;inpatient&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="err">...</span><span class="p">},</span>
+<span class="w">    </span><span class="nt">&quot;operation&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="err">...</span><span class="p">}</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">&quot;trend&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;admission&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;dates&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="err">...</span><span class="p">],</span><span class="w"> </span><span class="nt">&quot;values&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="err">...</span><span class="p">],</span><span class="w"> </span><span class="nt">&quot;ma7&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="err">...</span><span class="p">],</span><span class="w"> </span><span class="nt">&quot;ma28&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="err">...</span><span class="p">],</span><span class="w"> </span><span class="nt">&quot;is_weekday&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="err">...</span><span class="p">]},</span>
+<span class="w">    </span><span class="nt">&quot;inpatient&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="err">...</span><span class="p">},</span>
+<span class="w">    </span><span class="nt">&quot;operation&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="err">...</span><span class="p">}</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">&quot;drill&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;泌尿器科&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;admission&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="s2">&quot;actual_7d&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;target&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;rate&quot;</span><span class="p">},</span>
+<span class="w">      </span><span class="nt">&quot;inpatient&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="s2">&quot;actual&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;target&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;rate&quot;</span><span class="p">},</span>
+<span class="w">      </span><span class="nt">&quot;operation&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="s2">&quot;actual&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;target&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;rate&quot;</span><span class="p">},</span>
+<span class="w">      </span><span class="nt">&quot;trend&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;admission&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="err">...</span><span class="p">},</span><span class="w"> </span><span class="nt">&quot;inpatient&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="err">...</span><span class="p">},</span><span class="w"> </span><span class="nt">&quot;operation&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="err">...</span><span class="p">}},</span>
+<span class="w">      </span><span class="nt">&quot;comment&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="nt">&quot;5階A病棟&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;admission&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="err">...</span><span class="p">},</span><span class="w"> </span><span class="nt">&quot;inpatient&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="err">...</span><span class="p">},</span><span class="w"> </span><span class="nt">&quot;operation&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;label&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;退院関連&quot;</span><span class="p">},</span>
+<span class="w">      </span><span class="nt">&quot;ward_extra&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="s2">&quot;beds&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;util_rate&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;load&quot;</span><span class="p">},</span>
+<span class="w">      </span><span class="nt">&quot;trend&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="err">...</span><span class="p">},</span><span class="w"> </span><span class="nt">&quot;comment&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">&quot;charts&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;occupancy_heatmap&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="err">...</span><span class="p">}}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<hr />
+<p>以上</p></body></html>

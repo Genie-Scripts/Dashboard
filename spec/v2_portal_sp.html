@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>v2 Portal — スマホ版</title>
+<style>
+:root{--bg:#f6f8fb;--s:#fff;--ink:#1a2332;--sub:#5f7084;--mu:#9daab8;--ln:#dfe5ed;--br:#0e4da4;--bl:#e8f0fe;--bd:#0a3671;--dr:#c4314b;--dr-bg:#fdf0f2;--wr:#b45309;--wr-bg:#fef7ee;--ok:#0e7a54;--ok-bg:#ecfdf5;--inf:#2563eb;--r:16px;--sh:0 4px 14px rgba(10,22,42,.08)}
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
+.hdr{position:sticky;top:0;z-index:10;background:var(--bd);color:#fff;padding:12px 16px;box-shadow:var(--sh)}.hdr .t{display:flex;align-items:center;gap:8px}.hdr .badge{font-size:10px;background:var(--br);padding:2px 8px;border-radius:999px;font-weight:800}.hdr .title{font-size:15px;font-weight:900}.hdr .meta{font-size:11px;color:#a8bdd4;margin-top:3px}
+.w{max-width:430px;margin:0 auto;padding:14px 14px 100px}
+/* Alert */
+.alert{background:var(--dr-bg);border:1px solid #f5c6cb;border-left:4px solid var(--dr);border-radius:var(--r);padding:14px 16px;margin-bottom:14px;box-shadow:var(--sh)}.alert h2{font-size:14px;color:#8c1d35;margin:0 0 4px;display:flex;align-items:center;gap:6px}.alert p{font-size:12px;color:var(--sub);margin:0;line-height:1.65}
+/* KPI */
+.kpi{display:grid;gap:10px;margin-bottom:14px}
+.kc{display:block;text-decoration:none;color:inherit;background:var(--s);border:1px solid var(--ln);border-radius:var(--r);padding:14px 16px;box-shadow:var(--sh);position:relative;border-top:4px solid var(--dr);transition:box-shadow .2s}
+.kc.ok-st{border-top-color:var(--ok)}.kc.wr-st{border-top-color:var(--wr)}
+.kc .st{position:absolute;right:12px;top:14px;font-size:10px;font-weight:900;padding:3px 8px;border-radius:999px;display:flex;align-items:center;gap:3px}
+.kc .st.bad{background:var(--dr-bg);color:#8c1d35}.kc .st.mid{background:var(--wr-bg);color:#7c3a06}.kc .st.good{background:var(--ok-bg);color:#065f42}
+.kc .lb{font-size:12px;color:var(--sub)}.kc .sb{font-size:11px;color:var(--mu);margin-top:2px}.kc .vl{font-size:30px;font-weight:900;margin:8px 0 4px;line-height:1}.kc .gp{font-size:13px;font-weight:800;color:#8c1d35}.kc .ht{font-size:11px;color:var(--mu);margin-top:8px}
+/* Attn */
+.sec{margin-bottom:14px}.sec h3{font-size:12px;color:var(--sub);font-weight:800;margin:0 0 8px;letter-spacing:.02em}
+.at{background:var(--s);border:1px solid var(--ln);border-radius:14px;padding:12px 14px;box-shadow:var(--sh);margin-bottom:8px;border-left:4px solid var(--dr)}.at.imp{border-left-color:var(--inf)}
+.at .nm{font-size:13px;font-weight:900}.at .mt{font-size:11px;color:var(--sub)}.at .dl{font-size:22px;font-weight:900;color:#8c1d35;margin:3px 0}.at.imp .dl{color:var(--inf)}.at .dt{font-size:11px;color:var(--mu)}
+/* Footer */
+.ft{text-align:center;font-size:11px;color:var(--mu);padding:20px 0;border-top:1px solid var(--ln);margin-top:10px}
+/* Sticky nav */
+.nav{position:fixed;bottom:0;left:0;right:0;background:rgba(246,248,251,.96);backdrop-filter:blur(8px);padding:10px 14px 18px;z-index:10}.nav .bar{max-width:430px;margin:0 auto;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;background:var(--s);border:1px solid var(--ln);border-radius:16px;padding:8px;box-shadow:var(--sh)}.nav a{text-decoration:none;background:var(--bl);color:var(--br);border-radius:12px;padding:10px 6px;text-align:center;font-size:11px;font-weight:800;display:flex;flex-direction:column;align-items:center;gap:2px}.nav .ic{font-size:16px}
+/* V2 badge */
+.v2{position:fixed;right:8px;top:52px;background:#7c3aed;color:#fff;padding:3px 8px;border-radius:0 0 6px 6px;font-size:10px;font-weight:800;z-index:20}
+</style>
+</head>
+<body>
+<div class="v2">v2 FINAL / SP / L1</div>
+<header class="hdr"><div class="t"><span class="badge">KPI</span><span class="title">🏥 診療ダッシュボード</span></div><div class="meta">📅 基準日 2026-04-01 ｜ 🕐 15:23 更新</div></header>
+<div class="w">
+  <section class="alert"><h2><span>🔴</span> 新入院が目標を大きく下回っています</h2><p>在院 545人/目標580人（−35人）、新入院7日 327人/目標385人（−58人）、全麻 19.0件/目標21件（−2.0件）</p></section>
+
+  <section class="sec"><h3>本日の主要KPI</h3>
+    <div class="kpi">
+      <a class="kc" href="v2_detail_sp.html#inpatient"><span class="st bad">▼ 未達</span><div class="lb">🛏️ 在院患者数</div><div class="sb">4/1 時点</div><div class="vl">545<small style="font-size:14px;font-weight:400">人</small></div><div class="gp">目標まで −35.0人</div><div class="ht">詳細を見る ›</div></a>
+      <a class="kc" href="v2_detail_sp.html#admission"><span class="st bad">▼ 未達</span><div class="lb">🚪 新入院患者数</div><div class="sb">直近7日累計</div><div class="vl">327<small style="font-size:14px;font-weight:400">人</small></div><div class="gp">目標まで −58.0人</div><div class="ht">詳細を見る ›</div></a>
+      <a class="kc" href="v2_detail_sp.html#operation"><span class="st bad">▼ 未達</span><div class="lb">💉 全身麻酔手術</div><div class="sb">直近7平日平均</div><div class="vl">19.0<small style="font-size:14px;font-weight:400">件/日</small></div><div class="gp">目標まで −2.0件/日</div><div class="ht">詳細を見る ›</div></a>
+    </div>
+  </section>
+
+  <section class="sec"><h3>🔴 要注視（上位3件）</h3>
+    <div class="at"><div class="nm">泌尿器科</div><div class="mt">🚪 新入院</div><div class="dl">−14人</div><div class="dt">実績 17 / 目標 30.5</div></div>
+    <div class="at"><div class="nm">循環器内科</div><div class="mt">🚪 新入院</div><div class="dl">−13人</div><div class="dt">実績 12 / 目標 24.9</div></div>
+    <div class="at"><div class="nm">5階A病棟</div><div class="mt">🛏️ 在院患者数</div><div class="dl">−7人</div><div class="dt">実績 37 / 目標 44.1</div></div>
+  </section>
+
+  <section class="sec"><h3>📈 改善トピック</h3>
+    <div class="at imp"><div class="nm">乳腺外科</div><div class="mt">🚪 新入院</div><div class="dl">+5人</div><div class="dt">前週同曜日比</div></div>
+  </section>
+
+  <div class="ft">🏥 診療ダッシュボード ポータル<br>生成 2026/04/02 15:23 ｜ 基準日 2026/04/01</div>
+</div>
+<nav class="nav"><div class="bar"><a href="v2_detail_sp.html#admission"><span class="ic">🚪</span>新入院</a><a href="v2_detail_sp.html#inpatient"><span class="ic">🛏️</span>在院</a><a href="v2_detail_sp.html#operation"><span class="ic">💉</span>手術</a></div></nav>
+</body></html>

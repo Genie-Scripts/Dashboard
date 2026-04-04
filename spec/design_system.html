@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>提案B デザインシステム — 色・アイコン・文言・トーン・ロール最適化</title>
+<style>
+:root {
+  /* ── 1. カラーパレット ──────────── */
+  /* Base */
+  --bg:       #f6f8fb;
+  --surface:  #ffffff;
+  --ink:      #1a2332;
+  --sub:      #5f7084;
+  --muted:    #9daab8;
+  --line:     #dfe5ed;
+  --hover:    #f0f4f9;
+
+  /* Brand — 医療向けネイビーブルー */
+  --brand:      #0e4da4;
+  --brand-light:#e8f0fe;
+  --brand-dark: #0a3671;
+
+  /* Status — 色覚多様性対応版 */
+  --st-danger:       #c4314b;   /* 赤系（彩度をやや落とし、青み寄り） */
+  --st-danger-bg:    #fdf0f2;
+  --st-danger-text:  #8c1d35;
+
+  --st-warn:         #b45309;   /* オレンジ系（赤緑混同を避ける） */
+  --st-warn-bg:      #fef7ee;
+  --st-warn-text:    #7c3a06;
+
+  --st-ok:           #0e7a54;   /* 青緑系（緑を青寄りに補正） */
+  --st-ok-bg:        #ecfdf5;
+  --st-ok-text:      #065f42;
+
+  --st-info:         #2563eb;   /* 青系（ニュートラル情報） */
+  --st-info-bg:      #eff6ff;
+
+  /* Shadow */
+  --shadow-sm:  0 1px 3px rgba(10,22,42,.06);
+  --shadow-md:  0 4px 14px rgba(10,22,42,.08);
+  --shadow-lg:  0 8px 28px rgba(10,22,42,.10);
+
+  /* Radius */
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 18px;
+
+  /* Font */
+  --font: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", "Segoe UI", sans-serif;
+}
+
+* { box-sizing: border-box; margin:0; padding:0; }
+body { font-family: var(--font); background: var(--bg); color: var(--ink); line-height: 1.65; }
+
+/* ── Layout ───────────────────── */
+.page { max-width: 1060px; margin: 0 auto; padding: 24px 20px 60px; }
+h1 { font-size: 28px; font-weight: 900; margin-bottom: 6px; }
+h1 small { font-size: 14px; font-weight: 500; color: var(--sub); }
+h2 { font-size: 20px; font-weight: 800; margin: 36px 0 14px; padding-bottom: 8px; border-bottom: 2px solid var(--line); }
+h3 { font-size: 16px; font-weight: 700; margin: 20px 0 8px; }
+p, li { font-size: 14px; color: var(--sub); }
+ul { padding-left: 20px; }
+table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+th, td { padding: 10px 12px; border: 1px solid var(--line); text-align: left; }
+th { background: #f0f4f9; font-weight: 700; color: var(--ink); }
+code { background: #f0f4f9; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+.badge { display: inline-block; font-size: 10px; font-weight: 800; padding: 3px 10px; border-radius: 999px; }
+
+/* ── Swatch ─────────────────── */
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin: 12px 0; }
+.swatch { border-radius: 12px; overflow: hidden; box-shadow: var(--shadow-sm); }
+.swatch .color { height: 56px; }
+.swatch .info { padding: 8px 10px; background: #fff; font-size: 11px; }
+.swatch .info strong { display: block; font-size: 12px; color: var(--ink); }
+
+/* ── Icon grid ──────────────── */
+.icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; margin: 12px 0; }
+.icon-card { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; align-items: center; gap: 12px; box-shadow: var(--shadow-sm); }
+.icon-card .ic { font-size: 28px; flex-shrink: 0; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 10px; }
+.icon-card .label { font-size: 13px; font-weight: 700; }
+.icon-card .desc { font-size: 11px; color: var(--sub); }
+
+/* ── Tone examples ──────────── */
+.tone-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 12px 0; }
+.tone-card { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 16px; box-shadow: var(--shadow-sm); }
+.tone-card .before { font-size: 13px; color: var(--muted); text-decoration: line-through; margin-bottom: 8px; }
+.tone-card .after { font-size: 14px; font-weight: 700; color: var(--ink); }
+.tone-card .why { font-size: 11px; color: var(--sub); margin-top: 6px; }
+
+/* ── Role mockup ────────────── */
+.role-mock { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
+.mock { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 18px; box-shadow: var(--shadow-md); }
+.mock h4 { margin: 0 0 10px; font-size: 15px; }
+.mock .tag { display: inline-block; font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 6px; margin-bottom: 8px; }
+.mock .tag.dr { background: #e8f0fe; color: #0e4da4; }
+.mock .tag.ns { background: #ecfdf5; color: #0e7a54; }
+.mock .item { font-size: 12px; color: var(--sub); padding: 6px 0; border-bottom: 1px solid var(--line); }
+.mock .item:last-child { border-bottom: none; }
+.mock .item strong { color: var(--ink); }
+
+/* ── Accessibility demo ─────── */
+.a11y-demo { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 12px 0; }
+.a11y-card { border-radius: 14px; padding: 16px; text-align: center; }
+.a11y-card .val { font-size: 28px; font-weight: 900; }
+.a11y-card .label { font-size: 12px; margin-top: 4px; }
+.a11y-card .shape { font-size: 18px; margin-bottom: 6px; }
+.a11y-card .ratio { font-size: 10px; margin-top: 4px; opacity: .7; }
+
+/* ── Button examples ────────── */
+.btn-grid { display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0; }
+.btn { padding: 10px 18px; border-radius: 10px; font-size: 13px; font-weight: 700; border: 1px solid var(--line); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.btn.primary { background: var(--brand); color: #fff; border-color: var(--brand); }
+.btn.active { background: var(--brand-light); color: var(--brand); border-color: #93b4e4; }
+.btn.ghost { background: transparent; color: var(--sub); }
+.btn.ghost:hover { background: var(--hover); }
+
+@media (max-width: 768px) {
+  .role-mock, .tone-grid, .a11y-demo { grid-template-columns: 1fr; }
+  h1 { font-size: 22px; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>提案B デザインシステム<br><small>色・アイコン・文言・トーン・ロール最適化の設計指針</small></h1>
+
+<!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+<h2>1. カラーパレット</h2>
+
+<h3>1-1. 設計原則</h3>
+<ul>
+  <li><strong>色覚多様性対応</strong>：日本人男性の約5%（P型/D型色覚）が赤-緑の判別困難。赤-緑の2色だけに頼らず、<strong>赤系は青み寄りに、緑系は青緑寄りに</strong>補正し、さらに形状（▼▲●）と文言で冗長表現する</li>
+  <li><strong>WCAG 2.2 AA準拠</strong>：通常テキスト 4.5:1以上、大きい文字 3:1以上のコントラスト比を確保</li>
+  <li><strong>医療施設の落ち着き</strong>：ベースカラーは寒色系（ネイビー）で信頼感を演出。背景は薄いグレーブルーで目の疲労を低減</li>
+</ul>
+
+<h3>1-2. ベースカラー</h3>
+<div class="swatches">
+  <div class="swatch"><div class="color" style="background:#1a2332"></div><div class="info"><strong>Ink（本文）</strong>#1a2332</div></div>
+  <div class="swatch"><div class="color" style="background:#5f7084"></div><div class="info"><strong>Sub（補足文）</strong>#5f7084</div></div>
+  <div class="swatch"><div class="color" style="background:#9daab8"></div><div class="info"><strong>Muted（注記）</strong>#9daab8</div></div>
+  <div class="swatch"><div class="color" style="background:#f6f8fb"></div><div class="info"><strong>Background</strong>#f6f8fb</div></div>
+  <div class="swatch"><div class="color" style="background:#ffffff; border:1px solid #dfe5ed"></div><div class="info"><strong>Surface（カード）</strong>#ffffff</div></div>
+  <div class="swatch"><div class="color" style="background:#dfe5ed"></div><div class="info"><strong>Line（罫線）</strong>#dfe5ed</div></div>
+</div>
+
+<h3>1-3. ブランドカラー</h3>
+<div class="swatches">
+  <div class="swatch"><div class="color" style="background:#0e4da4"></div><div class="info"><strong>Brand</strong>#0e4da4<br>ヘッダー・主要ボタン・選択中タブ</div></div>
+  <div class="swatch"><div class="color" style="background:#e8f0fe"></div><div class="info"><strong>Brand Light</strong>#e8f0fe<br>選択中ボタン背景・ホバー</div></div>
+  <div class="swatch"><div class="color" style="background:#0a3671"></div><div class="info"><strong>Brand Dark</strong>#0a3671<br>ヘッダー背景</div></div>
+</div>
+
+<h3>1-4. ステータスカラー（色覚多様性対応版）</h3>
+<p>従来の純赤（#ef4444）と純緑（#22c55e）は P型/D型色覚で混同リスクあり。<strong>赤を青み寄りに、緑を青緑寄りに</strong>シフトし、明度差も確保。</p>
+
+<div class="a11y-demo">
+  <div class="a11y-card" style="background:#fdf0f2; color:#8c1d35;">
+    <div class="shape">▼ ●</div>
+    <div class="val">未達</div>
+    <div class="label">Danger: #c4314b</div>
+    <div class="ratio">白背景コントラスト比 5.8:1</div>
+  </div>
+  <div class="a11y-card" style="background:#fef7ee; color:#7c3a06;">
+    <div class="shape">― ◆</div>
+    <div class="val">接近</div>
+    <div class="label">Warning: #b45309</div>
+    <div class="ratio">白背景コントラスト比 5.2:1</div>
+  </div>
+  <div class="a11y-card" style="background:#ecfdf5; color:#065f42;">
+    <div class="shape">▲ ✓</div>
+    <div class="val">達成</div>
+    <div class="label">OK: #0e7a54</div>
+    <div class="ratio">白背景コントラスト比 5.4:1</div>
+  </div>
+</div>
+
+<h3>1-5. 色＋形状＋文言の三重エンコーディング</h3>
+<p>色だけに頼らず、<strong>形状（アイコン/図形）＋ 文言</strong>を常にセットで表示する。</p>
+<table>
+  <tr><th>状態</th><th>色</th><th>形状</th><th>文言</th><th>使用例</th></tr>
+  <tr><td>未達（80%未満）</td><td style="color:#c4314b">■ #c4314b</td><td>▼ 下向き三角</td><td>「未達」</td><td>KPIカード右上バッジ</td></tr>
+  <tr><td>接近（80〜99%）</td><td style="color:#b45309">■ #b45309</td><td>― 横線 / ◆</td><td>「接近」</td><td>ランキング行の状態表示</td></tr>
+  <tr><td>達成（100%以上）</td><td style="color:#0e7a54">■ #0e7a54</td><td>▲ 上向き三角 / ✓</td><td>「達成」</td><td>ランキング行の状態表示</td></tr>
+  <tr><td>情報（中立）</td><td style="color:#2563eb">■ #2563eb</td><td>→ 矢印 / ℹ</td><td>「参考」</td><td>前年比較値</td></tr>
+</table>
+
+<!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+<h2>2. アイコン設計</h2>
+
+<h3>2-1. 設計原則</h3>
+<ul>
+  <li><strong>絵文字ベース</strong>：SVGアイコンは追加読み込みが発生するため、静的HTML生成との相性を考慮して絵文字を基本とする</li>
+  <li><strong>一貫性</strong>：KPIごとに固有アイコンを割り当て、全画面で統一する</li>
+  <li><strong>識別性</strong>：色に頼らず形状で区別できるアイコンを選定する</li>
+</ul>
+
+<h3>2-2. KPIアイコン</h3>
+<div class="icon-grid">
+  <div class="icon-card"><div class="ic" style="background:#e8f0fe">🛏️</div><div><div class="label">在院患者数</div><div class="desc">ベッドアイコン。「今いる患者数」を直感表現</div></div></div>
+  <div class="icon-card"><div class="ic" style="background:#e8f0fe">🚪</div><div><div class="label">新入院患者数</div><div class="desc">ドアアイコン。「入ってくる患者」を表現</div></div></div>
+  <div class="icon-card"><div class="ic" style="background:#e8f0fe">💉</div><div><div class="label">全身麻酔手術</div><div class="desc">注射器アイコン。手術・麻酔を連想</div></div></div>
+</div>
+
+<h3>2-3. ナビゲーション・軸切替アイコン</h3>
+<div class="icon-grid">
+  <div class="icon-card"><div class="ic" style="background:#e8f0fe">🩺</div><div><div class="label">診療科別</div><div class="desc">聴診器。医師=診療科の視点</div></div></div>
+  <div class="icon-card"><div class="ic" style="background:#ecfdf5">🏥</div><div><div class="label">病棟別</div><div class="desc">病院建物。看護師=病棟の視点</div></div></div>
+  <div class="icon-card"><div class="ic" style="background:#fef7ee">👨‍⚕️</div><div><div class="label">術者別</div><div class="desc">医師。手術タブの軸切替用</div></div></div>
+</div>
+
+<h3>2-4. ステータス・アクションアイコン</h3>
+<div class="icon-grid">
+  <div class="icon-card"><div class="ic" style="background:#fdf0f2">🔴</div><div><div class="label">要注視</div><div class="desc">赤丸。ヘッドラインアラートに使用</div></div></div>
+  <div class="icon-card"><div class="ic" style="background:#ecfdf5">📈</div><div><div class="label">改善</div><div class="desc">上昇グラフ。改善トピックに使用</div></div></div>
+  <div class="icon-card"><div class="ic" style="background:#e8f0fe">📊</div><div><div class="label">推移グラフ</div><div class="desc">棒グラフ。チャートセクション見出し</div></div></div>
+  <div class="icon-card"><div class="ic" style="background:#fef7ee">🏆</div><div><div class="label">ランキング</div><div class="desc">トロフィー。達成状況セクション見出し</div></div></div>
+  <div class="icon-card"><div class="ic" style="background:#f6f8fb">📋</div><div><div class="label">詳細展開</div><div class="desc">クリップボード。ドリルダウン見出し</div></div></div>
+  <div class="icon-card"><div class="ic" style="background:#f6f8fb">🖨️</div><div><div class="label">印刷</div><div class="desc">プリンタ。ヘッダー右端のアクション</div></div></div>
+</div>
+
+<!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+<h2>3. ボタン文言</h2>
+
+<h3>3-1. 設計原則</h3>
+<ul>
+  <li><strong>主語省略・体言止め</strong>：「診療科別を表示する」→「診療科別」。日本語UIは体言止めが最も短く、かつ自然</li>
+  <li><strong>数字を先、ラベルを後</strong>：「直近7日」のように、数字が先に来ると視認が速い</li>
+  <li><strong>アイコン + 最短文言</strong>：「🩺 診療科別」のように、アイコンを付けて2〜4文字で表現する</li>
+</ul>
+
+<h3>3-2. ツールバーボタン</h3>
+<table>
+  <tr><th>用途</th><th>推奨文言</th><th>現行文言（参考）</th><th>理由</th></tr>
+  <tr><td>軸切替: 診療科</td><td><code>🩺 診療科別</code></td><td>診療科</td><td>アイコンで医師視点を暗示</td></tr>
+  <tr><td>軸切替: 病棟</td><td><code>🏥 病棟別</code></td><td>病棟</td><td>アイコンで看護師視点を暗示</td></tr>
+  <tr><td>軸切替: 術者</td><td><code>👨‍⚕️ 術者別</code></td><td>（新規）</td><td>手術タブ専用の軸</td></tr>
+  <tr><td>期間: 7日</td><td><code>直近7日</code></td><td>7日</td><td>「直近」で起算が明確</td></tr>
+  <tr><td>期間: 28日</td><td><code>直近28日</code></td><td>28日</td><td>同上</td></tr>
+  <tr><td>期間: 年度</td><td><code>今年度</code></td><td>年度 / FY</td><td>英語略語を排除</td></tr>
+  <tr><td>比較オプション</td><td><code>🔄 前年度と比較</code></td><td>前年度比較</td><td>「と」を挟んで動作を明確に</td></tr>
+  <tr><td>印刷</td><td><code>🖨️ 印刷</code></td><td>印刷</td><td>アイコンで即認識</td></tr>
+</table>
+
+<h3>3-3. ボタンスタイル一覧</h3>
+<div class="btn-grid">
+  <span class="btn primary">🩺 診療科別</span>
+  <span class="btn active">🏥 病棟別</span>
+  <span class="btn ghost">直近7日</span>
+  <span class="btn active">直近28日</span>
+  <span class="btn ghost">今年度</span>
+  <span class="btn ghost">🔄 前年度と比較</span>
+  <span class="btn ghost">🖨️ 印刷</span>
+</div>
+<p style="margin-top:8px; font-size:12px;">Primary＝現在選択中の軸、Active＝現在選択中の期間、Ghost＝非選択・オプション</p>
+
+<h3>3-4. KPIカード内の文言</h3>
+<table>
+  <tr><th>要素</th><th>推奨文言</th><th>避ける表現</th><th>理由</th></tr>
+  <tr><td>ステータスバッジ</td><td><code>▼ 未達</code> / <code>― 接近</code> / <code>▲ 達成</code></td><td>「赤」「黄」「緑」</td><td>色名ではなく状態名。色覚多様性対応</td></tr>
+  <tr><td>差分表示</td><td><code>目標まで −35.0人</code></td><td>「ギャップ -35」</td><td>英語排除、単位明示</td></tr>
+  <tr><td>期間説明</td><td><code>4/1 時点</code> / <code>直近7日累計</code></td><td>「7d」「as of」</td><td>英語略語を排除</td></tr>
+  <tr><td>カードの導線ヒント</td><td><code>詳細を見る ›</code></td><td>「Click here」</td><td>日本語・行動誘導</td></tr>
+</table>
+
+<!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+<h2>4. 病院職員向け文言トーン</h2>
+
+<h3>4-1. トーン設計原則</h3>
+<table>
+  <tr><th>原則</th><th>説明</th></tr>
+  <tr><td><strong>事実ベース</strong></td><td>「悪い」「良い」の価値判断を避け、数値差分で客観的に伝える</td></tr>
+  <tr><td><strong>アクション示唆</strong></td><td>「どうなっているか」だけでなく、「何に注目すべきか」を暗示する</td></tr>
+  <tr><td><strong>短く、敬語不使用</strong></td><td>ダッシュボードはUIであり文書ではない。体言止めで最短にする</td></tr>
+  <tr><td><strong>責任追及しない</strong></td><td>「○○科が悪い」ではなく「○○科 新入院 目標差 −14人」と数値のみ</td></tr>
+  <tr><td><strong>改善も伝える</strong></td><td>未達だけでなく改善トピックも必ず1件は表示し、モチベーションを維持する</td></tr>
+</table>
+
+<h3>4-2. ヘッドラインメッセージのトーン例</h3>
+<div class="tone-grid">
+  <div class="tone-card">
+    <div class="before">❌ 新入院患者数が不足しており深刻な状況です</div>
+    <div class="after">✅ 新入院が目標を大きく下回っています</div>
+    <div class="why">「深刻」は価値判断。事実（下回っている）だけ伝える</div>
+  </div>
+  <div class="tone-card">
+    <div class="before">❌ 泌尿器科の成績が最も悪いです</div>
+    <div class="after">✅ 泌尿器科 新入院 目標差 −14人</div>
+    <div class="why">「成績が悪い」は評価。数値差分だけで伝える</div>
+  </div>
+  <div class="tone-card">
+    <div class="before">❌ 在院患者数は問題ありません</div>
+    <div class="after">✅ 在院患者数が目標をやや下回っています</div>
+    <div class="why">「問題なし」は主観。差分値で程度を示す</div>
+  </div>
+  <div class="tone-card">
+    <div class="before">❌ 手術室の稼働率が低下しています。改善が急務です</div>
+    <div class="after">✅ 全身麻酔 平日平均 18.0件（目標21件）</div>
+    <div class="why">「改善が急務」は指示語。数値だけ置いて判断は読み手に委ねる</div>
+  </div>
+</div>
+
+<h3>4-3. ヘッドラインの自動生成ロジック（推奨）</h3>
+<table>
+  <tr><th>条件</th><th>ヘッドライン文面</th><th>アイコン</th></tr>
+  <tr><td>3 KPI すべて達成</td><td>全指標が目標を達成しています</td><td>🟢</td></tr>
+  <tr><td>2 KPI 達成、1 KPI 未達</td><td>〔未達KPI名〕が目標をやや下回っています</td><td>🟡</td></tr>
+  <tr><td>1 KPI 達成、2 KPI 未達</td><td>〔主要未達KPI名〕が目標を下回っています</td><td>🔴</td></tr>
+  <tr><td>3 KPI すべて未達</td><td>〔最大乖離KPI名〕が目標を大きく下回っています</td><td>🔴</td></tr>
+</table>
+
+<!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+<h2>5. ロール別初期表示の最適化</h2>
+
+<h3>5-1. URL設計</h3>
+<table>
+  <tr><th>対象</th><th>ブックマークURL</th><th>初期表示</th></tr>
+  <tr><td>医師</td><td><code>detail.html#admission?axis=dept</code></td><td>新入院タブ × 診療科別</td></tr>
+  <tr><td>看護師</td><td><code>detail.html#inpatient?axis=ward</code></td><td>在院患者タブ × 病棟別</td></tr>
+  <tr><td>経営層</td><td><code>portal.html</code></td><td>信号機ポータル</td></tr>
+  <tr><td>手術室担当</td><td><code>detail.html#operation?axis=dept</code></td><td>手術タブ × 診療科別</td></tr>
+</table>
+
+<h3>5-2. 医師向け初期表示</h3>
+<div class="role-mock">
+  <div class="mock">
+    <span class="tag dr">医師がブックマークを開いた瞬間</span>
+    <h4>🚪 新入院タブ × 🩺 診療科別 × 直近7日</h4>
+    <div class="item"><strong>左ペイン</strong>：新入院 推移グラフ（直近24週、目標ライン付き）</div>
+    <div class="item"><strong>右ペイン</strong>：診療科別 新入院達成率ランキング（上位=達成科、下位=未達科）</div>
+    <div class="item"><strong>ドリルダウン</strong>：自科名をクリック → 在院・新入院・手術の3 KPIミニカード＋推移グラフ</div>
+    <div class="item"><strong>想定アクション</strong>：自科が未達なら紹介受入や入院判断の改善を検討</div>
+  </div>
+  <div class="mock">
+    <span class="tag dr">医師が手術タブに切替えた場合</span>
+    <h4>💉 手術タブ × 🩺 診療科別 × 今年度</h4>
+    <div class="item"><strong>左ペイン</strong>：手術件数 推移グラフ（前年度比較付き）</div>
+    <div class="item"><strong>右ペイン</strong>：診療科別 全身麻酔達成率ランキング</div>
+    <div class="item"><strong>下段</strong>：年度比較サマリー（平日平均/稼働率/時間外比率の変化）</div>
+    <div class="item"><strong>想定アクション</strong>：自科の手術枠が目標に対して不足していないか確認</div>
+  </div>
+</div>
+
+<h3>5-3. 看護師向け初期表示</h3>
+<div class="role-mock">
+  <div class="mock">
+    <span class="tag ns">看護師がブックマークを開いた瞬間</span>
+    <h4>🛏️ 在院患者タブ × 🏥 病棟別 × 直近7日</h4>
+    <div class="item"><strong>左ペイン</strong>：病棟別稼働ヒートマップ（直近8週、色濃度で稼働率を表現）</div>
+    <div class="item"><strong>右ペイン</strong>：要対応病棟ランキング（目標差分の大きい順）</div>
+    <div class="item"><strong>ドリルダウン</strong>：自病棟名をクリック → 在院・入退院負荷・フロー残高のミニカード</div>
+    <div class="item"><strong>想定アクション</strong>：自病棟の空床状況を確認し、入退院調整の優先度を判断</div>
+  </div>
+  <div class="mock">
+    <span class="tag ns">看護師が新入院タブに切替えた場合</span>
+    <h4>🚪 新入院タブ × 🏥 病棟別 × 直近7日</h4>
+    <div class="item"><strong>左ペイン</strong>：病棟別 新入院推移グラフ</div>
+    <div class="item"><strong>右ペイン</strong>：病棟別 新入院達成率ランキング</div>
+    <div class="item"><strong>ドリルダウン</strong>：病棟名クリック → 入退院負荷の内訳（新入院/転入/退院/転出）</div>
+    <div class="item"><strong>想定アクション</strong>：入院超過の病棟を把握し、ベッドコントロールの調整を検討</div>
+  </div>
+</div>
+
+<h3>5-4. 初期表示の切替UIフロー</h3>
+<p>Layer-2（detail.html）のヘッダーに、小さなロールセレクタを配置する。</p>
+<table>
+  <tr><th>UI要素</th><th>配置</th><th>動作</th></tr>
+  <tr><td><code>[🩺 医師向け] [🏥 看護師向け]</code></td><td>ヘッダー右側、印刷ボタンの隣</td><td>タップでKPIタブ＋軸のプリセットを一括切替</td></tr>
+</table>
+<p>このセレクタは「軸とタブの組合せプリセット」であり、ページ遷移はしない。内部的には以下の処理になる。</p>
+<table>
+  <tr><th>プリセット</th><th>KPIタブ</th><th>軸</th><th>期間</th></tr>
+  <tr><td>🩺 医師向け</td><td>新入院</td><td>診療科別</td><td>直近7日</td></tr>
+  <tr><td>🏥 看護師向け</td><td>在院患者</td><td>病棟別</td><td>直近7日</td></tr>
+</table>
+
+<!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+<h2>6. その他のUI指針</h2>
+
+<h3>6-1. フォントサイズ</h3>
+<table>
+  <tr><th>要素</th><th>PC</th><th>スマホ</th></tr>
+  <tr><td>KPIメイン数値</td><td>40px / 900</td><td>30px / 900</td></tr>
+  <tr><td>セクション見出し</td><td>18px / 800</td><td>16px / 800</td></tr>
+  <tr><td>カード名・ランキング名</td><td>14px / 700</td><td>13px / 700</td></tr>
+  <tr><td>補足説明</td><td>13px / 400</td><td>12px / 400</td></tr>
+  <tr><td>注記・フッター</td><td>11px / 400</td><td>11px / 400</td></tr>
+</table>
+
+<h3>6-2. 角丸とシャドウ</h3>
+<table>
+  <tr><th>要素</th><th>角丸</th><th>シャドウ</th></tr>
+  <tr><td>KPIカード</td><td>18px</td><td>shadow-md</td></tr>
+  <tr><td>ツールバーボタン</td><td>10px</td><td>shadow-sm</td></tr>
+  <tr><td>ランキング行</td><td>14px</td><td>shadow-sm</td></tr>
+  <tr><td>ドリルダウン展開</td><td>16px</td><td>shadow-md</td></tr>
+  <tr><td>バッジ</td><td>999px（丸）</td><td>なし</td></tr>
+</table>
+
+<h3>6-3. 印刷対応</h3>
+<ul>
+  <li>ヘッダー・ツールバーは <code>@media print</code> で非表示</li>
+  <li>KPIタブは全タブ展開して縦に並べる</li>
+  <li>グラフは静的画像として出力（Plotly の <code>toImage()</code> を利用）</li>
+  <li>色は CMYK で再現できる範囲に自動補正（CSS filter）</li>
+</ul>
+
+</div><!-- /page -->
+</body>
+</html>
