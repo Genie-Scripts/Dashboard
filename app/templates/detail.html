@@ -11,7 +11,11 @@
 .w{max-width:1280px;margin:0 auto;padding:16px 20px 48px}
 /* ★課題4: タブを大きく、数字を目立たせる */
 .tabs{display:grid;grid-template-columns:repeat(3,1fr);background:var(--s);border:1px solid var(--ln);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh)}.tab{padding:16px 18px;border-right:1px solid var(--ln);cursor:pointer;transition:background .15s}.tab:last-child{border-right:none}.tab:hover{background:#f8fafc}.tab.active{background:var(--br);color:#fff}.tab .nm{font-size:13px;font-weight:800}.tab .big{font-size:28px;font-weight:900;line-height:1.1;margin:4px 0}.tab .per{font-size:11px;color:var(--sub);margin-top:2px}.tab.active .per{color:rgba(255,255,255,.7)}.tab .st{display:inline-block;font-size:10px;font-weight:900;padding:2px 8px;border-radius:999px;margin-left:4px;background:var(--dr-bg);color:var(--dr-t)}.tab.active .st{background:rgba(255,255,255,.18);color:#fff}
-.sum{display:grid;grid-template-columns:200px repeat(4,1fr);gap:10px;margin-top:12px}.bx{background:var(--s);border:1px solid var(--ln);border-radius:14px;padding:12px 14px;box-shadow:0 2px 6px rgba(10,22,42,.04)}.bx h2{font-size:16px;margin:0}.bx .k{font-size:11px;color:var(--sub);font-weight:600}.bx .v{font-size:24px;font-weight:900;margin-top:4px}.bx .v.dr{color:var(--dr)}
+.sum{display:grid;grid-template-columns:1.4fr repeat(3,1fr);gap:10px;margin-top:12px}.bx{background:var(--s);border:1px solid var(--ln);border-radius:14px;padding:12px 14px;box-shadow:0 2px 6px rgba(10,22,42,.04)}.bx h2{font-size:16px;margin:0}.bx .k{font-size:11px;color:var(--sub);font-weight:600}.bx .v{font-size:24px;font-weight:900;margin-top:4px}.bx .v.dr{color:var(--dr)}
+/* ★Plan-B: 実績+目標+差分 統合カード */
+.bx-main{background:var(--s);border:1px solid var(--ln);border-radius:14px;padding:14px 16px;box-shadow:0 2px 6px rgba(10,22,42,.04)}.bx-main h2{font-size:14px;margin:0 0 6px;font-weight:800}.bx-main .period-note{font-size:11px;color:var(--sub);margin-bottom:4px}.bx-main .main-val{font-size:28px;font-weight:900;line-height:1.15}.bx-main .main-val.dr{color:var(--dr)}.bx-main .main-unit{font-size:14px;font-weight:400;color:var(--sub)}
+.tgt-row{display:flex;align-items:center;gap:8px;margin-top:8px;padding:6px 10px;background:#f8f9fa;border-radius:10px;border:1px dashed var(--ln)}.tgt-icon{font-size:12px}.tgt-label{font-size:10px;color:var(--mu);font-weight:700}.tgt-val{font-size:13px;font-weight:800;color:var(--sub)}.gap-val{font-size:13px;font-weight:900;margin-left:auto}.gap-val.dr{color:var(--dr)}.gap-val.wr{color:var(--wr)}.gap-val.ok{color:var(--ok)}
+.prog-wrap{margin-top:6px}.prog-bar{height:6px;background:#edf2f7;border-radius:999px;overflow:hidden}.prog-fill{height:100%;border-radius:999px;transition:width .3s}.prog-fill.ok{background:var(--ok)}.prog-fill.wr{background:var(--wr)}.prog-fill.dr{background:var(--dr)}.prog-meta{display:flex;justify-content:space-between;align-items:center;margin-top:3px}.prog-pct{font-size:11px;font-weight:800}.prog-pct.dr{color:var(--dr)}.prog-pct.wr{color:var(--wr)}.prog-pct.ok{color:var(--ok)}.prog-status{font-size:9px;font-weight:800;padding:2px 7px;border-radius:5px}.prog-status.dr{background:var(--dr-bg);color:var(--dr-t)}.prog-status.wr{background:var(--wr-bg);color:#7c3a06}.prog-status.ok{background:var(--ok-bg);color:#065f42}
 .tb{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px}.grp{display:flex;align-items:center;gap:5px}.gl{font-size:12px;font-weight:800;color:var(--sub)}.btn{background:var(--s);border:1px solid var(--ln);border-radius:10px;padding:8px 14px;font-size:12px;font-weight:800;color:var(--sub);cursor:pointer;box-shadow:0 1px 3px rgba(10,22,42,.04);transition:all .15s}.btn:hover{border-color:#93b4e4;color:var(--br)}.btn.active{background:var(--bl);border-color:#93b4e4;color:var(--br)}
 .main{display:grid;grid-template-columns:1.15fr .85fr;gap:14px;margin-top:12px;align-items:start}.pnl-chart{position:sticky;top:60px}.pnl{background:var(--s);border:1px solid var(--ln);border-radius:var(--r);padding:18px;box-shadow:var(--sh)}.pnl h3{margin:0 0 12px;font-size:14px;font-weight:800}
 .chart{width:100%;height:360px}
@@ -23,7 +27,7 @@
 .drill-chart{height:225px;margin-top:0;min-height:0;overflow:hidden}
 .ft{text-align:center;font-size:11px;color:var(--mu);padding:20px 0;border-top:1px solid var(--ln);margin-top:20px}
 .drill-graphs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:8px}.drill-graphs>div{min-width:0;overflow:hidden}
-@media(max-width:768px){.tabs{display:flex;overflow:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}.tab{min-width:150px;flex:0 0 auto}.tab .big{font-size:22px}.sum{grid-template-columns:1fr 1fr}.main{grid-template-columns:1fr}.chart{height:200px}.ri{grid-template-columns:24px 1fr auto}.bar,.stl{display:none}.drill-chart{height:160px}.drill-graphs{grid-template-columns:1fr}.role{display:none}.hdr .row{flex-direction:column;align-items:flex-start}}
+@media(max-width:768px){.tabs{display:flex;overflow:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}.tab{min-width:150px;flex:0 0 auto}.tab .big{font-size:22px}.sum{grid-template-columns:1fr}.bx-main .main-val{font-size:24px}.main{grid-template-columns:1fr}.chart{height:200px}.ri{grid-template-columns:24px 1fr auto}.bar,.stl{display:none}.drill-chart{height:160px}.drill-graphs{grid-template-columns:1fr}.role{display:none}.hdr .row{flex-direction:column;align-items:flex-start}}
 </style>
 </head>
 <body>
@@ -144,17 +148,80 @@ function presetNurse(e) {
 }
 function renderAll() { renderSummary(); renderToolbar(); renderContent(); closeDrill(); }
 
+/* ★Plan-B: renderSummary — 実績+目標+差分を統合カードに集約 */
 function renderSummary() {
   const kpi = DATA.kpi[currentTab];
-  let items = [];
+  let main, refs;
+
   if (currentTab === 'inpatient') {
-    items = [{h:'🛏️ 在院患者数'},{k:'目標日平均',v:`${kpi.target}人`},{k:'今年度平均',v:kpi.fy_avg!==null?`${kpi.fy_avg}人`:'—'},{k:'直近7日平均',v:kpi.avg_7d!==null?`${kpi.avg_7d}人`:'—',dr:kpi.rate<90},{k:'前年平均',v:kpi.prev_avg!==null?`${kpi.prev_avg}人`:'—'}];
+    main = {
+      icon:'🛏️', label:'在院患者数',
+      actual:kpi.actual, unit:'人', targetLabel:'目標日平均',
+      target:kpi.target, gap:kpi.gap, gapUnit:'人',
+      rate:kpi.rate, status:kpi.status
+    };
+    refs = [
+      {k:'今年度平均',  v:kpi.fy_avg!==null?`${kpi.fy_avg}人`:'—'},
+      {k:'直近7日平均', v:kpi.avg_7d!==null?`${kpi.avg_7d}人`:'—', dr:kpi.rate<90},
+      {k:'前年平均',    v:kpi.prev_avg!==null?`${kpi.prev_avg}人`:'—'},
+    ];
   } else if (currentTab === 'admission') {
-    items = [{h:'🚪 新入院患者数'},{k:'週目標',v:`${kpi.target_weekly}人`},{k:'年度平均',v:kpi.fy_avg!==null?`${kpi.fy_avg}人`:'—'},{k:'直近7日累計',v:kpi.actual_7d!==null?`${kpi.actual_7d}人(${kpi.rate_7d}%)`:'—',dr:kpi.rate_7d<90},{k:'前年平均',v:kpi.prev_avg!==null?`${kpi.prev_avg}人`:'—'}];
+    main = {
+      icon:'🚪', label:'新入院患者数', periodNote:'直近7日累計',
+      actual:kpi.actual_7d, unit:'人', targetLabel:'週目標',
+      target:kpi.target_weekly, gap:kpi.gap, gapUnit:'人',
+      rate:kpi.rate_7d, status:kpi.status
+    };
+    refs = [
+      {k:'年度平均',  v:kpi.fy_avg!==null?`${kpi.fy_avg}人`:'—'},
+      {k:'年度達成率', v:kpi.fy_rate!==null?`${kpi.fy_rate}%`:'—', dr:kpi.fy_rate!=null&&kpi.fy_rate<90},
+      {k:'前年平均',  v:kpi.prev_avg!==null?`${kpi.prev_avg}人`:'—'},
+    ];
   } else {
-    items = [{h:'💉 全身麻酔手術'},{k:'目標',v:`${kpi.target}件/日`},{k:'平日平均',v:kpi.daily_avg!==null?`${kpi.daily_avg}件`:'—',dr:kpi.rate<90},{k:'時間内稼働率',v:kpi.in_hours_rate!==null?`${kpi.in_hours_rate}%`:'—'},{k:'週間合計',v:kpi.week_total!==null?`${kpi.week_total}件`:'—'}];
+    main = {
+      icon:'💉', label:'全身麻酔手術', periodNote:'直近7平日平均',
+      actual:kpi.daily_avg, unit:'件/日', targetLabel:'目標',
+      target:kpi.target, gap:kpi.gap, gapUnit:'件/日',
+      rate:kpi.rate, status:kpi.status
+    };
+    refs = [
+      {k:'時間内稼働率', v:kpi.in_hours_rate!==null?`${kpi.in_hours_rate}%`:'—'},
+      {k:'週間合計',     v:kpi.week_total!==null?`${kpi.week_total}件`:'—'},
+      {k:'年度平均',     v:kpi.fy_avg!==null?`${kpi.fy_avg}件/日`:'—'},
+    ];
   }
-  document.getElementById('summaryBar').innerHTML = items.map(i => i.h ? `<div class="bx"><h2>${i.h}</h2></div>` : `<div class="bx"><div class="k">${i.k}</div><div class="v${i.dr?' dr':''}">${i.v}</div></div>`).join('');
+
+  // ステータス CSS クラス
+  const sc = main.status ? main.status.css : 'mu';
+  const ss = main.status ? main.status.shape : '—';
+  const st = main.status ? main.status.text : '—';
+  const barW = Math.min((main.rate||0)/1.5, 100);  // 150%→100%幅
+  const gapPfx = main.gap > 0 ? '+' : '';
+
+  const mainHtml = `<div class="bx-main">
+    <h2>${main.icon} ${main.label}</h2>
+    ${main.periodNote ? `<div class="period-note">${main.periodNote}</div>` : ''}
+    <div class="main-val ${sc==='dr'?'dr':''}">${main.actual}<span class="main-unit">${main.unit}</span></div>
+    <div class="tgt-row">
+      <span class="tgt-icon">🎯</span>
+      <span class="tgt-label">${main.targetLabel}</span>
+      <span class="tgt-val">${main.target}${main.unit}</span>
+      <span class="gap-val ${sc}">${gapPfx}${main.gap}${main.gapUnit}</span>
+    </div>
+    <div class="prog-wrap">
+      <div class="prog-bar"><div class="prog-fill ${sc}" style="width:${barW}%"></div></div>
+      <div class="prog-meta">
+        <span class="prog-pct ${sc}">${main.rate!=null?main.rate+'%':'—'}</span>
+        <span class="prog-status ${sc}">${ss} ${st}</span>
+      </div>
+    </div>
+  </div>`;
+
+  const refsHtml = refs.map(r =>
+    `<div class="bx"><div class="k">${r.k}</div><div class="v${r.dr?' dr':''}">${r.v}</div></div>`
+  ).join('');
+
+  document.getElementById('summaryBar').innerHTML = mainHtml + refsHtml;
 }
 
 function renderToolbar() {
