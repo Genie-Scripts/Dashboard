@@ -1,548 +1,131 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>診療ダッシュボード ポータル</title>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>診療KPIポータル</title>
 <style>
-*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
-html{scroll-behavior:smooth}
-body{
-  font-family:'Noto Sans JP',sans-serif;
-  background:var(--bg);color:var(--txt);
-  font-size:14px;line-height:1.6;min-height:100vh;
-}
-:root{
-  --bg:#F0F2F5;--card:#FFF;--elevated:#F7F9FC;
-  --hdr:#1D2B3A;--border:#DCE1E9;--accent:#3A6EA5;--accent-lt:#EEF3FA;
-  --txt:#1A2535;--txt2:#5A6A82;--muted:#94A3B8;
-  --ok:#1A9E6A;--ok-bg:#EDFAF4;--warn:#C87A00;--warn-bg:#FEF6E4;
-  --ng:#C0293B;--ng-bg:#FEF0F2;
-  --mono:'IBM Plex Mono',monospace;--r:10px;
-  --shadow:0 1px 4px rgba(0,0,0,.06);--shadow2:0 4px 16px rgba(0,0,0,.10);
-  --status-good:#16a34a;--status-warn:#d97706;--status-bad:#dc2626;
-  --gap-pos:#16a34a;--gap-neg:#dc2626;
-}
-
-/* ── Header ── */
-.hdr{
-  background:var(--hdr);padding:0 28px;height:56px;
-  display:flex;align-items:center;justify-content:space-between;
-  border-bottom:3px solid var(--accent);position:sticky;top:0;z-index:100;
-}
-.hdr-left{display:flex;align-items:center;gap:12px}
-.hdr-badge{
-  background:var(--accent);color:#fff;font-size:.58rem;font-weight:700;
-  letter-spacing:.14em;text-transform:uppercase;padding:3px 9px;border-radius:4px;
-}
-.hdr-title{color:#E8EEF5;font-size:1rem;font-weight:600}
-.hdr-meta{color:#7A90A8;font-size:.72rem;font-family:var(--mono)}
-
-/* ── Wrapper ── */
-.wrapper{max-width:1100px;margin:0 auto;padding:32px 24px 64px}
-
-/* ── Hero Banner ── */
-.hero{
-  background:var(--hdr);border-radius:var(--r);
-  padding:28px 32px;margin-bottom:28px;
-  border:1px solid rgba(255,255,255,.06);
-}
-.hero-title{color:#E8EEF5;font-size:1.25rem;font-weight:700;margin-bottom:4px}
-.hero-sub{color:#7A90A8;font-size:.82rem;font-family:var(--mono)}
-.hero-date{
-  display:inline-block;margin-top:10px;
-  background:rgba(58,110,165,.25);color:#93B8D8;
-  font-size:.72rem;font-weight:600;font-family:var(--mono);
-  padding:3px 12px;border-radius:4px;border:1px solid rgba(58,110,165,.35);
-}
-
-/* ── Section Label ── */
-.section-label{
-  font-size:.67rem;font-weight:700;letter-spacing:.14em;
-  color:var(--muted);text-transform:uppercase;
-  display:flex;align-items:center;gap:10px;margin-bottom:14px;
-}
-.section-label::after{content:'';flex:1;height:1px;background:var(--border)}
-
-/* ── KPI Summary Row ── */
-.kpi-row{
-  display:grid;
-  grid-template-columns:repeat(3,1fr);
-  gap:14px;margin-bottom:32px;
-}
-.kpi-card{
-  background:var(--card);border-radius:var(--r);
-  padding:18px 20px 14px;
-  border:1px solid var(--border);border-top:3px solid var(--border);
-  box-shadow:var(--shadow);
-  transition:transform .15s,box-shadow .15s;
-  text-decoration:none;color:inherit;display:block;
-}
-.kpi-card:hover{transform:translateY(-2px);box-shadow:var(--shadow2)}
-.kpi-card.ok  {border-top-color:var(--status-good)}
-.kpi-card.warn{border-top-color:var(--status-warn)}
-.kpi-card.ng  {border-top-color:var(--status-bad)}
-.kpi-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
-.kpi-title{font-size:.78rem;font-weight:600;color:var(--txt2)}
-.kpi-period{font-size:.65rem;color:var(--muted);margin-top:2px}
-.kpi-badge{
-  padding:2px 9px;border-radius:999px;
-  font-size:.67rem;font-weight:700;white-space:nowrap;flex-shrink:0;
-}
-.kpi-badge.ok  {background:#dcfce7;color:#166534}
-.kpi-badge.warn{background:#fef3c7;color:#92400e}
-.kpi-badge.ng  {background:#fee2e2;color:#991b1b}
-.kpi-badge.neutral{background:var(--elevated);color:var(--muted)}
-.kpi-value{font-size:2rem;font-weight:700;font-family:var(--mono);line-height:1.1}
-.kpi-card.ok   .kpi-value{color:var(--status-good)}
-.kpi-card.warn .kpi-value{color:var(--status-warn)}
-.kpi-card.ng   .kpi-value{color:var(--status-bad)}
-.kpi-unit{font-size:.75rem;font-weight:400;color:var(--txt2);margin-left:3px}
-.kpi-gap{font-size:.78rem;font-weight:600;margin-top:3px}
-.kpi-gap.gap-pos{color:var(--gap-pos)}
-.kpi-gap.gap-neg{color:var(--gap-neg)}
-.kpi-gap.gap-neu{color:var(--muted)}
-.progress{width:100%;height:3px;background:var(--elevated);border-radius:99px;margin-top:10px;overflow:hidden}
-.progress-fill{height:100%;border-radius:99px;background:var(--accent);transition:width .6s}
-.kpi-card.ok   .progress-fill{background:var(--status-good)}
-.kpi-card.warn .progress-fill{background:var(--status-warn)}
-.kpi-card.ng   .progress-fill{background:var(--status-bad)}
-
-/* ── Nav Cards Grid ── */
-.nav-grid{
-  display:grid;
-  grid-template-columns:repeat(2,1fr);
-  gap:16px;
-}
-.nav-card{
-  background:var(--card);border-radius:var(--r);
-  border:1px solid var(--border);
-  box-shadow:var(--shadow);
-  text-decoration:none;color:inherit;
-  display:flex;align-items:stretch;
-  overflow:hidden;
-  transition:transform .15s,box-shadow .15s;
-}
-.nav-card:hover{transform:translateY(-2px);box-shadow:var(--shadow2)}
-.nav-card.disabled{opacity:.45;pointer-events:none;cursor:default}
-.nav-card-accent{
-  width:5px;flex-shrink:0;
-  background:var(--accent);
-}
-.nav-card-accent.doctor {background:#3A6EA5}
-.nav-card-accent.nurse  {background:#0D9488}
-.nav-card-accent.admission{background:#7C3AED}
-.nav-card-body{padding:20px 22px;flex:1}
-.nav-card-icon{font-size:1.5rem;line-height:1;margin-bottom:10px}
-.nav-card-title{font-size:1rem;font-weight:700;color:var(--txt);margin-bottom:4px}
-.nav-card-desc{font-size:.78rem;color:var(--txt2);line-height:1.6}
-.nav-card-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
-.nav-tag{
-  font-size:.65rem;font-weight:600;letter-spacing:.04em;
-  padding:3px 9px;border-radius:4px;
-  background:var(--elevated);color:var(--txt2);
-  border:1px solid var(--border);
-}
-.nav-card-arrow{
-  padding:0 18px;display:flex;align-items:center;
-  color:var(--muted);font-size:1.1rem;flex-shrink:0;
-}
-.nav-card:hover .nav-card-arrow{color:var(--accent)}
-.nav-badge-new{
-  font-size:.6rem;font-weight:700;letter-spacing:.08em;
-  padding:2px 7px;border-radius:3px;
-  background:#7C3AED;color:#fff;margin-left:8px;vertical-align:middle;
-}
-.nav-badge-unavail{
-  font-size:.6rem;font-weight:600;
-  padding:2px 7px;border-radius:3px;
-  background:var(--elevated);color:var(--muted);
-  border:1px solid var(--border);margin-left:8px;vertical-align:middle;
-}
-
-/* ── Headline Banner (v1.8) ── */
-.headline-banner{background:var(--card);border-left:4px solid var(--muted);padding:16px 20px;border-radius:var(--r);margin-bottom:20px;display:flex;align-items:flex-start;gap:14px;box-shadow:var(--shadow)}
-.headline-banner.ok{border-left-color:#1A9E6A}
-.headline-banner.warn{border-left-color:#C87A00}
-.headline-banner.ng{border-left-color:#C0293B}
-.headline-icon{font-size:1.5rem;flex-shrink:0;line-height:1}
-.headline-body{flex:1;min-width:0}
-.headline-main{font-size:.95rem;font-weight:700;color:var(--txt);margin-bottom:2px}
-.headline-detail{font-size:.82rem;color:var(--txt2);line-height:1.5}
-
-/* ── Day-over-Day Alert Cards (v1.8) ── */
-.dod-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:20px}
-.dod-card{background:var(--card);border-radius:var(--r);padding:14px 16px;border-left:3px solid var(--muted);box-shadow:var(--shadow);display:flex;align-items:flex-start;gap:10px}
-.dod-card.up{border-left-color:#3A6EA5}
-.dod-card.down{border-left-color:#C0293B}
-.dod-icon{font-size:1.1rem;flex-shrink:0;line-height:1}
-.dod-body{flex:1;min-width:0}
-.dod-entity{font-weight:700;font-size:.85rem;color:var(--txt)}
-.dod-metric{font-size:.72rem;color:var(--muted)}
-.dod-delta{font-size:.82rem;font-weight:600;font-family:var(--mono);margin-top:2px}
-.dod-delta.up{color:#3A6EA5}
-.dod-delta.down{color:#C0293B}
-
-/* ── Synced Cards (v1.9) ── */
-.synced-row{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap}
-.synced-card{flex:1;min-width:180px;max-width:260px;background:var(--card);border-radius:var(--r);padding:14px 16px;box-shadow:var(--shadow);border-left:3px solid var(--muted)}
-.synced-card.ng{border-left-color:var(--ng)}
-.synced-card.warn{border-left-color:var(--warn)}
-.synced-card.ok{border-left-color:var(--ok)}
-.synced-entity{font-weight:700;font-size:.88rem}
-.synced-metric{font-size:.72rem;color:var(--muted);margin-top:2px}
-.synced-gap{font-size:1rem;font-weight:700;font-family:var(--mono);margin-top:4px}
-.synced-gap.ng{color:var(--ng)}
-.synced-gap.warn{color:var(--warn)}
-.synced-gap.ok{color:var(--ok)}
-.synced-detail{font-size:.72rem;color:var(--txt2);margin-top:2px}
-
-/* ── Footer ── */
-.portal-footer{
-  margin-top:40px;padding-top:18px;
-  border-top:1px solid var(--border);
-  font-size:.72rem;color:var(--muted);
-  display:flex;justify-content:space-between;align-items:center;
-  flex-wrap:wrap;gap:8px;
-}
-
-/* ── Responsive ── */
-@media(max-width:820px){
-  .kpi-row{grid-template-columns:1fr 1fr}
-  .nav-grid{grid-template-columns:1fr}
-}
-@media(max-width:560px){
-  .kpi-row{grid-template-columns:1fr}
-  .hdr-meta{display:none}
-  .wrapper{padding:16px 14px 48px}
-}
+:root{--bg:#f6f8fb;--s:#fff;--ink:#1a2332;--sub:#5f7084;--mu:#9daab8;--ln:#dfe5ed;--br:#0e4da4;--bl:#e8f0fe;--bd:#0a3671;--dr:#c4314b;--dr-bg:#fdf0f2;--dr-t:#8c1d35;--wr:#b45309;--wr-bg:#fef7ee;--ok:#0e7a54;--ok-bg:#ecfdf5;--inf:#2563eb;--r:18px;--sh:0 4px 14px rgba(10,22,42,.08)}
+*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
+.hdr{position:sticky;top:0;z-index:10;background:var(--bd);color:#fff;padding:14px 24px;display:flex;justify-content:space-between;align-items:center;box-shadow:var(--sh)}.hdr .left{display:flex;align-items:center;gap:10px}.badge{font-size:11px;background:var(--br);padding:3px 10px;border-radius:999px;font-weight:800}.title{font-size:17px;font-weight:900}.meta{font-size:12px;color:#a8bdd4}
+.wrap{max-width:1100px;margin:0 auto;padding:20px 20px 80px}
+.alert{background:var(--dr-bg);border:1px solid #f5c6cb;border-left:5px solid var(--dr);border-radius:var(--r);padding:18px 20px;margin-bottom:16px;box-shadow:var(--sh)}.alert h2{font-size:17px;color:var(--dr-t);margin-bottom:6px;display:flex;align-items:center;gap:8px}.alert p{font-size:13px;color:var(--sub);line-height:1.7}
+.alert.warn{border-left-color:var(--wr);background:var(--wr-bg)}.alert.warn h2{color:#7c3a06}
+.alert.ok{border-left-color:var(--ok);background:var(--ok-bg)}.alert.ok h2{color:#065f42}
+.kpi{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px}
+.kc{display:block;text-decoration:none;color:inherit;background:var(--s);border:1px solid var(--ln);border-radius:var(--r);padding:18px;box-shadow:var(--sh);position:relative;transition:all .2s}.kc:hover{box-shadow:0 12px 32px rgba(10,22,42,.14);transform:translateY(-2px)}.kc .st{position:absolute;right:14px;top:14px;font-size:11px;font-weight:900;padding:3px 10px;border-radius:999px}.kc .st.dr{background:var(--dr-bg);color:var(--dr-t)}.kc .st.wr{background:var(--wr-bg);color:#7c3a06}.kc .st.ok{background:var(--ok-bg);color:#065f42}
+.kc.dr{border-top:5px solid var(--dr)}.kc.wr{border-top:5px solid var(--wr)}.kc.ok{border-top:5px solid var(--ok)}
+.lb{font-size:14px;color:var(--sub)}.sb{font-size:12px;color:var(--mu);margin-top:2px}.vl{font-size:40px;font-weight:900;line-height:1.05;margin:10px 0 6px}.gp{font-size:14px;font-weight:800;color:var(--dr-t)}.ht{font-size:12px;color:var(--mu);margin-top:10px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}.pnl{background:var(--s);border:1px solid var(--ln);border-radius:var(--r);padding:18px;box-shadow:var(--sh)}.pnl h3{margin:0 0 12px;font-size:14px;font-weight:800}
+.at{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;border:1px solid var(--ln);border-radius:14px;padding:12px;margin-bottom:8px;background:#fbfdff;border-left:4px solid var(--dr)}.at.imp{border-left-color:var(--inf)}.at .nm{font-weight:900;font-size:14px}.at .mt{font-size:11px;color:var(--sub)}.at .dl{font-size:22px;font-weight:900;color:var(--dr-t)}.at.imp .dl{color:var(--inf)}.at .dt{font-size:11px;color:var(--mu);text-align:right}
+.ft{text-align:center;font-size:11px;color:var(--mu);padding:24px 0;border-top:1px solid var(--ln);margin-top:12px}
+.nav{position:fixed;bottom:0;left:0;right:0;background:rgba(246,248,251,.96);backdrop-filter:blur(8px);padding:10px 14px 18px;z-index:10;display:none}.nav .bar{max-width:430px;margin:0 auto;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;background:var(--s);border:1px solid var(--ln);border-radius:16px;padding:8px;box-shadow:var(--sh)}.nav a{text-decoration:none;background:var(--bl);color:var(--br);border-radius:12px;padding:10px 6px;text-align:center;font-size:11px;font-weight:800;display:flex;flex-direction:column;align-items:center;gap:2px}
+@media(max-width:768px){.kpi{grid-template-columns:1fr}.g2{grid-template-columns:1fr}.vl{font-size:30px}.nav{display:block}.wrap{padding-bottom:120px}}
 </style>
 </head>
 <body>
-
-<!-- ═══ HEADER ═══ -->
 <header class="hdr">
-  <div class="hdr-left">
-    <span class="hdr-badge">PORTAL</span>
-    <span class="hdr-title">🏥 診療ダッシュボード</span>
-  </div>
-  <span class="hdr-meta">📅 2026/04/03 07:28 更新 ｜ 基準日: 2026/04/02</span>
+  <div class="left"><span class="badge">KPI</span><span class="title">🏥 診療ダッシュボード</span></div>
+  <div class="meta">📅 基準日 2026-04-02 ｜ 🕐 2026/04/04 20:13 更新</div>
 </header>
+<div class="wrap">
 
-<div class="wrapper">
-
-<!-- ── Hero ── -->
-<div class="hero">
-  <div class="hero-title">診療 KPI ポータル</div>
-  <div class="hero-sub">各ダッシュボードへのアクセスと主要指標のサマリー</div>
-  <div class="hero-date">📊 基準日: 2026-04-02</div>
-</div>
-
-<!-- ── Headline Banner (v1.8) ── -->
-
-<div class="headline-banner ng">
-  <div class="headline-icon">🔴</div>
-  <div class="headline-body">
-    <div class="headline-main">新入院と全麻が目標を大きく下回っています</div>
-    <div class="headline-detail">在院 556人/目標580.0人（-24人）、新入院7日 320人/目標385人（-65人）、全麻 18.0件/目標21件（-3.0件）</div>
-  </div>
-</div>
-
-
-<!-- ── Synced Cards (v1.9) ── -->
-
-<div class="synced-row">
   
-  <div class="synced-card ng">
-    <div class="synced-entity">循環器内科</div>
-    <div class="synced-metric">新入院</div>
-    <div class="synced-gap ng">-16人</div>
-    <div class="synced-detail">実績 9 / 目標 24.9</div>
-  </div>
-  
-  <div class="synced-card ng">
-    <div class="synced-entity">産婦人科</div>
-    <div class="synced-metric">新入院</div>
-    <div class="synced-gap ng">-10人</div>
-    <div class="synced-detail">実績 21 / 目標 30.5</div>
-  </div>
-  
-  <div class="synced-card ng">
-    <div class="synced-entity">小児科</div>
-    <div class="synced-metric">新入院</div>
-    <div class="synced-gap ng">-10人</div>
-    <div class="synced-detail">実績 18 / 目標 27.7</div>
-  </div>
-  
-  <div class="synced-card ng">
-    <div class="synced-entity">5階A病棟</div>
-    <div class="synced-metric">在院患者数</div>
-    <div class="synced-gap ng">-7人</div>
-    <div class="synced-detail">実績 37 / 目標 44.1</div>
-  </div>
-  
-  <div class="synced-card ng">
-    <div class="synced-entity">2階A病棟</div>
-    <div class="synced-metric">在院患者数</div>
-    <div class="synced-gap ng">-6人</div>
-    <div class="synced-detail">実績 41 / 目標 47.5</div>
-  </div>
-  
-  <div class="synced-card ng">
-    <div class="synced-entity">7階B病棟</div>
-    <div class="synced-metric">在院患者数</div>
-    <div class="synced-gap ng">-4人</div>
-    <div class="synced-detail">実績 26 / 目標 30.6</div>
-  </div>
-  
-</div>
+  <section class="alert danger">
+    <h2><span>🔴</span> 新入院と全麻が目標を大きく下回っています</h2>
+    <p>在院 556人/目標583人（-27人）、新入院7日 320人/目標380人（-60人）、全麻 18.0件/目標21件（-3.0件）</p>
+  </section>
 
-
-<!-- ── Day-over-Day Alerts (v1.8) ── -->
-
-<div class="dod-row">
   
-  <div class="dod-card down">
-    <div class="dod-icon">📉</div>
-    <div class="dod-body">
-      <div class="dod-entity">産婦人科</div>
-      <div class="dod-metric">在院患者数</div>
-      <div class="dod-delta down">前週同曜日比 -9人</div>
+  <section class="kpi">
+    
+    <a class="kc wr" href="detail.html#inpatient">
+      <span class="st wr">― 接近</span>
+      <div class="lb">🛏️ 在院患者数</div>
+      <div class="sb">04/02 時点</div>
+      <div class="vl">556<small style="font-size:16px;font-weight:400">人</small></div>
+      <div class="gp">目標まで -27人</div>
+      <div class="ht">詳細を見る ›</div>
+    </a>
+    
+    <a class="kc dr" href="detail.html#admission">
+      <span class="st dr">▼ 未達</span>
+      <div class="lb">🚪 新入院患者数</div>
+      <div class="sb">直近7日累計</div>
+      <div class="vl">320<small style="font-size:16px;font-weight:400">人</small></div>
+      <div class="gp">目標まで -60人</div>
+      <div class="ht">詳細を見る ›</div>
+    </a>
+    
+    <a class="kc dr" href="detail.html#operation">
+      <span class="st dr">▼ 未達</span>
+      <div class="lb">💉 全身麻酔手術</div>
+      <div class="sb">直近7平日平均</div>
+      <div class="vl">18.0<small style="font-size:16px;font-weight:400">件/日</small></div>
+      <div class="gp">目標まで -3.0件/日</div>
+      <div class="ht">詳細を見る ›</div>
+    </a>
+    
+  </section>
+
+  
+  <section class="g2">
+    <div class="pnl">
+      <h3>🔴 要注視（目標との差が大きい順）</h3>
+      
+      <div class="at">
+        <div>
+          <div class="nm">循環器内科</div>
+          <div class="mt">🚪 新入院（直近7日累計）</div>
+        </div>
+        <div class="dl">-16.0人</div>
+        <div class="dt">実績 9 / 目標 24.9<br>
+          <span style="font-size:10px;color:var(--dr-t)">← 新入院の目標差16人が大きい</span>
+        </div>
+      </div>
+      
+      <div class="at">
+        <div>
+          <div class="nm">小児科</div>
+          <div class="mt">🚪 新入院（直近7日累計）</div>
+        </div>
+        <div class="dl">-10.0人</div>
+        <div class="dt">実績 18 / 目標 27.7<br>
+          <span style="font-size:10px;color:var(--dr-t)">← 新入院の目標差10人が大きい</span>
+        </div>
+      </div>
+      
+      <div class="at">
+        <div>
+          <div class="nm">5階A病棟</div>
+          <div class="mt">🛏️ 在院患者数（04/02時点）</div>
+        </div>
+        <div class="dl">-7.0人</div>
+        <div class="dt">実績 37 / 目標 44.1<br>
+          <span style="font-size:10px;color:var(--dr-t)">← 在院の目標差7人が大きい</span>
+        </div>
+      </div>
+      
     </div>
-  </div>
-  
-  <div class="dod-card up">
-    <div class="dod-icon">📈</div>
-    <div class="dod-body">
-      <div class="dod-entity">乳腺外科</div>
-      <div class="dod-metric">全身麻酔</div>
-      <div class="dod-delta up">前週同曜日比 +2件</div>
+    <div class="pnl">
+      <h3>📈 改善トピック</h3>
+      
+      <div class="at imp">
+        <div><div class="nm">泌尿器科</div><div class="mt">🚪 新入院</div></div>
+        <div class="dl">+4人</div>
+        <div class="dt">前週同曜日比</div>
+      </div>
+      
     </div>
-  </div>
-  
-  <div class="dod-card up">
-    <div class="dod-icon">📈</div>
-    <div class="dod-body">
-      <div class="dod-entity">泌尿器科</div>
-      <div class="dod-metric">全身麻酔</div>
-      <div class="dod-delta up">前週同曜日比 +2件</div>
-    </div>
-  </div>
-  
+  </section>
+
+  <div class="ft">🏥 診療ダッシュボード ポータル ｜ 生成 2026/04/04 20:13 ｜ 基準日 2026-04-02</div>
 </div>
 
 
-<!-- ── KPI Summary ── -->
-<div class="section-label">本日の主要 KPI</div>
-<div class="kpi-row">
-  
-  <div class="kpi-card warn">
-    <div class="kpi-head">
-      <div>
-        <div class="kpi-title">在院患者数</div>
-        <div class="kpi-period">4/2時点</div>
-      </div>
-      <span class="kpi-badge warn">注意</span>
-    </div>
-    <div class="kpi-value">556<span class="kpi-unit">人</span></div>
-    <div class="kpi-gap gap-neg">目標まで -24.0人</div>
-    <div class="progress">
-      <div class="progress-fill" style="width:80.0%"></div>
-    </div>
-  </div>
-  
-  <div class="kpi-card ng">
-    <div class="kpi-head">
-      <div>
-        <div class="kpi-title">新入院患者数</div>
-        <div class="kpi-period">直近7日累計</div>
-      </div>
-      <span class="kpi-badge ng">未達</span>
-    </div>
-    <div class="kpi-value">320<span class="kpi-unit">人</span></div>
-    <div class="kpi-gap gap-neg">目標まで -65.0人</div>
-    <div class="progress">
-      <div class="progress-fill" style="width:69.0%"></div>
-    </div>
-  </div>
-  
-  <div class="kpi-card ng">
-    <div class="kpi-head">
-      <div>
-        <div class="kpi-title">全身麻酔手術</div>
-        <div class="kpi-period">直近7平日平均</div>
-      </div>
-      <span class="kpi-badge ng">未達</span>
-    </div>
-    <div class="kpi-value">18.0<span class="kpi-unit">件/日</span></div>
-    <div class="kpi-gap gap-neg">目標まで -3.0件/日</div>
-    <div class="progress">
-      <div class="progress-fill" style="width:71.0%"></div>
-    </div>
-  </div>
-  
-</div>
-
-<!-- ── Navigation Cards ── -->
-<div class="section-label">ダッシュボード一覧</div>
-<div class="nav-grid">
-
-  <!-- 医師版 -->
-  <a href="doctor.html" class="nav-card">
-    <div class="nav-card-accent doctor"></div>
-    <div class="nav-card-body">
-      <div class="nav-card-icon">🩺</div>
-      <div class="nav-card-title">医師向けダッシュボード</div>
-      <div class="nav-card-desc">
-        在院患者数・新入院・全身麻酔の KPI と推移グラフ。<br>
-        診療科別の要注視ランキングと目標差分を確認できます。
-      </div>
-      <div class="nav-card-tags">
-        <span class="nav-tag">在院患者数</span>
-        <span class="nav-tag">新入院</span>
-        <span class="nav-tag">全身麻酔</span>
-        <span class="nav-tag">診療科別ランキング</span>
-      </div>
-    </div>
-    <div class="nav-card-arrow">›</div>
-  </a>
-
-  <!-- 看護師版 -->
-  <a href="nurse.html" class="nav-card">
-    <div class="nav-card-accent nurse"></div>
-    <div class="nav-card-body">
-      <div class="nav-card-icon">👩‍⚕️</div>
-      <div class="nav-card-title">看護師向けダッシュボード</div>
-      <div class="nav-card-desc">
-        病棟稼働ヒートマップ・在院／新入院／退院・出入り負荷の推移。<br>
-        病棟別の要対応ランキングと病棟ごとの詳細データを確認できます。
-      </div>
-      <div class="nav-card-tags">
-        <span class="nav-tag">病棟別稼働</span>
-        <span class="nav-tag">退院患者数</span>
-        <span class="nav-tag">出入り負荷</span>
-        <span class="nav-tag">病棟ランキング</span>
-      </div>
-    </div>
-    <div class="nav-card-arrow">›</div>
-  </a>
-
-  <!-- 新入院詳細 -->
-  
-  <a href="admission/index.html" class="nav-card">
-  
-    <div class="nav-card-accent admission"></div>
-    <div class="nav-card-body">
-      <div class="nav-card-icon">📥</div>
-      <div class="nav-card-title">
-        新入院患者ダッシュボード
-        
-        <span class="nav-badge-new">詳細</span>
-        
-      </div>
-      <div class="nav-card-desc">
-        診療科別・病棟別の新入院患者 パフォーマンスバー。<br>
-        目標達成率・直近7日〜今年度の時系列チャートを確認できます。
-        
-      </div>
-      <div class="nav-card-tags">
-        <span class="nav-tag">診療科別達成率</span>
-        <span class="nav-tag">病棟別達成率</span>
-        <span class="nav-tag">28日移動平均</span>
-      </div>
-    </div>
-    <div class="nav-card-arrow">›</div>
-  
-  </a>
-  
-
-  <!-- 在院患者詳細 -->
-  
-  <a href="inpatient/index.html" class="nav-card">
-  
-    <div class="nav-card-accent" style="background:#0D6E8A"></div>
-    <div class="nav-card-body">
-      <div class="nav-card-icon">🛏</div>
-      <div class="nav-card-title">
-        在院患者数ダッシュボード
-        
-        <span class="nav-badge-new">詳細</span>
-        
-      </div>
-      <div class="nav-card-desc">
-        診療科別・病棟別の在院患者数 パフォーマンスバー。<br>
-        目標達成率・直近7日〜今年度の日平均推移チャートを確認できます。
-        
-      </div>
-      <div class="nav-card-tags">
-        <span class="nav-tag">診療科別達成率</span>
-        <span class="nav-tag">病棟別達成率</span>
-        <span class="nav-tag">28日移動平均</span>
-      </div>
-    </div>
-    <div class="nav-card-arrow">›</div>
-  
-  </a>
-  
-
-  <!-- 全身麻酔手術ダッシュボード -->
-  
-  <a href="operation/index.html" class="nav-card">
-  
-    <div class="nav-card-accent" style="background:#B45309"></div>
-    <div class="nav-card-body">
-      <div class="nav-card-icon">🔪</div>
-      <div class="nav-card-title">
-        全身麻酔手術ダッシュボード
-        
-        <span class="nav-badge-new">詳細</span>
-        
-      </div>
-      <div class="nav-card-desc">
-        診療科別・術者別の全身麻酔件数パフォーマンス。<br>
-        年度比較・ローリング12ヶ月の推移と目標達成率を確認できます。
-        
-      </div>
-      <div class="nav-card-tags">
-        <span class="nav-tag">全身麻酔件数</span>
-        <span class="nav-tag">診療科別達成率</span>
-        <span class="nav-tag">術者別分析</span>
-        <span class="nav-tag">年度比較</span>
-      </div>
-    </div>
-    <div class="nav-card-arrow">›</div>
-  
-  </a>
-  
-
-  <!-- 診療科別詳細 -->
-  <a href="reports/" class="nav-card">
-    <div class="nav-card-accent" style="background:#0D9488"></div>
-    <div class="nav-card-body">
-      <div class="nav-card-icon">📋</div>
-      <div class="nav-card-title">診療科別詳細レポート</div>
-      <div class="nav-card-desc">
-        各診療科の在院・新入院・全麻・粗利の詳細ページ。<br>
-        診療科名から個別の推移グラフと月次実績を確認できます。
-      </div>
-      <div class="nav-card-tags">
-        <span class="nav-tag">診療科別推移</span>
-        <span class="nav-tag">粗利</span>
-        <span class="nav-tag">月次実績</span>
-      </div>
-    </div>
-    <div class="nav-card-arrow">›</div>
-  </a>
-
-</div>
-
-<!-- ── Footer ── -->
-<div class="portal-footer">
-  <span>🏥 診療ダッシュボード ポータル</span>
-  <span>生成: 2026/04/03 07:28 ｜ 基準日: 2026/04/02</span>
-</div>
-
-</div><!-- /wrapper -->
+<nav class="nav"><div class="bar">
+  <a href="detail.html#admission"><span>🚪</span>新入院</a>
+  <a href="detail.html#inpatient"><span>🛏️</span>在院</a>
+  <a href="detail.html#operation"><span>💉</span>手術</a>
+</div></nav>
 </body>
 </html>
