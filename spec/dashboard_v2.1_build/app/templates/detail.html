@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>統合詳細ダッシュボード</title>
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<style>
+:root{--bg:#f6f8fb;--s:#fff;--ink:#1a2332;--sub:#5f7084;--mu:#9daab8;--ln:#dfe5ed;--br:#0e4da4;--bl:#e8f0fe;--bd:#0a3671;--dr:#c4314b;--dr-bg:#fdf0f2;--dr-t:#8c1d35;--wr:#b45309;--wr-bg:#fef7ee;--ok:#0e7a54;--ok-bg:#ecfdf5;--inf:#2563eb;--r:18px;--sh:0 4px 14px rgba(10,22,42,.08)}
+*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
+.hdr{position:sticky;top:0;z-index:10;background:var(--bd);color:#fff;padding:12px 24px;box-shadow:var(--sh)}.hdr .row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}.left{display:flex;align-items:center;gap:10px}.back{color:#a8bdd4;text-decoration:none;font-size:13px;font-weight:800}.badge{font-size:11px;background:var(--br);padding:3px 10px;border-radius:999px;font-weight:800}.title{font-size:17px;font-weight:900}.right{display:flex;align-items:center;gap:10px}.role{display:flex;gap:4px}.role a{font-size:12px;font-weight:800;text-decoration:none;padding:5px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.25);color:#a8bdd4;transition:all .15s}.role a.active{background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.4)}.meta{font-size:12px;color:#a8bdd4}.act{color:#a8bdd4;text-decoration:none;font-size:12px}
+.w{max-width:1280px;margin:0 auto;padding:16px 20px 48px}
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);background:var(--s);border:1px solid var(--ln);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh)}.tab{padding:14px 16px;border-right:1px solid var(--ln);cursor:pointer;transition:background .15s}.tab:last-child{border-right:none}.tab:hover{background:#f8fafc}.tab.active{background:var(--br);color:#fff}.tab .nm{font-size:14px;font-weight:900}.tab .vl{font-size:11px;margin-top:3px}.tab .st{display:inline-block;font-size:10px;font-weight:900;padding:2px 8px;border-radius:999px;margin-left:4px;background:var(--dr-bg);color:var(--dr-t)}.tab.active .st{background:rgba(255,255,255,.18);color:#fff}
+.sum{display:grid;grid-template-columns:200px repeat(4,1fr);gap:10px;margin-top:12px}.bx{background:var(--s);border:1px solid var(--ln);border-radius:14px;padding:12px 14px;box-shadow:0 2px 6px rgba(10,22,42,.04)}.bx h2{font-size:16px;margin:0}.bx .k{font-size:11px;color:var(--sub);font-weight:600}.bx .v{font-size:24px;font-weight:900;margin-top:4px}.bx .v.dr{color:var(--dr)}
+.tb{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px}.grp{display:flex;align-items:center;gap:5px}.gl{font-size:12px;font-weight:800;color:var(--sub)}.btn{background:var(--s);border:1px solid var(--ln);border-radius:10px;padding:8px 14px;font-size:12px;font-weight:800;color:var(--sub);cursor:pointer;box-shadow:0 1px 3px rgba(10,22,42,.04);transition:all .15s}.btn:hover{border-color:#93b4e4;color:var(--br)}.btn.active{background:var(--bl);border-color:#93b4e4;color:var(--br)}
+.main{display:grid;grid-template-columns:1.15fr .85fr;gap:14px;margin-top:12px}.pnl{background:var(--s);border:1px solid var(--ln);border-radius:var(--r);padding:18px;box-shadow:var(--sh)}.pnl h3{margin:0 0 12px;font-size:14px;font-weight:800}
+.chart{width:100%;height:360px}
+.rk{display:grid;gap:6px}.ri{display:grid;grid-template-columns:26px 1fr 120px 55px 60px 16px;gap:6px;align-items:center;padding:10px;border:1px solid var(--ln);border-radius:12px;background:#fbfdff;cursor:pointer;transition:background .1s}.ri:hover{background:var(--bl)}.num{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900}.num.ok{background:#d1fae5;color:#065f42}.num.wr{background:#fef3c7;color:#92400e}.num.dr{background:#fce4ec;color:var(--dr-t)}.nm{font-size:13px;font-weight:900}.mt2{font-size:10px;color:var(--sub)}.bar{height:7px;background:#edf2f7;border-radius:999px;overflow:hidden}.fill{height:100%;border-radius:999px}.fill.ok{background:var(--ok)}.fill.wr{background:var(--wr)}.fill.dr{background:var(--dr)}.rt{font-size:12px;font-weight:900;text-align:right}.rt.ok{color:var(--ok)}.rt.wr{color:var(--wr)}.rt.dr{color:var(--dr)}.stl{font-size:9px;font-weight:800;text-align:center;padding:2px 5px;border-radius:5px}.stl.ok{background:var(--ok-bg);color:#065f42}.stl.wr{background:var(--wr-bg);color:#7c3a06}.stl.dr{background:var(--dr-bg);color:var(--dr-t)}.arrow{color:var(--mu);font-size:14px}
+.legend{display:flex;gap:14px;justify-content:center;margin-top:10px;font-size:11px;color:var(--sub)}.ld{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:3px;vertical-align:middle}
+.drill{margin-top:14px;display:none}.drill.open{display:block}.dr-head{background:var(--s);border:1px solid var(--ln);border-radius:var(--r) var(--r) 0 0;padding:12px 18px;font-size:13px;font-weight:900;box-shadow:var(--sh);cursor:pointer;display:flex;justify-content:space-between;align-items:center}.dr-body{background:var(--s);border:1px solid var(--ln);border-top:none;border-radius:0 0 var(--r) var(--r);padding:18px;box-shadow:var(--sh)}.dgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}.mc{background:#f8fafc;border-radius:12px;padding:12px;text-align:center}.mc .l{font-size:10px;color:var(--sub)}.mc .v{font-size:22px;font-weight:900;margin-top:3px}.mc .v.dr{color:var(--dr)}.mc .s{font-size:10px;color:var(--mu);margin-top:2px}.drill-chart{height:150px;margin-top:0;min-height:0;overflow:hidden}
+.ft{text-align:center;font-size:11px;color:var(--mu);padding:20px 0;border-top:1px solid var(--ln);margin-top:20px}
+.drill-graphs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:8px}.drill-graphs>div{min-width:0;overflow:hidden}
+@media(max-width:768px){.tabs{display:flex;overflow:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}.tab{min-width:130px;flex:0 0 auto}.sum{grid-template-columns:1fr 1fr}.main{grid-template-columns:1fr}.chart{height:200px}.ri{grid-template-columns:24px 1fr auto}.bar,.stl{display:none}.drill-chart{height:120px}.drill-graphs{grid-template-columns:1fr}.role{display:none}.hdr .row{flex-direction:column;align-items:flex-start}}
+</style>
+</head>
+<body>
+<header class="hdr"><div class="row">
+  <div class="left"><a class="back" href="portal.html">‹ ポータル</a><span class="badge">DETAIL</span><span class="title">📊 統合詳細ダッシュボード</span></div>
+  <div class="right">
+    <div class="role"><a href="#" class="active" onclick="presetDoctor(event)">🩺 医師向け</a><a href="#" onclick="presetNurse(event)">🏥 看護師向け</a></div>
+    <a class="act" href="#" onclick="window.print()">🖨️ 印刷</a>
+    <span class="meta">📅 {{ base_date }}</span>
+  </div>
+</div></header>
+
+<div class="w">
+  {# KPIタブバー #}
+  <nav class="tabs" id="kpiTabs"></nav>
+
+  {# サマリーバー #}
+  <div class="sum" id="summaryBar"></div>
+
+  {# ツールバー #}
+  <div class="tb" id="toolbar"></div>
+
+  {# メインコンテンツ #}
+  <section class="main">
+    <div class="pnl"><h3 id="chartTitle">📊 推移グラフ</h3><div class="chart" id="mainChart"></div></div>
+    <div class="pnl"><h3 id="rankTitle">🏆 達成状況</h3><div class="rk" id="rankList"></div>
+      <div class="legend"><span><span class="ld" style="background:#0e7a54"></span>▲ 達成</span><span><span class="ld" style="background:#b45309"></span>― 接近</span><span><span class="ld" style="background:#c4314b"></span>▼ 未達</span></div>
+    </div>
+  </section>
+
+  {# ドリルダウン #}
+  <div class="drill" id="drillPanel">
+    <div class="dr-head" id="drillHead" onclick="closeDrill()">📋 <span id="drillName"></span> の詳細 <span style="color:var(--mu)">✕</span></div>
+    <div class="dr-body">
+      <div class="dgrid" id="drillCards"></div>
+      <div id="drillComment" style="margin:10px 0;padding:10px 14px;background:#f8fafc;border-radius:10px;font-size:13px;color:var(--sub)"></div>
+      <div class="drill-graphs">
+        <div><div style="font-size:11px;color:var(--sub);margin-bottom:4px" id="drillLabel1">🚪 新入院 推移</div><div class="drill-chart" id="drillChartAdm"></div></div>
+        <div><div style="font-size:11px;color:var(--sub);margin-bottom:4px" id="drillLabel2">🛏️ 在院 推移</div><div class="drill-chart" id="drillChartInp"></div></div>
+        <div><div style="font-size:11px;color:var(--sub);margin-bottom:4px" id="drillLabel3">💉 全麻 推移</div><div class="drill-chart" id="drillChartOp"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ft">🏥 診療ダッシュボード 統合詳細 ｜ 生成 {{ generated_at }} ｜ 基準日 {{ base_date }}</div>
+</div>
+
+<script>
+// ════ DATA (generated by Python) ════
+const DATA = {{ data_json|safe }};
+
+// ════ STATE ════
+let currentTab = 'admission';
+let currentAxis = 'dept';
+let currentPeriod = '7';
+
+// ════ INIT ════
+document.addEventListener('DOMContentLoaded', () => {
+  // URLハッシュからタブ・軸を読み取り
+  const hash = location.hash.replace('#','');
+  const params = new URLSearchParams(location.search || (location.hash.includes('?') ? location.hash.split('?')[1] : ''));
+  if (['inpatient','admission','operation'].includes(hash.split('?')[0])) currentTab = hash.split('?')[0];
+  if (params.get('axis')) currentAxis = params.get('axis');
+
+  renderTabs();
+  renderAll();
+});
+
+// ════ TAB RENDERING ════
+function renderTabs() {
+  const tabs = [
+    {id:'inpatient', icon:'🛏️', name:'在院患者', val:`${DATA.kpi.inpatient.actual}人/目標${DATA.kpi.inpatient.target}`, st:DATA.kpi.inpatient.status},
+    {id:'admission', icon:'🚪', name:'新入院', val:`${DATA.kpi.admission.actual_7d}人/目標${DATA.kpi.admission.target_weekly}`, st:DATA.kpi.admission.status},
+    {id:'operation', icon:'💉', name:'全身麻酔手術', val:`${DATA.kpi.operation.daily_avg}件/日/目標${DATA.kpi.operation.target}`, st:DATA.kpi.operation.status},
+  ];
+  document.getElementById('kpiTabs').innerHTML = tabs.map(t =>
+    `<div class="tab${t.id===currentTab?' active':''}" onclick="switchTab('${t.id}')">
+      <div class="nm">${t.icon} ${t.name} <span class="st">${t.st.shape} ${t.st.text}</span></div>
+      <div class="vl">${t.val}</div>
+    </div>`
+  ).join('');
+}
+
+// ════ SWITCH TAB ════
+function switchTab(id) {
+  currentTab = id;
+  // 手術タブは診療科のみ
+  if (id === 'operation') currentAxis = 'dept';
+  renderTabs();
+  renderAll();
+}
+
+function setAxis(ax, btn) {
+  currentAxis = ax;
+  btn.parentElement.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderContent();
+}
+
+function setPeriod(p, btn) {
+  currentPeriod = p;
+  btn.parentElement.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderContent();
+}
+
+function presetDoctor(e) {
+  e.preventDefault();
+  document.querySelectorAll('.role a').forEach(a => a.classList.remove('active'));
+  e.target.classList.add('active');
+  currentTab = 'admission'; currentAxis = 'dept'; currentPeriod = '7';
+  renderTabs(); renderAll();
+}
+
+function presetNurse(e) {
+  e.preventDefault();
+  document.querySelectorAll('.role a').forEach(a => a.classList.remove('active'));
+  e.target.classList.add('active');
+  currentTab = 'inpatient'; currentAxis = 'ward'; currentPeriod = '7';
+  renderTabs(); renderAll();
+}
+
+// ════ RENDER ALL ════
+function renderAll() {
+  renderSummary();
+  renderToolbar();
+  renderContent();
+  closeDrill();
+}
+
+// ════ SUMMARY BAR ════
+function renderSummary() {
+  const kpi = DATA.kpi[currentTab];
+  let items = [];
+  if (currentTab === 'inpatient') {
+    items = [
+      {h: '🛏️ 在院患者数'},
+      {k: '目標日平均', v: `${kpi.target}人`},
+      {k: '今年度平均', v: kpi.fy_avg !== null ? `${kpi.fy_avg}人` : '—'},
+      {k: '直近7日', v: kpi.avg_7d !== null ? `${kpi.avg_7d}人` : '—', dr: kpi.rate < 90},
+      {k: '前年平均', v: kpi.prev_avg !== null ? `${kpi.prev_avg}人` : '—'},
+    ];
+  } else if (currentTab === 'admission') {
+    items = [
+      {h: '🚪 新入院患者数'},
+      {k: '週目標', v: `${kpi.target_weekly}人`},
+      {k: '年度平均', v: kpi.fy_avg !== null ? `${kpi.fy_avg}人` : '—'},
+      {k: '直近7日', v: kpi.actual_7d !== null ? `${kpi.actual_7d}人(${kpi.rate_7d}%)` : '—', dr: kpi.rate_7d < 90},
+      {k: '前年平均', v: kpi.prev_avg !== null ? `${kpi.prev_avg}人` : '—'},
+    ];
+  } else {
+    items = [
+      {h: '💉 全身麻酔手術'},
+      {k: '目標', v: `${kpi.target}件/日`},
+      {k: '平日平均', v: kpi.daily_avg !== null ? `${kpi.daily_avg}件` : '—', dr: kpi.rate < 90},
+      {k: '時間内稼働率', v: kpi.in_hours_rate !== null ? `${kpi.in_hours_rate}%` : '—'},
+      {k: '週間合計', v: kpi.week_total !== null ? `${kpi.week_total}件` : '—'},
+    ];
+  }
+  document.getElementById('summaryBar').innerHTML = items.map(i =>
+    i.h ? `<div class="bx"><h2>${i.h}</h2></div>` :
+    `<div class="bx"><div class="k">${i.k}</div><div class="v${i.dr?' dr':''}">${i.v}</div></div>`
+  ).join('');
+}
+
+// ════ TOOLBAR ════
+function renderToolbar() {
+  const isOp = currentTab === 'operation';
+  const axes = isOp
+    ? `<span class="btn active">🩺 診療科別</span>`
+    : `<span class="btn${currentAxis==='dept'?' active':''}" onclick="setAxis('dept',this)">🩺 診療科別</span>
+       <span class="btn${currentAxis==='ward'?' active':''}" onclick="setAxis('ward',this)">🏥 病棟別</span>`;
+
+  const periods = isOp
+    ? ['年度比較','直近365日','今年度'].map((l,i) => {
+        const p = ['fy','365','year'][i];
+        return `<span class="btn${i===0?' active':''}" onclick="setPeriod('${p}',this)">${l}</span>`;
+      }).join('')
+    : ['直近7日','直近28日','今年度'].map((l,i) => {
+        const p = ['7','28','fy'][i];
+        return `<span class="btn${p===currentPeriod?' active':''}" onclick="setPeriod('${p}',this)">${l}</span>`;
+      }).join('');
+
+  document.getElementById('toolbar').innerHTML = `
+    <div class="grp"><span class="gl">軸</span>${axes}</div>
+    <div class="grp"><span class="gl">期間</span>${periods}</div>
+    <div class="grp"><span class="btn" onclick="window.print()">🖨️ 印刷</span></div>`;
+}
+
+// ════ CONTENT (CHART + RANKING) ════
+function renderContent() {
+  renderChart();
+  renderRanking();
+}
+
+function renderChart() {
+  const trend = DATA.trend[currentTab];
+  if (!trend || !trend.dates.length) return;
+
+  // ── 期間フィルタ: currentPeriodに応じて表示範囲を変える ──
+  const baseDate = DATA.meta.base_date;
+  let cutoffDate;
+  if (currentPeriod === '7') {
+    // 直近7日選択時: 直近24週を表示
+    cutoffDate = new Date(new Date(baseDate) - 24*7*24*60*60*1000).toISOString().slice(0,10);
+  } else if (currentPeriod === '28') {
+    // 直近28日選択時: 直近1年を表示
+    cutoffDate = new Date(new Date(baseDate) - 365*24*60*60*1000).toISOString().slice(0,10);
+  } else {
+    // 今年度/年度比較: 全期間
+    const bd = new Date(baseDate);
+    const fyYear = bd.getMonth() >= 3 ? bd.getFullYear() : bd.getFullYear() - 1;
+    cutoffDate = `${fyYear}-04-01`;
+  }
+
+  // データを期間でフィルタ
+  const startIdx = trend.dates.findIndex(d => d >= cutoffDate);
+  const si = startIdx >= 0 ? startIdx : 0;
+  const dates = trend.dates.slice(si);
+  const ma7 = (trend.ma7 || []).slice(si);
+  const ma28 = (trend.ma28 || []).slice(si);
+
+  const traces = [];
+  // 7日移動平均
+  if (ma7.length) {
+    traces.push({name:'7日移動平均', x:dates, y:ma7, type:'scatter', mode:'lines',
+      line:{color:'#0D9488', width:2.5}});
+  }
+  // 28日移動平均
+  if (ma28.length) {
+    traces.push({name:'28日移動平均', x:dates, y:ma28, type:'scatter', mode:'lines',
+      line:{color:'#0D9488', width:1.5, dash:'dash'}});
+  }
+  // 目標ライン
+  let targetVal = currentTab === 'inpatient' ? 583 : currentTab === 'admission' ? Math.round(380/7) : 21;
+  if (dates.length) {
+    traces.push({name:`目標`, x:[dates[0], dates[dates.length-1]], y:[targetVal, targetVal],
+      type:'scatter', mode:'lines', line:{color:'#C0293B', width:1.5, dash:'dash'}});
+  }
+
+  // ── Y軸: MAの最大最小に合わせて変化を判りやすく ──
+  const allYvals = [...ma7, ...ma28, targetVal].filter(v => v !== null && v !== undefined);
+  const yMin = Math.min(...allYvals);
+  const yMax = Math.max(...allYvals);
+  const yPad = (yMax - yMin) * 0.15 || 5;
+  const yRange = [Math.max(0, Math.floor(yMin - yPad)), Math.ceil(yMax + yPad)];
+
+  // 期間ラベル
+  const periodLabels = {'7':'直近24週', '28':'直近1年', 'fy':'今年度', '365':'直近365日', 'year':'今年度'};
+  const periodText = periodLabels[currentPeriod] || '';
+
+  const layout = {
+    font:{family:'Noto Sans JP, sans-serif', size:11, color:'#5A6A82'},
+    xaxis:{gridcolor:'#DCE1E9'},
+    yaxis:{range:yRange, gridcolor:'#DCE1E9'},
+    legend:{orientation:'h', x:0, y:-0.18}, hovermode:'x unified',
+    margin:{l:50, r:20, t:10, b:50}, height:360, plot_bgcolor:'#fff', paper_bgcolor:'#fff',
+  };
+  Plotly.newPlot('mainChart', traces, layout, {responsive:true});
+
+  const titles = {
+    inpatient:`📊 在院患者数 推移（${periodText}）`,
+    admission:`📊 新入院患者数 推移（${periodText}）`,
+    operation:`📊 全身麻酔手術 推移（${periodText}）`
+  };
+  document.getElementById('chartTitle').textContent = titles[currentTab] || '📊 推移グラフ';
+}
+
+function renderRanking() {
+  const key = `${currentAxis}_${currentPeriod}`;
+  const items = (DATA.perf[currentTab] || {})[key] || [];
+  const axLabel = currentAxis === 'dept' ? '診療科別' : '病棟別';
+  document.getElementById('rankTitle').textContent = `🏆 ${axLabel} 達成状況`;
+
+  document.getElementById('rankList').innerHTML = items.map(r => {
+    const barW = Math.min((r.rate || 0), 200) / 2;
+    return `<div class="ri" onclick="openDrill('${r.name}')">
+      <div class="num ${r.status}">${r.rank}</div>
+      <div><div class="nm">${r.name}</div><div class="mt2">${r.actual}/${r.target||'—'}</div></div>
+      <div class="bar"><div class="fill ${r.status}" style="width:${barW}%"></div></div>
+      <div class="rt ${r.status}">${r.shape} ${r.rate !== null ? r.rate+'%' : '—'}</div>
+      <div class="stl ${r.status}">${r.text}</div>
+      <div class="arrow">›</div>
+    </div>`;
+  }).join('');
+}
+
+// ════ DRILL DOWN ════
+function openDrill(name) {
+  const d = DATA.drill[name];
+  if (!d) return;
+  document.getElementById('drillName').textContent = name;
+
+  // ── KPIミニカード（病棟の場合は3枚目を「退院関連」に切替） ──
+  const opLabel = d.operation.label || '全麻';
+  const cards = [
+    {l:'🚪 新入院', v:d.admission.actual_7d, s:`目標 ${d.admission.target||'—'}`, rate:d.admission.rate, dr:d.admission.rate!==null&&d.admission.rate<90},
+    {l:'🛏️ 在院', v:d.inpatient.actual, s:`目標 ${d.inpatient.target||'—'}`, rate:d.inpatient.rate, dr:d.inpatient.rate!==null&&d.inpatient.rate<90},
+    {l:`💉 ${opLabel}`, v:d.operation.actual, s: d.operation.target ? `目標 ${d.operation.target}` : '—', rate:d.operation.rate, dr:d.operation.rate!==null&&d.operation.rate<90},
+  ];
+  // 病棟の場合は追加情報を表示
+  if (d.ward_extra) {
+    const we = d.ward_extra;
+    cards.push({l:'🏥 利用率', v: we.util_rate !== null ? we.util_rate+'%' : '—', s:`病床数 ${we.beds||'—'}`, rate:null, dr:we.util_rate!==null&&we.util_rate<85});
+  }
+  document.getElementById('drillCards').innerHTML = cards.map(c =>
+    `<div class="mc"><div class="l">${c.l}</div><div class="v${c.dr?' dr':''}">${c.v}</div><div class="s">${c.s}${c.rate!==null ? ' ('+c.rate+'%)' : ''}</div></div>`
+  ).join('');
+
+  // ── コメント ──
+  const comment = d.comment || '';
+  const commentEl = document.getElementById('drillComment');
+  commentEl.innerHTML = comment ? `📋 ${comment}` : '';
+  commentEl.style.display = comment ? 'block' : 'none';
+
+  // ── 診療科別推移グラフ×3（実績線なし、MA+目標のみ、Y軸自動調整） ──
+  function renderMiniChart(elId, trendData, targetVal) {
+    if (!trendData || !trendData.dates || trendData.dates.length === 0) {
+      document.getElementById(elId).innerHTML = '<div style="color:#9daab8;font-size:11px;text-align:center;padding:30px 0">データなし</div>';
+      return;
+    }
+    const traces = [];
+    const yVals = [];
+    // MA7のみ（実績線は不要）
+    if (trendData.ma7 && trendData.ma7.length) {
+      const filtered = trendData.ma7.filter(v => v !== null);
+      traces.push({name:'7日MA', x:trendData.dates, y:trendData.ma7, type:'scatter', mode:'lines',
+        line:{color:'#0D9488', width:2}});
+      yVals.push(...filtered);
+    }
+    if (targetVal) {
+      const ds = trendData.dates;
+      traces.push({name:'目標', x:[ds[0],ds[ds.length-1]], y:[targetVal,targetVal],
+        type:'scatter', mode:'lines', line:{color:'#C0293B', width:1, dash:'dash'}});
+      yVals.push(targetVal);
+    }
+    // Y軸: MAの最大最小に合わせる
+    const yMin = yVals.length ? Math.min(...yVals) : 0;
+    const yMax = yVals.length ? Math.max(...yVals) : 10;
+    const pad = (yMax - yMin) * 0.15 || 2;
+    const miniLayout = {
+      font:{family:'Noto Sans JP, sans-serif', size:10, color:'#5A6A82'},
+      xaxis:{gridcolor:'#DCE1E9', tickfont:{size:8}},
+      yaxis:{range:[Math.max(0, Math.floor(yMin-pad)), Math.ceil(yMax+pad)], gridcolor:'#DCE1E9', tickfont:{size:9}},
+      legend:{orientation:'h', x:0, y:-0.3, font:{size:9}},
+      margin:{l:35, r:8, t:5, b:30}, height:150,
+      plot_bgcolor:'#fff', paper_bgcolor:'#fff', hovermode:'x unified',
+    };
+    Plotly.newPlot(elId, traces, miniLayout, {responsive:true, displayModeBar:false});
+  }
+
+  // グラフラベルを病棟/診療科で切替
+  const isWard = !!d.ward_extra;
+  document.getElementById('drillLabel1').textContent = '🚪 新入院 推移';
+  document.getElementById('drillLabel2').textContent = '🛏️ 在院 推移';
+  document.getElementById('drillLabel3').textContent = isWard ? '— (病棟は手術データなし)' : '💉 全麻 推移';
+
+  const admTarget = d.admission.target ? d.admission.target / 7 : null;
+  renderMiniChart('drillChartAdm', d.trend ? d.trend.admission : null, admTarget);
+  renderMiniChart('drillChartInp', d.trend ? d.trend.inpatient : null, d.inpatient.target);
+  if (!isWard) {
+    const surgTarget = d.operation.target ? d.operation.target / 7 : null;
+    renderMiniChart('drillChartOp', d.trend ? d.trend.operation : null, surgTarget);
+  } else {
+    document.getElementById('drillChartOp').innerHTML = '<div style="color:#9daab8;font-size:11px;text-align:center;padding:30px 0">病棟単位の手術データなし</div>';
+  }
+
+  document.getElementById('drillPanel').classList.add('open');
+  // ドリルダウンまでスクロール
+  document.getElementById('drillPanel').scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+function closeDrill() {
+  document.getElementById('drillPanel').classList.remove('open');
+  Plotly.purge('drillChartAdm');
+  Plotly.purge('drillChartInp');
+  Plotly.purge('drillChartOp');
+}
+</script>
+</body>
+</html>

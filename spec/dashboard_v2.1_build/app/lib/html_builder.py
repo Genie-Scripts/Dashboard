@@ -1,0 +1,411 @@
+"""
+html_builder.py — テンプレートコンテキスト生成（v2.1）
+
+v2.1 変更点:
+  - build_portal_context() 新設 → portal.html 用
+  - build_detail_json()    新設 → detail.html 用（全データJSON一括）
+  - 旧 build_doctor_context / build_nurse_context は廃止
+  - ステータス判定を config.status_display() に委譲
+"""
+
+import json
+import pandas as pd
+import numpy as np
+from datetime import datetime
+from typing import Optional
+
+from .config import (
+    TARGET_INPATIENT_ALLDAY, TARGET_ADMISSION_WEEKLY, TARGET_GA_DAILY,
+    KPI_ICONS, AXIS_ICONS, status_display, status_label,
+    SURGERY_DISPLAY_DEPTS, NADM_DISPLAY_DEPTS,
+)
+from .metrics import (
+    build_kpi_summary, build_dept_ranking, build_ward_ranking,
+    build_surgery_ranking, build_doctor_watch_ranking,
+    build_nurse_watch_ranking, build_nurse_load_ranking,
+    rolling7_new_admission, rolling7_surgery,
+    build_daily_series, build_surgery_daily_series, add_moving_average,
+    week_over_week, achievement_rate,
+)
+from .charts import (
+    build_inpatient_chart, build_new_admission_chart,
+    build_surgery_chart_hospital, build_surgery_chart_dept,
+    build_surgery_year_compare_chart, build_ward_utilization_heatmap,
+)
+
+
+def _json_safe(obj):
+    """JSON シリアライズ用のデフォルト変換"""
+    if isinstance(obj, (pd.Timestamp, datetime)):
+        return obj.isoformat()
+    if isinstance(obj, (np.integer,)):
+        return int(obj)
+    if isinstance(obj, (np.floating,)):
+        return float(obj)
+    if isinstance(obj, (np.bool_,)):
+        return bool(obj)
+    if pd.isna(obj):
+        return None
+    return str(obj)
+
+
+def _ranking_to_list(df: pd.DataFrame, name_col: str = "診療科",
+                     actual_col: str = "実績", target_col: str = "目標") -> list:
+    """ランキングDataFrameをJSON用リストに変換"""
+    rows = []
+    for _, r in df.iterrows():
+        rate = r.get("達成率")
+        st = status_display(rate)
+        rows.append({
+            "rank": int(r.get("順位", 0)),
+            "name": r[name_col],
+            "actual": float(r[actual_col]) if pd.notna(r[actual_col]) else 0,
+            "target": float(r[target_col]) if pd.notna(r[target_col]) else None,
+            "rate": float(rate) if pd.notna(rate) else None,
+            "status": st["css"],
+            "shape": st["shape"],
+            "text": st["text"],
+        })
+    return rows
+
+
+# ═══════════════════════════════════════
+# Portal用コンテキスト
+# ═══════════════════════════════════════
+
+def build_portal_context(adm, surg, targets, surg_targets,
+                         base_date, generated_at=None) -> dict:
+    """
+    portal.html テンプレート用のコンテキスト辞書を生成。
+
+    Returns:
+        Jinja2テンプレートに渡す辞書（headline, kpi_cards, attention, improvement 等）
+    """
+    kpi = build_kpi_summary(adm, surg, base_date, targets, surg_targets)
+
+    # 要注視カード: 医師2件 + 看護師1件
+    doc_watch = build_doctor_watch_ranking(adm, surg, base_date, targets, surg_targets, top_n=2)
+    nurse_watch = build_nurse_watch_ranking(adm, base_date, targets, top_n=1)
+    attention = doc_watch + nurse_watch
+
+    # 改善トピック: 新入院の前週同曜日比で最大改善を探す
+    series_nadm = build_daily_series(adm, "新入院患者数")
+    improvement = None
+    for dept in NADM_DISPLAY_DEPTS:
+        s = build_daily_series(adm, "新入院患者数", group_col="診療科名", group_val=dept)
+        wow = week_over_week(s, base_date)
+        if wow is not None and wow > 0:
+            if improvement is None or wow > improvement["delta"]:
+                improvement = {
+                    "name": dept, "kpi": "admission",
+                    "delta": int(wow), "compare": "前週同曜日比",
+                }
+
+    # KPIカード情報
+    kpi_cards = [
+        {
+            "id": "inpatient", "icon": KPI_ICONS["inpatient"],
+            "label": "在院患者数", "period": f"{base_date.strftime('%m/%d')} 時点",
+            "value": kpi["inpatient_actual"], "unit": "人",
+            "gap": kpi["inpatient_gap"], "gap_unit": "人",
+            "status": kpi["inpatient_status"],
+            "href": "detail.html#inpatient",
+        },
+        {
+            "id": "admission", "icon": KPI_ICONS["admission"],
+            "label": "新入院患者数", "period": "直近7日累計",
+            "value": kpi["admission_actual_7d"], "unit": "人",
+            "gap": kpi["admission_gap"], "gap_unit": "人",
+            "status": kpi["admission_status"],
+            "href": "detail.html#admission",
+        },
+        {
+            "id": "operation", "icon": KPI_ICONS["operation"],
+            "label": "全身麻酔手術", "period": "直近7平日平均",
+            "value": kpi["operation_daily_avg"], "unit": "件/日",
+            "gap": kpi["operation_gap"], "gap_unit": "件/日",
+            "status": kpi["operation_status"],
+            "href": "detail.html#operation",
+        },
+    ]
+
+    return {
+        "base_date": base_date.strftime("%Y-%m-%d"),
+        "generated_at": (generated_at or datetime.now()).strftime("%Y/%m/%d %H:%M"),
+        "headline": kpi["headline"],
+        "kpi_cards": kpi_cards,
+        "attention": attention,
+        "improvement": improvement,
+    }
+
+
+# ═══════════════════════════════════════
+# Detail用 JSON一括生成
+# ═══════════════════════════════════════
+
+def build_detail_json(adm, surg, targets, surg_targets,
+                      profit_monthly, base_date, generated_at=None) -> str:
+    """
+    detail.html に埋め込む DATA JSON 文字列を生成。
+    仕様書 付録D のスキーマに準拠。
+    """
+    kpi = build_kpi_summary(adm, surg, base_date, targets, surg_targets)
+
+    # ── perf: ランキングデータ ──
+    perf = {"admission": {}, "inpatient": {}, "operation": {}}
+    for period in ["7", "28", "fy"]:
+        # 新入院ランキング
+        # Note: period切替はbuild時にデータ範囲を変えるべきだが、
+        # 現行は rolling7 をベースに period パラメータで分岐
+        dept_adm = build_dept_ranking(adm, base_date, targets, metric="new_admission")
+        perf["admission"][f"dept_{period}"] = _ranking_to_list(dept_adm)
+
+        ward_adm = build_ward_ranking(adm, base_date, targets, metric="new_admission")
+        perf["admission"][f"ward_{period}"] = _ranking_to_list(ward_adm, name_col="病棟名")
+
+        # 在院ランキング
+        dept_inp = build_dept_ranking(adm, base_date, targets, metric="inpatient")
+        perf["inpatient"][f"dept_{period}"] = _ranking_to_list(dept_inp)
+
+        ward_inp = build_ward_ranking(adm, base_date, targets, metric="inpatient")
+        perf["inpatient"][f"ward_{period}"] = _ranking_to_list(ward_inp, name_col="病棟名")
+
+        # 手術ランキング（全日基準）
+        surg_rank = build_surgery_ranking(surg, base_date, surg_targets, period=period)
+        perf["operation"][f"dept_{period}"] = _ranking_to_list(surg_rank, target_col="週目標")
+
+    # ── trend: 推移データ ──
+    series_inp = build_daily_series(adm, "在院患者数")
+    series_inp = add_moving_average(series_inp, 7)
+    series_inp = add_moving_average(series_inp, 28)
+
+    series_nadm = build_daily_series(adm, "新入院患者数")
+    series_nadm = add_moving_average(series_nadm, 7)
+    series_nadm = add_moving_average(series_nadm, 28)
+
+    series_surg = build_surgery_daily_series(surg)
+    series_surg = add_moving_average(series_surg, 7)
+
+    def _trend_dict(s: pd.DataFrame) -> dict:
+        return {
+            "dates": [d.strftime("%Y-%m-%d") for d in s["日付"]],
+            "values": [int(v) if pd.notna(v) else 0 for v in s["値"]],
+            "ma7": [round(v, 1) if pd.notna(v) else None for v in s.get("MA7", [])],
+            "ma28": [round(v, 1) if pd.notna(v) else None for v in s.get("MA28", [])] if "MA28" in s.columns else [],
+        }
+
+    trend = {
+        "inpatient": _trend_dict(series_inp),
+        "admission": _trend_dict(series_nadm),
+        "operation": _trend_dict(series_surg),
+    }
+
+    # ── charts: 特殊グラフ用データ ──
+    heatmap = build_ward_utilization_heatmap(adm, base_date, targets)
+
+    # ── drill: 診療科ドリルダウン ──
+    drill = {}
+    r7_nadm = rolling7_new_admission(adm, base_date)
+    r7_surg = rolling7_surgery(surg, base_date)
+    from .metrics import daily_inpatient
+    inp_by_dept = daily_inpatient(adm, base_date)["by_dept"]
+    nadm_tgt = targets.get("new_admission", {}).get("dept", {})
+    inp_tgt = targets.get("inpatient", {}).get("dept", {})
+
+    for dept in NADM_DISPLAY_DEPTS | SURGERY_DISPLAY_DEPTS:
+        adm_actual = r7_nadm["by_dept"].get(dept, 0)
+        adm_target = nadm_tgt.get(dept)
+        inp_actual = inp_by_dept.get(dept, 0)
+        inp_target = inp_tgt.get(dept)
+        surg_actual = r7_surg["by_dept"].get(dept, 0)
+        surg_target = surg_targets.get(dept)
+
+        # ── 診療科別推移データ（新入院） ──
+        dept_nadm_series = build_daily_series(
+            adm, "新入院患者数", group_col="診療科名", group_val=dept
+        )
+        dept_nadm_series = add_moving_average(dept_nadm_series, 7)
+
+        # ── 診療科別推移データ（在院） ──
+        dept_inp_series = build_daily_series(
+            adm, "在院患者数", group_col="診療科名", group_val=dept
+        )
+        dept_inp_series = add_moving_average(dept_inp_series, 7)
+
+        # ── 診療科別推移データ（手術） ──
+        dept_surg_series = build_surgery_daily_series(surg, ga_only=True, dept=dept)
+        dept_surg_series = add_moving_average(dept_surg_series, 7)
+
+        # ── 注視理由・コメント自動生成 ──
+        comments = []
+        adm_rate = achievement_rate(adm_actual, adm_target)
+        inp_rate = achievement_rate(inp_actual, inp_target)
+        surg_rate = achievement_rate(surg_actual, surg_target)
+        if adm_rate is not None and adm_rate < 90:
+            comments.append(f"新入院が目標の{adm_rate:.0f}%（{adm_actual}/{adm_target:.1f}）")
+        if inp_rate is not None and inp_rate < 90:
+            comments.append(f"在院患者が目標の{inp_rate:.0f}%（{inp_actual}/{inp_target:.1f}）")
+        if surg_rate is not None and surg_rate < 90:
+            comments.append(f"全麻手術が目標の{surg_rate:.0f}%（{surg_actual}/{surg_target:.1f}）")
+        if not comments:
+            # 達成している場合
+            best_rate = max(filter(None, [adm_rate, inp_rate, surg_rate]), default=0)
+            if best_rate >= 100:
+                comments.append("目標を達成しています")
+            else:
+                comments.append("目標に接近しています")
+
+        drill[dept] = {
+            "admission": {
+                "actual_7d": adm_actual,
+                "target": round(float(adm_target), 1) if adm_target else None,
+                "rate": adm_rate,
+            },
+            "inpatient": {
+                "actual": inp_actual,
+                "target": round(float(inp_target), 1) if inp_target else None,
+                "rate": inp_rate,
+            },
+            "operation": {
+                "actual": surg_actual,
+                "target": round(float(surg_target), 1) if surg_target else None,
+                "rate": surg_rate,
+            },
+            "trend": {
+                "admission": _trend_dict(dept_nadm_series) if len(dept_nadm_series) > 0 else {"dates":[],"values":[],"ma7":[],"ma28":[]},
+                "inpatient": _trend_dict(dept_inp_series) if len(dept_inp_series) > 0 else {"dates":[],"values":[],"ma7":[],"ma28":[]},
+                "operation": _trend_dict(dept_surg_series) if len(dept_surg_series) > 0 else {"dates":[],"values":[],"ma7":[]},
+            },
+            "comment": "、".join(comments),
+        }
+
+    # ── drill: 病棟ドリルダウン ──
+    from .config import WARD_NAMES, WARD_HIDDEN
+    from .metrics import daily_new_admission
+    inp_by_ward = daily_inpatient(adm, base_date)["by_ward"]
+    nadm_day = daily_new_admission(adm, base_date)
+    r7_nadm_ward = rolling7_new_admission(adm, base_date)["by_ward"]
+    ward_inp_tgt = targets.get("inpatient", {}).get("ward", {})
+    ward_nadm_tgt = targets.get("new_admission", {}).get("ward", {})
+    ward_beds = targets.get("inpatient", {}).get("ward_beds", {})
+
+    for wcode in WARD_NAMES:
+        if wcode in WARD_HIDDEN:
+            continue
+        wname = WARD_NAMES[wcode]
+
+        w_inp = inp_by_ward.get(wcode, 0)
+        w_inp_tgt = ward_inp_tgt.get(wcode)
+        w_nadm = r7_nadm_ward.get(wcode, 0)
+        w_nadm_tgt = ward_nadm_tgt.get(wcode)
+        w_beds = ward_beds.get(wcode)
+        w_util = round(w_inp / w_beds * 100, 1) if w_beds else None
+        w_load = nadm_day["by_ward_load"].get(wcode, 0)
+        w_discharge = nadm_day["by_ward_discharge"].get(wcode, 0)
+
+        # 病棟別推移
+        w_inp_series = build_daily_series(adm, "在院患者数", group_col="病棟コード", group_val=wcode)
+        w_inp_series = add_moving_average(w_inp_series, 7)
+        w_nadm_series = build_daily_series(adm, "新入院患者数", group_col="病棟コード", group_val=wcode)
+        w_nadm_series = add_moving_average(w_nadm_series, 7)
+
+        # コメント
+        w_inp_rate = achievement_rate(w_inp, w_inp_tgt)
+        w_comments = []
+        if w_util is not None and w_util < 85:
+            w_comments.append(f"利用率{w_util:.0f}%（目標85%以上）")
+        if w_inp_rate is not None and w_inp_rate < 90:
+            w_comments.append(f"在院患者が目標の{w_inp_rate:.0f}%（{w_inp}/{w_inp_tgt:.1f}）")
+        if w_load >= 15:
+            w_comments.append(f"入退院負荷が高い（{w_load}件）")
+        if not w_comments:
+            if w_util and w_util >= 95:
+                w_comments.append(f"利用率{w_util:.0f}%で良好")
+            else:
+                w_comments.append("目標に接近しています")
+
+        drill[wname] = {
+            "admission": {
+                "actual_7d": w_nadm,
+                "target": round(float(w_nadm_tgt), 1) if w_nadm_tgt else None,
+                "rate": achievement_rate(w_nadm, w_nadm_tgt),
+            },
+            "inpatient": {
+                "actual": w_inp,
+                "target": round(float(w_inp_tgt), 1) if w_inp_tgt else None,
+                "rate": w_inp_rate,
+            },
+            "operation": {
+                "actual": w_discharge,
+                "target": None,
+                "rate": None,
+                "label": "退院関連",
+            },
+            "ward_extra": {
+                "beds": w_beds,
+                "util_rate": w_util,
+                "load": w_load,
+            },
+            "trend": {
+                "admission": _trend_dict(w_nadm_series) if len(w_nadm_series) > 0 else {"dates":[],"values":[],"ma7":[],"ma28":[]},
+                "inpatient": _trend_dict(w_inp_series) if len(w_inp_series) > 0 else {"dates":[],"values":[],"ma7":[],"ma28":[]},
+                "operation": {"dates":[],"values":[],"ma7":[]},
+            },
+            "comment": "、".join(w_comments),
+        }
+
+    # ── attention / improvement ──
+    portal_ctx = build_portal_context(adm, surg, targets, surg_targets, base_date, generated_at)
+
+    # ── assemble ──
+    data = {
+        "meta": {
+            "base_date": base_date.strftime("%Y-%m-%d"),
+            "generated": (generated_at or datetime.now()).isoformat(),
+        },
+        "headline": kpi["headline"],
+        "kpi": {
+            "inpatient": {
+                "actual": kpi["inpatient_actual"],
+                "target": kpi["inpatient_target_allday"],
+                "rate": kpi["inpatient_rate"],
+                "avg_7d": kpi["inpatient_avg_7d"],
+                "avg_28d": kpi["inpatient_avg_28d"],
+                "fy_avg": kpi["inpatient_fy_avg"],
+                "prev_avg": kpi["inpatient_prev_avg"],
+                "gap": kpi["inpatient_gap"],
+                "status": kpi["inpatient_status"],
+            },
+            "admission": {
+                "actual_7d": kpi["admission_actual_7d"],
+                "target_weekly": kpi["admission_target_weekly"],
+                "rate_7d": kpi["admission_rate_7d"],
+                "fy_avg": kpi["admission_fy_avg"],
+                "fy_rate": kpi["admission_fy_rate"],
+                "prev_avg": kpi["admission_prev_avg"],
+                "gap": kpi["admission_gap"],
+                "daily_actual": kpi["admission_daily_actual"],
+                "status": kpi["admission_status"],
+            },
+            "operation": {
+                "daily_avg": kpi["operation_daily_avg"],
+                "target": kpi["operation_target"],
+                "rate": kpi["operation_rate"],
+                "week_total": kpi["operation_week_total"],
+                "fy_avg": kpi["operation_fy_avg"],
+                "gap": kpi["operation_gap"],
+                "in_hours_rate": kpi["operation_in_hours_rate"],
+                "status": kpi["operation_status"],
+            },
+        },
+        "attention": portal_ctx["attention"],
+        "improvement": portal_ctx["improvement"],
+        "perf": perf,
+        "trend": trend,
+        "drill": drill,
+        "charts": {
+            "occupancy_heatmap": heatmap,
+        },
+    }
+
+    return json.dumps(data, ensure_ascii=False, default=_json_safe)

@@ -149,8 +149,8 @@ freeze:
 .PHONY: deploy
 deploy: build
 	@echo "$(CYAN)🚀 GitHub Pages へデプロイ中...$(RESET)"
-	@if ! git diff --quiet HEAD -- portal.html detail.html dept.html doctor.html nurse.html admission/ inpatient/ operation/ 2>/dev/null; then \
-		git add portal.html detail.html dept.html; \
+	@if ! git diff --quiet HEAD -- portal.html detail.html doctor.html nurse.html admission/ inpatient/ operation/ 2>/dev/null; then \
+		git add portal.html detail.html; \
 		git add -f doctor.html nurse.html admission/ inpatient/ operation/ 2>/dev/null || true; \
 		git commit -m "Dashboard update: $$(date '+%Y/%m/%d %H:%M') [v2.1]"; \
 		git push origin main; \
