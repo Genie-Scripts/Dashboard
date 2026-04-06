@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>部門ダッシュボード</title>
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<style>
+:root{--bg:#f6f8fb;--s:#fff;--ink:#1a2332;--sub:#5f7084;--mu:#9daab8;--ln:#dfe5ed;--br:#0e4da4;--bl:#e8f0fe;--bd:#0a3671;--dr:#c4314b;--dr-bg:#fdf0f2;--dr-t:#8c1d35;--wr:#b45309;--wr-bg:#fef7ee;--ok:#0e7a54;--ok-bg:#ecfdf5;--inf:#2563eb;--r:18px;--sh:0 4px 14px rgba(10,22,42,.08)}
+*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
+
+/* ── Header ── */
+.hdr{position:sticky;top:0;z-index:10;background:var(--bd);color:#fff;padding:12px 24px;box-shadow:var(--sh)}.hdr .row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}.left{display:flex;align-items:center;gap:10px}.back{color:#a8bdd4;text-decoration:none;font-size:13px;font-weight:800;transition:color .15s}.back:hover{color:#fff}.badge{font-size:11px;background:var(--br);padding:3px 10px;border-radius:999px;font-weight:800}.title{font-size:17px;font-weight:900}.right{display:flex;align-items:center;gap:10px}.meta{font-size:12px;color:#a8bdd4}
+.dept-sel{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);border-radius:10px;padding:6px 12px;color:#fff;font-size:13px;font-weight:800;cursor:pointer;min-width:160px;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6' fill='%23a8bdd4'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}.dept-sel:focus{outline:none;border-color:rgba(255,255,255,.5)}.dept-sel option{color:var(--ink);background:#fff}
+
+.w{max-width:1280px;margin:0 auto;padding:16px 20px 48px}
+
+/* ── Landing Grid ── */
+.landing{animation:fadeIn .3s ease}
+.sec-title{font-size:15px;font-weight:800;color:var(--sub);margin:20px 0 10px;display:flex;align-items:center;gap:6px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:12px}
+.gc{background:var(--s);border:1px solid var(--ln);border-radius:14px;padding:14px;cursor:pointer;transition:all .15s;box-shadow:0 2px 6px rgba(10,22,42,.04);text-decoration:none;color:inherit;border-top:4px solid var(--ln)}.gc:hover{box-shadow:0 8px 24px rgba(10,22,42,.12);transform:translateY(-2px)}.gc.ok{border-top-color:var(--ok)}.gc.wr{border-top-color:var(--wr)}.gc.dr{border-top-color:var(--dr)}
+.gc .nm{font-size:14px;font-weight:900;margin-bottom:8px}
+.gc .kpis{display:flex;gap:6px;flex-wrap:wrap}.gc .kp{font-size:10px;font-weight:700;padding:2px 6px;border-radius:5px;display:flex;align-items:center;gap:2px}.gc .kp.ok{background:var(--ok-bg);color:#065f42}.gc .kp.wr{background:var(--wr-bg);color:#7c3a06}.gc .kp.dr{background:var(--dr-bg);color:var(--dr-t)}.gc .kp.mu{background:#f6f8fb;color:var(--mu)}
+
+/* ── Dashboard Mode ── */
+.dashboard{display:none;animation:fadeIn .3s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+/* Plan-B KPI Cards */
+.kpi-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
+.kc{background:var(--s);border:1px solid var(--ln);border-radius:14px;padding:14px 16px;box-shadow:0 2px 6px rgba(10,22,42,.04)}
+.kc h3{font-size:13px;font-weight:800;margin:0 0 4px}.kc .period{font-size:10px;color:var(--sub)}.kc .val{font-size:26px;font-weight:900;line-height:1.15;margin:4px 0}.kc .val.dr{color:var(--dr)}.kc .unit{font-size:13px;font-weight:400;color:var(--sub)}
+.kc .tgt-row{display:flex;align-items:center;gap:6px;margin-top:6px;padding:5px 8px;background:#f8f9fa;border-radius:8px;border:1px dashed var(--ln)}.kc .tgt-label{font-size:9px;color:var(--mu);font-weight:700}.kc .tgt-val{font-size:12px;font-weight:800;color:var(--sub)}.kc .gap-val{font-size:12px;font-weight:900;margin-left:auto}.kc .gap-val.dr{color:var(--dr)}.kc .gap-val.wr{color:var(--wr)}.kc .gap-val.ok{color:var(--ok)}
+.kc .prog{margin-top:4px}.kc .prog-bar{height:5px;background:#edf2f7;border-radius:999px;overflow:hidden}.kc .prog-fill{height:100%;border-radius:999px}.kc .prog-fill.ok{background:var(--ok)}.kc .prog-fill.wr{background:var(--wr)}.kc .prog-fill.dr{background:var(--dr)}.kc .prog-meta{display:flex;justify-content:space-between;margin-top:2px}.kc .prog-pct{font-size:10px;font-weight:800}.kc .prog-pct.dr{color:var(--dr)}.kc .prog-pct.wr{color:var(--wr)}.kc .prog-pct.ok{color:var(--ok)}.kc .prog-st{font-size:8px;font-weight:800;padding:1px 5px;border-radius:4px}.kc .prog-st.dr{background:var(--dr-bg);color:var(--dr-t)}.kc .prog-st.wr{background:var(--wr-bg);color:#7c3a06}.kc .prog-st.ok{background:var(--ok-bg);color:#065f42}
+
+/* Toolbar */
+.tb{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}.grp{display:flex;align-items:center;gap:5px}.gl{font-size:12px;font-weight:800;color:var(--sub)}.btn{background:var(--s);border:1px solid var(--ln);border-radius:10px;padding:7px 12px;font-size:12px;font-weight:800;color:var(--sub);cursor:pointer;box-shadow:0 1px 3px rgba(10,22,42,.04);transition:all .15s}.btn:hover{border-color:#93b4e4;color:var(--br)}.btn.active{background:var(--bl);border-color:#93b4e4;color:var(--br)}
+
+/* Charts */
+.charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.cpnl{background:var(--s);border:1px solid var(--ln);border-radius:var(--r);padding:16px;box-shadow:var(--sh)}.cpnl h4{font-size:13px;font-weight:800;margin:0 0 8px;color:var(--sub)}.cpnl .chart{height:320px}
+.charts-full{margin-bottom:12px}
+
+/* Comment */
+.comment{background:var(--s);border:1px solid var(--ln);border-radius:14px;padding:14px 18px;font-size:13px;color:var(--sub);box-shadow:0 2px 6px rgba(10,22,42,.04);margin-bottom:12px}
+
+/* Ward Extra */
+.ward-extra{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}.we-card{background:var(--s);border:1px solid var(--ln);border-radius:12px;padding:10px 14px;text-align:center;box-shadow:0 2px 6px rgba(10,22,42,.04)}.we-card .l{font-size:10px;color:var(--sub);font-weight:600}.we-card .v{font-size:20px;font-weight:900;margin-top:2px}
+
+.ft{text-align:center;font-size:11px;color:var(--mu);padding:20px 0;border-top:1px solid var(--ln);margin-top:12px}
+
+@media(max-width:768px){.kpi-row{grid-template-columns:1fr}.charts-grid{grid-template-columns:1fr}.cpnl .chart{height:220px}.grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}.ward-extra{grid-template-columns:1fr 1fr 1fr}.hdr .row{flex-direction:column;align-items:flex-start}.dept-sel{width:100%}}
+</style>
+</head>
+<body>
+
+<!-- ═══ Header ═══ -->
+<header class="hdr"><div class="row">
+  <div class="left">
+    <a class="back" href="portal.html" id="backLink">‹ ポータル</a>
+    <span class="badge">DEPT</span>
+    <span class="title" id="pageTitle">📊 部門ダッシュボード</span>
+  </div>
+  <div class="right">
+    <select class="dept-sel" id="deptSelect" onchange="onSelectChange(this.value)" style="display:none"></select>
+    <span class="meta">📅 {{ base_date }}</span>
+  </div>
+</div></header>
+
+<div class="w">
+  <!-- ═══ Landing Grid ═══ -->
+  <div id="landingView" class="landing"></div>
+
+  <!-- ═══ Dashboard View ═══ -->
+  <div id="dashView" class="dashboard">
+    <div class="kpi-row" id="kpiCards"></div>
+    <div class="ward-extra" id="wardExtra" style="display:none"></div>
+    <div id="commentBox" class="comment" style="display:none"></div>
+    <div class="tb" id="toolbar"></div>
+    <div class="charts-grid">
+      <div class="cpnl"><h4 id="chartTitle1">🚪 新入院 推移</h4><div class="chart" id="chart1"></div></div>
+      <div class="cpnl"><h4 id="chartTitle2">🛏️ 在院患者 推移</h4><div class="chart" id="chart2"></div></div>
+    </div>
+    <div class="charts-full">
+      <div class="cpnl"><h4 id="chartTitle3">💉 全麻手術 推移</h4><div class="chart" id="chart3"></div></div>
+    </div>
+  </div>
+
+  <div class="ft">🏥 診療ダッシュボード 部門別 ｜ 生成 {{ generated_at }} ｜ 基準日 {{ base_date }}</div>
+</div>
+
+<script>
+const DATA = {{ data_json|safe }};
+
+let currentUnit = null; // 選択中の科・病棟名
+let period = '12w';
+let showWeekday = true, showHoliday = true;
+let showDaily = true, showMA7 = true, showMA28 = true;
+
+// ── Helpers ──
+function stCss(rate) { return rate==null?'mu':rate<90?'dr':rate<100?'wr':'ok'; }
+function stShape(rate) { return rate==null?'—':rate<90?'▼':rate<100?'―':'▲'; }
+function stText(rate) { return rate==null?'—':rate<90?'未達':rate<100?'接近':'達成'; }
+
+function calcMA(values, w) {
+  const ma = [];
+  for (let i = 0; i < values.length; i++) {
+    let sum = 0, cnt = 0;
+    for (let j = Math.max(0, i-w+1); j <= i; j++) {
+      if (values[j] !== null) { sum += values[j]; cnt++; }
+    }
+    ma.push(cnt > 0 ? Math.round(sum/cnt*10)/10 : null);
+  }
+  return ma;
+}
+
+function filterByDayType(dates, values, isWeekday) {
+  const fd = [], fv = [];
+  for (let i = 0; i < dates.length; i++) {
+    const wd = isWeekday[i];
+    if ((wd && showWeekday) || (!wd && showHoliday)) { fd.push(dates[i]); fv.push(values[i]); }
+  }
+  return {dates: fd, values: fv};
+}
+
+function periodCutoff() {
+  const bd = DATA.meta.base_date;
+  if (period === '12w') return new Date(new Date(bd) - 12*7*86400000).toISOString().slice(0,10);
+  if (period === '24w') return new Date(new Date(bd) - 24*7*86400000).toISOString().slice(0,10);
+  return new Date(new Date(bd) - 365*86400000).toISOString().slice(0,10);
+}
+
+// ── Classify departments & wards from drill data ──
+function classifyUnits() {
+  const depts = [], wards = [];
+  for (const [name, d] of Object.entries(DATA.drill)) {
+    const rates = [d.admission.rate, d.inpatient.rate, d.operation.rate].filter(r => r != null);
+    const worstRate = rates.length ? Math.min(...rates) : null;
+    const entry = {name, worst: worstRate, data: d};
+    if (d.ward_extra) wards.push(entry); else depts.push(entry);
+  }
+  // Sort: worst rate first (most attention needed)
+  const sortFn = (a, b) => (a.worst ?? 999) - (b.worst ?? 999);
+  depts.sort(sortFn);
+  wards.sort(sortFn);
+  return {depts, wards};
+}
+
+// ══════════════════════════
+// Landing Grid
+// ══════════════════════════
+function renderLanding() {
+  const {depts, wards} = classifyUnits();
+
+  function cardHtml(entry) {
+    const d = entry.data;
+    const sc = stCss(entry.worst);
+    const mkKp = (icon, rate) => {
+      const c = stCss(rate);
+      return `<span class="kp ${c}">${icon} ${rate!=null?rate+'%':'—'}</span>`;
+    };
+    return `<a class="gc ${sc}" href="#${encodeURIComponent(entry.name)}" onclick="selectUnit('${entry.name.replace(/'/g,"\\'")}');return false;">
+      <div class="nm">${entry.name}</div>
+      <div class="kpis">
+        ${mkKp('🚪', d.admission.rate)}
+        ${mkKp('🛏️', d.inpatient.rate)}
+        ${d.operation.rate!=null || !d.ward_extra ? mkKp('💉', d.operation.rate) : ''}
+      </div>
+    </a>`;
+  }
+
+  let html = '';
+  html += `<div class="sec-title">🩺 診療科（${depts.length}科）</div>`;
+  html += `<div class="grid">${depts.map(cardHtml).join('')}</div>`;
+  html += `<div class="sec-title">🏥 病棟（${wards.length}棟）</div>`;
+  html += `<div class="grid">${wards.map(cardHtml).join('')}</div>`;
+
+  document.getElementById('landingView').innerHTML = html;
+}
+
+// ══════════════════════════
+// Dropdown selector
+// ══════════════════════════
+function buildSelector() {
+  const {depts, wards} = classifyUnits();
+  const sel = document.getElementById('deptSelect');
+  let opts = '<option value="">— 部門を選択 —</option>';
+  opts += '<optgroup label="🩺 診療科">';
+  for (const d of depts) opts += `<option value="${d.name}">${d.name}</option>`;
+  opts += '</optgroup><optgroup label="🏥 病棟">';
+  for (const w of wards) opts += `<option value="${w.name}">${w.name}</option>`;
+  opts += '</optgroup>';
+  sel.innerHTML = opts;
+}
+
+function onSelectChange(val) {
+  if (!val) { showLanding(); return; }
+  selectUnit(val);
+}
+
+// ══════════════════════════
+// Mode Switching
+// ══════════════════════════
+function showLanding() {
+  currentUnit = null;
+  location.hash = '';
+  document.getElementById('landingView').style.display = '';
+  document.getElementById('dashView').style.display = 'none';
+  document.getElementById('deptSelect').style.display = 'none';
+  document.getElementById('backLink').href = 'portal.html';
+  document.getElementById('backLink').textContent = '‹ ポータル';
+  document.getElementById('backLink').onclick = null;  // selectUnit で設定した preventDefault を解除
+  document.getElementById('pageTitle').textContent = '📊 部門ダッシュボード';
+  // Purge charts
+  ['chart1','chart2','chart3'].forEach(id => { try{Plotly.purge(id)}catch(e){} });
+}
+
+function selectUnit(name) {
+  const d = DATA.drill[name];
+  if (!d) return;
+  currentUnit = name;
+  location.hash = encodeURIComponent(name);
+
+  document.getElementById('landingView').style.display = 'none';
+  document.getElementById('dashView').style.display = 'none';
+  document.getElementById('dashView').className = 'dashboard';
+  void document.getElementById('dashView').offsetWidth;
+  document.getElementById('dashView').style.display = 'block';
+
+  const isWard = !!d.ward_extra;
+  const icon = isWard ? '🏥' : '🩺';
+  document.getElementById('pageTitle').textContent = `${icon} ${name}`;
+  document.getElementById('backLink').href = '#';
+  document.getElementById('backLink').textContent = '‹ 一覧';
+  document.getElementById('backLink').onclick = function(e) { e.preventDefault(); showLanding(); };
+
+  const sel = document.getElementById('deptSelect');
+  sel.style.display = '';
+  sel.value = name;
+
+  renderDashboard(name, d);
+}
+
+// ══════════════════════════
+// Dashboard Rendering
+// ══════════════════════════
+function renderDashboard(name, d) {
+  renderKpiCards(d);
+  renderWardExtra(d);
+  renderComment(d);
+  renderToolbar();
+  renderCharts(d);
+}
+
+function renderKpiCards(d) {
+  const isWard = !!d.ward_extra;
+  const opLabel = d.operation.label || '全麻手術';
+  const cards = [
+    {icon:'🚪', label:'新入院', period:'直近7日累計', actual:d.admission.actual_7d, unit:'人', target:d.admission.target, targetLabel:'目標', rate:d.admission.rate},
+    {icon:'🛏️', label:'在院患者', period:DATA.meta.base_date+' 時点', actual:d.inpatient.actual, unit:'人', target:d.inpatient.target, targetLabel:'目標', rate:d.inpatient.rate},
+    {icon:'💉', label:opLabel, period:isWard?'退院合計（昨日実績）':'直近7日累計', actual:d.operation.actual, unit:'件', target:d.operation.target, targetLabel:'目標', rate:d.operation.rate},
+  ];
+
+  document.getElementById('kpiCards').innerHTML = cards.map(c => {
+    const sc = stCss(c.rate);
+    const ss = stShape(c.rate);
+    const st = stText(c.rate);
+    const barW = Math.min((c.rate||0)/1.5, 100);
+    const gap = c.target != null ? (c.actual - c.target) : null;
+    const gapStr = gap != null ? (gap > 0 ? '+' : '') + Math.round(gap*10)/10 + c.unit : '—';
+    return `<div class="kc">
+      <h3>${c.icon} ${c.label}</h3>
+      ${c.period ? `<div class="period">${c.period}</div>` : ''}
+      <div class="val ${sc==='dr'?'dr':''}">${c.actual!=null?c.actual:'—'}<span class="unit">${c.unit}</span></div>
+      ${c.target!=null ? `<div class="tgt-row">
+        <span style="font-size:11px">🎯</span>
+        <span class="tgt-label">${c.targetLabel}</span>
+        <span class="tgt-val">${c.target}${c.unit}</span>
+        <span class="gap-val ${sc}">${gapStr}</span>
+      </div>
+      <div class="prog">
+        <div class="prog-bar"><div class="prog-fill ${sc}" style="width:${barW}%"></div></div>
+        <div class="prog-meta">
+          <span class="prog-pct ${sc}">${c.rate!=null?c.rate+'%':'—'}</span>
+          <span class="prog-st ${sc}">${ss} ${st}</span>
+        </div>
+      </div>` : `<div style="font-size:10px;color:var(--mu);margin-top:6px">目標未設定</div>`}
+    </div>`;
+  }).join('');
+}
+
+function renderWardExtra(d) {
+  const el = document.getElementById('wardExtra');
+  if (!d.ward_extra) { el.style.display='none'; return; }
+  const we = d.ward_extra;
+  el.style.display = '';
+  el.innerHTML = `
+    <div class="we-card"><div class="l">🏥 病床数</div><div class="v">${we.beds||'—'}</div></div>
+    <div class="we-card"><div class="l">📊 利用率</div><div class="v" style="color:${we.util_rate!=null&&we.util_rate<85?'var(--dr)':'inherit'}">${we.util_rate!=null?we.util_rate+'%':'—'}</div></div>
+    <div class="we-card"><div class="l">🔄 入退院負荷</div><div class="v">${we.load||0}</div></div>`;
+}
+
+function renderComment(d) {
+  const el = document.getElementById('commentBox');
+  if (d.comment) { el.style.display=''; el.innerHTML = `📋 ${d.comment}`; }
+  else { el.style.display='none'; }
+}
+
+function renderToolbar() {
+  const periodDefs = [{l:'直近12週',p:'12w'},{l:'直近24週',p:'24w'},{l:'直近365日',p:'365d'}];
+  const periods = periodDefs.map(d =>
+    `<span class="btn${d.p===period?' active':''}" onclick="setPeriod('${d.p}',this)">${d.l}</span>`
+  ).join('');
+  const mkChk = (lbl,checked,fn) => `<label style="font-size:11px;font-weight:700;color:var(--sub);cursor:pointer;display:flex;align-items:center;gap:2px"><input type="checkbox" ${checked?'checked':''} onchange="${fn}"> ${lbl}</label>`;
+  const dayChks = mkChk('平日',showWeekday,"toggleDay('wd',this.checked)") + mkChk('休日',showHoliday,"toggleDay('hd',this.checked)");
+  const lineChks = mkChk('日次',showDaily,"toggleLine('d',this.checked)") + mkChk('7日MA',showMA7,"toggleLine('m7',this.checked)") + mkChk('28日MA',showMA28,"toggleLine('m28',this.checked)");
+  document.getElementById('toolbar').innerHTML = `
+    <div class="grp"><span class="gl">期間</span>${periods}</div>
+    <div class="grp"><span class="gl">日種</span>${dayChks}</div>
+    <div class="grp"><span class="gl">描画</span>${lineChks}</div>`;
+}
+
+function setPeriod(p, btn) {
+  period = p;
+  btn.parentElement.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (currentUnit) renderCharts(DATA.drill[currentUnit]);
+}
+function toggleDay(t, c) {
+  if (t==='wd') showWeekday=c; else showHoliday=c;
+  if (!showWeekday&&!showHoliday) { showWeekday=true; showHoliday=true; }
+  if (currentUnit) renderCharts(DATA.drill[currentUnit]);
+}
+function toggleLine(t, c) {
+  if (t==='d') showDaily=c; else if (t==='m7') showMA7=c; else showMA28=c;
+  if (currentUnit) renderCharts(DATA.drill[currentUnit]);
+}
+
+// ══════════════════════════
+// Chart Rendering
+// ══════════════════════════
+function renderCharts(d) {
+  const isWard = !!d.ward_extra;
+  const pLabels = {'12w':'直近12週','24w':'直近24週','365d':'直近365日'};
+  const dayLabel = (showWeekday&&showHoliday)?'':showWeekday?' 平日のみ':' 休日のみ';
+  const suffix = `（${pLabels[period]}${dayLabel}）`;
+
+  document.getElementById('chartTitle1').textContent = `🚪 新入院 推移${suffix}`;
+  document.getElementById('chartTitle2').textContent = `🛏️ 在院患者 推移${suffix}`;
+  document.getElementById('chartTitle3').textContent = isWard ? `— (病棟は手術データなし)` : `💉 全麻手術 推移${suffix}`;
+
+  renderOneChart('chart1', d.trend?.admission, d.admission.target ? d.admission.target/7 : null);
+  renderOneChart('chart2', d.trend?.inpatient, d.inpatient.target);
+  if (!isWard) {
+    renderSurgeryChart('chart3', d.trend?.operation, d.operation.target);
+  } else {
+    document.getElementById('chart3').innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">病棟単位の手術データなし</div>';
+  }
+}
+
+function renderOneChart(elId, td, targetVal) {
+  if (!td || !td.dates || !td.dates.length) {
+    document.getElementById(elId).innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">データなし</div>';
+    return;
+  }
+  const cutoff = periodCutoff();
+  const fAll = (td.is_weekday && td.is_weekday.length > 0) ? filterByDayType(td.dates, td.values||[], td.is_weekday) : {dates: td.dates, values: td.values||[]};
+  const allMA7 = calcMA(fAll.values, 7);
+  const allMA28 = calcMA(fAll.values, 28);
+  const si = Math.max(0, fAll.dates.findIndex(x => x >= cutoff));
+  const ds = fAll.dates.slice(si), vs = fAll.values.slice(si);
+  const m7 = allMA7.slice(si), m28 = allMA28.slice(si);
+
+  const traces = [], yV = [];
+  if (showDaily) { traces.push({name:'日次実績',x:ds,y:vs,type:'scatter',mode:'lines',line:{color:'#94A3B8',width:1,dash:'dot'},opacity:0.7}); yV.push(...vs.filter(v=>v!=null)); }
+  if (showMA7 && m7.length) { traces.push({name:'7日MA',x:ds,y:m7,type:'scatter',mode:'lines',line:{color:'#0D9488',width:2.5}}); yV.push(...m7.filter(v=>v!=null)); }
+  if (showMA28 && m28.length) { traces.push({name:'28日MA',x:ds,y:m28,type:'scatter',mode:'lines',line:{color:'#e67e22',width:2}}); yV.push(...m28.filter(v=>v!=null)); }
+  if (targetVal && ds.length) { traces.push({name:`目標 ${Math.round(targetVal*10)/10}`,x:[ds[0],ds[ds.length-1]],y:[targetVal,targetVal],type:'scatter',mode:'lines',line:{color:'#C0293B',width:2,dash:'dot'}}); yV.push(targetVal); }
+
+  const mn=yV.length?Math.min(...yV):0, mx=yV.length?Math.max(...yV):10, pd=(mx-mn)*.08||2;
+  const yLo=Math.max(0,Math.floor(mn-pd)), yHi=Math.ceil(mx+pd);
+  const shapes = [];
+  if (targetVal) {
+    shapes.push({type:'rect',xref:'paper',yref:'y',x0:0,x1:1,y0:targetVal,y1:yHi,fillcolor:'rgba(22,163,74,0.08)',line:{width:0}});
+    shapes.push({type:'rect',xref:'paper',yref:'y',x0:0,x1:1,y0:targetVal*0.95,y1:targetVal,fillcolor:'rgba(245,158,11,0.10)',line:{width:0}});
+  }
+  Plotly.newPlot(elId, traces, {
+    font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
+    xaxis:{gridcolor:'#DCE1E9',tickformat:'%m/%d',tickangle:-45},
+    yaxis:{range:[yLo,yHi],gridcolor:'#DCE1E9'},
+    legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},
+    hovermode:'x unified',margin:{l:45,r:15,t:8,b:50},height:320,
+    plot_bgcolor:'#fff',paper_bgcolor:'#fff',shapes
+  },{responsive:true});
+}
+
+// Surgery chart: 7-day rolling sum
+function calcRollingSumByDate(dates, values, windowDays) {
+  const rs = [];
+  for (let i = 0; i < dates.length; i++) {
+    const endMs = new Date(dates[i]).getTime(), startMs = endMs - (windowDays-1)*86400000;
+    let sum = 0;
+    for (let j = 0; j <= i; j++) { const dMs = new Date(dates[j]).getTime(); if (dMs>=startMs && dMs<=endMs && values[j]!=null) sum+=values[j]; }
+    rs.push(sum);
+  }
+  return rs;
+}
+
+function renderSurgeryChart(elId, td, weeklyTarget) {
+  if (!td || !td.dates || !td.dates.length) {
+    document.getElementById(elId).innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">データなし</div>';
+    return;
+  }
+  const cutoff = periodCutoff();
+  const fAll = (td.is_weekday && td.is_weekday.length > 0) ? filterByDayType(td.dates, td.values||[], td.is_weekday) : {dates: td.dates, values: td.values||[]};
+  const allRS7 = calcRollingSumByDate(fAll.dates, fAll.values, 7);
+  const allRS7ma = calcMA(allRS7, 4);
+  const si = Math.max(0, fAll.dates.findIndex(x => x >= cutoff));
+  const ds = fAll.dates.slice(si), rs7 = allRS7.slice(si), rs7ma = allRS7ma.slice(si);
+
+  const tgt = weeklyTarget;
+  const traces = [], yV = [];
+  if (showDaily) { traces.push({name:'週間実績',x:ds,y:rs7,type:'scatter',mode:'lines',line:{color:'#94A3B8',width:1,dash:'dot'},opacity:0.7}); yV.push(...rs7.filter(v=>v!=null)); }
+  if (showMA7 && rs7ma.length) { traces.push({name:'4週移動平均',x:ds,y:rs7ma,type:'scatter',mode:'lines',line:{color:'#0D9488',width:2.5}}); yV.push(...rs7ma.filter(v=>v!=null)); }
+  if (tgt && ds.length) { traces.push({name:`週目標 ${tgt}`,x:[ds[0],ds[ds.length-1]],y:[tgt,tgt],type:'scatter',mode:'lines',line:{color:'#C0293B',width:2,dash:'dot'}}); yV.push(tgt); }
+
+  const mn=yV.length?Math.min(...yV):0, mx=yV.length?Math.max(...yV):10, pd=(mx-mn)*.08||1;
+  const yLo=Math.max(0,Math.floor(mn-pd)), yHi=Math.ceil(mx+pd);
+  const shapes = [];
+  if (tgt) {
+    shapes.push({type:'rect',xref:'paper',yref:'y',x0:0,x1:1,y0:tgt,y1:yHi,fillcolor:'rgba(22,163,74,0.08)',line:{width:0}});
+    shapes.push({type:'rect',xref:'paper',yref:'y',x0:0,x1:1,y0:tgt*0.95,y1:tgt,fillcolor:'rgba(245,158,11,0.10)',line:{width:0}});
+  }
+  Plotly.newPlot(elId, traces, {
+    font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
+    xaxis:{gridcolor:'#DCE1E9',tickformat:'%m/%d',tickangle:-45},
+    yaxis:{range:[yLo,yHi],gridcolor:'#DCE1E9'},
+    legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},
+    hovermode:'x unified',margin:{l:45,r:15,t:8,b:50},height:320,
+    plot_bgcolor:'#fff',paper_bgcolor:'#fff',shapes
+  },{responsive:true});
+}
+
+// ══════════════════════════
+// Init
+// ══════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  buildSelector();
+  renderLanding();
+
+  const hash = decodeURIComponent(location.hash.replace('#',''));
+  if (hash && DATA.drill[hash]) {
+    selectUnit(hash);
+  } else {
+    showLanding();
+  }
+});
+
+window.addEventListener('hashchange', () => {
+  const hash = decodeURIComponent(location.hash.replace('#',''));
+  if (hash && DATA.drill[hash]) selectUnit(hash);
+  else if (!hash) showLanding();
+});
+</script>
+</body>
+</html>

@@ -172,7 +172,12 @@ def build_portal_context(adm, surg, targets, surg_targets,
     kpi_cards = [
         {
             "id": "inpatient", "icon": KPI_ICONS["inpatient"],
-            "label": "在院患者数", "period": f"{base_date.strftime('%m/%d')} 時点",
+            "label": "在院患者数",
+            "period": (
+                f"{base_date.strftime('%m/%d')} 時点"
+                f"（{'平日' if kpi['inpatient_is_weekday'] else '休日'}目標"
+                f"{kpi['inpatient_target']}人）"
+            ),
             "value": kpi["inpatient_actual"], "unit": "人",
             "gap": kpi["inpatient_gap"], "gap_unit": "人",
             "status": kpi["inpatient_status"],
@@ -438,7 +443,9 @@ def build_detail_json(adm, surg, targets, surg_targets,
         "kpi": {
             "inpatient": {
                 "actual": kpi["inpatient_actual"],
-                "target": kpi["inpatient_target_allday"],
+                "target": kpi["inpatient_target"],
+                "target_allday": kpi["inpatient_target_allday"],
+                "is_weekday": kpi["inpatient_is_weekday"],
                 "rate": kpi["inpatient_rate"],
                 "avg_7d": kpi["inpatient_avg_7d"],
                 "avg_28d": kpi["inpatient_avg_28d"],

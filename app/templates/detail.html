@@ -154,9 +154,11 @@ function renderSummary() {
   let main, refs;
 
   if (currentTab === 'inpatient') {
+    const dayTypeLabel = kpi.is_weekday ? '平日目標' : '休日目標';
+    const periodNote = `${DATA.meta.base_date} 時点（${dayTypeLabel} ${kpi.target}人）`;
     main = {
-      icon:'🛏️', label:'在院患者数',
-      actual:kpi.actual, unit:'人', targetLabel:'目標日平均',
+      icon:'🛏️', label:'在院患者数', periodNote:periodNote,
+      actual:kpi.actual, unit:'人', targetLabel:dayTypeLabel,
       target:kpi.target, gap:kpi.gap, gapUnit:'人',
       rate:kpi.rate, status:kpi.status
     };
@@ -464,16 +466,16 @@ function openDrill(name) {
 
   const opLabel = d.operation.label || '全麻';
   const cards = [
-    {l:'🚪 新入院',v:d.admission.actual_7d,s:`目標 ${d.admission.target||'—'}`,rate:d.admission.rate,dr:d.admission.rate!=null&&d.admission.rate<90},
-    {l:'🛏️ 在院',v:d.inpatient.actual,s:`目標 ${d.inpatient.target||'—'}`,rate:d.inpatient.rate,dr:d.inpatient.rate!=null&&d.inpatient.rate<90},
-    {l:`💉 ${opLabel}`,v:d.operation.actual,s:d.operation.target?`目標 ${d.operation.target}`:'—',rate:d.operation.rate,dr:d.operation.rate!=null&&d.operation.rate<90},
+    {l:'🚪 新入院',p:'直近7日累計',v:d.admission.actual_7d,s:`目標 ${d.admission.target||'—'}`,rate:d.admission.rate,dr:d.admission.rate!=null&&d.admission.rate<90},
+    {l:'🛏️ 在院',p:`${DATA.meta.base_date} 時点`,v:d.inpatient.actual,s:`目標 ${d.inpatient.target||'—'}`,rate:d.inpatient.rate,dr:d.inpatient.rate!=null&&d.inpatient.rate<90},
+    {l:`💉 ${opLabel}`,p:d.ward_extra?'':d.operation.label?'':' 直近7日累計',v:d.operation.actual,s:d.operation.target?`目標 ${d.operation.target}`:'—',rate:d.operation.rate,dr:d.operation.rate!=null&&d.operation.rate<90},
   ];
   if (d.ward_extra) {
     const we=d.ward_extra;
     cards.push({l:'🏥 利用率',v:we.util_rate!=null?we.util_rate+'%':'—',s:`病床数 ${we.beds||'—'}`,rate:null,dr:we.util_rate!=null&&we.util_rate<85});
   }
   document.getElementById('drillCards').innerHTML = cards.map(c =>
-    `<div class="mc"><div class="l">${c.l}</div><div class="v${c.dr?' dr':''}">${c.v}</div><div class="s">${c.s}${c.rate!=null?' ('+c.rate+'%)':''}</div></div>`
+    `<div class="mc"><div class="l">${c.l}${c.p?`<span style="font-size:9px;font-weight:600;color:var(--mu);margin-left:4px">${c.p}</span>`:''}</div><div class="v${c.dr?' dr':''}">${c.v}</div><div class="s">${c.s}${c.rate!=null?' ('+c.rate+'%)':''}</div></div>`
   ).join('');
 
   const comment = d.comment||'';
@@ -575,9 +577,10 @@ function openDrill(name) {
   }
 
   const isWard = !!d.ward_extra;
-  document.getElementById('drillLabel1').textContent='🚪 新入院 推移';
-  document.getElementById('drillLabel2').textContent='🛏️ 在院 推移';
-  document.getElementById('drillLabel3').textContent=isWard?'— (病棟は手術データなし)':'💉 全麻 推移（週間件数）';
+  const ann = s => `<span style="font-size:9px;font-weight:600;color:var(--mu);margin-left:5px">${s}</span>`;
+  document.getElementById('drillLabel1').innerHTML='🚪 新入院 推移'+ann('日次実績');
+  document.getElementById('drillLabel2').innerHTML='🛏️ 在院 推移'+ann('日次実績');
+  document.getElementById('drillLabel3').innerHTML=isWard?'— (病棟は手術データなし)':'💉 全麻 推移'+ann('7日ローリング合計');
 
   renderMini('drillChartAdm', d.trend?d.trend.admission:null, d.admission.target?d.admission.target/7:null);
   renderMini('drillChartInp', d.trend?d.trend.inpatient:null, d.inpatient.target);

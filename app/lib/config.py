@@ -273,8 +273,9 @@ def build_headline(kpi_summary: dict) -> dict:
     inp = kpi_summary
     detail_parts = []
     if inp.get("inpatient_actual") is not None:
-        gap = inp["inpatient_actual"] - TARGET_INPATIENT_ALLDAY
-        detail_parts.append(f"在院 {inp['inpatient_actual']}人/目標{TARGET_INPATIENT_ALLDAY}人（{gap:+.0f}人）")
+        tgt = inp.get("inpatient_target", TARGET_INPATIENT_ALLDAY)
+        gap = inp["inpatient_actual"] - tgt
+        detail_parts.append(f"在院 {inp['inpatient_actual']}人/目標{tgt}人（{gap:+.0f}人）")
     if inp.get("admission_actual_7d") is not None:
         gap = inp["admission_actual_7d"] - TARGET_ADMISSION_WEEKLY
         detail_parts.append(f"新入院7日 {inp['admission_actual_7d']}人/目標{TARGET_ADMISSION_WEEKLY}人（{gap:+.0f}人）")

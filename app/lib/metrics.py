@@ -571,7 +571,7 @@ def build_kpi_summary(adm: pd.DataFrame, surg: pd.DataFrame,
     prev_series = series_inp[(series_inp["日付"] >= prev_fy_start) & (series_inp["日付"] <= prev_fy_end)]
     prev_avg_inp = round(prev_series["値"].mean(), 1) if len(prev_series) > 0 else None
 
-    inpatient_rate = achievement_rate(inp["total"], TARGET_INPATIENT_ALLDAY)
+    inpatient_rate = achievement_rate(inp["total"], inp_target)
 
     # ── 新入院 ──
     series_nadm = build_daily_series(adm, "新入院患者数")
@@ -604,6 +604,7 @@ def build_kpi_summary(adm: pd.DataFrame, surg: pd.DataFrame,
         "admission_rate": nadm_7d_rate,
         "operation_rate": operation_rate,
         "inpatient_actual": inp["total"],
+        "inpatient_target": inp_target,
         "admission_actual_7d": nadm_7d,
         "operation_daily_avg": ga_biz["avg"],
     }
@@ -622,7 +623,8 @@ def build_kpi_summary(adm: pd.DataFrame, surg: pd.DataFrame,
         "inpatient_avg_28d": ma28_inp,
         "inpatient_fy_avg": fy_avg_inp,
         "inpatient_prev_avg": prev_avg_inp,
-        "inpatient_gap": round(inp["total"] - TARGET_INPATIENT_ALLDAY, 1),
+        "inpatient_is_weekday": inp["is_weekday"],
+        "inpatient_gap": round(inp["total"] - inp_target, 1),
         "inpatient_wow": wow_inp,
         "inpatient_status": status_display(inpatient_rate),
 

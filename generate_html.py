@@ -2,12 +2,13 @@
 """
 generate_html.py — 静的HTML生成スクリプト（v2.1）
 
-提案B: 2層ハブ＆スポーク型
+提案B: 2層ハブ＆スポーク型 + 部門別
   Layer-1: portal.html   — 信号機ポータル
   Layer-2: detail.html   — 統合詳細ダッシュボード
+  Layer-3: dept.html     — 部門別ダッシュボード（診療科・病棟切替）
 
 v2.1 変更点:
-  - 出力ファイル: 7種 → 2種（portal.html + detail.html）
+  - 出力ファイル: 7種 → 3種（portal.html + detail.html + dept.html）
   - doctor.html / nurse.html / admission/ / inpatient/ / reports/ は廃止
   - 旧URLからのリダイレクトHTML を自動生成（互換性維持）
 """
@@ -193,6 +194,17 @@ def generate(data_dir: str = DEFAULT_DATA_DIR,
     detail_path.write_text(detail_html, encoding="utf-8")
     results["detail"] = str(detail_path.resolve())
     log(f"detail.html → {detail_path.resolve()}", "ok")
+
+    # ════════════════════════════════════════
+    # Layer-3: dept.html（部門別ダッシュボード）
+    # ════════════════════════════════════════
+    log("dept.html 生成中...")
+    dept_tmpl = env.get_template("dept.html")
+    dept_html = dept_tmpl.render(**detail_ctx)
+    dept_path = out_dir / "dept.html"
+    dept_path.write_text(dept_html, encoding="utf-8")
+    results["dept"] = str(dept_path.resolve())
+    log(f"dept.html → {dept_path.resolve()}", "ok")
 
     # ════════════════════════════════════════
     # 旧URLリダイレクト
