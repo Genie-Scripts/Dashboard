@@ -96,6 +96,7 @@ let currentUnit = null; // 選択中の科・病棟名
 let period = '12w';
 let showWeekday = true, showHoliday = true;
 let showDaily = true, showMA7 = true, showMA28 = true;
+let admType = 'all';  // 新入院種別フィルタ: 'all' | 'planned' | 'emergency'
 
 // ── Helpers ──
 function stCss(rate) { return rate==null?'mu':rate<90?'dr':rate<100?'wr':'ok'; }
@@ -164,7 +165,7 @@ function renderLanding() {
       <div class="kpis">
         ${mkKp('🚪', d.admission.rate)}
         ${mkKp('🛏️', d.inpatient.rate)}
-        ${d.operation.rate!=null || !d.ward_extra ? mkKp('💉', d.operation.rate) : ''}
+        ${(d.ward_extra || d.operation.actual !== null) ? mkKp('💉', d.operation.rate) : ''}
       </div>
     </a>`;
   }
@@ -254,12 +255,21 @@ function renderDashboard(name, d) {
 
 function renderKpiCards(d) {
   const isWard = !!d.ward_extra;
+  const showOp = isWard || d.operation.actual !== null;
   const opLabel = d.operation.label || '全麻手術';
+  const admActual = admType==='planned' ? d.admission.planned_7d
+                  : admType==='emergency' ? d.admission.emergency_7d
+                  : d.admission.actual_7d;
+  const admPeriodLabel = admType==='planned'?'直近7日累計（予定）':admType==='emergency'?'直近7日累計（緊急）':'直近7日累計';
+  const admTarget = admType==='all' ? d.admission.target : null;  // 種別フィルタ中は目標比較なし
+  const admRate   = admType==='all' ? d.admission.rate   : null;
   const cards = [
-    {icon:'🚪', label:'新入院', period:'直近7日累計', actual:d.admission.actual_7d, unit:'人', target:d.admission.target, targetLabel:'目標', rate:d.admission.rate},
+    {icon:'🚪', label:'新入院', period:admPeriodLabel, actual:admActual, unit:'人', target:admTarget, targetLabel:'目標', rate:admRate},
     {icon:'🛏️', label:'在院患者', period:DATA.meta.base_date+' 時点', actual:d.inpatient.actual, unit:'人', target:d.inpatient.target, targetLabel:'目標', rate:d.inpatient.rate},
-    {icon:'💉', label:opLabel, period:isWard?'退院合計（昨日実績）':'直近7日累計', actual:d.operation.actual, unit:'件', target:d.operation.target, targetLabel:'目標', rate:d.operation.rate},
   ];
+  if (showOp) cards.push(
+    {icon:'💉', label:opLabel, period:isWard?'退院合計（昨日実績）':'直近7日累計', actual:d.operation.actual, unit:'件', target:d.operation.target, targetLabel:'目標', rate:d.operation.rate}
+  );
 
   document.getElementById('kpiCards').innerHTML = cards.map(c => {
     const sc = stCss(c.rate);
@@ -314,17 +324,24 @@ function renderToolbar() {
   const mkChk = (lbl,checked,fn) => `<label style="font-size:11px;font-weight:700;color:var(--sub);cursor:pointer;display:flex;align-items:center;gap:2px"><input type="checkbox" ${checked?'checked':''} onchange="${fn}"> ${lbl}</label>`;
   const dayChks = mkChk('平日',showWeekday,"toggleDay('wd',this.checked)") + mkChk('休日',showHoliday,"toggleDay('hd',this.checked)");
   const lineChks = mkChk('日次',showDaily,"toggleLine('d',this.checked)") + mkChk('7日MA',showMA7,"toggleLine('m7',this.checked)") + mkChk('28日MA',showMA28,"toggleLine('m28',this.checked)");
+  const mkRad = (val,lbl) => `<label style="font-size:11px;font-weight:700;color:var(--sub);cursor:pointer;display:flex;align-items:center;gap:2px"><input type="radio" name="admType" value="${val}" ${admType===val?'checked':''} onchange="setAdmType('${val}')"> ${lbl}</label>`;
+  const admTypeCtrl = mkRad('all','全体') + mkRad('planned','予定') + mkRad('emergency','緊急');
   document.getElementById('toolbar').innerHTML = `
     <div class="grp"><span class="gl">期間</span>${periods}</div>
     <div class="grp"><span class="gl">日種</span>${dayChks}</div>
-    <div class="grp"><span class="gl">描画</span>${lineChks}</div>`;
+    <div class="grp"><span class="gl">描画</span>${lineChks}</div>
+    <div class="grp"><span class="gl">入院種別</span>${admTypeCtrl}</div>`;
 }
 
 function setPeriod(p, btn) {
   period = p;
   btn.parentElement.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  if (currentUnit) renderCharts(DATA.drill[currentUnit]);
+  if (currentUnit) renderDashboard(currentUnit, DATA.drill[currentUnit]);
+}
+function setAdmType(val) {
+  admType = val;
+  if (currentUnit) renderDashboard(currentUnit, DATA.drill[currentUnit]);
 }
 function toggleDay(t, c) {
   if (t==='wd') showWeekday=c; else showHoliday=c;
@@ -345,16 +362,22 @@ function renderCharts(d) {
   const dayLabel = (showWeekday&&showHoliday)?'':showWeekday?' 平日のみ':' 休日のみ';
   const suffix = `（${pLabels[period]}${dayLabel}）`;
 
-  document.getElementById('chartTitle1').textContent = `🚪 新入院 推移${suffix}`;
+  const admSuffix = admType==='planned'?' ／ 予定':admType==='emergency'?' ／ 緊急':'';
+  document.getElementById('chartTitle1').textContent = `🚪 新入院${admSuffix} 推移${suffix}`;
   document.getElementById('chartTitle2').textContent = `🛏️ 在院患者 推移${suffix}`;
-  document.getElementById('chartTitle3').textContent = isWard ? `— (病棟は手術データなし)` : `💉 全麻手術 推移${suffix}`;
+  const isSurgeryDept = !isWard && d.operation.actual !== null;
+  document.getElementById('chartTitle3').textContent = isWard ? `— (病棟は手術データなし)` : isSurgeryDept ? `💉 全麻手術 推移${suffix}` : `— (全麻 非対象)`;
 
-  renderOneChart('chart1', d.trend?.admission, d.admission.target ? d.admission.target/7 : null);
+  const rawAdmTd = d.trend?.admission;
+  const filtAdmTd = (admType !== 'all' && rawAdmTd && rawAdmTd[admType])
+    ? {...rawAdmTd, values: rawAdmTd[admType]} : rawAdmTd;
+  const admChartTarget = admType==='all' ? (d.admission.target ? d.admission.target/7 : null) : null;
+  renderOneChart('chart1', filtAdmTd, admChartTarget);
   renderOneChart('chart2', d.trend?.inpatient, d.inpatient.target);
-  if (!isWard) {
+  if (isSurgeryDept) {
     renderSurgeryChart('chart3', d.trend?.operation, d.operation.target);
   } else {
-    document.getElementById('chart3').innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">病棟単位の手術データなし</div>';
+    document.getElementById('chart3').innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">' + (isWard ? '病棟単位の手術データなし' : '全麻手術 非対象診療科') + '</div>';
   }
 }
 

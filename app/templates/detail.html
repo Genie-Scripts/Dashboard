@@ -83,6 +83,7 @@ let showMA7 = true;
 let showMA28 = true;
 let showDaily = true;
 let currentDrill = null;  // ★課題4: 開いているドリルダウン名を保持
+let admType = 'all';  // 新入院種別フィルタ: 'all' | 'planned' | 'emergency'
 
 document.addEventListener('DOMContentLoaded', () => {
   const hash = location.hash.replace('#','');
@@ -118,6 +119,7 @@ function renderTabs() {
 function switchTab(id) {
   currentTab = id;
   if (id === 'operation') currentAxis = 'dept';
+  admType = 'all';  // タブ切替でフィルタリセット
   renderTabs(); renderAll();
 }
 function setAxis(ax, btn) {
@@ -245,12 +247,23 @@ function renderToolbar() {
   const lineChks = mkChk('d','日次実績',showDaily,"toggleLine('daily',this.checked)")
     + mkChk('m7','7日MA',showMA7,"toggleLine('ma7',this.checked)")
     + mkChk('m28','28日MA',showMA28,"toggleLine('ma28',this.checked)");
+  // ★新入院種別ラジオ（admission タブのみ表示）
+  const mkRad = (val,lbl) => `<label style="font-size:11px;font-weight:700;color:var(--sub);cursor:pointer;display:flex;align-items:center;gap:2px"><input type="radio" name="admType" value="${val}" ${admType===val?'checked':''} onchange="setAdmType('${val}')"> ${lbl}</label>`;
+  const admTypeCtrl = currentTab==='admission'
+    ? `<div class="grp"><span class="gl">入院種別</span>${mkRad('all','全体')}${mkRad('planned','予定')}${mkRad('emergency','緊急')}</div>`
+    : '';
   document.getElementById('toolbar').innerHTML = `
     <div class="grp"><span class="gl">軸</span>${axes}</div>
     <div class="grp"><span class="gl">期間</span>${periods}</div>
     <div class="grp"><span class="gl">日種</span>${dayChks}</div>
     <div class="grp"><span class="gl">描画</span>${lineChks}</div>
+    ${admTypeCtrl}
     <div class="grp"><span class="btn" onclick="window.print()">🖨️ 印刷</span></div>`;
+}
+
+function setAdmType(val) {
+  admType = val;
+  renderContent();
 }
 
 function toggleLine(type, checked) {
@@ -348,8 +361,12 @@ function renderChart() {
   if (!trend || !trend.dates.length) return;
   const cutoff = periodCutoff();
 
+  // ★新入院種別フィルタ: admType に応じた値配列を選択
+  const rawVals = (currentTab === 'admission' && admType !== 'all' && trend[admType])
+    ? trend[admType] : trend.values || [];
+
   // ★修正: 全データで平日/休日フィルタ→MA計算→その後に期間切り取り
-  const fAll = filterByDayType(trend.dates, trend.values||[], trend.is_weekday||[]);
+  const fAll = filterByDayType(trend.dates, rawVals, trend.is_weekday||[]);
   const fAllMA7 = calcMA7(fAll.values);
   const fAllMA28 = calcMA28(fAll.values);
 
@@ -359,7 +376,9 @@ function renderChart() {
   const fVals = fAll.values.slice(si);
   const fMA7 = fAllMA7.slice(si);
 
-  let tgt = currentTab==='inpatient'?583:currentTab==='admission'?Math.round(380/7):21;
+  // 種別フィルタ中は目標ラインを非表示
+  const showTarget = !(currentTab === 'admission' && admType !== 'all');
+  let tgt = currentTab==='inpatient'?DATA.kpi.inpatient.target:currentTab==='admission'?Math.round(DATA.kpi.admission.target_weekly/7):DATA.kpi.operation.target;
   const traces = [];
 
   const fMA28 = fAllMA28.slice(si);
@@ -379,28 +398,32 @@ function renderChart() {
     traces.push({name:'28日移動平均', x:fDates, y:fMA28, type:'scatter', mode:'lines',
       line:{color:'#e67e22',width:2}});
   }
-  // ★目標ライン（細かい点線、少し太め）
-  if (fDates.length) {
+  // ★目標ライン（種別フィルタ中は非表示）
+  if (fDates.length && showTarget) {
     traces.push({name:`目標 ${tgt}`, x:[fDates[0],fDates[fDates.length-1]], y:[tgt,tgt],
       type:'scatter', mode:'lines', line:{color:'#C0293B',width:2,dash:'dot'}});
   }
   // ★ゾーン凡例用ダミートレース
-  traces.push({name:'達成ゾーン', x:[null], y:[null], type:'scatter', mode:'lines',
-    line:{width:8,color:'rgba(22,163,74,0.3)'}, showlegend:true});
-  traces.push({name:'注意ゾーン', x:[null], y:[null], type:'scatter', mode:'lines',
-    line:{width:8,color:'rgba(245,158,11,0.35)'}, showlegend:true});
+  if (showTarget) {
+    traces.push({name:'達成ゾーン', x:[null], y:[null], type:'scatter', mode:'lines',
+      line:{width:8,color:'rgba(22,163,74,0.3)'}, showlegend:true});
+    traces.push({name:'注意ゾーン', x:[null], y:[null], type:'scatter', mode:'lines',
+      line:{width:8,color:'rgba(245,158,11,0.35)'}, showlegend:true});
+  }
 
   // ★Y軸範囲
-  const allY = [...(showDaily?fVals:[]),...(showMA7?fMA7:[]),...(showMA28?fMA28:[]),tgt].filter(v=>v!=null);
+  const allY = [...(showDaily?fVals:[]),...(showMA7?fMA7:[]),...(showMA28?fMA28:[]),...(showTarget?[tgt]:[])].filter(v=>v!=null);
   const yMin=Math.min(...allY), yMax=Math.max(...allY), yPad=(yMax-yMin)*.08||5;
   const yLo = Math.max(0,Math.floor(yMin-yPad)), yHi = Math.ceil(yMax+yPad);
 
-  // ★ゾーン色分け（達成ゾーン=緑、注意ゾーン=オレンジ 目標下5%）
+  // ★ゾーン色分け（種別フィルタ中はゾーン非表示）
   const shapes = [];
-  shapes.push({type:'rect',xref:'paper',yref:'y',x0:0,x1:1,y0:tgt,y1:yHi,
-    fillcolor:'rgba(22,163,74,0.08)',line:{width:0}});
-  shapes.push({type:'rect',xref:'paper',yref:'y',x0:0,x1:1,y0:tgt*0.95,y1:tgt,
-    fillcolor:'rgba(245,158,11,0.10)',line:{width:0}});
+  if (showTarget) {
+    shapes.push({type:'rect',xref:'paper',yref:'y',x0:0,x1:1,y0:tgt,y1:yHi,
+      fillcolor:'rgba(22,163,74,0.08)',line:{width:0}});
+    shapes.push({type:'rect',xref:'paper',yref:'y',x0:0,x1:1,y0:tgt*0.95,y1:tgt,
+      fillcolor:'rgba(245,158,11,0.10)',line:{width:0}});
+  }
 
   const pLabels = {'12w':'直近12週','24w':'直近24週','365d':'直近365日'};
   const dayLabel = (showWeekday&&showHoliday)?'':showWeekday?' 平日のみ':' 休日のみ';
@@ -416,7 +439,8 @@ function renderChart() {
   };
   Plotly.newPlot('mainChart',traces,layout,{responsive:true});
   const titles = {inpatient:'在院患者数',admission:'新入院患者数',operation:'全身麻酔手術'};
-  document.getElementById('chartTitle').textContent = `📊 ${titles[currentTab]||''} 推移（${pLabels[currentPeriod]}${dayLabel}）`;
+  const admLabel = currentTab==='admission' && admType!=='all' ? (admType==='planned'?' ／ 予定入院':' ／ 緊急入院') : '';
+  document.getElementById('chartTitle').textContent = `📊 ${titles[currentTab]||''}${admLabel} 推移（${pLabels[currentPeriod]}${dayLabel}）`;
 }
 
 // ★課題1: 折りたたみバグ修正（クラス付け外しで制御）
@@ -465,11 +489,14 @@ function openDrill(name) {
   document.getElementById('drillName').textContent = name;
 
   const opLabel = d.operation.label || '全麻';
+  const showOp = d.ward_extra || d.operation.actual !== null;
   const cards = [
     {l:'🚪 新入院',p:'直近7日累計',v:d.admission.actual_7d,s:`目標 ${d.admission.target||'—'}`,rate:d.admission.rate,dr:d.admission.rate!=null&&d.admission.rate<90},
     {l:'🛏️ 在院',p:`${DATA.meta.base_date} 時点`,v:d.inpatient.actual,s:`目標 ${d.inpatient.target||'—'}`,rate:d.inpatient.rate,dr:d.inpatient.rate!=null&&d.inpatient.rate<90},
-    {l:`💉 ${opLabel}`,p:d.ward_extra?'':d.operation.label?'':' 直近7日累計',v:d.operation.actual,s:d.operation.target?`目標 ${d.operation.target}`:'—',rate:d.operation.rate,dr:d.operation.rate!=null&&d.operation.rate<90},
   ];
+  if (showOp) cards.push(
+    {l:`💉 ${opLabel}`,p:d.ward_extra?'':d.operation.label?'':'直近7日累計',v:d.operation.actual,s:d.operation.target?`目標 ${d.operation.target}`:'—',rate:d.operation.rate,dr:d.operation.rate!=null&&d.operation.rate<90}
+  );
   if (d.ward_extra) {
     const we=d.ward_extra;
     cards.push({l:'🏥 利用率',v:we.util_rate!=null?we.util_rate+'%':'—',s:`病床数 ${we.beds||'—'}`,rate:null,dr:we.util_rate!=null&&we.util_rate<85});
@@ -577,18 +604,23 @@ function openDrill(name) {
   }
 
   const isWard = !!d.ward_extra;
+  const isSurgeryDept = !isWard && d.operation.actual !== null;
   const ann = s => `<span style="font-size:9px;font-weight:600;color:var(--mu);margin-left:5px">${s}</span>`;
   document.getElementById('drillLabel1').innerHTML='🚪 新入院 推移'+ann('日次実績');
   document.getElementById('drillLabel2').innerHTML='🛏️ 在院 推移'+ann('日次実績');
-  document.getElementById('drillLabel3').innerHTML=isWard?'— (病棟は手術データなし)':'💉 全麻 推移'+ann('7日ローリング合計');
+  document.getElementById('drillLabel3').innerHTML=isWard?'— (病棟は手術データなし)':isSurgeryDept?'💉 全麻 推移'+ann('7日ローリング合計'):'— (全麻 非対象)';
 
-  renderMini('drillChartAdm', d.trend?d.trend.admission:null, d.admission.target?d.admission.target/7:null);
+  // 新入院種別フィルタをミニグラフにも適用
+  const rawAdmTd = d.trend ? d.trend.admission : null;
+  const filtAdmTd = (admType !== 'all' && rawAdmTd && rawAdmTd[admType])
+    ? {...rawAdmTd, values: rawAdmTd[admType]} : rawAdmTd;
+  renderMini('drillChartAdm', filtAdmTd, (admType==='all' && d.admission.target) ? d.admission.target/7 : null);
   renderMini('drillChartInp', d.trend?d.trend.inpatient:null, d.inpatient.target);
-  if (!isWard) {
+  if (isSurgeryDept) {
     // ★手術は「直近7日ローリング合計」で表示し、目標は週目標そのまま
     renderMiniSurgery('drillChartOp', d.trend?d.trend.operation:null, d.operation.target);
   } else {
-    document.getElementById('drillChartOp').innerHTML='<div style="color:#9daab8;font-size:11px;text-align:center;padding:60px 0">病棟単位の手術データなし</div>';
+    document.getElementById('drillChartOp').innerHTML='<div style="color:#9daab8;font-size:11px;text-align:center;padding:60px 0">' + (isWard?'病棟単位の手術データなし':'全麻手術 非対象診療科') + '</div>';
   }
 
   currentDrill = name;  // ★保持

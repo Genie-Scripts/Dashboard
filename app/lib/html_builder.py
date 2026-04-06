@@ -49,6 +49,17 @@ def _json_safe(obj):
     return str(obj)
 
 
+def _add_adm_breakdown(td: dict, planned_s: pd.DataFrame, emg_s: pd.DataFrame) -> dict:
+    """trend dict に予定/緊急入院の内訳配列を追加（日付を key にして安全にアライン）"""
+    p_map = ({d.strftime("%Y-%m-%d"): int(v) for d, v in zip(planned_s["日付"], planned_s["値"]) if pd.notna(v)}
+             if len(planned_s) > 0 else {})
+    e_map = ({d.strftime("%Y-%m-%d"): int(v) for d, v in zip(emg_s["日付"], emg_s["値"]) if pd.notna(v)}
+             if len(emg_s) > 0 else {})
+    td["planned"]  = [p_map.get(d, 0) for d in td["dates"]]
+    td["emergency"] = [e_map.get(d, 0) for d in td["dates"]]
+    return td
+
+
 def _ranking_to_list(df: pd.DataFrame, name_col: str = "診療科",
                      actual_col: str = "実績", target_col: str = "目標") -> list:
     """ランキングDataFrameをJSON用リストに変換"""
@@ -254,6 +265,9 @@ def build_detail_json(adm, surg, targets, surg_targets,
     series_nadm = build_daily_series(adm, "新入院患者数")
     series_nadm = add_moving_average(series_nadm, 7)
     series_nadm = add_moving_average(series_nadm, 28)
+    # 新入院内訳（病院全体）
+    series_planned_hosp  = build_daily_series(adm, "入院患者数")
+    series_emg_hosp      = build_daily_series(adm, "緊急入院患者数")
 
     series_surg = build_surgery_daily_series(surg)
     series_surg = add_moving_average(series_surg, 7)
@@ -270,9 +284,12 @@ def build_detail_json(adm, surg, targets, surg_targets,
             "is_weekday": [bool(is_operational_day(d)) for d in s["日付"]],
         }
 
+    adm_trend = _trend_dict(series_nadm)
+    _add_adm_breakdown(adm_trend, series_planned_hosp, series_emg_hosp)
+
     trend = {
         "inpatient": _trend_dict(series_inp),
-        "admission": _trend_dict(series_nadm),
+        "admission": adm_trend,
         "operation": _trend_dict(series_surg),
     }
 
@@ -288,19 +305,32 @@ def build_detail_json(adm, surg, targets, surg_targets,
     nadm_tgt = targets.get("new_admission", {}).get("dept", {})
     inp_tgt = targets.get("inpatient", {}).get("dept", {})
 
+    # 直近7日 予定/緊急 内訳（診療科・病棟別）
+    from datetime import timedelta as _td
+    _w7_start = base_date - _td(days=6)
+    _w7 = adm[(adm["日付"] >= _w7_start) & (adm["日付"] <= base_date)]
+    r7_planned_dept  = (_w7[_w7["科_表示"]].groupby("診療科名")["入院患者数"].sum().astype(int).to_dict())
+    r7_emg_dept      = (_w7[_w7["科_表示"]].groupby("診療科名")["緊急入院患者数"].sum().astype(int).to_dict())
+    r7_planned_ward  = (_w7[_w7["病棟_表示"]].groupby("病棟コード")["入院患者数"].sum().astype(int).to_dict())
+    r7_emg_ward      = (_w7[_w7["病棟_表示"]].groupby("病棟コード")["緊急入院患者数"].sum().astype(int).to_dict())
+
     for dept in NADM_DISPLAY_DEPTS | SURGERY_DISPLAY_DEPTS:
+        is_surgery_dept = dept in SURGERY_DISPLAY_DEPTS
         adm_actual = r7_nadm["by_dept"].get(dept, 0)
         adm_target = nadm_tgt.get(dept)
         inp_actual = inp_by_dept.get(dept, 0)
         inp_target = inp_tgt.get(dept)
-        surg_actual = r7_surg["by_dept"].get(dept, 0)
-        surg_target = surg_targets.get(dept)
+        # 手術データは SURGERY_DISPLAY_DEPTS のみ（op_target 対象科）
+        surg_actual = r7_surg["by_dept"].get(dept, 0) if is_surgery_dept else None
+        surg_target = surg_targets.get(dept) if is_surgery_dept else None
 
-        # ── 診療科別推移データ（新入院） ──
+        # ── 診療科別推移データ（新入院）＋内訳 ──
         dept_nadm_series = build_daily_series(
             adm, "新入院患者数", group_col="診療科名", group_val=dept
         )
         dept_nadm_series = add_moving_average(dept_nadm_series, 7)
+        dept_planned_series = build_daily_series(adm, "入院患者数", group_col="診療科名", group_val=dept)
+        dept_emg_series     = build_daily_series(adm, "緊急入院患者数", group_col="診療科名", group_val=dept)
 
         # ── 診療科別推移データ（在院） ──
         dept_inp_series = build_daily_series(
@@ -308,9 +338,12 @@ def build_detail_json(adm, surg, targets, surg_targets,
         )
         dept_inp_series = add_moving_average(dept_inp_series, 7)
 
-        # ── 診療科別推移データ（手術） ──
-        dept_surg_series = build_surgery_daily_series(surg, ga_only=True, dept=dept)
-        dept_surg_series = add_moving_average(dept_surg_series, 7)
+        # ── 診療科別推移データ（手術）: 手術対象科のみ ──
+        if is_surgery_dept:
+            dept_surg_series = build_surgery_daily_series(surg, ga_only=True, dept=dept)
+            dept_surg_series = add_moving_average(dept_surg_series, 7)
+        else:
+            dept_surg_series = pd.DataFrame(columns=["日付", "値"])
 
         # ── 注視理由・コメント自動生成 ──
         comments = []
@@ -331,9 +364,15 @@ def build_detail_json(adm, surg, targets, surg_targets,
             else:
                 comments.append("目標に接近しています")
 
+        dept_adm_trend = (_trend_dict(dept_nadm_series) if len(dept_nadm_series) > 0
+                          else {"dates": [], "values": [], "ma7": [], "ma28": []})
+        _add_adm_breakdown(dept_adm_trend, dept_planned_series, dept_emg_series)
+
         drill[dept] = {
             "admission": {
                 "actual_7d": adm_actual,
+                "planned_7d": r7_planned_dept.get(dept, 0),
+                "emergency_7d": r7_emg_dept.get(dept, 0),
                 "target": round(float(adm_target), 1) if adm_target else None,
                 "rate": adm_rate,
             },
@@ -348,7 +387,7 @@ def build_detail_json(adm, surg, targets, surg_targets,
                 "rate": surg_rate,
             },
             "trend": {
-                "admission": _trend_dict(dept_nadm_series) if len(dept_nadm_series) > 0 else {"dates":[],"values":[],"ma7":[],"ma28":[]},
+                "admission": dept_adm_trend,
                 "inpatient": _trend_dict(dept_inp_series) if len(dept_inp_series) > 0 else {"dates":[],"values":[],"ma7":[],"ma28":[]},
                 "operation": _trend_dict(dept_surg_series) if len(dept_surg_series) > 0 else {"dates":[],"values":[],"ma7":[]},
             },
@@ -379,11 +418,14 @@ def build_detail_json(adm, surg, targets, surg_targets,
         w_load = nadm_day["by_ward_load"].get(wcode, 0)
         w_discharge = nadm_day["by_ward_discharge"].get(wcode, 0)
 
-        # 病棟別推移
+        # 病棟別推移（新入院は転入含む新入院患者数_病棟）
         w_inp_series = build_daily_series(adm, "在院患者数", group_col="病棟コード", group_val=wcode)
         w_inp_series = add_moving_average(w_inp_series, 7)
-        w_nadm_series = build_daily_series(adm, "新入院患者数", group_col="病棟コード", group_val=wcode)
+        w_nadm_series = build_daily_series(adm, "新入院患者数_病棟", group_col="病棟コード", group_val=wcode)
         w_nadm_series = add_moving_average(w_nadm_series, 7)
+        # 内訳（予定・緊急）: 転入は含まない
+        w_planned_series = build_daily_series(adm, "入院患者数", group_col="病棟コード", group_val=wcode)
+        w_emg_series     = build_daily_series(adm, "緊急入院患者数", group_col="病棟コード", group_val=wcode)
 
         # コメント
         w_inp_rate = achievement_rate(w_inp, w_inp_tgt)
@@ -400,9 +442,15 @@ def build_detail_json(adm, surg, targets, surg_targets,
             else:
                 w_comments.append("目標に接近しています")
 
+        w_adm_trend = (_trend_dict(w_nadm_series) if len(w_nadm_series) > 0
+                       else {"dates": [], "values": [], "ma7": [], "ma28": []})
+        _add_adm_breakdown(w_adm_trend, w_planned_series, w_emg_series)
+
         drill[wname] = {
             "admission": {
                 "actual_7d": w_nadm,
+                "planned_7d": r7_planned_ward.get(wcode, 0),
+                "emergency_7d": r7_emg_ward.get(wcode, 0),
                 "target": round(float(w_nadm_tgt), 1) if w_nadm_tgt else None,
                 "rate": achievement_rate(w_nadm, w_nadm_tgt),
             },
@@ -423,7 +471,7 @@ def build_detail_json(adm, surg, targets, surg_targets,
                 "load": w_load,
             },
             "trend": {
-                "admission": _trend_dict(w_nadm_series) if len(w_nadm_series) > 0 else {"dates":[],"values":[],"ma7":[],"ma28":[]},
+                "admission": w_adm_trend,
                 "inpatient": _trend_dict(w_inp_series) if len(w_inp_series) > 0 else {"dates":[],"values":[],"ma7":[],"ma28":[]},
                 "operation": {"dates":[],"values":[],"ma7":[]},
             },

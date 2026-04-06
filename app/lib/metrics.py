@@ -54,7 +54,8 @@ def daily_new_admission(adm: pd.DataFrame, date: pd.Timestamp) -> dict:
     total_transfer_in = int(day["転入患者数"].sum())
     total_transfer_out = int(day["転出患者数"].sum())
     by_dept = (day[day["科_表示"]].groupby("診療科名")["新入院患者数"].sum().astype(int).to_dict())
-    by_ward = (day[day["病棟_表示"]].groupby("病棟コード")["新入院患者数"].sum().astype(int).to_dict())
+    # 病棟は転入を含む（病棟単位の新入院実態）
+    by_ward = (day[day["病棟_表示"]].groupby("病棟コード")["新入院患者数_病棟"].sum().astype(int).to_dict())
     by_ward_discharge = (day[day["病棟_表示"]].groupby("病棟コード")["退院合計"].sum().astype(int).to_dict())
     by_ward_load = (day[day["病棟_表示"]].groupby("病棟コード")["出入り負荷"].sum().astype(int).to_dict())
     return {
@@ -96,7 +97,7 @@ def weekly_new_admission(adm: pd.DataFrame, date: pd.Timestamp) -> dict:
     week = adm[(adm["日付"] >= monday) & (adm["日付"] <= date)]
     total = int(week["新入院患者数"].sum())
     by_dept = (week[week["科_表示"]].groupby("診療科名")["新入院患者数"].sum().astype(int).to_dict())
-    by_ward = (week[week["病棟_表示"]].groupby("病棟コード")["新入院患者数"].sum().astype(int).to_dict())
+    by_ward = (week[week["病棟_表示"]].groupby("病棟コード")["新入院患者数_病棟"].sum().astype(int).to_dict())
     return {"monday": monday, "date": date, "days_elapsed": (date - monday).days + 1,
             "total": total, "by_dept": by_dept, "by_ward": by_ward}
 
@@ -118,7 +119,7 @@ def rolling7_new_admission(adm: pd.DataFrame, date: pd.Timestamp) -> dict:
     window = adm[(adm["日付"] >= start) & (adm["日付"] <= date)]
     total = int(window["新入院患者数"].sum())
     by_dept = (window[window["科_表示"]].groupby("診療科名")["新入院患者数"].sum().astype(int).to_dict())
-    by_ward = (window[window["病棟_表示"]].groupby("病棟コード")["新入院患者数"].sum().astype(int).to_dict())
+    by_ward = (window[window["病棟_表示"]].groupby("病棟コード")["新入院患者数_病棟"].sum().astype(int).to_dict())
     return {"start": start, "date": date, "total": total, "by_dept": by_dept, "by_ward": by_ward}
 
 
