@@ -113,6 +113,27 @@ def weekly_surgery(surg: pd.DataFrame, date: pd.Timestamp) -> dict:
     return {"monday": monday, "date": date, "total": total, "by_dept": by_dept}
 
 
+def rolling7_inpatient_avg(adm: pd.DataFrame, date: pd.Timestamp) -> dict:
+    """直近7暦日の在院患者数日平均（診療科別・病棟別）
+
+    日付ごとに合計してから7日平均を取る（行単位の平均ではない）
+    """
+    start = date - timedelta(days=6)
+    window = adm[(adm["日付"] >= start) & (adm["日付"] <= date)]
+
+    # 診療科: 日付×診療科で合計 → 診療科ごとに7日平均
+    dept_daily = (window[window["科_表示"]]
+                  .groupby(["日付", "診療科名"])["在院患者数"].sum())
+    by_dept = dept_daily.groupby("診療科名").mean().round(1).to_dict()
+
+    # 病棟: 日付×病棟コードで合計 → 病棟ごとに7日平均
+    ward_daily = (window[window["病棟_表示"]]
+                  .groupby(["日付", "病棟コード"])["在院患者数"].sum())
+    by_ward = ward_daily.groupby("病棟コード").mean().round(1).to_dict()
+
+    return {"start": start, "date": date, "by_dept": by_dept, "by_ward": by_ward}
+
+
 def rolling7_new_admission(adm: pd.DataFrame, date: pd.Timestamp) -> dict:
     """直近7暦日の新入院累計"""
     start = date - timedelta(days=6)
@@ -300,8 +321,8 @@ def build_dept_ranking(adm: pd.DataFrame, date: pd.Timestamp,
                        sort_by: str = "achievement") -> pd.DataFrame:
     """診療科別ランキング（在院/新入院）"""
     if metric == "inpatient":
-        kpi = daily_inpatient(adm, date)
-        data = kpi["by_dept"]
+        r7 = rolling7_inpatient_avg(adm, date)
+        data = r7["by_dept"]
         target_map = targets.get("inpatient", {}).get("dept", {})
     else:
         r7 = rolling7_new_admission(adm, date)
@@ -333,8 +354,8 @@ def build_ward_ranking(adm: pd.DataFrame, date: pd.Timestamp,
     from .config import WARD_NAMES
 
     if metric == "inpatient":
-        kpi = daily_inpatient(adm, date)
-        data = kpi["by_ward"]
+        r7 = rolling7_inpatient_avg(adm, date)
+        data = r7["by_ward"]
         target_map = targets.get("inpatient", {}).get("ward", {})
         beds_map = targets.get("inpatient", {}).get("ward_beds", {})
     else:

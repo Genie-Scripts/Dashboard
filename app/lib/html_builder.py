@@ -234,28 +234,24 @@ def build_detail_json(adm, surg, targets, surg_targets,
     """
     kpi = build_kpi_summary(adm, surg, base_date, targets, surg_targets)
 
-    # ── perf: ランキングデータ ──
+    # ── perf: ランキングデータ（直近7日固定） ──
     perf = {"admission": {}, "inpatient": {}, "operation": {}}
-    for period in ["7", "28", "fy"]:
-        # 新入院ランキング
-        # Note: period切替はbuild時にデータ範囲を変えるべきだが、
-        # 現行は rolling7 をベースに period パラメータで分岐
-        dept_adm = build_dept_ranking(adm, base_date, targets, metric="new_admission")
-        perf["admission"][f"dept_{period}"] = _ranking_to_list(dept_adm)
 
-        ward_adm = build_ward_ranking(adm, base_date, targets, metric="new_admission")
-        perf["admission"][f"ward_{period}"] = _ranking_to_list(ward_adm, name_col="病棟名")
+    # 新入院ランキング（直近7日累計）
+    dept_adm = build_dept_ranking(adm, base_date, targets, metric="new_admission")
+    perf["admission"]["dept"] = _ranking_to_list(dept_adm)
+    ward_adm = build_ward_ranking(adm, base_date, targets, metric="new_admission")
+    perf["admission"]["ward"] = _ranking_to_list(ward_adm, name_col="病棟名")
 
-        # 在院ランキング
-        dept_inp = build_dept_ranking(adm, base_date, targets, metric="inpatient")
-        perf["inpatient"][f"dept_{period}"] = _ranking_to_list(dept_inp)
+    # 在院ランキング（基準日1日実績）
+    dept_inp = build_dept_ranking(adm, base_date, targets, metric="inpatient")
+    perf["inpatient"]["dept"] = _ranking_to_list(dept_inp)
+    ward_inp = build_ward_ranking(adm, base_date, targets, metric="inpatient")
+    perf["inpatient"]["ward"] = _ranking_to_list(ward_inp, name_col="病棟名")
 
-        ward_inp = build_ward_ranking(adm, base_date, targets, metric="inpatient")
-        perf["inpatient"][f"ward_{period}"] = _ranking_to_list(ward_inp, name_col="病棟名")
-
-        # 手術ランキング（全日基準）
-        surg_rank = build_surgery_ranking(surg, base_date, surg_targets, period=period)
-        perf["operation"][f"dept_{period}"] = _ranking_to_list(surg_rank, target_col="週目標")
+    # 手術ランキング（直近7日）
+    surg_rank = build_surgery_ranking(surg, base_date, surg_targets, period="7")
+    perf["operation"]["dept"] = _ranking_to_list(surg_rank, target_col="週目標")
 
     # ── trend: 推移データ ──
     series_inp = build_daily_series(adm, "在院患者数")
@@ -426,6 +422,9 @@ def build_detail_json(adm, surg, targets, surg_targets,
         # 内訳（予定・緊急）: 転入は含まない
         w_planned_series = build_daily_series(adm, "入院患者数", group_col="病棟コード", group_val=wcode)
         w_emg_series     = build_daily_series(adm, "緊急入院患者数", group_col="病棟コード", group_val=wcode)
+        # 退出合計（退院+死亡+転出）
+        w_out_series = build_daily_series(adm, "退出合計", group_col="病棟コード", group_val=wcode)
+        w_out_series = add_moving_average(w_out_series, 7)
 
         # コメント
         w_inp_rate = achievement_rate(w_inp, w_inp_tgt)
@@ -474,6 +473,8 @@ def build_detail_json(adm, surg, targets, surg_targets,
                 "admission": w_adm_trend,
                 "inpatient": _trend_dict(w_inp_series) if len(w_inp_series) > 0 else {"dates":[],"values":[],"ma7":[],"ma28":[]},
                 "operation": {"dates":[],"values":[],"ma7":[]},
+                "outflow": (_trend_dict(w_out_series) if len(w_out_series) > 0
+                            else {"dates":[],"values":[],"ma7":[],"ma28":[]}),
             },
             "comment": "、".join(w_comments),
         }

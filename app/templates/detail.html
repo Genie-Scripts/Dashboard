@@ -84,6 +84,7 @@ let showMA28 = true;
 let showDaily = true;
 let currentDrill = null;  // ★課題4: 開いているドリルダウン名を保持
 let admType = 'all';  // 新入院種別フィルタ: 'all' | 'planned' | 'emergency'
+let rankSort = 'gap_asc';  // ソート: 'rate_desc'|'rate_asc'|'gap_desc'|'gap_asc'
 
 document.addEventListener('DOMContentLoaded', () => {
   const hash = location.hash.replace('#','');
@@ -119,7 +120,8 @@ function renderTabs() {
 function switchTab(id) {
   currentTab = id;
   if (id === 'operation') currentAxis = 'dept';
-  admType = 'all';  // タブ切替でフィルタリセット
+  admType = 'all';   // タブ切替でフィルタリセット
+  rankSort = 'gap_asc';  // ソートもリセット
   renderTabs(); renderAll();
 }
 function setAxis(ax, btn) {
@@ -245,25 +247,39 @@ function renderToolbar() {
     + mkChk('hd','休日',showHoliday,"toggleDayType('holiday',this.checked)");
   // ★描画線チェックボックス
   const lineChks = mkChk('d','日次実績',showDaily,"toggleLine('daily',this.checked)")
-    + mkChk('m7','7日MA',showMA7,"toggleLine('ma7',this.checked)")
-    + mkChk('m28','28日MA',showMA28,"toggleLine('ma28',this.checked)");
+    + mkChk('m7','7日移動平均',showMA7,"toggleLine('ma7',this.checked)")
+    + mkChk('m28','28日移動平均',showMA28,"toggleLine('ma28',this.checked)");
   // ★新入院種別ラジオ（admission タブのみ表示）
   const mkRad = (val,lbl) => `<label style="font-size:11px;font-weight:700;color:var(--sub);cursor:pointer;display:flex;align-items:center;gap:2px"><input type="radio" name="admType" value="${val}" ${admType===val?'checked':''} onchange="setAdmType('${val}')"> ${lbl}</label>`;
   const admTypeCtrl = currentTab==='admission'
     ? `<div class="grp"><span class="gl">入院種別</span>${mkRad('all','全体')}${mkRad('planned','予定')}${mkRad('emergency','緊急')}</div>`
     : '';
+  // ★ランキングソートボタン
+  const sortDefs = [
+    {k:'rate_desc', l:'達成率↓'}, {k:'rate_asc', l:'達成率↑'},
+    {k:'gap_desc',  l:'目標差↓'}, {k:'gap_asc',  l:'目標差↑'},
+  ];
+  const sortBtns = sortDefs.map(s =>
+    `<span class="btn${rankSort===s.k?' active':''}" onclick="setRankSort('${s.k}')">${s.l}</span>`
+  ).join('');
   document.getElementById('toolbar').innerHTML = `
     <div class="grp"><span class="gl">軸</span>${axes}</div>
     <div class="grp"><span class="gl">期間</span>${periods}</div>
     <div class="grp"><span class="gl">日種</span>${dayChks}</div>
     <div class="grp"><span class="gl">描画</span>${lineChks}</div>
     ${admTypeCtrl}
+    <div class="grp"><span class="gl">順位基準</span>${sortBtns}</div>
     <div class="grp"><span class="btn" onclick="window.print()">🖨️ 印刷</span></div>`;
 }
 
 function setAdmType(val) {
   admType = val;
   renderContent();
+}
+function setRankSort(val) {
+  rankSort = val;
+  renderToolbar();   // ボタンの active 状態を更新
+  renderRanking();
 }
 
 function toggleLine(type, checked) {
@@ -448,18 +464,60 @@ const RANK_SHOW = 10;
 let rankExpanded = false;
 
 function renderRanking() {
-  const key = `${currentAxis}_${currentPeriod === '12w' ? '7' : currentPeriod === '24w' ? '28' : 'fy'}`;
-  const items = (DATA.perf[currentTab]||{})[key] || [];
-  document.getElementById('rankTitle').textContent = `🏆 ${currentAxis==='dept'?'診療科別':'病棟別'} 達成状況`;
+  const raw = (DATA.perf[currentTab]||{})[currentAxis] || [];
+
+  // クライアントサイドソート（差分も計算）
+  const items = raw.map(r => ({...r, gap: r.target != null ? Math.round((r.actual - r.target)*10)/10 : null}));
+  const sortFns = {
+    rate_desc: (a,b) => (b.rate??-Infinity) - (a.rate??-Infinity),
+    rate_asc:  (a,b) => (a.rate??Infinity)  - (b.rate??Infinity),
+    gap_desc:  (a,b) => (b.gap??-Infinity)  - (a.gap??-Infinity),
+    gap_asc:   (a,b) => (a.gap??Infinity)   - (b.gap??Infinity),
+  };
+  items.sort(sortFns[rankSort] || sortFns.rate_desc);
+  // ソート後に順位を振り直し
+  items.forEach((r,i) => r.rank = i+1);
+
+  const sortLabel = {rate_desc:'達成率↓',rate_asc:'達成率↑',gap_desc:'目標差↓',gap_asc:'目標差↑'}[rankSort];
+  document.getElementById('rankTitle').textContent = `🏆 ${currentAxis==='dept'?'診療科別':'病棟別'} 達成状況（直近7日・${sortLabel}）`;
   rankExpanded = false;
 
+  const isGapSort = rankSort.startsWith('gap');
+  // 目標差ソート時: バー幅をリスト内の最大絶対値で正規化
+  const maxAbsGap = isGapSort
+    ? Math.max(...items.filter(x => x.gap != null).map(x => Math.abs(x.gap)), 1)
+    : 1;
+
   document.getElementById('rankList').innerHTML = items.map((r,i) => {
-    const bw = Math.min((r.rate||0),200)/2;
+    const gapStr = r.gap != null ? (r.gap > 0 ? `+${r.gap}` : `${r.gap}`) : '—';
+
+    // ── バー ──
+    let bw, barCss;
+    if (isGapSort && r.gap != null) {
+      bw = Math.round(Math.abs(r.gap) / maxAbsGap * 92);
+      barCss = r.gap >= 0 ? 'ok' : 'dr';
+    } else {
+      bw = Math.min((r.rate||0), 200) / 2;
+      barCss = r.status;
+    }
+
+    // ── 主表示値（右側大きい数字）・サブ行 ──
+    let mainVal, mainCss, sub2;
+    if (isGapSort) {
+      mainVal = gapStr;
+      mainCss = r.gap != null ? (r.gap >= 0 ? 'ok' : 'dr') : 'mu';
+      sub2 = `達成率 ${r.rate != null ? r.rate+'%' : '—'}`;
+    } else {
+      mainVal = `${r.shape} ${r.rate != null ? r.rate+'%' : '—'}`;
+      mainCss = r.status;
+      sub2 = `${r.actual}/${r.target || '—'}`;
+    }
+
     return `<div class="ri${i>=RANK_SHOW?' rank-extra':''}" onclick="openDrill('${r.name}')">
       <div class="num ${r.status}">${r.rank}</div>
-      <div><div class="nm">${r.name}</div><div class="mt2">${r.actual}/${r.target||'—'}</div></div>
-      <div class="bar"><div class="fill ${r.status}" style="width:${bw}%"></div></div>
-      <div class="rt ${r.status}">${r.shape} ${r.rate!==null?r.rate+'%':'—'}</div>
+      <div><div class="nm">${r.name}</div><div class="mt2">${sub2}</div></div>
+      <div class="bar"><div class="fill ${barCss}" style="width:${bw}%"></div></div>
+      <div class="rt ${mainCss}">${mainVal}</div>
       <div class="stl ${r.status}">${r.text}</div>
       <div class="arrow">›</div></div>`;
   }).join('');
@@ -535,9 +593,9 @@ function openDrill(name) {
     // 日次実績（メインと同じグレー細点線）
     if (showDaily) { tr.push({name:'実績',x:ds,y:vs,type:'scatter',mode:'lines',line:{color:'#94A3B8',width:1,dash:'dot'},opacity:0.7,showlegend:false}); yV.push(...vs.filter(v=>v!=null)); }
     // 7日MA（緑）
-    if (showMA7 && m7.length) { tr.push({name:'7日MA',x:ds,y:m7,type:'scatter',mode:'lines',line:{color:'#0D9488',width:2}}); yV.push(...m7.filter(v=>v!=null)); }
-    // 28日MA（オレンジ）
-    if (showMA28 && m28.length) { tr.push({name:'28日MA',x:ds,y:m28,type:'scatter',mode:'lines',line:{color:'#e67e22',width:1.5}}); yV.push(...m28.filter(v=>v!=null)); }
+    if (showMA7 && m7.length) { tr.push({name:'7日移動平均',x:ds,y:m7,type:'scatter',mode:'lines',line:{color:'#0D9488',width:2}}); yV.push(...m7.filter(v=>v!=null)); }
+    // 28日移動平均（オレンジ）
+    if (showMA28 && m28.length) { tr.push({name:'28日移動平均',x:ds,y:m28,type:'scatter',mode:'lines',line:{color:'#e67e22',width:1.5}}); yV.push(...m28.filter(v=>v!=null)); }
     if (targetVal) { tr.push({name:'目標',x:[ds[0],ds[ds.length-1]],y:[targetVal,targetVal],type:'scatter',mode:'lines',line:{color:'#C0293B',width:1.5,dash:'dot'}}); yV.push(targetVal); }
     const mn=yV.length?Math.min(...yV):0, mx=yV.length?Math.max(...yV):10;
     const pd=(mx-mn)*.05||1;
@@ -603,12 +661,56 @@ function openDrill(name) {
     Plotly.newPlot(elId,tr,{font:{family:'Noto Sans JP,sans-serif',size:10,color:'#5A6A82'},xaxis:{gridcolor:'#DCE1E9',tickfont:{size:8},tickformat:'%m/%d'},yaxis:{range:[Math.max(0,Math.floor(mn-pd)),Math.ceil(mx+pd)],gridcolor:'#DCE1E9',tickfont:{size:9}},legend:{orientation:'h',x:0,y:-0.25,font:{size:9}},margin:{l:35,r:8,t:5,b:30},height:225,plot_bgcolor:'#fff',paper_bgcolor:'#fff',hovermode:'x unified',shapes:mShapes},{responsive:true,displayModeBar:false});
   }
 
+  function renderMiniFlow(elId, admTd, outTd) {
+    if (!admTd || !outTd || !admTd.dates || !admTd.dates.length) {
+      document.getElementById(elId).innerHTML='<div style="color:#9daab8;font-size:11px;text-align:center;padding:60px 0">データなし</div>';
+      return;
+    }
+    const aV  = admTd.values || [];
+    const oV  = outTd.values || [];
+    const net = aV.map((v, i) => (v || 0) - (oV[i] || 0));
+    const nm  = calcMA(net, 7);
+    const si  = Math.max(0, admTd.dates.findIndex(x => x >= miniCutoff));
+    const ds  = admTd.dates.slice(si);
+    const adm = aV.slice(si);
+    const out = oV.slice(si);
+    const nmS = nm.slice(si);
+    // 第1軸（バー）の範囲
+    const yV1  = [...adm, ...out.map(v => -v)].filter(v => v != null);
+    const mn1  = yV1.length ? Math.min(...yV1) : -5;
+    const mx1  = yV1.length ? Math.max(...yV1) : 5;
+    const pd1  = (mx1 - mn1) * 0.08 || 1;
+    // 第2軸（純増減移動平均）の範囲
+    const yV2  = nmS.filter(v => v != null);
+    const mn2  = yV2.length ? Math.min(...yV2) : -3;
+    const mx2  = yV2.length ? Math.max(...yV2) : 3;
+    const pd2  = (mx2 - mn2) * 0.15 || 1;
+    Plotly.newPlot(elId, [
+      { name:'入院+転入',     x:ds, y:adm,            type:'bar',     marker:{color:'#0D9488'}, opacity:0.75, yaxis:'y' },
+      { name:'退院+転出',     x:ds, y:out.map(v=>-v), type:'bar',     marker:{color:'#e67e22'}, opacity:0.75, yaxis:'y' },
+      { name:'純増減 移動平均', x:ds, y:nmS,           type:'scatter', mode:'lines',
+        line:{color:'#C0293B', width:2}, yaxis:'y2' },
+    ], {
+      barmode:'relative',
+      font:{family:'Noto Sans JP,sans-serif',size:10,color:'#5A6A82'},
+      xaxis:{gridcolor:'#DCE1E9', tickfont:{size:8}, tickformat:'%m/%d'},
+      yaxis:{range:[Math.floor(mn1-pd1), Math.ceil(mx1+pd1)], gridcolor:'#DCE1E9',
+             tickfont:{size:9}, zeroline:true, zerolinecolor:'#aaa', zerolinewidth:1},
+      yaxis2:{overlaying:'y', side:'right', range:[Math.floor(mn2-pd2), Math.ceil(mx2+pd2)],
+              gridcolor:'transparent', zeroline:true, zerolinecolor:'#C0293B', zerolinewidth:1,
+              tickfont:{size:8, color:'#C0293B'}},
+      legend:{orientation:'h',x:0,y:-0.25,font:{size:9}},
+      margin:{l:35,r:35,t:5,b:30}, height:225,
+      plot_bgcolor:'#fff', paper_bgcolor:'#fff', hovermode:'x unified',
+    }, {responsive:true, displayModeBar:false});
+  }
+
   const isWard = !!d.ward_extra;
   const isSurgeryDept = !isWard && d.operation.actual !== null;
   const ann = s => `<span style="font-size:9px;font-weight:600;color:var(--mu);margin-left:5px">${s}</span>`;
   document.getElementById('drillLabel1').innerHTML='🚪 新入院 推移'+ann('日次実績');
   document.getElementById('drillLabel2').innerHTML='🛏️ 在院 推移'+ann('日次実績');
-  document.getElementById('drillLabel3').innerHTML=isWard?'— (病棟は手術データなし)':isSurgeryDept?'💉 全麻 推移'+ann('7日ローリング合計'):'— (全麻 非対象)';
+  document.getElementById('drillLabel3').innerHTML=isWard?'🚑 入退院フロー':isSurgeryDept?'💉 全麻 推移'+ann('7日ローリング合計'):'— (全麻 非対象)';
 
   // 新入院種別フィルタをミニグラフにも適用
   const rawAdmTd = d.trend ? d.trend.admission : null;
@@ -616,11 +718,13 @@ function openDrill(name) {
     ? {...rawAdmTd, values: rawAdmTd[admType]} : rawAdmTd;
   renderMini('drillChartAdm', filtAdmTd, (admType==='all' && d.admission.target) ? d.admission.target/7 : null);
   renderMini('drillChartInp', d.trend?d.trend.inpatient:null, d.inpatient.target);
-  if (isSurgeryDept) {
+  if (isWard) {
+    renderMiniFlow('drillChartOp', d.trend?d.trend.admission:null, d.trend?d.trend.outflow:null);
+  } else if (isSurgeryDept) {
     // ★手術は「直近7日ローリング合計」で表示し、目標は週目標そのまま
     renderMiniSurgery('drillChartOp', d.trend?d.trend.operation:null, d.operation.target);
   } else {
-    document.getElementById('drillChartOp').innerHTML='<div style="color:#9daab8;font-size:11px;text-align:center;padding:60px 0">' + (isWard?'病棟単位の手術データなし':'全麻手術 非対象診療科') + '</div>';
+    document.getElementById('drillChartOp').innerHTML='<div style="color:#9daab8;font-size:11px;text-align:center;padding:60px 0">全麻手術 非対象診療科</div>';
   }
 
   currentDrill = name;  // ★保持

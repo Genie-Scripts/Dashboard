@@ -140,8 +140,8 @@ function classifyUnits() {
     const entry = {name, worst: worstRate, data: d};
     if (d.ward_extra) wards.push(entry); else depts.push(entry);
   }
-  // Sort: worst rate first (most attention needed)
-  const sortFn = (a, b) => (a.worst ?? 999) - (b.worst ?? 999);
+  // Sort: alphabetical by name
+  const sortFn = (a, b) => a.name.localeCompare(b.name, 'ja');
   depts.sort(sortFn);
   wards.sort(sortFn);
   return {depts, wards};
@@ -323,7 +323,7 @@ function renderToolbar() {
   ).join('');
   const mkChk = (lbl,checked,fn) => `<label style="font-size:11px;font-weight:700;color:var(--sub);cursor:pointer;display:flex;align-items:center;gap:2px"><input type="checkbox" ${checked?'checked':''} onchange="${fn}"> ${lbl}</label>`;
   const dayChks = mkChk('平日',showWeekday,"toggleDay('wd',this.checked)") + mkChk('休日',showHoliday,"toggleDay('hd',this.checked)");
-  const lineChks = mkChk('日次',showDaily,"toggleLine('d',this.checked)") + mkChk('7日MA',showMA7,"toggleLine('m7',this.checked)") + mkChk('28日MA',showMA28,"toggleLine('m28',this.checked)");
+  const lineChks = mkChk('日次',showDaily,"toggleLine('d',this.checked)") + mkChk('7日移動平均',showMA7,"toggleLine('m7',this.checked)") + mkChk('28日移動平均',showMA28,"toggleLine('m28',this.checked)");
   const mkRad = (val,lbl) => `<label style="font-size:11px;font-weight:700;color:var(--sub);cursor:pointer;display:flex;align-items:center;gap:2px"><input type="radio" name="admType" value="${val}" ${admType===val?'checked':''} onchange="setAdmType('${val}')"> ${lbl}</label>`;
   const admTypeCtrl = mkRad('all','全体') + mkRad('planned','予定') + mkRad('emergency','緊急');
   document.getElementById('toolbar').innerHTML = `
@@ -366,7 +366,9 @@ function renderCharts(d) {
   document.getElementById('chartTitle1').textContent = `🚪 新入院${admSuffix} 推移${suffix}`;
   document.getElementById('chartTitle2').textContent = `🛏️ 在院患者 推移${suffix}`;
   const isSurgeryDept = !isWard && d.operation.actual !== null;
-  document.getElementById('chartTitle3').textContent = isWard ? `— (病棟は手術データなし)` : isSurgeryDept ? `💉 全麻手術 推移${suffix}` : `— (全麻 非対象)`;
+  document.getElementById('chartTitle3').textContent = isWard
+    ? `🚑 入退院フロー 推移${suffix}`
+    : isSurgeryDept ? `💉 全麻手術 推移${suffix}` : `— (全麻 非対象)`;
 
   const rawAdmTd = d.trend?.admission;
   const filtAdmTd = (admType !== 'all' && rawAdmTd && rawAdmTd[admType])
@@ -374,10 +376,12 @@ function renderCharts(d) {
   const admChartTarget = admType==='all' ? (d.admission.target ? d.admission.target/7 : null) : null;
   renderOneChart('chart1', filtAdmTd, admChartTarget);
   renderOneChart('chart2', d.trend?.inpatient, d.inpatient.target);
-  if (isSurgeryDept) {
+  if (isWard) {
+    renderFlowChart('chart3', d.trend?.admission, d.trend?.outflow);
+  } else if (isSurgeryDept) {
     renderSurgeryChart('chart3', d.trend?.operation, d.operation.target);
   } else {
-    document.getElementById('chart3').innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">' + (isWard ? '病棟単位の手術データなし' : '全麻手術 非対象診療科') + '</div>';
+    document.getElementById('chart3').innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">全麻手術 非対象診療科</div>';
   }
 }
 
@@ -396,8 +400,8 @@ function renderOneChart(elId, td, targetVal) {
 
   const traces = [], yV = [];
   if (showDaily) { traces.push({name:'日次実績',x:ds,y:vs,type:'scatter',mode:'lines',line:{color:'#94A3B8',width:1,dash:'dot'},opacity:0.7}); yV.push(...vs.filter(v=>v!=null)); }
-  if (showMA7 && m7.length) { traces.push({name:'7日MA',x:ds,y:m7,type:'scatter',mode:'lines',line:{color:'#0D9488',width:2.5}}); yV.push(...m7.filter(v=>v!=null)); }
-  if (showMA28 && m28.length) { traces.push({name:'28日MA',x:ds,y:m28,type:'scatter',mode:'lines',line:{color:'#e67e22',width:2}}); yV.push(...m28.filter(v=>v!=null)); }
+  if (showMA7 && m7.length) { traces.push({name:'7日移動平均',x:ds,y:m7,type:'scatter',mode:'lines',line:{color:'#0D9488',width:2.5}}); yV.push(...m7.filter(v=>v!=null)); }
+  if (showMA28 && m28.length) { traces.push({name:'28日移動平均',x:ds,y:m28,type:'scatter',mode:'lines',line:{color:'#e67e22',width:2}}); yV.push(...m28.filter(v=>v!=null)); }
   if (targetVal && ds.length) { traces.push({name:`目標 ${Math.round(targetVal*10)/10}`,x:[ds[0],ds[ds.length-1]],y:[targetVal,targetVal],type:'scatter',mode:'lines',line:{color:'#C0293B',width:2,dash:'dot'}}); yV.push(targetVal); }
 
   const mn=yV.length?Math.min(...yV):0, mx=yV.length?Math.max(...yV):10, pd=(mx-mn)*.08||2;
@@ -462,6 +466,69 @@ function renderSurgeryChart(elId, td, weeklyTarget) {
     hovermode:'x unified',margin:{l:45,r:15,t:8,b:50},height:320,
     plot_bgcolor:'#fff',paper_bgcolor:'#fff',shapes
   },{responsive:true});
+}
+
+function renderFlowChart(elId, admTd, outTd) {
+  if (!admTd || !outTd || !admTd.dates || !admTd.dates.length) {
+    document.getElementById(elId).innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">データなし</div>';
+    return;
+  }
+  const cutoff = periodCutoff();
+
+  // 曜日フィルタ（admTd と outTd は同一日付のため admTd.is_weekday を共用）
+  let dates = admTd.dates, aV = admTd.values, oV = outTd.values || [];
+  if (admTd.is_weekday && admTd.is_weekday.length > 0) {
+    const fd = [], fa = [], fo = [];
+    admTd.dates.forEach((d, i) => {
+      const wd = admTd.is_weekday[i];
+      if ((wd && showWeekday) || (!wd && showHoliday)) {
+        fd.push(d); fa.push(aV[i]); fo.push(oV[i] != null ? oV[i] : 0);
+      }
+    });
+    dates = fd; aV = fa; oV = fo;
+  }
+
+  // 純増減と MA7
+  const netVals = aV.map((v, i) => (v || 0) - (oV[i] || 0));
+  const netMA7  = calcMA(netVals, 7);
+
+  // 期間カットオフ
+  const si  = Math.max(0, dates.findIndex(x => x >= cutoff));
+  const ds  = dates.slice(si);
+  const adm = aV.slice(si);
+  const out = oV.slice(si);
+  const nm  = netMA7.slice(si);
+
+  // 第1軸（バー）の範囲
+  const yV1 = [...adm, ...out.map(v => -v)].filter(v => v != null);
+  const mn1 = yV1.length ? Math.min(...yV1) : -5;
+  const mx1 = yV1.length ? Math.max(...yV1) : 5;
+  const pd1 = (mx1 - mn1) * 0.08 || 1;
+  // 第2軸（純増減MA）の範囲
+  const yV2 = nm.filter(v => v != null);
+  const mn2 = yV2.length ? Math.min(...yV2) : -3;
+  const mx2 = yV2.length ? Math.max(...yV2) : 3;
+  const pd2 = (mx2 - mn2) * 0.15 || 1;
+
+  Plotly.newPlot(elId, [
+    { name:'入院+転入', x:ds, y:adm,            type:'bar',     marker:{color:'#0D9488'}, opacity:0.75, yaxis:'y' },
+    { name:'退院+転出', x:ds, y:out.map(v=>-v), type:'bar',     marker:{color:'#e67e22'}, opacity:0.75, yaxis:'y' },
+    { name:'純増減 移動平均', x:ds, y:nm,        type:'scatter', mode:'lines',
+      line:{color:'#C0293B', width:2.5}, yaxis:'y2' },
+  ], {
+    barmode:'relative',
+    font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
+    xaxis:{gridcolor:'#DCE1E9', tickformat:'%m/%d', tickangle:-45},
+    yaxis:{range:[Math.floor(mn1-pd1), Math.ceil(mx1+pd1)], gridcolor:'#DCE1E9',
+           zeroline:true, zerolinecolor:'#888', zerolinewidth:1.5},
+    yaxis2:{overlaying:'y', side:'right', range:[Math.floor(mn2-pd2), Math.ceil(mx2+pd2)],
+            gridcolor:'transparent', zeroline:true, zerolinecolor:'#C0293B', zerolinewidth:1,
+            tickfont:{size:10, color:'#C0293B'}},
+    legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},
+    hovermode:'x unified',
+    margin:{l:45,r:45,t:8,b:50}, height:320,
+    plot_bgcolor:'#fff', paper_bgcolor:'#fff',
+  }, {responsive:true});
 }
 
 // ══════════════════════════
