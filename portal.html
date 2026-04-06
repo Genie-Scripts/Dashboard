@@ -11,21 +11,24 @@
 .alert{background:var(--dr-bg);border:1px solid #f5c6cb;border-left:5px solid var(--dr);border-radius:var(--r);padding:18px 20px;margin-bottom:16px;box-shadow:var(--sh)}.alert h2{font-size:17px;color:var(--dr-t);margin-bottom:6px;display:flex;align-items:center;gap:8px}.alert p{font-size:13px;color:var(--sub);line-height:1.7}
 .alert.warn{border-left-color:var(--wr);background:var(--wr-bg)}.alert.warn h2{color:#7c3a06}
 .alert.ok{border-left-color:var(--ok);background:var(--ok-bg)}.alert.ok h2{color:#065f42}
-.kpi{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px}
+.kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px}
 .kc{display:block;text-decoration:none;color:inherit;background:var(--s);border:1px solid var(--ln);border-radius:var(--r);padding:18px;box-shadow:var(--sh);position:relative;transition:all .2s}.kc:hover{box-shadow:0 12px 32px rgba(10,22,42,.14);transform:translateY(-2px)}.kc .st{position:absolute;right:14px;top:14px;font-size:11px;font-weight:900;padding:3px 10px;border-radius:999px}.kc .st.dr{background:var(--dr-bg);color:var(--dr-t)}.kc .st.wr{background:var(--wr-bg);color:#7c3a06}.kc .st.ok{background:var(--ok-bg);color:#065f42}
 .kc.dr{border-top:5px solid var(--dr)}.kc.wr{border-top:5px solid var(--wr)}.kc.ok{border-top:5px solid var(--ok)}
-.lb{font-size:14px;color:var(--sub)}.sb{font-size:12px;color:var(--mu);margin-top:2px}.vl{font-size:40px;font-weight:900;line-height:1.05;margin:10px 0 6px}.gp{font-size:14px;font-weight:800;color:var(--dr-t)}.ht{font-size:12px;color:var(--mu);margin-top:10px}
+.kc .cta{display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding:8px 12px;background:var(--bl);border-radius:10px;font-size:13px;font-weight:800;color:var(--br);transition:background .15s}.kc:hover .cta{background:#d4e4fc}.cta-arrow{font-size:16px;font-weight:900;transition:transform .15s}.kc:hover .cta-arrow{transform:translateX(3px)}
+.kc.dept{border-top:5px solid var(--br);display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;min-height:180px}.kc.dept .dept-icon{font-size:36px;margin-bottom:8px}.kc.dept .dept-title{font-size:16px;font-weight:900;color:var(--ink);margin-bottom:4px}.kc.dept .dept-sub{font-size:12px;color:var(--sub);margin-bottom:10px}.kc.dept .cta{justify-content:center;gap:6px;width:100%}
+.dept-steps{display:flex;align-items:center;gap:6px;margin-bottom:12px;padding:6px 10px;background:#f0f4fa;border-radius:8px;font-size:11px;font-weight:700;color:var(--sub)}.dept-steps .step{display:flex;align-items:center;gap:3px}.dept-steps .arrow{color:var(--mu);font-size:13px}
+.lb{font-size:14px;color:var(--sub)}.sb{font-size:12px;color:var(--mu);margin-top:2px}.vl{font-size:40px;font-weight:900;line-height:1.05;margin:10px 0 6px}.gp{font-size:14px;font-weight:800;color:var(--dr-t)}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}.pnl{background:var(--s);border:1px solid var(--ln);border-radius:var(--r);padding:18px;box-shadow:var(--sh)}.pnl h3{margin:0 0 12px;font-size:14px;font-weight:800}
 .at{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;border:1px solid var(--ln);border-radius:14px;padding:12px;margin-bottom:8px;background:#fbfdff;border-left:4px solid var(--dr)}.at.imp{border-left-color:var(--inf)}.at .nm{font-weight:900;font-size:14px}.at .mt{font-size:11px;color:var(--sub)}.at .dl{font-size:22px;font-weight:900;color:var(--dr-t)}.at.imp .dl{color:var(--inf)}.at .dt{font-size:11px;color:var(--mu);text-align:right}
 .ft{text-align:center;font-size:11px;color:var(--mu);padding:24px 0;border-top:1px solid var(--ln);margin-top:12px}
 .nav{position:fixed;bottom:0;left:0;right:0;background:rgba(246,248,251,.96);backdrop-filter:blur(8px);padding:10px 14px 18px;z-index:10;display:none}.nav .bar{max-width:430px;margin:0 auto;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;background:var(--s);border:1px solid var(--ln);border-radius:16px;padding:8px;box-shadow:var(--sh)}.nav a{text-decoration:none;background:var(--bl);color:var(--br);border-radius:12px;padding:10px 6px;text-align:center;font-size:11px;font-weight:800;display:flex;flex-direction:column;align-items:center;gap:2px}
-@media(max-width:768px){.kpi{grid-template-columns:1fr}.g2{grid-template-columns:1fr}.vl{font-size:30px}.nav{display:block}.wrap{padding-bottom:120px}}
+@media(max-width:768px){.kpi{grid-template-columns:1fr 1fr}.g2{grid-template-columns:1fr}.vl{font-size:30px}.nav{display:block}.wrap{padding-bottom:120px}.kc.dept{min-height:auto;padding:16px}}
 </style>
 </head>
 <body>
 <header class="hdr">
   <div class="left"><span class="badge">KPI</span><span class="title">🏥 診療ダッシュボード</span></div>
-  <div class="meta">📅 基準日 2026-04-06 ｜ 🕐 2026/04/07 07:31 更新</div>
+  <div class="meta">📅 基準日 2026-04-06 ｜ 🕐 2026/04/07 08:13 更新</div>
 </header>
 <div class="wrap">
 
@@ -44,7 +47,7 @@
       <div class="sb">04/06 時点（平日目標600人）</div>
       <div class="vl">567<small style="font-size:16px;font-weight:400">人</small></div>
       <div class="gp">目標まで -33人</div>
-      <div class="ht">詳細を見る ›</div>
+      <div class="cta">📊 推移・内訳を見る<span class="cta-arrow">›</span></div>
     </a>
     
     <a class="kc dr" href="detail.html#admission">
@@ -53,7 +56,7 @@
       <div class="sb">直近7日累計</div>
       <div class="vl">333<small style="font-size:16px;font-weight:400">人</small></div>
       <div class="gp">目標まで -47人</div>
-      <div class="ht">詳細を見る ›</div>
+      <div class="cta">📊 推移・内訳を見る<span class="cta-arrow">›</span></div>
     </a>
     
     <a class="kc wr" href="detail.html#operation">
@@ -62,9 +65,21 @@
       <div class="sb">直近7平日平均</div>
       <div class="vl">19.0<small style="font-size:16px;font-weight:400">件/日</small></div>
       <div class="gp">目標まで -2.0件/日</div>
-      <div class="ht">詳細を見る ›</div>
+      <div class="cta">📊 推移・内訳を見る<span class="cta-arrow">›</span></div>
     </a>
     
+
+    <a class="kc dept" href="dept.html">
+      <div class="dept-icon">🏥</div>
+      <div class="dept-title">部門別ダッシュボード</div>
+      <div class="dept-sub">診療科・病棟ごとの詳細</div>
+      <div class="dept-steps">
+        <span class="step">① 部門を選ぶ</span>
+        <span class="arrow">→</span>
+        <span class="step">② 📊グラフで確認</span>
+      </div>
+      <div class="cta">部門別を見る<span class="cta-arrow">›</span></div>
+    </a>
   </section>
 
   
@@ -118,16 +133,9 @@
     </div>
   </section>
 
-  
-  <section style="text-align:center;margin:12px 0">
-    <a href="dept.html" style="display:inline-flex;align-items:center;gap:8px;background:var(--bl);color:var(--br);text-decoration:none;font-size:14px;font-weight:800;padding:14px 28px;border-radius:14px;border:1px solid #93b4e4;box-shadow:var(--sh);transition:all .15s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
-      <span style="font-size:18px">🏥</span> 部門別ダッシュボードを見る
-      <span style="font-size:12px;color:var(--sub)">— 診療科・病棟ごとの詳細 ›</span>
-    </a>
-  </section>
 
 
-  <div class="ft">🏥 診療ダッシュボード ポータル ｜ 生成 2026/04/07 07:31 ｜ 基準日 2026-04-06</div>
+  <div class="ft">🏥 診療ダッシュボード ポータル ｜ 生成 2026/04/07 08:13 ｜ 基準日 2026-04-06</div>
 </div>
 
 
