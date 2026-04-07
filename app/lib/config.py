@@ -269,19 +269,25 @@ def build_headline(kpi_summary: dict) -> dict:
         level, icon = "danger", "🔴"
         text = f"{joined}が目標を{severity}います"
 
-    # 補足行
+    # 補足行（トレンド矢印付き）
     inp = kpi_summary
     detail_parts = []
     if inp.get("inpatient_actual") is not None:
         tgt = inp.get("inpatient_target", TARGET_INPATIENT_ALLDAY)
         gap = inp["inpatient_actual"] - tgt
-        detail_parts.append(f"在院 {inp['inpatient_actual']}人/目標{tgt}人（{gap:+.0f}人）")
+        td = inp.get("trend_inp", {})
+        trend_str = f" {td.get('label','')}" if td.get("label") else ""
+        detail_parts.append(f"在院 {inp['inpatient_actual']}人/目標{tgt}人（{gap:+.0f}人）{trend_str}")
     if inp.get("admission_actual_7d") is not None:
         gap = inp["admission_actual_7d"] - TARGET_ADMISSION_WEEKLY
-        detail_parts.append(f"新入院7日 {inp['admission_actual_7d']}人/目標{TARGET_ADMISSION_WEEKLY}人（{gap:+.0f}人）")
+        td = inp.get("trend_adm", {})
+        trend_str = f" {td.get('label','')}" if td.get("label") else ""
+        detail_parts.append(f"新入院7日 {inp['admission_actual_7d']}人/目標{TARGET_ADMISSION_WEEKLY}人（{gap:+.0f}人）{trend_str}")
     if inp.get("operation_daily_avg") is not None:
         gap = inp["operation_daily_avg"] - TARGET_GA_DAILY
-        detail_parts.append(f"全麻 {inp['operation_daily_avg']:.1f}件/目標{TARGET_GA_DAILY}件（{gap:+.1f}件）")
+        td = inp.get("trend_op", {})
+        trend_str = f" {td.get('label','')}" if td.get("label") else ""
+        detail_parts.append(f"全麻 {inp['operation_daily_avg']:.1f}件/目標{TARGET_GA_DAILY}件（{gap:+.1f}件）{trend_str}")
 
     return {
         "level": level,

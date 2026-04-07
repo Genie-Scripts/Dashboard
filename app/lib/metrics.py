@@ -294,6 +294,29 @@ def build_weekly_agg(series: pd.DataFrame) -> pd.DataFrame:
 # 達成率・比較
 # ════════════════════════════════════════
 
+def _ga_biz_avg_in_range(surg: pd.DataFrame,
+                         start: pd.Timestamp, end: pd.Timestamp) -> float:
+    """指定期間内の平日全麻件数の日平均（平日のみカウント）"""
+    import jpholiday
+
+    def _is_biz(d: pd.Timestamp) -> bool:
+        if d.weekday() >= 5:
+            return False
+        if jpholiday.is_holiday(d.date()):
+            return False
+        if (d.month == 12 and d.day >= 29) or (d.month == 1 and d.day <= 3):
+            return False
+        return True
+
+    window = surg[(surg["手術実施日"] >= start) & (surg["手術実施日"] <= end) & surg["全麻"]]
+    if len(window) == 0:
+        return None
+    daily_ga = window.groupby("手術実施日").size().reset_index(name="件数")
+    biz_rows = daily_ga[daily_ga["手術実施日"].apply(_is_biz)]
+    biz_days = len(biz_rows)
+    return round(int(biz_rows["件数"].sum()) / biz_days, 1) if biz_days > 0 else None
+
+
 def achievement_rate(actual, target) -> float:
     """達成率(%)"""
     if target is None or target == 0 or pd.isna(target):
@@ -587,13 +610,31 @@ def build_kpi_summary(adm: pd.DataFrame, surg: pd.DataFrame,
     fy_series = series_inp[(series_inp["日付"] >= fy_start) & (series_inp["日付"] <= date)]
     fy_avg_inp = round(fy_series["値"].mean(), 1) if len(fy_series) > 0 else None
 
-    # 前年度平均
+    # 前年度（在院）
     prev_fy_start = pd.Timestamp(f"{fy_year - 1}-04-01")
     prev_fy_end = pd.Timestamp(f"{fy_year}-03-31")
     prev_series = series_inp[(series_inp["日付"] >= prev_fy_start) & (series_inp["日付"] <= prev_fy_end)]
     prev_avg_inp = round(prev_series["値"].mean(), 1) if len(prev_series) > 0 else None
 
+    # 前年同期 7日平均・28日平均（在院）
+    prev_7d_end_inp = date - timedelta(days=365)
+    prev_7d_start_inp = prev_7d_end_inp - timedelta(days=6)
+    prev_7d_inp = series_inp[(series_inp["日付"] >= prev_7d_start_inp) & (series_inp["日付"] <= prev_7d_end_inp)]
+    prev_avg_7d_inp = round(prev_7d_inp["値"].mean(), 1) if len(prev_7d_inp) > 0 else None
+
+    prev_28d_end_inp = date - timedelta(days=365)
+    prev_28d_start_inp = prev_28d_end_inp - timedelta(days=27)
+    prev_28d_inp = series_inp[(series_inp["日付"] >= prev_28d_start_inp) & (series_inp["日付"] <= prev_28d_end_inp)]
+    prev_avg_28d_inp = round(prev_28d_inp["値"].mean(), 1) if len(prev_28d_inp) > 0 else None
+
     inpatient_rate = achievement_rate(inp["total"], inp_target)
+
+    # 在院: 直近5週から直近7日を除いた実績値の平均（days 8-35）
+    inp_prior_range = series_inp[
+        (series_inp["日付"] >= date - timedelta(days=34)) &
+        (series_inp["日付"] <= date - timedelta(days=7))
+    ]
+    inp_prior_range_avg = round(inp_prior_range["値"].mean(), 1) if len(inp_prior_range) > 0 else None
 
     # ── 新入院 ──
     series_nadm = build_daily_series(adm, "新入院患者数")
@@ -602,10 +643,46 @@ def build_kpi_summary(adm: pd.DataFrame, surg: pd.DataFrame,
     nadm_7d = int(rolling7["値"].sum())
     nadm_7d_rate = achievement_rate(nadm_7d, TARGET_ADMISSION_WEEKLY)
 
+    # 直近14日累計 → 7日換算（÷2）
+    rolling14_nadm = series_nadm[
+        (series_nadm["日付"] >= date - timedelta(days=13)) &
+        (series_nadm["日付"] <= date)
+    ]
+    nadm_14d = int(rolling14_nadm["値"].sum())
+    nadm_14d_weekly = round(nadm_14d / 2, 1)
+
+    # 直近6週から直近14日を除いた期間の7日換算（days 15-42、÷4）
+    nadm_prior_range = series_nadm[
+        (series_nadm["日付"] >= date - timedelta(days=41)) &
+        (series_nadm["日付"] <= date - timedelta(days=14))
+    ]
+    nadm_prior_range_weekly = round(int(nadm_prior_range["値"].sum()) / 4, 1) if len(nadm_prior_range) > 0 else None
+
+    # 直近28日累計（新入院）
+    rolling28_nadm_start = date - timedelta(days=27)
+    rolling28_nadm = series_nadm[(series_nadm["日付"] >= rolling28_nadm_start) & (series_nadm["日付"] <= date)]
+    nadm_28d = int(rolling28_nadm["値"].sum())
+
     fy_nadm = series_nadm[(series_nadm["日付"] >= fy_start) & (series_nadm["日付"] <= date)]
     fy_weeks = max(((date - fy_start).days + 1) / 7, 1)
     fy_avg_nadm = round(fy_nadm["値"].sum() / fy_weeks, 1) if len(fy_nadm) > 0 else None
     fy_rate_nadm = achievement_rate(fy_avg_nadm, TARGET_ADMISSION_WEEKLY)
+
+    # 前年同期 7日/28日合計（新入院）
+    prev_nadm_7d_end = date - timedelta(days=365)
+    prev_nadm_7d_start = prev_nadm_7d_end - timedelta(days=6)
+    prev_nadm_7d_s = series_nadm[(series_nadm["日付"] >= prev_nadm_7d_start) & (series_nadm["日付"] <= prev_nadm_7d_end)]
+    prev_nadm_7d_total = int(prev_nadm_7d_s["値"].sum()) if len(prev_nadm_7d_s) > 0 else None
+
+    prev_nadm_28d_end = date - timedelta(days=365)
+    prev_nadm_28d_start = prev_nadm_28d_end - timedelta(days=27)
+    prev_nadm_28d_s = series_nadm[(series_nadm["日付"] >= prev_nadm_28d_start) & (series_nadm["日付"] <= prev_nadm_28d_end)]
+    prev_nadm_28d_total = int(prev_nadm_28d_s["値"].sum()) if len(prev_nadm_28d_s) > 0 else None
+
+    # 前年度週平均（新入院）
+    prev_fy_nadm_s = series_nadm[(series_nadm["日付"] >= prev_fy_start) & (series_nadm["日付"] <= prev_fy_end)]
+    prev_fy_weeks_nadm = max(((prev_fy_end - prev_fy_start).days + 1) / 7, 1)
+    prev_fy_avg_nadm = round(prev_fy_nadm_s["値"].sum() / prev_fy_weeks_nadm, 1) if len(prev_fy_nadm_s) > 0 else None
 
     cutoff_365 = date - timedelta(days=364)
     series_365 = series_nadm[(series_nadm["日付"] >= cutoff_365) & (series_nadm["日付"] <= date)]
@@ -617,8 +694,51 @@ def build_kpi_summary(adm: pd.DataFrame, surg: pd.DataFrame,
     wk_surg = weekly_surgery(surg, date)
     operation_rate = achievement_rate(ga_biz["avg"], TARGET_GA_DAILY)
 
-    # OR稼働率
-    or_util = daily_or_utilization(surg, date)
+    # 4週平日平均: 直近5週(35日)から直近7日を除いた期間の平日全麻平均
+    op_4w_biz_avg = _ga_biz_avg_in_range(surg, date - timedelta(days=34), date - timedelta(days=7))
+    op_4w_prev_avg = _ga_biz_avg_in_range(surg,
+                                           date - timedelta(days=34 + 365),
+                                           date - timedelta(days=7 + 365))
+
+    # 前年同期 週間合計
+    prev_yr_date = date - timedelta(days=365)
+    prev_yr_monday = prev_yr_date - timedelta(days=prev_yr_date.weekday())
+    prev_wk_ga = surg[(surg["手術実施日"] >= prev_yr_monday) & (surg["手術実施日"] <= prev_yr_date) & surg["全麻"]]
+    op_prev_week_total = len(prev_wk_ga)
+
+    # 前年度 FY平日平均（手術）
+    op_fy_prev_avg = _ga_biz_avg_in_range(surg, prev_fy_start, prev_fy_end)
+
+    # ── トレンド方向（先週比±5%で判定）──
+    def _trend(curr, prev):
+        if curr is None or prev is None or prev == 0:
+            return {"dir": "→", "label": "→ 横ばい", "css": "mu"}
+        pct = (curr - prev) / abs(prev) * 100
+        if pct > 5:
+            return {"dir": "↑", "label": f"↑先週比+{pct:.0f}%", "css": "ok"}
+        if pct < -5:
+            return {"dir": "↓", "label": f"↓先週比{pct:.0f}%", "css": "dr"}
+        return {"dir": "→", "label": "→ 横ばい", "css": "mu"}
+
+    # 先週7日平均（在院）= days 8-14前
+    prev_wk_inp = series_inp[
+        (series_inp["日付"] >= date - timedelta(days=13)) &
+        (series_inp["日付"] <= date - timedelta(days=7))
+    ]
+    prev_wk_inp_avg = round(prev_wk_inp["値"].mean(), 1) if len(prev_wk_inp) > 0 else None
+    trend_inp = _trend(ma7_inp, prev_wk_inp_avg)
+
+    # 先週7日累計（新入院）
+    prev_wk_nadm = series_nadm[
+        (series_nadm["日付"] >= date - timedelta(days=13)) &
+        (series_nadm["日付"] <= date - timedelta(days=7))
+    ]
+    prev_wk_nadm_total = int(prev_wk_nadm["値"].sum()) if len(prev_wk_nadm) > 0 else None
+    trend_adm = _trend(nadm_7d, prev_wk_nadm_total)
+
+    # 先週7平日平均（手術）
+    prev_wk_ga_avg = _ga_biz_avg_in_range(surg, date - timedelta(days=13), date - timedelta(days=7))
+    trend_op = _trend(ga_biz["avg"], prev_wk_ga_avg)
 
     # ── ヘッドライン ──
     hl_input = {
@@ -629,6 +749,9 @@ def build_kpi_summary(adm: pd.DataFrame, surg: pd.DataFrame,
         "inpatient_target": inp_target,
         "admission_actual_7d": nadm_7d,
         "operation_daily_avg": ga_biz["avg"],
+        "trend_inp": trend_inp,
+        "trend_adm": trend_adm,
+        "trend_op": trend_op,
     }
     headline = build_headline(hl_input)
 
@@ -645,20 +768,31 @@ def build_kpi_summary(adm: pd.DataFrame, surg: pd.DataFrame,
         "inpatient_avg_28d": ma28_inp,
         "inpatient_fy_avg": fy_avg_inp,
         "inpatient_prev_avg": prev_avg_inp,
+        "inpatient_prev_7d_avg": prev_avg_7d_inp,
+        "inpatient_prev_28d_avg": prev_avg_28d_inp,
+        "inpatient_prior_range_avg": inp_prior_range_avg,  # days 8-35 avg (対照: 直近5週-7日)
         "inpatient_is_weekday": inp["is_weekday"],
         "inpatient_gap": round(inp["total"] - inp_target, 1),
         "inpatient_wow": wow_inp,
+        "inpatient_trend": trend_inp,
         "inpatient_status": status_display(inpatient_rate),
 
         # 新入院
         "admission_actual_7d": nadm_7d,
+        "admission_actual_14d_weekly": nadm_14d_weekly,  # 14日÷2 (7日換算)
+        "admission_prior_range_weekly": nadm_prior_range_weekly,  # days 15-42の7日換算÷4
+        "admission_actual_28d": nadm_28d,
         "admission_target_weekly": TARGET_ADMISSION_WEEKLY,
         "admission_rate_7d": nadm_7d_rate,
         "admission_fy_avg": fy_avg_nadm,
         "admission_fy_rate": fy_rate_nadm,
         "admission_prev_avg": prev_avg_nadm,
+        "admission_prev_7d_total": prev_nadm_7d_total,
+        "admission_prev_28d_total": prev_nadm_28d_total,
+        "admission_prev_fy_avg": prev_fy_avg_nadm,
         "admission_gap": round(nadm_7d - TARGET_ADMISSION_WEEKLY, 1),
         "admission_daily_actual": nadm["total_new"],
+        "admission_trend": trend_adm,
         "admission_status": status_display(nadm_7d_rate),
 
         # 手術（病院全体=営業平日基準）
@@ -667,8 +801,12 @@ def build_kpi_summary(adm: pd.DataFrame, surg: pd.DataFrame,
         "operation_rate": operation_rate,
         "operation_week_total": wk_surg["total"],
         "operation_fy_avg": ga_biz["fy_biz_avg"],
+        "operation_4w_biz_avg": op_4w_biz_avg,
         "operation_gap": round((ga_biz["avg"] or 0) - TARGET_GA_DAILY, 1),
-        "operation_in_hours_rate": or_util,
+        "operation_prev_4w_avg": op_4w_prev_avg,
+        "operation_prev_week_total": op_prev_week_total,
+        "operation_fy_prev_avg": op_fy_prev_avg,
+        "operation_trend": trend_op,
         "operation_status": status_display(operation_rate),
 
         # 退院・負荷

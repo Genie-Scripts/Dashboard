@@ -23,7 +23,10 @@
 .at{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;border:1px solid var(--ln);border-radius:14px;padding:12px;margin-bottom:8px;background:#fbfdff;border-left:4px solid var(--dr)}.at.imp{border-left-color:var(--inf)}.at .nm{font-weight:900;font-size:14px}.at .mt{font-size:11px;color:var(--sub)}.at .dl{font-size:22px;font-weight:900;color:var(--dr-t)}.at.imp .dl{color:var(--inf)}.at .dt{font-size:11px;color:var(--mu);text-align:right}
 .ft{text-align:center;font-size:11px;color:var(--mu);padding:24px 0;border-top:1px solid var(--ln);margin-top:12px}
 .nav{position:fixed;bottom:0;left:0;right:0;background:rgba(246,248,251,.96);backdrop-filter:blur(8px);padding:10px 14px 18px;z-index:10;display:none}.nav .bar{max-width:430px;margin:0 auto;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;background:var(--s);border:1px solid var(--ln);border-radius:16px;padding:8px;box-shadow:var(--sh)}.nav a{text-decoration:none;background:var(--bl);color:var(--br);border-radius:12px;padding:10px 6px;text-align:center;font-size:11px;font-weight:800;display:flex;flex-direction:column;align-items:center;gap:2px}
-@media(max-width:768px){.kpi{grid-template-columns:1fr 1fr}.g2{grid-template-columns:1fr}.vl{font-size:30px}.nav{display:block}.wrap{padding-bottom:120px}.kc.dept{min-height:auto;padding:16px}}
+@media(max-width:768px){.kpi{grid-template-columns:1fr 1fr}.g2{grid-template-columns:1fr}.vl{font-size:30px}.nav{display:block}.wrap{padding-bottom:120px}.kc.dept{min-height:auto;padding:16px}
+/* ★モバイル: ヘッダー自動非表示 */
+.hdr{transition:transform .3s ease}.hdr.hdr-hidden{transform:translateY(-100%)}
+}
 </style>
 </head>
 <body>
@@ -109,5 +112,19 @@
   <a href="detail.html#inpatient"><span>🛏️</span>在院</a>
   <a href="detail.html#operation"><span>💉</span>手術</a>
 </div></nav>
+<script>
+/* ★モバイル: ヘッダー自動非表示（スクロール↓で隠す / ↑で戻す） */
+(function(){
+  var hdr=document.querySelector('.hdr'),lastY=window.scrollY,ticking=false;
+  window.addEventListener('scroll',function(){
+    if(!ticking){requestAnimationFrame(function(){
+      var y=window.scrollY;
+      if(y>lastY&&y>60)hdr.classList.add('hdr-hidden');
+      else if(y<lastY)hdr.classList.remove('hdr-hidden');
+      lastY=y;ticking=false;
+    });ticking=true;}
+  });
+})();
+</script>
 </body>
 </html>

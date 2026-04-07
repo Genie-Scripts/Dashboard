@@ -98,13 +98,18 @@ def build_profit_kpi(profit_monthly: pd.DataFrame,
     Returns:
         {
           "base_month": Timestamp,
-          "hospital_total": float,       # 全科合計（最新月）
-          "hospital_target": float,      # 全科合計目標
-          "hospital_achievement": float, # 全科達成率
-          "hospital_ytd": float,         # 年度累計
-          "hospital_ytd_target": float,  # 年度目標（月次×12）
-          "top3": [...],                 # 達成率上位3科
-          "bottom3": [...],              # 達成率下位3科
+          "hospital_total": float,         # 全科合計（最新月）百万円
+          "hospital_target": float,        # 全科合計目標 百万円
+          "hospital_achievement": float,   # 全科達成率
+          "hospital_ytd": float,           # 年度累計 億円
+          "hospital_ytd_target": float,    # 年度目標 億円
+          "hospital_3m_avg": float,        # 直近3ヶ月平均 百万円
+          "hospital_ytd_monthly_avg": float, # 年度累計月平均 百万円
+          "prev_month_total": float,       # 前年同月合計 百万円
+          "prev_3m_avg": float,            # 前年同期3ヶ月平均 百万円
+          "prev_ytd_monthly_avg": float,   # 前年度月平均 百万円
+          "top3": [...],
+          "bottom3": [...],
         }
     """
     if base_month is None:
@@ -120,6 +125,38 @@ def build_profit_kpi(profit_monthly: pd.DataFrame,
     ytd_total     = ytd["年度累計"].sum()
     ytd_tgt_total = ytd["年度目標"].sum()
 
+    # 年度経過月数
+    fy_start = _fy_start(base_month)
+    months_elapsed = (base_month.year - fy_start.year) * 12 + (base_month.month - fy_start.month) + 1
+
+    # 年度累計月平均
+    ytd_monthly_avg = round(ytd_total / months_elapsed / 1000, 1) if months_elapsed > 0 else None
+
+    # 直近3ヶ月平均
+    m3_start = base_month - pd.DateOffset(months=2)
+    recent_3m = profit_monthly[(profit_monthly["月"] >= m3_start) & (profit_monthly["月"] <= base_month)]
+    monthly_3m = recent_3m.groupby("月")["粗利"].sum()
+    avg_3m = round(float(monthly_3m.mean()) / 1000, 1) if len(monthly_3m) > 0 else None
+
+    # 前年同月
+    prev_month = base_month - pd.DateOffset(years=1)
+    prev_latest = profit_monthly[profit_monthly["月"] == prev_month]
+    prev_total = round(float(prev_latest["粗利"].sum()) / 1000, 1) if len(prev_latest) > 0 else None
+
+    # 前年同期3ヶ月平均
+    prev_3m_end = base_month - pd.DateOffset(years=1)
+    prev_3m_start = prev_3m_end - pd.DateOffset(months=2)
+    prev_3m = profit_monthly[(profit_monthly["月"] >= prev_3m_start) & (profit_monthly["月"] <= prev_3m_end)]
+    prev_monthly_3m = prev_3m.groupby("月")["粗利"].sum()
+    prev_avg_3m = round(float(prev_monthly_3m.mean()) / 1000, 1) if len(prev_monthly_3m) > 0 else None
+
+    # 前年度月平均
+    prev_fy_start = pd.Timestamp(f"{fy_start.year - 1}-04-01")
+    prev_fy_end = pd.Timestamp(f"{fy_start.year}-03-31")
+    prev_fy_data = profit_monthly[(profit_monthly["月"] >= prev_fy_start) & (profit_monthly["月"] <= prev_fy_end)]
+    prev_fy_monthly = prev_fy_data.groupby("月")["粗利"].sum()
+    prev_fy_monthly_avg = round(float(prev_fy_monthly.mean()) / 1000, 1) if len(prev_fy_monthly) > 0 else None
+
     def _row_to_dict(row):
         return {
             "name":        row["診療科名"],
@@ -134,12 +171,17 @@ def build_profit_kpi(profit_monthly: pd.DataFrame,
                 latest[latest["達成率"].notna()].tail(3).iterrows()]
 
     return {
-        "base_month":           base_month,
-        "hospital_total":       round(total / 1000, 1),          # 百万円
-        "hospital_target":      round(tgt_total / 1000, 1),
-        "hospital_achievement": ach_total,
-        "hospital_ytd":         round(ytd_total / 1000000, 2),   # 10億円
-        "hospital_ytd_target":  round(ytd_tgt_total / 1000000, 2),
+        "base_month":              base_month,
+        "hospital_total":          round(total / 1000, 1),           # 百万円
+        "hospital_target":         round(tgt_total / 1000, 1),
+        "hospital_achievement":    ach_total,
+        "hospital_ytd":            round(ytd_total / 1000000, 2),    # 億円
+        "hospital_ytd_target":     round(ytd_tgt_total / 1000000, 2),
+        "hospital_3m_avg":         avg_3m,
+        "hospital_ytd_monthly_avg": ytd_monthly_avg,
+        "prev_month_total":        prev_total,
+        "prev_3m_avg":             prev_avg_3m,
+        "prev_ytd_monthly_avg":    prev_fy_monthly_avg,
         "top3":    top3,
         "bottom3": bottom3,
     }

@@ -32,6 +32,7 @@ from .charts import (
     build_surgery_chart_hospital, build_surgery_chart_dept,
     build_surgery_year_compare_chart, build_ward_utilization_heatmap,
 )
+from .profit import build_profit_kpi, build_profit_chart_data
 
 
 def _json_safe(obj):
@@ -87,17 +88,15 @@ def _ranking_to_list(df: pd.DataFrame, name_col: str = "診療科",
 def _build_attention_cards(adm, surg, base_date, targets, surg_targets):
     """
     要注視カードを「目標との絶対差」が大きい順に選出。
-    目標以上（gap >= 0）は除外。
-    診療科（新入院）から上位2件、病棟（在院）から上位1件。
+    目標以上（gap >= 0）は除外。最大5件（診療科+病棟を合算してソート）。
     """
     from .config import WARD_NAMES, WARD_HIDDEN
 
-    result = []
+    candidates = []
 
     # ── 診療科: 新入院直近7日の絶対差が大きい順 ──
     r7 = rolling7_new_admission(adm, base_date)
     nadm_tgt = targets.get("new_admission", {}).get("dept", {})
-    dept_gaps = []
     for dept, actual in r7["by_dept"].items():
         tgt = nadm_tgt.get(dept)
         if tgt is None or tgt == 0:
@@ -105,7 +104,7 @@ def _build_attention_cards(adm, surg, base_date, targets, surg_targets):
         gap = actual - tgt
         if gap >= 0:
             continue  # 目標以上は除外
-        dept_gaps.append({
+        candidates.append({
             "name": dept,
             "kpi": "admission",
             "icon": "🚪",
@@ -114,15 +113,13 @@ def _build_attention_cards(adm, surg, base_date, targets, surg_targets):
             "target": round(float(tgt), 1),
             "period_label": "新入院（直近7日累計）",
             "reason": f"新入院の目標差{abs(gap):.0f}人が大きい",
+            "href": f"dept.html#{dept}",
         })
-    dept_gaps.sort(key=lambda x: x["gap"])  # 負の大きい順
-    result.extend(dept_gaps[:2])
 
     # ── 病棟: 在院患者数の絶対差が大きい順 ──
     from .metrics import daily_inpatient
     inp_by_ward = daily_inpatient(adm, base_date)["by_ward"]
     ward_inp_tgt = targets.get("inpatient", {}).get("ward", {})
-    ward_gaps = []
     for wcode, actual in inp_by_ward.items():
         if wcode in WARD_HIDDEN:
             continue
@@ -133,7 +130,7 @@ def _build_attention_cards(adm, surg, base_date, targets, surg_targets):
         if gap >= 0:
             continue  # 目標以上は除外
         wname = WARD_NAMES.get(wcode, wcode)
-        ward_gaps.append({
+        candidates.append({
             "name": wname,
             "kpi": "inpatient",
             "icon": "🛏️",
@@ -142,11 +139,11 @@ def _build_attention_cards(adm, surg, base_date, targets, surg_targets):
             "target": round(float(tgt), 1),
             "period_label": f"在院患者数（{base_date.strftime('%m/%d')}時点）",
             "reason": f"在院の目標差{abs(gap):.0f}人が大きい",
+            "href": f"dept.html#{wname}",
         })
-    ward_gaps.sort(key=lambda x: x["gap"])
-    result.extend(ward_gaps[:1])
 
-    return result
+    candidates.sort(key=lambda x: x["gap"])  # 負の大きい順（差が大きい＝先頭）
+    return candidates[:5]
 
 
 # ═══════════════════════════════════════
@@ -166,18 +163,20 @@ def build_portal_context(adm, surg, targets, surg_targets,
     # ★要注視カード: 絶対差（人・件）が大きい順で選出、目標以上は除外
     attention = _build_attention_cards(adm, surg, base_date, targets, surg_targets)
 
-    # 改善トピック: 新入院の前週同曜日比で最大改善を探す
+    # 改善トピック: 新入院の前週同曜日比で上位3件を配列で返す
     series_nadm = build_daily_series(adm, "新入院患者数")
-    improvement = None
+    improvement_candidates = []
     for dept in NADM_DISPLAY_DEPTS:
         s = build_daily_series(adm, "新入院患者数", group_col="診療科名", group_val=dept)
         wow = week_over_week(s, base_date)
         if wow is not None and wow > 0:
-            if improvement is None or wow > improvement["delta"]:
-                improvement = {
-                    "name": dept, "kpi": "admission",
-                    "delta": int(wow), "compare": "前週同曜日比",
-                }
+            improvement_candidates.append({
+                "name": dept, "kpi": "admission",
+                "delta": int(wow), "compare": "前週同曜日比",
+                "href": f"dept.html#{dept}",
+            })
+    improvement_candidates.sort(key=lambda x: -x["delta"])
+    improvement = improvement_candidates[:3] if improvement_candidates else []
 
     # KPIカード情報
     kpi_cards = [
@@ -482,6 +481,39 @@ def build_detail_json(adm, surg, targets, surg_targets,
     # ── attention / improvement ──
     portal_ctx = build_portal_context(adm, surg, targets, surg_targets, base_date, generated_at)
 
+    # ── profit: 粗利データ ──
+    profit_section = None
+    if profit_monthly is not None and len(profit_monthly) > 0:
+        try:
+            p_kpi = build_profit_kpi(profit_monthly)
+            p_chart = build_profit_chart_data(profit_monthly)
+            from .profit import get_latest_month_summary
+            p_latest = get_latest_month_summary(profit_monthly)
+            p_ranking = []
+            for i, r in p_latest.iterrows():
+                st = status_display(r["達成率"]) if pd.notna(r["達成率"]) else status_display(0)
+                p_ranking.append({
+                    "rank": i + 1,
+                    "name": r["診療科名"],
+                    "actual": round(float(r["粗利"]) / 1000, 1) if pd.notna(r["粗利"]) else 0,
+                    "target": round(float(r["月次目標"]) / 1000, 1) if pd.notna(r["月次目標"]) else None,
+                    "rate": float(r["達成率"]) if pd.notna(r["達成率"]) else None,
+                    "mom": round(float(r["前月比"]) / 1000, 1) if pd.notna(r.get("前月比")) else None,
+                    "status": st["css"],
+                    "shape": st["shape"],
+                    "text": st["text"],
+                })
+            profit_section = {
+                "kpi": p_kpi,
+                "chart": p_chart,
+                "ranking": p_ranking,
+            }
+            # Timestamp を文字列に変換
+            if "base_month" in profit_section["kpi"]:
+                profit_section["kpi"]["base_month"] = profit_section["kpi"]["base_month"].strftime("%Y-%m")
+        except Exception:
+            pass
+
     # ── assemble ──
     data = {
         "meta": {
@@ -500,18 +532,29 @@ def build_detail_json(adm, surg, targets, surg_targets,
                 "avg_28d": kpi["inpatient_avg_28d"],
                 "fy_avg": kpi["inpatient_fy_avg"],
                 "prev_avg": kpi["inpatient_prev_avg"],
+                "prev_7d_avg": kpi["inpatient_prev_7d_avg"],
+                "prev_28d_avg": kpi["inpatient_prev_28d_avg"],
+                "prior_range_avg": kpi["inpatient_prior_range_avg"],
                 "gap": kpi["inpatient_gap"],
+                "trend": kpi["inpatient_trend"],
                 "status": kpi["inpatient_status"],
             },
             "admission": {
                 "actual_7d": kpi["admission_actual_7d"],
+                "actual_14d_weekly": kpi["admission_actual_14d_weekly"],
+                "prior_range_weekly": kpi["admission_prior_range_weekly"],
+                "actual_28d": kpi["admission_actual_28d"],
                 "target_weekly": kpi["admission_target_weekly"],
                 "rate_7d": kpi["admission_rate_7d"],
                 "fy_avg": kpi["admission_fy_avg"],
                 "fy_rate": kpi["admission_fy_rate"],
                 "prev_avg": kpi["admission_prev_avg"],
+                "prev_7d_total": kpi["admission_prev_7d_total"],
+                "prev_28d_total": kpi["admission_prev_28d_total"],
+                "prev_fy_avg": kpi["admission_prev_fy_avg"],
                 "gap": kpi["admission_gap"],
                 "daily_actual": kpi["admission_daily_actual"],
+                "trend": kpi["admission_trend"],
                 "status": kpi["admission_status"],
             },
             "operation": {
@@ -520,8 +563,12 @@ def build_detail_json(adm, surg, targets, surg_targets,
                 "rate": kpi["operation_rate"],
                 "week_total": kpi["operation_week_total"],
                 "fy_avg": kpi["operation_fy_avg"],
+                "4w_biz_avg": kpi["operation_4w_biz_avg"],
                 "gap": kpi["operation_gap"],
-                "in_hours_rate": kpi["operation_in_hours_rate"],
+                "prev_4w_avg": kpi["operation_prev_4w_avg"],
+                "prev_week_total": kpi["operation_prev_week_total"],
+                "prev_fy_avg": kpi["operation_fy_prev_avg"],
+                "trend": kpi["operation_trend"],
                 "status": kpi["operation_status"],
             },
         },
@@ -534,5 +581,26 @@ def build_detail_json(adm, surg, targets, surg_targets,
             "occupancy_heatmap": heatmap,
         },
     }
+
+    if profit_section:
+        data["profit"] = profit_section
+        # 各診療科の drill に粗利データを付与
+        profit_by_dept = {r["name"]: r for r in profit_section.get("ranking", [])}
+        profit_chart_by_dept = profit_section.get("chart", {}).get("by_dept", {})
+        for dname, drill_entry in data["drill"].items():
+            if drill_entry.get("ward_extra"):
+                continue  # 病棟はスキップ
+            if dname in profit_by_dept:
+                pr = profit_by_dept[dname]
+                drill_entry["profit"] = {
+                    "actual": pr["actual"],
+                    "target": pr["target"],
+                    "rate": pr["rate"],
+                    "status": pr["status"],
+                    "shape": pr["shape"],
+                    "text": pr["text"],
+                }
+            if dname in profit_chart_by_dept:
+                drill_entry["profit_chart"] = profit_chart_by_dept[dname]
 
     return json.dumps(data, ensure_ascii=False, default=_json_safe)

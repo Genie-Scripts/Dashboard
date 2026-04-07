@@ -41,7 +41,17 @@
 .charts-container.layout-3{grid-template-columns:repeat(3,1fr)}
 .cpnl{background:var(--s);border:1px solid var(--ln);border-radius:var(--r);padding:16px;box-shadow:var(--sh)}.cpnl h4{font-size:13px;font-weight:800;margin:0 0 8px;color:var(--sub);min-width:0}
 .ft{text-align:center;font-size:11px;color:var(--mu);padding:20px 0;border-top:1px solid var(--ln);margin-top:20px}
-@media(max-width:768px){.tabs{display:flex;overflow:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}.tab{min-width:150px;flex:0 0 auto}.tab .big{font-size:22px}.sum{grid-template-columns:1fr}.bx-main .main-val{font-size:24px}.main{grid-template-columns:1fr}.chart{height:200px}.ri{grid-template-columns:24px 1fr auto}.bar,.stl{display:none}.drill-chart{height:160px}.drill-graphs{grid-template-columns:1fr}.role{display:none}.hdr .row{flex-direction:column;align-items:flex-start}}
+@media(max-width:768px){.tabs{display:flex;overflow:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}.tab{min-width:150px;flex:0 0 auto}.tab .big{font-size:22px}.sum{grid-template-columns:1fr}.bx-main .main-val{font-size:24px}.main{grid-template-columns:1fr}.chart{height:220px}.ri{grid-template-columns:24px 1fr auto}.bar,.stl{display:none}.drill-chart{height:200px}.drill-graphs{grid-template-columns:1fr}.role{display:none}.hdr .row{flex-direction:column;align-items:flex-start}
+/* ★モバイル: KPIカード2列化・チャート1列化・はみ出し防止 */
+.kpi-row{grid-template-columns:repeat(2,1fr) !important;gap:8px}
+.charts-container,.charts-container.layout-2plus1,.charts-container.layout-2x2,.charts-container.layout-3{grid-template-columns:1fr !important}
+.charts-container.layout-2plus1 .chart3-panel{grid-column:auto}
+.cpnl{overflow:hidden}.pnl{overflow:hidden}
+.w{overflow-x:hidden}
+.tb{gap:6px}.grp{flex-wrap:wrap}
+/* ★モバイル: ヘッダー自動非表示 */
+.hdr{transition:transform .3s ease}.hdr.hdr-hidden{transform:translateY(-100%)}
+}
 </style>
 </head>
 <body>
@@ -108,6 +118,9 @@ let showDaily = false;
 let currentDrill = null;  // ★課題4: 開いているドリルダウン名を保持
 let admType = 'all';  // 新入院種別フィルタ: 'all' | 'planned' | 'emergency'
 let rankSort = 'gap_asc';  // ソート: 'rate_desc'|'rate_asc'|'gap_desc'|'gap_asc'
+
+// ★モバイル判定: Plotly chart height をビューポート幅で切替
+function _pH(desktop) { return window.innerWidth <= 768 ? 200 : desktop; }
 
 document.addEventListener('DOMContentLoaded', () => {
   const hash = location.hash.replace('#','');
@@ -601,7 +614,7 @@ function renderChart() {
     yaxis:{range:[yLo,yHi],gridcolor:'#DCE1E9',title:{text:'',font:{size:10}}},
     legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},
     hovermode:'x unified',
-    margin:{l:50,r:20,t:10,b:55},height:340,
+    margin:{l:50,r:20,t:10,b:55},height:_pH(340),
     plot_bgcolor:'#fff',paper_bgcolor:'#fff',
     shapes: shapes,
   };
@@ -753,11 +766,12 @@ function openDrill(name) {
   const cutoff = periodCutoff();
   const drillWrap = document.getElementById('drillChartsWrap');
   const chart4panel = document.getElementById('drillChart4panel');
+  const _drillH = _pH(320);
   const LAYOUT = {
     font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
     xaxis:{gridcolor:'#DCE1E9',tickformat:'%m/%d',tickangle:-45},
     legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},
-    hovermode:'x unified', margin:{l:45,r:15,t:8,b:50}, height:320,
+    hovermode:'x unified', margin:{l:45,r:15,t:8,b:50}, height:_drillH,
     plot_bgcolor:'#fff', paper_bgcolor:'#fff',
   };
 
@@ -829,7 +843,7 @@ function openDrill(name) {
       xaxis:{gridcolor:'#DCE1E9',tickformat:'%m/%d',tickangle:-45},
       yaxis:{range:[-Math.ceil(yAbs1),Math.ceil(yAbs1)],gridcolor:'#DCE1E9',zeroline:true,zerolinecolor:'#888',zerolinewidth:1.5},
       yaxis2:{overlaying:'y',side:'right',range:[-Math.ceil(yAbs2),Math.ceil(yAbs2)],gridcolor:'transparent',zeroline:true,zerolinecolor:'#C0293B',zerolinewidth:1,tickfont:{size:10,color:'#C0293B'}},
-      legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},hovermode:'x unified',margin:{l:45,r:45,t:8,b:50},height:320,
+      legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},hovermode:'x unified',margin:{l:45,r:45,t:8,b:50},height:_drillH,
       plot_bgcolor:'#fff',paper_bgcolor:'#fff'},{responsive:true});
   }
 
@@ -842,7 +856,7 @@ function openDrill(name) {
     if (bd.target) tr.push({name:'目標',x:[bd.months[0],bd.months[bd.months.length-1]],y:[bd.target,bd.target],type:'scatter',mode:'lines',line:{color:'#C0293B',width:2,dash:'dot'}});
     const allY=[...bd.values,...(bd.target?[bd.target]:[])].filter(v=>v!=null);
     const yMax=allY.length?Math.max(...allY)*1.15:10;
-    Plotly.newPlot(elId,tr,{font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},xaxis:{gridcolor:'#DCE1E9',tickangle:-45},yaxis:{range:[0,yMax],gridcolor:'#DCE1E9',title:{text:'百万円',font:{size:10}}},legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},hovermode:'x unified',margin:{l:55,r:15,t:8,b:65},height:320,plot_bgcolor:'#fff',paper_bgcolor:'#fff'},{responsive:true});
+    Plotly.newPlot(elId,tr,{font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},xaxis:{gridcolor:'#DCE1E9',tickangle:-45},yaxis:{range:[0,yMax],gridcolor:'#DCE1E9',title:{text:'百万円',font:{size:10}}},legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},hovermode:'x unified',margin:{l:55,r:15,t:8,b:65},height:_pH(320),plot_bgcolor:'#fff',paper_bgcolor:'#fff'},{responsive:true});
   }
 
   // ── Chart Layout ──
@@ -943,7 +957,7 @@ function renderProfitChart() {
     yaxis:{range:[0,yMax],gridcolor:'#DCE1E9',title:{text:'百万円',font:{size:10}}},
     legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},
     barmode:'group', hovermode:'x unified',
-    margin:{l:55,r:20,t:10,b:65},height:340,
+    margin:{l:55,r:20,t:10,b:65},height:_pH(340),
     plot_bgcolor:'#fff',paper_bgcolor:'#fff',
   },{responsive:true});
   document.getElementById('chartTitle').textContent = '📊 粗利 月次推移（全科合計・達成状況で色分け）';
@@ -1040,7 +1054,7 @@ function openProfitDrill(dept) {
   if (bd.target) traces1.push({name:'目標', x:[bd.months[0],bd.months[bd.months.length-1]], y:[bd.target,bd.target], type:'scatter', mode:'lines', line:{color:'#C0293B',width:2,dash:'dot'}});
   const allY=[...bd.values,...(bd.target?[bd.target]:[])].filter(v=>v!=null);
   const yMax=allY.length?Math.max(...allY)*1.15:10;
-  Plotly.newPlot('drillChartAdm', traces1, {font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},xaxis:{gridcolor:'#DCE1E9',tickangle:-45},yaxis:{range:[0,yMax],gridcolor:'#DCE1E9',title:{text:'百万円',font:{size:10}}},legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},hovermode:'x unified',margin:{l:55,r:15,t:8,b:65},height:320,plot_bgcolor:'#fff',paper_bgcolor:'#fff'},{responsive:true});
+  Plotly.newPlot('drillChartAdm', traces1, {font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},xaxis:{gridcolor:'#DCE1E9',tickangle:-45},yaxis:{range:[0,yMax],gridcolor:'#DCE1E9',title:{text:'百万円',font:{size:10}}},legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},hovermode:'x unified',margin:{l:55,r:15,t:8,b:65},height:_pH(320),plot_bgcolor:'#fff',paper_bgcolor:'#fff'},{responsive:true});
 
   // 達成率折れ線グラフ
   if (bd.achievements) {
@@ -1048,7 +1062,7 @@ function openProfitDrill(dept) {
       {name:'達成率', x:bd.months, y:bd.achievements, type:'scatter', mode:'lines+markers', line:{color:'#0D9488',width:2.5}, marker:{size:5}},
       {name:'100%', x:[bd.months[0],bd.months[bd.months.length-1]], y:[100,100], type:'scatter', mode:'lines', line:{color:'#C0293B',width:2,dash:'dot'}},
     ];
-    Plotly.newPlot('drillChartInp', achTraces, {font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},xaxis:{gridcolor:'#DCE1E9',tickangle:-45},yaxis:{gridcolor:'#DCE1E9',title:{text:'%',font:{size:10}}},legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},hovermode:'x unified',margin:{l:45,r:15,t:8,b:65},height:320,plot_bgcolor:'#fff',paper_bgcolor:'#fff'},{responsive:true});
+    Plotly.newPlot('drillChartInp', achTraces, {font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},xaxis:{gridcolor:'#DCE1E9',tickangle:-45},yaxis:{gridcolor:'#DCE1E9',title:{text:'%',font:{size:10}}},legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},hovermode:'x unified',margin:{l:45,r:15,t:8,b:65},height:_pH(320),plot_bgcolor:'#fff',paper_bgcolor:'#fff'},{responsive:true});
   }
   document.getElementById('drillChartOp').innerHTML = '';
 
@@ -1062,6 +1076,20 @@ function closeDrill() {
   document.getElementById('drillPanel').classList.remove('open');
   ['drillChartAdm','drillChartInp','drillChartOp','drillChartProfit'].forEach(id => { try{Plotly.purge(id)}catch(e){} });
 }
+</script>
+<script>
+/* ★モバイル: ヘッダー自動非表示（スクロール↓で隠す / ↑で戻す） */
+(function(){
+  var hdr=document.querySelector('.hdr'),lastY=window.scrollY,ticking=false;
+  window.addEventListener('scroll',function(){
+    if(!ticking){requestAnimationFrame(function(){
+      var y=window.scrollY;
+      if(y>lastY&&y>60)hdr.classList.add('hdr-hidden');
+      else if(y<lastY)hdr.classList.remove('hdr-hidden');
+      lastY=y;ticking=false;
+    });ticking=true;}
+  });
+})();
 </script>
 </body>
 </html>

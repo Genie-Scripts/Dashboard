@@ -49,7 +49,7 @@
 .cpnl{background:var(--s);border:1px solid var(--ln);border-radius:var(--r);padding:16px;box-shadow:var(--sh)}.cpnl h4{font-size:13px;font-weight:800;margin:0 0 8px;color:var(--sub)}.cpnl .chart{height:320px}
 /* 病棟フローカード */
 .kc.kc-flow{background:var(--s)}.flow-row{display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:12px}.flow-row .flow-label{color:var(--sub);font-weight:600}.flow-row .flow-val{font-weight:900;font-size:16px}
-@media(max-width:768px){.charts-container-3{grid-template-columns:1fr}}
+@media(max-width:768px){.charts-container,.charts-container.layout-2plus1,.charts-container.layout-2x2,.charts-container.layout-3,.charts-container-3{grid-template-columns:1fr !important}.charts-container.layout-2plus1 .chart3-panel{grid-column:auto}}
 
 /* Comment */
 .comment{background:var(--s);border:1px solid var(--ln);border-radius:14px;padding:14px 18px;font-size:13px;color:var(--sub);box-shadow:0 2px 6px rgba(10,22,42,.04);margin-bottom:12px}
@@ -59,7 +59,10 @@
 
 .ft{text-align:center;font-size:11px;color:var(--mu);padding:20px 0;border-top:1px solid var(--ln);margin-top:12px}
 
-@media(max-width:768px){.kpi-row{grid-template-columns:1fr}.charts-grid{grid-template-columns:1fr}.cpnl .chart{height:220px}.grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}.ward-extra{grid-template-columns:1fr 1fr 1fr}.hdr .row{flex-direction:column;align-items:flex-start}.dept-sel{width:100%}}
+@media(max-width:768px){.kpi-row{grid-template-columns:repeat(2,1fr) !important}.charts-grid{grid-template-columns:1fr}.cpnl .chart{height:200px}.cpnl{overflow:hidden}.grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}.ward-extra{grid-template-columns:1fr 1fr 1fr}.hdr .row{flex-direction:column;align-items:flex-start}.dept-sel{width:100%}.w{overflow-x:hidden}.tb{gap:6px}.grp{flex-wrap:wrap}
+/* ★モバイル: ヘッダー自動非表示 */
+.hdr{transition:transform .3s ease}.hdr.hdr-hidden{transform:translateY(-100%)}
+}
 </style>
 </head>
 <body>
@@ -112,6 +115,8 @@ let period = '12w';
 let showWeekday = true, showHoliday = true;
 let showDaily = false, showMA7 = true, showMA28 = true;
 let admType = 'all';  // 新入院種別フィルタ: 'all' | 'planned' | 'emergency'
+// ★モバイル判定: Plotly chart height をビューポート幅で切替
+function _pH(desktop) { return window.innerWidth <= 768 ? 200 : desktop; }
 
 // ── Helpers ──
 function stCss(rate) { return rate==null?'mu':rate<90?'dr':rate<100?'wr':'ok'; }
@@ -520,7 +525,7 @@ function renderOneChart(elId, td, targetVal) {
     xaxis:{gridcolor:'#DCE1E9',tickformat:'%m/%d',tickangle:-45},
     yaxis:{range:[yLo,yHi],gridcolor:'#DCE1E9'},
     legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},
-    hovermode:'x unified',margin:{l:45,r:15,t:8,b:50},height:320,
+    hovermode:'x unified',margin:{l:45,r:15,t:8,b:50},height:_pH(320),
     plot_bgcolor:'#fff',paper_bgcolor:'#fff',shapes
   },{responsive:true});
 }
@@ -567,7 +572,7 @@ function renderSurgeryChart(elId, td, weeklyTarget) {
     xaxis:{gridcolor:'#DCE1E9',tickformat:'%m/%d',tickangle:-45},
     yaxis:{range:[yLo,yHi],gridcolor:'#DCE1E9'},
     legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},
-    hovermode:'x unified',margin:{l:45,r:15,t:8,b:50},height:320,
+    hovermode:'x unified',margin:{l:45,r:15,t:8,b:50},height:_pH(320),
     plot_bgcolor:'#fff',paper_bgcolor:'#fff',shapes
   },{responsive:true});
 }
@@ -592,7 +597,7 @@ function renderProfitDeptChart(elId, bd) {
     xaxis:{gridcolor:'#DCE1E9',tickangle:-45},
     yaxis:{range:[0,yMax],gridcolor:'#DCE1E9',title:{text:'百万円',font:{size:10}}},
     legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},
-    hovermode:'x unified',margin:{l:55,r:15,t:8,b:65},height:320,
+    hovermode:'x unified',margin:{l:55,r:15,t:8,b:65},height:_pH(320),
     plot_bgcolor:'#fff',paper_bgcolor:'#fff',
   },{responsive:true});
 }
@@ -657,7 +662,7 @@ function renderFlowChart(elId, admTd, outTd) {
             tickfont:{size:10, color:'#C0293B'}},
     legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},
     hovermode:'x unified',
-    margin:{l:45,r:45,t:8,b:50}, height:320,
+    margin:{l:45,r:45,t:8,b:50}, height:_pH(320),
     plot_bgcolor:'#fff', paper_bgcolor:'#fff',
   }, {responsive:true});
 }
@@ -682,6 +687,20 @@ window.addEventListener('hashchange', () => {
   if (hash && DATA.drill[hash]) selectUnit(hash);
   else if (!hash) showLanding();
 });
+</script>
+<script>
+/* ★モバイル: ヘッダー自動非表示（スクロール↓で隠す / ↑で戻す） */
+(function(){
+  var hdr=document.querySelector('.hdr'),lastY=window.scrollY,ticking=false;
+  window.addEventListener('scroll',function(){
+    if(!ticking){requestAnimationFrame(function(){
+      var y=window.scrollY;
+      if(y>lastY&&y>60)hdr.classList.add('hdr-hidden');
+      else if(y<lastY)hdr.classList.remove('hdr-hidden');
+      lastY=y;ticking=false;
+    });ticking=true;}
+  });
+})();
 </script>
 </body>
 </html>

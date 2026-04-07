@@ -78,24 +78,26 @@ def load_and_preprocess(data_dir: str, base_date_str: Optional[str] = None,
 
     # ── 粗利（オプション） ──
     profit_monthly = pd.DataFrame()
-    if "profit" in data and len(data.get("profit", pd.DataFrame())) > 0:
+    if "profit_data" in data and len(data.get("profit_data", pd.DataFrame())) > 0:
         try:
             from app.lib.profit import build_profit_monthly
             profit_monthly = build_profit_monthly(
-                data["profit"], data.get("profit_targets", pd.DataFrame())
+                data["profit_data"], data.get("profit_targets", pd.DataFrame())
             )
-        except Exception:
-            pass
+            log(f"粗利: {len(profit_monthly):,} 行")
+        except Exception as e:
+            log(f"粗利データ前処理スキップ: {e}", "warn")
     else:
-        # load_all に profit が含まれない場合、個別読込を試行
+        # load_all に profit_data が含まれない場合、個別読込を試行
         try:
             from app.lib.data_loader import load_profit_data, load_profit_targets
             from app.lib.profit import build_profit_monthly
             pd_raw = load_profit_data(data_dir)
             pt_raw = load_profit_targets(data_dir)
             profit_monthly = build_profit_monthly(pd_raw, pt_raw)
-        except Exception:
-            pass
+            log(f"粗利（個別読込）: {len(profit_monthly):,} 行")
+        except Exception as e:
+            log(f"粗利データなし（スキップ）: {e}", "warn")
 
     # ── 基準日 ──
     if base_date_str:

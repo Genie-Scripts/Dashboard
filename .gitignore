@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# macOS
+.DS_Store
+
+# データフォルダ（ローカル専用）
+data/
+
+# 一時ファイル・作業ログ
+Temp/
+*.txt
+
+# 仕様書・モックアップ（ローカル作業用）
+spec/
