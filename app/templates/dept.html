@@ -9,7 +9,8 @@
 *{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
 
 /* ── Header ── */
-.hdr{position:sticky;top:0;z-index:10;background:var(--bd);color:#fff;padding:12px 24px;box-shadow:var(--sh)}.hdr .row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}.left{display:flex;align-items:center;gap:10px}.back{color:#a8bdd4;text-decoration:none;font-size:13px;font-weight:800;transition:color .15s}.back:hover{color:#fff}.badge{font-size:11px;background:var(--br);padding:3px 10px;border-radius:999px;font-weight:800}.title{font-size:17px;font-weight:900}.right{display:flex;align-items:center;gap:10px}.meta{font-size:12px;color:#a8bdd4}
+.hdr{position:sticky;top:0;z-index:10;background:var(--bd);color:#fff;padding:10px 24px;box-shadow:var(--sh)}.hdr .row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}.left{display:flex;align-items:center;gap:10px}.back{color:#a8bdd4;text-decoration:none;font-size:13px;font-weight:800;transition:color .15s}.back:hover{color:#fff}.badge{font-size:11px;background:var(--br);padding:3px 10px;border-radius:999px;font-weight:800}.title{font-size:17px;font-weight:900}.right{display:flex;align-items:center;gap:10px}.meta{font-size:12px;color:#a8bdd4}
+.nav-bar{display:flex;align-items:center;gap:4px;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.12)}.nav-bar a{font-size:12px;font-weight:800;text-decoration:none;padding:5px 13px;border-radius:8px;color:#a8bdd4;transition:all .15s;border:1px solid transparent}.nav-bar a:hover{color:#fff;border-color:rgba(255,255,255,.25)}.nav-bar a.active{background:rgba(255,255,255,.18);color:#fff;border-color:rgba(255,255,255,.35)}
 .dept-sel{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);border-radius:10px;padding:6px 12px;color:#fff;font-size:13px;font-weight:800;cursor:pointer;min-width:160px;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6' fill='%23a8bdd4'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}.dept-sel:focus{outline:none;border-color:rgba(255,255,255,.5)}.dept-sel option{color:var(--ink);background:#fff}
 
 .w{max-width:1280px;margin:0 auto;padding:16px 20px 48px}
@@ -17,10 +18,13 @@
 /* ── Landing Grid ── */
 .landing{animation:fadeIn .3s ease}
 .sec-title{font-size:15px;font-weight:800;color:var(--sub);margin:20px 0 10px;display:flex;align-items:center;gap:6px}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:12px}
-.gc{background:var(--s);border:1px solid var(--ln);border-radius:14px;padding:14px;cursor:pointer;transition:all .15s;box-shadow:0 2px 6px rgba(10,22,42,.04);text-decoration:none;color:inherit;border-top:4px solid var(--ln)}.gc:hover{box-shadow:0 8px 24px rgba(10,22,42,.12);transform:translateY(-2px)}.gc.ok{border-top-color:var(--ok)}.gc.wr{border-top-color:var(--wr)}.gc.dr{border-top-color:var(--dr)}
-.gc .nm{font-size:14px;font-weight:900;margin-bottom:8px}
-.gc .kpis{display:flex;gap:6px;flex-wrap:wrap}.gc .kp{font-size:10px;font-weight:700;padding:2px 6px;border-radius:5px;display:flex;align-items:center;gap:2px}.gc .kp.ok{background:var(--ok-bg);color:#065f42}.gc .kp.wr{background:var(--wr-bg);color:#7c3a06}.gc .kp.dr{background:var(--dr-bg);color:var(--dr-t)}.gc .kp.mu{background:#f6f8fb;color:var(--mu)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:16px}
+.gc{background:var(--s);border:1px solid var(--ln);border-radius:14px;padding:16px;cursor:pointer;transition:all .15s;box-shadow:0 2px 6px rgba(10,22,42,.04);text-decoration:none;color:inherit;border-top:4px solid var(--ln);position:relative}.gc:hover{box-shadow:0 8px 24px rgba(10,22,42,.12);transform:translateY(-2px)}.gc.ok{border-top-color:var(--ok)}.gc.wr{border-top-color:var(--wr)}.gc.dr{border-top-color:var(--dr)}
+.gc .nm{font-size:14px;font-weight:900;margin-bottom:10px;padding-right:60px}
+.gc .st{position:absolute;right:12px;top:12px;font-size:10px;font-weight:900;padding:2px 8px;border-radius:999px}.gc .st.dr{background:var(--dr-bg);color:var(--dr-t)}.gc .st.wr{background:var(--wr-bg);color:#7c3a06}.gc .st.ok{background:var(--ok-bg);color:#065f42}.gc .st.mu{background:#f6f8fb;color:var(--mu)}
+.gc .metrics{display:flex;flex-direction:column;gap:5px;margin-bottom:10px}
+.gc .mt-row{display:flex;align-items:center;justify-content:space-between;font-size:12px}.gc .mt-label{color:var(--sub);font-weight:600}.gc .mt-val{font-weight:900}.gc .mt-rate{font-size:10px;font-weight:700;padding:1px 5px;border-radius:4px;margin-left:4px}.gc .mt-rate.ok{background:var(--ok-bg);color:#065f42}.gc .mt-rate.wr{background:var(--wr-bg);color:#7c3a06}.gc .mt-rate.dr{background:var(--dr-bg);color:var(--dr-t)}.gc .mt-rate.mu{background:#f6f8fb;color:var(--mu)}
+.gc .cta{display:flex;align-items:center;justify-content:center;gap:4px;padding:7px 10px;background:var(--bl);border-radius:10px;font-size:12px;font-weight:800;color:var(--br);transition:background .15s}.gc:hover .cta{background:#d4e4fc}.gc .cta-arrow{font-size:14px;font-weight:900;transition:transform .15s}.gc:hover .cta-arrow{transform:translateX(3px)}
 
 /* ── Dashboard Mode ── */
 .dashboard{display:none;animation:fadeIn .3s ease}
@@ -37,9 +41,15 @@
 .tb{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}.grp{display:flex;align-items:center;gap:5px}.gl{font-size:12px;font-weight:800;color:var(--sub)}.btn{background:var(--s);border:1px solid var(--ln);border-radius:10px;padding:7px 12px;font-size:12px;font-weight:800;color:var(--sub);cursor:pointer;box-shadow:0 1px 3px rgba(10,22,42,.04);transition:all .15s}.btn:hover{border-color:#93b4e4;color:var(--br)}.btn.active{background:var(--bl);border-color:#93b4e4;color:var(--br)}
 
 /* Charts */
-.charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.charts-container{display:grid;gap:12px;margin-bottom:12px}
+.charts-container.layout-2plus1{grid-template-columns:1fr 1fr}
+.charts-container.layout-2plus1 .chart3-panel{grid-column:1/-1}
+.charts-container.layout-2x2{grid-template-columns:1fr 1fr}
+.charts-container.layout-3{grid-template-columns:repeat(3,1fr)}
 .cpnl{background:var(--s);border:1px solid var(--ln);border-radius:var(--r);padding:16px;box-shadow:var(--sh)}.cpnl h4{font-size:13px;font-weight:800;margin:0 0 8px;color:var(--sub)}.cpnl .chart{height:320px}
-.charts-full{margin-bottom:12px}
+/* 病棟フローカード */
+.kc.kc-flow{background:var(--s)}.flow-row{display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:12px}.flow-row .flow-label{color:var(--sub);font-weight:600}.flow-row .flow-val{font-weight:900;font-size:16px}
+@media(max-width:768px){.charts-container-3{grid-template-columns:1fr}}
 
 /* Comment */
 .comment{background:var(--s);border:1px solid var(--ln);border-radius:14px;padding:14px 18px;font-size:13px;color:var(--sub);box-shadow:0 2px 6px rgba(10,22,42,.04);margin-bottom:12px}
@@ -55,7 +65,8 @@
 <body>
 
 <!-- ═══ Header ═══ -->
-<header class="hdr"><div class="row">
+<header class="hdr">
+<div class="row">
   <div class="left">
     <a class="back" href="portal.html" id="backLink">‹ ポータル</a>
     <span class="badge">DEPT</span>
@@ -65,7 +76,13 @@
     <select class="dept-sel" id="deptSelect" onchange="onSelectChange(this.value)" style="display:none"></select>
     <span class="meta">📅 {{ base_date }}</span>
   </div>
-</div></header>
+</div>
+<nav class="nav-bar">
+  <a href="portal.html">🏥 ポータル</a>
+  <a href="detail.html">📊 統合詳細</a>
+  <a href="dept.html" class="active">🩺 部門別</a>
+</nav>
+</header>
 
 <div class="w">
   <!-- ═══ Landing Grid ═══ -->
@@ -74,15 +91,13 @@
   <!-- ═══ Dashboard View ═══ -->
   <div id="dashView" class="dashboard">
     <div class="kpi-row" id="kpiCards"></div>
-    <div class="ward-extra" id="wardExtra" style="display:none"></div>
     <div id="commentBox" class="comment" style="display:none"></div>
     <div class="tb" id="toolbar"></div>
-    <div class="charts-grid">
+    <div id="chartsWrap" class="charts-container layout-2plus1">
       <div class="cpnl"><h4 id="chartTitle1">🚪 新入院 推移</h4><div class="chart" id="chart1"></div></div>
       <div class="cpnl"><h4 id="chartTitle2">🛏️ 在院患者 推移</h4><div class="chart" id="chart2"></div></div>
-    </div>
-    <div class="charts-full">
-      <div class="cpnl"><h4 id="chartTitle3">💉 全麻手術 推移</h4><div class="chart" id="chart3"></div></div>
+      <div class="cpnl chart3-panel"><h4 id="chartTitle3">💉 全麻手術 推移</h4><div class="chart" id="chart3"></div></div>
+      <div class="cpnl" id="chart4panel" style="display:none"><h4 id="chartTitle4">💰 月次粗利 推移</h4><div class="chart" id="chart4"></div></div>
     </div>
   </div>
 
@@ -95,7 +110,7 @@ const DATA = {{ data_json|safe }};
 let currentUnit = null; // 選択中の科・病棟名
 let period = '12w';
 let showWeekday = true, showHoliday = true;
-let showDaily = true, showMA7 = true, showMA28 = true;
+let showDaily = false, showMA7 = true, showMA28 = true;
 let admType = 'all';  // 新入院種別フィルタ: 'all' | 'planned' | 'emergency'
 
 // ── Helpers ──
@@ -156,24 +171,35 @@ function renderLanding() {
   function cardHtml(entry) {
     const d = entry.data;
     const sc = stCss(entry.worst);
-    const mkKp = (icon, rate) => {
-      const c = stCss(rate);
-      return `<span class="kp ${c}">${icon} ${rate!=null?rate+'%':'—'}</span>`;
+    const ss = stShape(entry.worst);
+    const st = stText(entry.worst);
+    const isWard = !!d.ward_extra;
+    const mkRow = (icon, label, actual, unit, rate) => {
+      const rc = stCss(rate);
+      return `<div class="mt-row">
+        <span class="mt-label">${icon} ${label}</span>
+        <span><span class="mt-val">${actual!=null?actual:'—'}</span><small style="color:var(--mu)">${unit}</small><span class="mt-rate ${rc}">${rate!=null?rate+'%':'—'}</span></span>
+      </div>`;
     };
+    const opLabel = d.operation.label || '全麻';
+    const showOp = isWard || d.operation.actual !== null;
     return `<a class="gc ${sc}" href="#${encodeURIComponent(entry.name)}" onclick="selectUnit('${entry.name.replace(/'/g,"\\'")}');return false;">
+      <span class="st ${sc}">${ss} ${st}</span>
       <div class="nm">${entry.name}</div>
-      <div class="kpis">
-        ${mkKp('🚪', d.admission.rate)}
-        ${mkKp('🛏️', d.inpatient.rate)}
-        ${(d.ward_extra || d.operation.actual !== null) ? mkKp('💉', d.operation.rate) : ''}
+      <div class="metrics">
+        ${mkRow('🚪','新入院', d.admission.actual_7d, '人', d.admission.rate)}
+        ${mkRow('🛏️','在院', d.inpatient.actual, '人', d.inpatient.rate)}
+        ${showOp ? mkRow('💉', opLabel, d.operation.actual, '件', d.operation.rate) : ''}
+        ${isWard && d.ward_extra.util_rate!=null ? `<div class="mt-row"><span class="mt-label">📊 利用率</span><span class="mt-val">${d.ward_extra.util_rate}%</span></div>` : ''}
       </div>
+      <div class="cta"><span>詳細を見る</span><span class="cta-arrow">›</span></div>
     </a>`;
   }
 
   let html = '';
-  html += `<div class="sec-title">🩺 診療科（${depts.length}科）</div>`;
+  html += `<div class="sec-title">🩺 診療科（${depts.length}科）<span style="font-size:11px;font-weight:600;color:var(--mu);margin-left:8px">クリックして詳細を確認</span></div>`;
   html += `<div class="grid">${depts.map(cardHtml).join('')}</div>`;
-  html += `<div class="sec-title">🏥 病棟（${wards.length}棟）</div>`;
+  html += `<div class="sec-title">🏥 病棟（${wards.length}棟）<span style="font-size:11px;font-weight:600;color:var(--mu);margin-left:8px">クリックして詳細を確認</span></div>`;
   html += `<div class="grid">${wards.map(cardHtml).join('')}</div>`;
 
   document.getElementById('landingView').innerHTML = html;
@@ -213,7 +239,7 @@ function showLanding() {
   document.getElementById('backLink').onclick = null;  // selectUnit で設定した preventDefault を解除
   document.getElementById('pageTitle').textContent = '📊 部門ダッシュボード';
   // Purge charts
-  ['chart1','chart2','chart3'].forEach(id => { try{Plotly.purge(id)}catch(e){} });
+  ['chart1','chart2','chart3','chart4'].forEach(id => { try{Plotly.purge(id)}catch(e){} });
 }
 
 function selectUnit(name) {
@@ -253,54 +279,92 @@ function renderDashboard(name, d) {
   renderCharts(d);
 }
 
+function kpiCardHtml(c) {
+  const sc = stCss(c.rate);
+  const ss = stShape(c.rate);
+  const st = stText(c.rate);
+  const barW = Math.min((c.rate||0)/1.5, 100);
+  const gap = c.target != null ? (c.actual - c.target) : null;
+  const gapStr = gap != null ? (gap > 0 ? '+' : '') + Math.round(gap*10)/10 + (c.gapUnit||c.unit) : '—';
+  return `<div class="kc">
+    <h3>${c.icon} ${c.label}</h3>
+    ${c.period ? `<div class="period">${c.period}</div>` : ''}
+    <div class="val ${sc==='dr'?'dr':''}">${c.actual!=null?c.actual:'—'}<span class="unit">${c.unit}</span></div>
+    ${c.sub ? `<div style="font-size:11px;color:var(--sub);margin-top:3px">${c.sub}</div>` : ''}
+    ${c.target!=null ? `<div class="tgt-row">
+      <span style="font-size:11px">🎯</span>
+      <span class="tgt-label">${c.targetLabel||'目標'}</span>
+      <span class="tgt-val">${c.target}${c.unit}</span>
+      <span class="gap-val ${sc}">${gapStr}</span>
+    </div>
+    <div class="prog">
+      <div class="prog-bar"><div class="prog-fill ${sc}" style="width:${barW}%"></div></div>
+      <div class="prog-meta">
+        <span class="prog-pct ${sc}">${c.rate!=null?c.rate+'%':'—'}</span>
+        <span class="prog-st ${sc}">${ss} ${st}</span>
+      </div>
+    </div>` : `<div style="font-size:10px;color:var(--mu);margin-top:6px">目標未設定</div>`}
+  </div>`;
+}
+
 function renderKpiCards(d) {
   const isWard = !!d.ward_extra;
-  const showOp = isWard || d.operation.actual !== null;
-  const opLabel = d.operation.label || '全麻手術';
-  const admActual = admType==='planned' ? d.admission.planned_7d
-                  : admType==='emergency' ? d.admission.emergency_7d
-                  : d.admission.actual_7d;
-  const admPeriodLabel = admType==='planned'?'直近7日累計（予定）':admType==='emergency'?'直近7日累計（緊急）':'直近7日累計';
-  const admTarget = admType==='all' ? d.admission.target : null;  // 種別フィルタ中は目標比較なし
-  const admRate   = admType==='all' ? d.admission.rate   : null;
-  const cards = [
-    {icon:'🚪', label:'新入院', period:admPeriodLabel, actual:admActual, unit:'人', target:admTarget, targetLabel:'目標', rate:admRate},
-    {icon:'🛏️', label:'在院患者', period:DATA.meta.base_date+' 時点', actual:d.inpatient.actual, unit:'人', target:d.inpatient.target, targetLabel:'目標', rate:d.inpatient.rate},
-  ];
-  if (showOp) cards.push(
-    {icon:'💉', label:opLabel, period:isWard?'退院合計（昨日実績）':'直近7日累計', actual:d.operation.actual, unit:'件', target:d.operation.target, targetLabel:'目標', rate:d.operation.rate}
-  );
+  const we = d.ward_extra;
 
-  document.getElementById('kpiCards').innerHTML = cards.map(c => {
-    const sc = stCss(c.rate);
-    const ss = stShape(c.rate);
-    const st = stText(c.rate);
-    const barW = Math.min((c.rate||0)/1.5, 100);
-    const gap = c.target != null ? (c.actual - c.target) : null;
-    const gapStr = gap != null ? (gap > 0 ? '+' : '') + Math.round(gap*10)/10 + c.unit : '—';
-    return `<div class="kc">
-      <h3>${c.icon} ${c.label}</h3>
-      ${c.period ? `<div class="period">${c.period}</div>` : ''}
-      <div class="val ${sc==='dr'?'dr':''}">${c.actual!=null?c.actual:'—'}<span class="unit">${c.unit}</span></div>
-      ${c.target!=null ? `<div class="tgt-row">
-        <span style="font-size:11px">🎯</span>
-        <span class="tgt-label">${c.targetLabel}</span>
-        <span class="tgt-val">${c.target}${c.unit}</span>
-        <span class="gap-val ${sc}">${gapStr}</span>
+  if (isWard) {
+    // ── 病棟: 入退院フロー + 新入院 + 在院+利用率 ──
+    const inFlow = we.load || 0;
+    const outFlow = d.operation.actual || 0;
+    const netFlow = inFlow - outFlow;
+    const netCss = netFlow >= 0 ? '#0e7a54' : '#c4314b';
+    const flowCard = `<div class="kc kc-flow">
+      <h3>🔄 入退院フロー</h3>
+      <div class="period">${DATA.meta.base_date} 実績</div>
+      <div class="flow-row" style="margin-top:10px"><span class="flow-label">🚑 入院+転入</span><span class="flow-val" style="color:#0D9488">${inFlow}名</span></div>
+      <div class="flow-row"><span class="flow-label">🚶 退院+転出</span><span class="flow-val" style="color:#e67e22">${outFlow}名</span></div>
+      <div class="flow-row" style="border-top:1px solid var(--ln);padding-top:6px;margin-top:4px">
+        <span class="flow-label">純増減</span>
+        <span class="flow-val" style="color:${netCss}">${netFlow>=0?'+':''}${netFlow}名</span>
       </div>
-      <div class="prog">
-        <div class="prog-bar"><div class="prog-fill ${sc}" style="width:${barW}%"></div></div>
-        <div class="prog-meta">
-          <span class="prog-pct ${sc}">${c.rate!=null?c.rate+'%':'—'}</span>
-          <span class="prog-st ${sc}">${ss} ${st}</span>
-        </div>
-      </div>` : `<div style="font-size:10px;color:var(--mu);margin-top:6px">目標未設定</div>`}
+      ${we.util_rate!=null ? `<div style="margin-top:8px;font-size:11px;color:var(--sub)">病床利用率 <strong style="color:${we.util_rate<85?'var(--dr)':'inherit'}">${we.util_rate}%</strong>（${we.beds||'—'}床）</div>` : ''}
     </div>`;
-  }).join('');
+    const admActual = admType==='planned' ? d.admission.planned_7d
+                    : admType==='emergency' ? d.admission.emergency_7d
+                    : d.admission.actual_7d;
+    const admPeriodLabel = admType==='planned'?'直近7日（予定）':admType==='emergency'?'直近7日（緊急）':'直近7日累計';
+    const admTarget = admType==='all' ? d.admission.target : null;
+    const admRate   = admType==='all' ? d.admission.rate   : null;
+    const admCard = kpiCardHtml({icon:'🚪', label:'新入院', period:admPeriodLabel, actual:admActual, unit:'人', target:admTarget, rate:admRate});
+    const inpSub = we.util_rate!=null ? `利用率 <strong>${we.util_rate}%</strong>（${we.beds||'—'}床）` : null;
+    const inpCard = kpiCardHtml({icon:'🛏️', label:'在院患者', period:DATA.meta.base_date+' 時点', actual:d.inpatient.actual, unit:'人', target:d.inpatient.target, rate:d.inpatient.rate, sub:inpSub});
+    document.getElementById('kpiCards').innerHTML = flowCard + admCard + inpCard;
+    document.getElementById('kpiCards').style.gridTemplateColumns = 'repeat(3,1fr)';
+  } else {
+    // ── 診療科: 新入院 + 在院 + 全麻 (+ 粗利) ──
+    const showOp = d.operation.actual !== null;
+    const opLabel = d.operation.label || '全麻手術';
+    const admActual = admType==='planned' ? d.admission.planned_7d
+                    : admType==='emergency' ? d.admission.emergency_7d
+                    : d.admission.actual_7d;
+    const admPeriodLabel = admType==='planned'?'直近7日（予定）':admType==='emergency'?'直近7日（緊急）':'直近7日累計';
+    const admTarget = admType==='all' ? d.admission.target : null;
+    const admRate   = admType==='all' ? d.admission.rate   : null;
+    const cards = [
+      {icon:'🚪', label:'新入院', period:admPeriodLabel, actual:admActual, unit:'人', target:admTarget, rate:admRate},
+      {icon:'🛏️', label:'在院患者', period:DATA.meta.base_date+' 時点', actual:d.inpatient.actual, unit:'人', target:d.inpatient.target, rate:d.inpatient.rate},
+    ];
+    if (showOp) cards.push({icon:'💉', label:opLabel, period:'直近7日累計', actual:d.operation.actual, unit:'件', target:d.operation.target, rate:d.operation.rate});
+    if (d.profit) cards.push({icon:'💰', label:'粗利', period:'今月', actual:d.profit.actual, unit:'百万円', gapUnit:'百万円', target:d.profit.target, rate:d.profit.rate});
+    document.getElementById('kpiCards').innerHTML = cards.map(kpiCardHtml).join('');
+    const cols = cards.length >= 4 ? 2 : Math.min(cards.length, 3);
+    document.getElementById('kpiCards').style.gridTemplateColumns = `repeat(${cols},1fr)`;
+  }
 }
 
 function renderWardExtra(d) {
-  const el = document.getElementById('wardExtra');
+  // 廃止: 病棟情報はKPIカードとフローカードに統合 (4.3.2)
+  return; /* legacy - kept for reference
+  const el = document.getElementById('wardExtra') || document.createElement('div');
   if (!d.ward_extra) { el.style.display='none'; return; }
   const we = d.ward_extra;
   el.style.display = '';
@@ -308,6 +372,7 @@ function renderWardExtra(d) {
     <div class="we-card"><div class="l">🏥 病床数</div><div class="v">${we.beds||'—'}</div></div>
     <div class="we-card"><div class="l">📊 利用率</div><div class="v" style="color:${we.util_rate!=null&&we.util_rate<85?'var(--dr)':'inherit'}">${we.util_rate!=null?we.util_rate+'%':'—'}</div></div>
     <div class="we-card"><div class="l">🔄 入退院負荷</div><div class="v">${we.load||0}</div></div>`;
+  */ // end legacy
 }
 
 function renderComment(d) {
@@ -361,27 +426,66 @@ function renderCharts(d) {
   const pLabels = {'12w':'直近12週','24w':'直近24週','365d':'直近365日'};
   const dayLabel = (showWeekday&&showHoliday)?'':showWeekday?' 平日のみ':' 休日のみ';
   const suffix = `（${pLabels[period]}${dayLabel}）`;
-
   const admSuffix = admType==='planned'?' ／ 予定':admType==='emergency'?' ／ 緊急':'';
-  document.getElementById('chartTitle1').textContent = `🚪 新入院${admSuffix} 推移${suffix}`;
-  document.getElementById('chartTitle2').textContent = `🛏️ 在院患者 推移${suffix}`;
-  const isSurgeryDept = !isWard && d.operation.actual !== null;
-  document.getElementById('chartTitle3').textContent = isWard
-    ? `🚑 入退院フロー 推移${suffix}`
-    : isSurgeryDept ? `💉 全麻手術 推移${suffix}` : `— (全麻 非対象)`;
+  const container = document.getElementById('chartsWrap');
 
-  const rawAdmTd = d.trend?.admission;
-  const filtAdmTd = (admType !== 'all' && rawAdmTd && rawAdmTd[admType])
-    ? {...rawAdmTd, values: rawAdmTd[admType]} : rawAdmTd;
-  const admChartTarget = admType==='all' ? (d.admission.target ? d.admission.target/7 : null) : null;
-  renderOneChart('chart1', filtAdmTd, admChartTarget);
-  renderOneChart('chart2', d.trend?.inpatient, d.inpatient.target);
   if (isWard) {
+    // ── 病棟: 診療科と同じ2+1レイアウト（新入院＋在院 / フロー全幅） ──
+    container.className = 'charts-container layout-2plus1';
+    const chart4panel = document.getElementById('chart4panel');
+    if (chart4panel) chart4panel.style.display = 'none';
+    document.getElementById('chartTitle1').textContent = `🚪 新入院${admSuffix} 推移${suffix}`;
+    document.getElementById('chartTitle2').textContent = `🛏️ 在院患者 推移${suffix}`;
+    document.getElementById('chartTitle3').textContent = `🔄 入退院フロー${suffix}`;
+    const rawAdmTd = d.trend?.admission;
+    const filtAdmTd = (admType !== 'all' && rawAdmTd && rawAdmTd[admType])
+      ? {...rawAdmTd, values: rawAdmTd[admType]} : rawAdmTd;
+    const admChartTarget = admType==='all' ? (d.admission.target ? d.admission.target/7 : null) : null;
+    renderOneChart('chart1', filtAdmTd, admChartTarget);
+    renderOneChart('chart2', d.trend?.inpatient, d.inpatient.target);
     renderFlowChart('chart3', d.trend?.admission, d.trend?.outflow);
-  } else if (isSurgeryDept) {
-    renderSurgeryChart('chart3', d.trend?.operation, d.operation.target);
   } else {
-    document.getElementById('chart3').innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">全麻手術 非対象診療科</div>';
+    // ── 診療科: レイアウト選択 ──
+    const isSurgeryDept = d.operation.actual !== null;
+    const hasProfitChart = !!d.profit_chart;
+    const chart4panel = document.getElementById('chart4panel');
+
+    const rawAdmTd = d.trend?.admission;
+    const filtAdmTd = (admType !== 'all' && rawAdmTd && rawAdmTd[admType])
+      ? {...rawAdmTd, values: rawAdmTd[admType]} : rawAdmTd;
+    const admChartTarget = admType==='all' ? (d.admission.target ? d.admission.target/7 : null) : null;
+
+    document.getElementById('chartTitle1').textContent = `🚪 新入院${admSuffix} 推移${suffix}`;
+    document.getElementById('chartTitle2').textContent = `🛏️ 在院患者 推移${suffix}`;
+    renderOneChart('chart1', filtAdmTd, admChartTarget);
+    renderOneChart('chart2', d.trend?.inpatient, d.inpatient.target);
+
+    if (isSurgeryDept && hasProfitChart) {
+      // 2×2: 全麻（左下）＋粗利（右下）
+      container.className = 'charts-container layout-2x2';
+      chart4panel.style.display = '';
+      document.getElementById('chartTitle3').textContent = `💉 全麻手術 推移${suffix}`;
+      document.getElementById('chartTitle4').textContent = `💰 月次粗利 推移`;
+      renderSurgeryChart('chart3', d.trend?.operation, d.operation.target);
+      renderProfitDeptChart('chart4', d.profit_chart);
+    } else if (isSurgeryDept) {
+      // 2+1: 全麻（全幅）
+      container.className = 'charts-container layout-2plus1';
+      chart4panel.style.display = 'none';
+      document.getElementById('chartTitle3').textContent = `💉 全麻手術 推移${suffix}`;
+      renderSurgeryChart('chart3', d.trend?.operation, d.operation.target);
+    } else if (hasProfitChart) {
+      // 2+1: 粗利（全幅）
+      container.className = 'charts-container layout-2plus1';
+      chart4panel.style.display = 'none';
+      document.getElementById('chartTitle3').textContent = `💰 月次粗利 推移`;
+      renderProfitDeptChart('chart3', d.profit_chart);
+    } else {
+      container.className = 'charts-container layout-2plus1';
+      chart4panel.style.display = 'none';
+      document.getElementById('chartTitle3').textContent = `— データなし`;
+      document.getElementById('chart3').innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">対象データなし</div>';
+    }
   }
 }
 
@@ -468,6 +572,31 @@ function renderSurgeryChart(elId, td, weeklyTarget) {
   },{responsive:true});
 }
 
+function renderProfitDeptChart(elId, bd) {
+  if (!bd || !bd.months || !bd.months.length) {
+    document.getElementById(elId).innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">粗利データなし</div>';
+    return;
+  }
+  const barColors = bd.months.map((_, i) => {
+    const val = bd.values[i], tgt = bd.target;
+    if (!tgt) return '#94A3B8';
+    const rate = val / tgt * 100;
+    return rate >= 100 ? '#0e7a54' : rate >= 90 ? '#b45309' : '#c4314b';
+  });
+  const traces = [{name:'粗利実績', x:bd.months, y:bd.values, type:'bar', marker:{color:barColors}, opacity:0.9}];
+  if (bd.target) traces.push({name:'目標', x:[bd.months[0],bd.months[bd.months.length-1]], y:[bd.target,bd.target], type:'scatter', mode:'lines', line:{color:'#C0293B',width:2,dash:'dot'}});
+  const allY = [...bd.values, ...(bd.target ? [bd.target] : [])].filter(v=>v!=null);
+  const yMax = allY.length ? Math.max(...allY) * 1.15 : 10;
+  Plotly.newPlot(elId, traces, {
+    font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
+    xaxis:{gridcolor:'#DCE1E9',tickangle:-45},
+    yaxis:{range:[0,yMax],gridcolor:'#DCE1E9',title:{text:'百万円',font:{size:10}}},
+    legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},
+    hovermode:'x unified',margin:{l:55,r:15,t:8,b:65},height:320,
+    plot_bgcolor:'#fff',paper_bgcolor:'#fff',
+  },{responsive:true});
+}
+
 function renderFlowChart(elId, admTd, outTd) {
   if (!admTd || !outTd || !admTd.dates || !admTd.dates.length) {
     document.getElementById(elId).innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">データなし</div>';
@@ -499,16 +628,18 @@ function renderFlowChart(elId, admTd, outTd) {
   const out = oV.slice(si);
   const nm  = netMA7.slice(si);
 
-  // 第1軸（バー）の範囲
+  // 第1軸（バー）の範囲: 0点を揃えるため対称レンジ
   const yV1 = [...adm, ...out.map(v => -v)].filter(v => v != null);
   const mn1 = yV1.length ? Math.min(...yV1) : -5;
   const mx1 = yV1.length ? Math.max(...yV1) : 5;
   const pd1 = (mx1 - mn1) * 0.08 || 1;
-  // 第2軸（純増減MA）の範囲
+  const yAbs1 = Math.max(Math.abs(mn1) + pd1, mx1 + pd1);
+  // 第2軸（純増減MA）の範囲: 0点を揃えるため対称レンジ
   const yV2 = nm.filter(v => v != null);
   const mn2 = yV2.length ? Math.min(...yV2) : -3;
   const mx2 = yV2.length ? Math.max(...yV2) : 3;
   const pd2 = (mx2 - mn2) * 0.15 || 1;
+  const yAbs2 = Math.max(Math.abs(mn2) + pd2, mx2 + pd2);
 
   Plotly.newPlot(elId, [
     { name:'入院+転入', x:ds, y:adm,            type:'bar',     marker:{color:'#0D9488'}, opacity:0.75, yaxis:'y' },
@@ -519,9 +650,9 @@ function renderFlowChart(elId, admTd, outTd) {
     barmode:'relative',
     font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
     xaxis:{gridcolor:'#DCE1E9', tickformat:'%m/%d', tickangle:-45},
-    yaxis:{range:[Math.floor(mn1-pd1), Math.ceil(mx1+pd1)], gridcolor:'#DCE1E9',
+    yaxis:{range:[-Math.ceil(yAbs1), Math.ceil(yAbs1)], gridcolor:'#DCE1E9',
            zeroline:true, zerolinecolor:'#888', zerolinewidth:1.5},
-    yaxis2:{overlaying:'y', side:'right', range:[Math.floor(mn2-pd2), Math.ceil(mx2+pd2)],
+    yaxis2:{overlaying:'y', side:'right', range:[-Math.ceil(yAbs2), Math.ceil(yAbs2)],
             gridcolor:'transparent', zeroline:true, zerolinecolor:'#C0293B', zerolinewidth:1,
             tickfont:{size:10, color:'#C0293B'}},
     legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},

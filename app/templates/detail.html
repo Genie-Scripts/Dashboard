@@ -7,38 +7,59 @@
 <style>
 :root{--bg:#f6f8fb;--s:#fff;--ink:#1a2332;--sub:#5f7084;--mu:#9daab8;--ln:#dfe5ed;--br:#0e4da4;--bl:#e8f0fe;--bd:#0a3671;--dr:#c4314b;--dr-bg:#fdf0f2;--dr-t:#8c1d35;--wr:#b45309;--wr-bg:#fef7ee;--ok:#0e7a54;--ok-bg:#ecfdf5;--inf:#2563eb;--r:18px;--sh:0 4px 14px rgba(10,22,42,.08)}
 *{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
-.hdr{position:sticky;top:0;z-index:10;background:var(--bd);color:#fff;padding:12px 24px;box-shadow:var(--sh)}.hdr .row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}.left{display:flex;align-items:center;gap:10px}.back{color:#a8bdd4;text-decoration:none;font-size:13px;font-weight:800}.badge{font-size:11px;background:var(--br);padding:3px 10px;border-radius:999px;font-weight:800}.title{font-size:17px;font-weight:900}.right{display:flex;align-items:center;gap:10px}.role{display:flex;gap:4px}.role a{font-size:12px;font-weight:800;text-decoration:none;padding:5px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.25);color:#a8bdd4;transition:all .15s}.role a.active{background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.4)}.meta{font-size:12px;color:#a8bdd4}.act{color:#a8bdd4;text-decoration:none;font-size:12px}
+.hdr{position:sticky;top:0;z-index:10;background:var(--bd);color:#fff;padding:10px 24px;box-shadow:var(--sh)}.hdr .row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}.left{display:flex;align-items:center;gap:10px}.back{color:#a8bdd4;text-decoration:none;font-size:13px;font-weight:800}.badge{font-size:11px;background:var(--br);padding:3px 10px;border-radius:999px;font-weight:800}.title{font-size:17px;font-weight:900}.right{display:flex;align-items:center;gap:10px}.role{display:flex;gap:4px}.role a{font-size:12px;font-weight:800;text-decoration:none;padding:5px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.25);color:#a8bdd4;transition:all .15s}.role a.active{background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.4)}.meta{font-size:12px;color:#a8bdd4}.act{color:#a8bdd4;text-decoration:none;font-size:12px}
+.nav-bar{display:flex;align-items:center;gap:4px;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.12)}.nav-bar a{font-size:12px;font-weight:800;text-decoration:none;padding:5px 13px;border-radius:8px;color:#a8bdd4;transition:all .15s;border:1px solid transparent}.nav-bar a:hover{color:#fff;border-color:rgba(255,255,255,.25)}.nav-bar a.active{background:rgba(255,255,255,.18);color:#fff;border-color:rgba(255,255,255,.35)}
 .w{max-width:1280px;margin:0 auto;padding:16px 20px 48px}
 /* ★課題4: タブを大きく、数字を目立たせる */
-.tabs{display:grid;grid-template-columns:repeat(3,1fr);background:var(--s);border:1px solid var(--ln);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh)}.tab{padding:16px 18px;border-right:1px solid var(--ln);cursor:pointer;transition:background .15s}.tab:last-child{border-right:none}.tab:hover{background:#f8fafc}.tab.active{background:var(--br);color:#fff}.tab .nm{font-size:13px;font-weight:800}.tab .big{font-size:28px;font-weight:900;line-height:1.1;margin:4px 0}.tab .per{font-size:11px;color:var(--sub);margin-top:2px}.tab.active .per{color:rgba(255,255,255,.7)}.tab .st{display:inline-block;font-size:10px;font-weight:900;padding:2px 8px;border-radius:999px;margin-left:4px;background:var(--dr-bg);color:var(--dr-t)}.tab.active .st{background:rgba(255,255,255,.18);color:#fff}
-.sum{display:grid;grid-template-columns:1.4fr repeat(3,1fr);gap:10px;margin-top:12px}.bx{background:var(--s);border:1px solid var(--ln);border-radius:14px;padding:12px 14px;box-shadow:0 2px 6px rgba(10,22,42,.04)}.bx h2{font-size:16px;margin:0}.bx .k{font-size:11px;color:var(--sub);font-weight:600}.bx .v{font-size:24px;font-weight:900;margin-top:4px}.bx .v.dr{color:var(--dr)}
+.tabs{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));background:var(--s);border:1px solid var(--ln);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh)}.tab{padding:16px 18px;border-right:1px solid var(--ln);cursor:pointer;transition:background .15s}.tab:last-child{border-right:none}.tab:hover{background:#f8fafc}.tab:not(.active){background:#f0f4f8;color:var(--sub)}.tab.active{background:var(--s);color:var(--ink);box-shadow:inset 0 -4px 0 var(--br),0 4px 12px rgba(14,77,164,.10)}.tab .nm{font-size:13px;font-weight:800}.tab .big{font-size:28px;font-weight:900;line-height:1.1;margin:4px 0}.tab:not(.active) .big{color:var(--sub)}.tab .per{font-size:11px;color:var(--sub);margin-top:2px}.tab .st{display:inline-block;font-size:10px;font-weight:900;padding:2px 8px;border-radius:999px;margin-left:4px;background:var(--dr-bg);color:var(--dr-t)}
+.sum{display:grid;grid-template-columns:1.4fr repeat(3,1fr);gap:10px;margin-top:12px}.bx{background:var(--bg);border:1px solid var(--ln);border-radius:14px;padding:12px 14px;box-shadow:0 2px 6px rgba(10,22,42,.04)}.bx h2{font-size:16px;margin:0}.bx .k{font-size:11px;color:var(--sub);font-weight:600}.bx .v{font-size:24px;font-weight:900;margin-top:4px}.bx .v.dr{color:var(--dr)}
+.bx .cmp-bar{height:4px;background:#edf2f7;border-radius:999px;overflow:hidden;margin-top:8px}.bx .cmp-fill{height:100%;border-radius:999px;transition:width .3s}.bx .cmp-fill.ok{background:var(--ok)}.bx .cmp-fill.wr{background:var(--wr)}.bx .cmp-fill.dr{background:var(--dr)}.bx .cmp-fill.mu{background:var(--mu)}.bx .cmp-meta{display:flex;justify-content:space-between;align-items:center;margin-top:3px}.bx .cmp-prev{font-size:9px;color:var(--mu)}.bx .cmp-dir{font-size:9px;font-weight:900;padding:1px 5px;border-radius:4px}.bx .cmp-dir.ok{background:var(--ok-bg);color:#065f42}.bx .cmp-dir.wr{background:var(--wr-bg);color:#7c3a06}.bx .cmp-dir.dr{background:var(--dr-bg);color:var(--dr-t)}.bx .cmp-dir.mu{color:var(--mu)}
 /* ★Plan-B: 実績+目標+差分 統合カード */
-.bx-main{background:var(--s);border:1px solid var(--ln);border-radius:14px;padding:14px 16px;box-shadow:0 2px 6px rgba(10,22,42,.04)}.bx-main h2{font-size:14px;margin:0 0 6px;font-weight:800}.bx-main .period-note{font-size:11px;color:var(--sub);margin-bottom:4px}.bx-main .main-val{font-size:28px;font-weight:900;line-height:1.15}.bx-main .main-val.dr{color:var(--dr)}.bx-main .main-unit{font-size:14px;font-weight:400;color:var(--sub)}
+.bx-main{background:var(--s);border:1px solid var(--ln);border-radius:14px;padding:14px 16px;box-shadow:0 2px 6px rgba(10,22,42,.04)}.bx-main.ok{background:var(--ok-bg)}.bx-main.wr{background:var(--wr-bg)}.bx-main.dr{background:var(--dr-bg)}.bx-main h2{font-size:14px;margin:0 0 6px;font-weight:800}.bx-main .period-note{font-size:11px;color:var(--sub);margin-bottom:4px}.bx-main .main-val{font-size:28px;font-weight:900;line-height:1.15}.bx-main .main-val.dr{color:var(--dr)}.bx-main .main-unit{font-size:14px;font-weight:400;color:var(--sub)}
 .tgt-row{display:flex;align-items:center;gap:8px;margin-top:8px;padding:6px 10px;background:#f8f9fa;border-radius:10px;border:1px dashed var(--ln)}.tgt-icon{font-size:12px}.tgt-label{font-size:10px;color:var(--mu);font-weight:700}.tgt-val{font-size:13px;font-weight:800;color:var(--sub)}.gap-val{font-size:13px;font-weight:900;margin-left:auto}.gap-val.dr{color:var(--dr)}.gap-val.wr{color:var(--wr)}.gap-val.ok{color:var(--ok)}
 .prog-wrap{margin-top:6px}.prog-bar{height:6px;background:#edf2f7;border-radius:999px;overflow:hidden}.prog-fill{height:100%;border-radius:999px;transition:width .3s}.prog-fill.ok{background:var(--ok)}.prog-fill.wr{background:var(--wr)}.prog-fill.dr{background:var(--dr)}.prog-meta{display:flex;justify-content:space-between;align-items:center;margin-top:3px}.prog-pct{font-size:11px;font-weight:800}.prog-pct.dr{color:var(--dr)}.prog-pct.wr{color:var(--wr)}.prog-pct.ok{color:var(--ok)}.prog-status{font-size:9px;font-weight:800;padding:2px 7px;border-radius:5px}.prog-status.dr{background:var(--dr-bg);color:var(--dr-t)}.prog-status.wr{background:var(--wr-bg);color:#7c3a06}.prog-status.ok{background:var(--ok-bg);color:#065f42}
 .tb{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px}.grp{display:flex;align-items:center;gap:5px}.gl{font-size:12px;font-weight:800;color:var(--sub)}.btn{background:var(--s);border:1px solid var(--ln);border-radius:10px;padding:8px 14px;font-size:12px;font-weight:800;color:var(--sub);cursor:pointer;box-shadow:0 1px 3px rgba(10,22,42,.04);transition:all .15s}.btn:hover{border-color:#93b4e4;color:var(--br)}.btn.active{background:var(--bl);border-color:#93b4e4;color:var(--br)}
-.main{display:grid;grid-template-columns:1.15fr .85fr;gap:14px;margin-top:12px;align-items:start}.pnl-chart{position:sticky;top:60px}.pnl{background:var(--s);border:1px solid var(--ln);border-radius:var(--r);padding:18px;box-shadow:var(--sh)}.pnl h3{margin:0 0 12px;font-size:14px;font-weight:800}
-.chart{width:100%;height:360px}
+.main{display:grid;grid-template-columns:1.15fr .85fr;gap:14px;margin-top:12px;align-items:start}.pnl-chart{}.pnl{background:var(--s);border:1px solid var(--ln);border-radius:var(--r);padding:18px;box-shadow:var(--sh);overflow:hidden}.pnl h3{margin:0 0 12px;font-size:14px;font-weight:800}
+.chart{width:100%;height:340px;overflow:hidden}
 .rk{display:grid;gap:6px}.ri{display:grid;grid-template-columns:26px 1fr 120px 55px 60px 16px;gap:6px;align-items:center;padding:10px;border:1px solid var(--ln);border-radius:12px;background:#fbfdff;cursor:pointer;transition:background .1s}.ri:hover{background:var(--bl)}.num{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900}.num.ok{background:#d1fae5;color:#065f42}.num.wr{background:#fef3c7;color:#92400e}.num.dr{background:#fce4ec;color:var(--dr-t)}.nm{font-size:13px;font-weight:900}.mt2{font-size:10px;color:var(--sub)}.bar{height:7px;background:#edf2f7;border-radius:999px;overflow:hidden}.fill{height:100%;border-radius:999px}.fill.ok{background:var(--ok)}.fill.wr{background:var(--wr)}.fill.dr{background:var(--dr)}.rt{font-size:12px;font-weight:900;text-align:right}.rt.ok{color:var(--ok)}.rt.wr{color:var(--wr)}.rt.dr{color:var(--dr)}.stl{font-size:9px;font-weight:800;text-align:center;padding:2px 5px;border-radius:5px}.stl.ok{background:var(--ok-bg);color:#065f42}.stl.wr{background:var(--wr-bg);color:#7c3a06}.stl.dr{background:var(--dr-bg);color:var(--dr-t)}.arrow{color:var(--mu);font-size:14px}
 .legend{display:flex;gap:14px;justify-content:center;margin-top:10px;font-size:11px;color:var(--sub)}.ld{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:3px;vertical-align:middle}
 .rank-toggle{text-align:center;padding:10px;font-size:13px;font-weight:800;color:var(--br);cursor:pointer;border-top:1px solid var(--ln);margin-top:8px;transition:background .15s}.rank-toggle:hover{background:var(--bl);border-radius:0 0 12px 12px}.rank-toggle.expanded{color:var(--mu)}
 .drill{margin-top:14px;display:none}.drill.open{display:block;animation:drillIn .3s ease}@keyframes drillIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}.dr-head{background:var(--s);border:1px solid var(--ln);border-radius:var(--r) var(--r) 0 0;padding:12px 18px;font-size:13px;font-weight:900;box-shadow:var(--sh);cursor:pointer;display:flex;justify-content:space-between;align-items:center}.dr-body{background:var(--s);border:1px solid var(--ln);border-top:none;border-radius:0 0 var(--r) var(--r);padding:18px;box-shadow:var(--sh)}.dgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}.mc{background:#f8fafc;border-radius:12px;padding:12px;text-align:center}.mc .l{font-size:10px;color:var(--sub)}.mc .v{font-size:22px;font-weight:900;margin-top:3px}.mc .v.dr{color:var(--dr)}.mc .s{font-size:10px;color:var(--mu);margin-top:2px}
-/* ★課題5: ミニグラフ高さを5割増し 150→225px */
-.drill-chart{height:225px;margin-top:0;min-height:0;overflow:hidden}
+/* ドリルダウン チャート */
+.drill-chart{height:320px;min-height:0}
+/* ドリルダウン KPIカード */
+.kpi-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
+.kc{background:var(--s);border:1px solid var(--ln);border-radius:14px;padding:14px 16px;box-shadow:0 2px 6px rgba(10,22,42,.04)}
+.kc h3{font-size:13px;font-weight:800;margin:0 0 4px}.kc .period{font-size:10px;color:var(--sub)}.kc .val{font-size:26px;font-weight:900;line-height:1.15;margin:4px 0}.kc .val.dr{color:var(--dr)}.kc .unit{font-size:13px;font-weight:400;color:var(--sub)}
+.kc .tgt-row{display:flex;align-items:center;gap:6px;margin-top:6px;padding:5px 8px;background:#f8f9fa;border-radius:8px;border:1px dashed var(--ln)}.kc .tgt-label{font-size:9px;color:var(--mu);font-weight:700}.kc .tgt-val{font-size:12px;font-weight:800;color:var(--sub)}.kc .gap-val{font-size:12px;font-weight:900;margin-left:auto}.kc .gap-val.dr{color:var(--dr)}.kc .gap-val.wr{color:var(--wr)}.kc .gap-val.ok{color:var(--ok)}
+.kc .prog{margin-top:4px}.kc .prog-bar{height:5px;background:#edf2f7;border-radius:999px;overflow:hidden}.kc .prog-fill{height:100%;border-radius:999px}.kc .prog-fill.ok{background:var(--ok)}.kc .prog-fill.wr{background:var(--wr)}.kc .prog-fill.dr{background:var(--dr)}.kc .prog-meta{display:flex;justify-content:space-between;margin-top:2px}.kc .prog-pct{font-size:10px;font-weight:800}.kc .prog-pct.dr{color:var(--dr)}.kc .prog-pct.wr{color:var(--wr)}.kc .prog-pct.ok{color:var(--ok)}.kc .prog-st{font-size:8px;font-weight:800;padding:1px 5px;border-radius:4px}.kc .prog-st.dr{background:var(--dr-bg);color:var(--dr-t)}.kc .prog-st.wr{background:var(--wr-bg);color:#7c3a06}.kc .prog-st.ok{background:var(--ok-bg);color:#065f42}
+/* ドリルダウン チャートグリッド */
+.charts-container{display:grid;gap:12px;margin-top:12px}
+.charts-container.layout-2plus1{grid-template-columns:1fr 1fr}
+.charts-container.layout-2plus1 .chart3-panel{grid-column:1/-1}
+.charts-container.layout-2x2{grid-template-columns:1fr 1fr}
+.charts-container.layout-3{grid-template-columns:repeat(3,1fr)}
+.cpnl{background:var(--s);border:1px solid var(--ln);border-radius:var(--r);padding:16px;box-shadow:var(--sh)}.cpnl h4{font-size:13px;font-weight:800;margin:0 0 8px;color:var(--sub);min-width:0}
 .ft{text-align:center;font-size:11px;color:var(--mu);padding:20px 0;border-top:1px solid var(--ln);margin-top:20px}
-.drill-graphs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:8px}.drill-graphs>div{min-width:0;overflow:hidden}
 @media(max-width:768px){.tabs{display:flex;overflow:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}.tab{min-width:150px;flex:0 0 auto}.tab .big{font-size:22px}.sum{grid-template-columns:1fr}.bx-main .main-val{font-size:24px}.main{grid-template-columns:1fr}.chart{height:200px}.ri{grid-template-columns:24px 1fr auto}.bar,.stl{display:none}.drill-chart{height:160px}.drill-graphs{grid-template-columns:1fr}.role{display:none}.hdr .row{flex-direction:column;align-items:flex-start}}
 </style>
 </head>
 <body>
-<header class="hdr"><div class="row">
-  <div class="left"><a class="back" href="portal.html">‹ ポータル</a><span class="badge">DETAIL</span><span class="title">📊 統合詳細ダッシュボード</span></div>
+<header class="hdr">
+<div class="row">
+  <div class="left"><span class="badge">DETAIL</span><span class="title">📊 統合詳細ダッシュボード</span></div>
   <div class="right">
     <div class="role"><a href="#" class="active" onclick="presetDoctor(event)">🩺 医師向け</a><a href="#" onclick="presetNurse(event)">🏥 看護師向け</a></div>
     <a class="act" href="#" onclick="window.print()">🖨️ 印刷</a>
     <span class="meta">📅 {{ base_date }}</span>
   </div>
-</div></header>
+</div>
+<nav class="nav-bar">
+  <a href="portal.html">🏥 ポータル</a>
+  <a href="detail.html" class="active">📊 統合詳細</a>
+  <a href="dept.html">🩺 部門別</a>
+</nav>
+</header>
 
 <div class="w">
   <nav class="tabs" id="kpiTabs"></nav>
@@ -58,12 +79,13 @@
   <div class="drill" id="drillPanel">
     <div class="dr-head" id="drillHead" onclick="closeDrill()">📋 <span id="drillName"></span> の詳細 <span style="color:var(--mu)">✕</span></div>
     <div class="dr-body">
-      <div class="dgrid" id="drillCards"></div>
-      <div id="drillComment" style="margin:10px 0;padding:10px 14px;background:#f8fafc;border-radius:10px;font-size:13px;color:var(--sub)"></div>
-      <div class="drill-graphs">
-        <div><div style="font-size:11px;color:var(--sub);margin-bottom:4px" id="drillLabel1">🚪 新入院 推移</div><div class="drill-chart" id="drillChartAdm"></div></div>
-        <div><div style="font-size:11px;color:var(--sub);margin-bottom:4px" id="drillLabel2">🛏️ 在院 推移</div><div class="drill-chart" id="drillChartInp"></div></div>
-        <div><div style="font-size:11px;color:var(--sub);margin-bottom:4px" id="drillLabel3">💉 全麻 推移</div><div class="drill-chart" id="drillChartOp"></div></div>
+      <div class="kpi-row" id="drillKpiCards"></div>
+      <div id="drillComment" style="display:none;margin:10px 0 12px;padding:10px 14px;background:#f8fafc;border-radius:10px;font-size:13px;color:var(--sub)"></div>
+      <div id="drillChartsWrap" class="charts-container layout-2plus1">
+        <div class="cpnl"><h4 id="drillLabel1">🚪 新入院 推移</h4><div class="drill-chart" id="drillChartAdm"></div></div>
+        <div class="cpnl"><h4 id="drillLabel2">🛏️ 在院 推移</h4><div class="drill-chart" id="drillChartInp"></div></div>
+        <div class="cpnl chart3-panel"><h4 id="drillLabel3">💉 全麻 推移</h4><div class="drill-chart" id="drillChartOp"></div></div>
+        <div class="cpnl" id="drillChart4panel" style="display:none"><h4 id="drillLabel4">💰 月次粗利 推移</h4><div class="drill-chart" id="drillChartProfit"></div></div>
       </div>
     </div>
   </div>
@@ -77,11 +99,12 @@ const DATA = {{ data_json|safe }};
 let currentTab = 'admission';
 let currentAxis = 'dept';
 let currentPeriod = '12w';
+const hasProfit = !!(DATA.profit && DATA.profit.kpi);
 let showWeekday = true;
 let showHoliday = true;
 let showMA7 = true;
 let showMA28 = true;
-let showDaily = true;
+let showDaily = false;
 let currentDrill = null;  // ★課題4: 開いているドリルダウン名を保持
 let admType = 'all';  // 新入院種別フィルタ: 'all' | 'planned' | 'emergency'
 let rankSort = 'gap_asc';  // ソート: 'rate_desc'|'rate_asc'|'gap_desc'|'gap_asc'
@@ -89,7 +112,7 @@ let rankSort = 'gap_asc';  // ソート: 'rate_desc'|'rate_asc'|'gap_desc'|'gap_
 document.addEventListener('DOMContentLoaded', () => {
   const hash = location.hash.replace('#','');
   const params = new URLSearchParams(location.hash.includes('?') ? location.hash.split('?')[1] : '');
-  if (['inpatient','admission','operation'].includes(hash.split('?')[0])) currentTab = hash.split('?')[0];
+  if (['inpatient','admission','operation','profit'].includes(hash.split('?')[0])) currentTab = hash.split('?')[0];
   if (params.get('axis')) currentAxis = params.get('axis');
   renderTabs(); renderAll();
 });
@@ -108,6 +131,13 @@ function renderTabs() {
      big:`${DATA.kpi.operation.daily_avg}件/日`, per:`直近7平日平均`,
      st:DATA.kpi.operation.status},
   ];
+  if (hasProfit) {
+    const pk = DATA.profit.kpi;
+    const pSt = pk.hospital_achievement >= 100 ? {css:'ok',shape:'▲',text:'達成'} : pk.hospital_achievement >= 90 ? {css:'wr',shape:'―',text:'接近'} : {css:'dr',shape:'▼',text:'未達'};
+    tabs.push({id:'profit', icon:'💰', name:'粗利',
+      big:`${pk.hospital_total}百万円`, per:`${pk.base_month} 全科合計`,
+      st:pSt});
+  }
   document.getElementById('kpiTabs').innerHTML = tabs.map(t =>
     `<div class="tab${t.id===currentTab?' active':''}" onclick="switchTab('${t.id}')">
       <div class="nm">${t.icon} ${t.name} <span class="st">${t.st.shape} ${t.st.text}</span></div>
@@ -119,9 +149,9 @@ function renderTabs() {
 
 function switchTab(id) {
   currentTab = id;
-  if (id === 'operation') currentAxis = 'dept';
+  if (id === 'operation' || id === 'profit') currentAxis = 'dept';
   admType = 'all';   // タブ切替でフィルタリセット
-  rankSort = 'gap_asc';  // ソートもリセット
+  rankSort = id === 'profit' ? 'rate_desc' : 'gap_asc';
   renderTabs(); renderAll();
 }
 function setAxis(ax, btn) {
@@ -152,6 +182,67 @@ function presetNurse(e) {
 }
 function renderAll() { renderSummary(); renderToolbar(); renderContent(); closeDrill(); }
 
+// ── ステータスヘルパー (ドリルパネル用) ──
+function stCss(rate) { return rate==null?'mu':rate<90?'dr':rate<100?'wr':'ok'; }
+function stShape(rate) { return rate==null?'—':rate<90?'▼':rate<100?'―':'▲'; }
+function stText(rate) { return rate==null?'—':rate<90?'未達':rate<100?'接近':'達成'; }
+
+// ── KPIカード HTML生成 (ドリルパネル用) ──
+function kpiCardHtml(c) {
+  const sc = stCss(c.rate);
+  const ss = stShape(c.rate);
+  const st = stText(c.rate);
+  const barW = Math.min((c.rate||0)/1.5, 100);
+  const gap = c.target != null ? (c.actual - c.target) : null;
+  const gapStr = gap != null ? (gap > 0 ? '+' : '') + Math.round(gap*10)/10 + (c.gapUnit||c.unit) : '—';
+  return `<div class="kc">
+    <h3>${c.icon} ${c.label}</h3>
+    ${c.period ? `<div class="period">${c.period}</div>` : ''}
+    <div class="val ${sc==='dr'?'dr':''}">${c.actual!=null?c.actual:'—'}<span class="unit">${c.unit}</span></div>
+    ${c.sub ? `<div style="font-size:11px;color:var(--sub);margin-top:3px">${c.sub}</div>` : ''}
+    ${c.target!=null ? `<div class="tgt-row">
+      <span style="font-size:11px">🎯</span>
+      <span class="tgt-label">${c.targetLabel||'目標'}</span>
+      <span class="tgt-val">${c.target}${c.unit}</span>
+      <span class="gap-val ${sc}">${gapStr}</span>
+    </div>
+    <div class="prog">
+      <div class="prog-bar"><div class="prog-fill ${sc}" style="width:${barW}%"></div></div>
+      <div class="prog-meta">
+        <span class="prog-pct ${sc}">${c.rate!=null?c.rate+'%':'—'}</span>
+        <span class="prog-st ${sc}">${ss} ${st}</span>
+      </div>
+    </div>` : `<div style="font-size:10px;color:var(--mu);margin-top:6px">目標未設定</div>`}
+  </div>`;
+}
+
+/* 前年同期比: ±5%で上向き/横ばい/下向き判定 */
+function yoyDir(curr, prev) {
+  if (prev == null || curr == null || prev === 0) return {css:'mu', label:'― データなし'};
+  const pct = (curr - prev) / Math.abs(prev) * 100;
+  if (pct > 5)  return {css:'ok', label:'▲ 上向き'};
+  if (pct < -5) return {css:'dr', label:'▼ 下向き'};
+  return {css:'wr', label:'― 横ばい'};
+}
+
+/* サブカード（比較バー付き）HTML生成 */
+function refCardHtml(r) {
+  const dir = yoyDir(r.curr, r.prev);
+  const fillPct = (r.prev != null && r.prev > 0 && r.curr != null)
+    ? Math.min(r.curr / r.prev * 100, 150) : 0;
+  const barW = Math.min(fillPct / 1.5, 100);  // 150%→100%幅
+  const prevText = r.prevLabel || (r.prev != null ? `対照 ${r.prev}${r.unit||''}` : '対照 —');
+  return `<div class="bx">
+    <div class="k">${r.k}</div>
+    <div class="v${r.dr?' dr':''}">${r.v}</div>
+    <div class="cmp-bar"><div class="cmp-fill ${dir.css}" style="width:${barW}%"></div></div>
+    <div class="cmp-meta">
+      <span class="cmp-prev">${prevText}</span>
+      <span class="cmp-dir ${dir.css}">${dir.label}</span>
+    </div>
+  </div>`;
+}
+
 /* ★Plan-B: renderSummary — 実績+目標+差分を統合カードに集約 */
 function renderSummary() {
   const kpi = DATA.kpi[currentTab];
@@ -167,9 +258,16 @@ function renderSummary() {
       rate:kpi.rate, status:kpi.status
     };
     refs = [
-      {k:'今年度平均',  v:kpi.fy_avg!==null?`${kpi.fy_avg}人`:'—'},
-      {k:'直近7日平均', v:kpi.avg_7d!==null?`${kpi.avg_7d}人`:'—', dr:kpi.rate<90},
-      {k:'前年平均',    v:kpi.prev_avg!==null?`${kpi.prev_avg}人`:'—'},
+      {k:'直近7日平均', v:kpi.avg_7d!==null?`${kpi.avg_7d}人`:'—', unit:'人',
+       curr:kpi.avg_7d, prev:kpi.prior_range_avg,
+       prevLabel:kpi.prior_range_avg!=null?`先行28日平均 ${kpi.prior_range_avg}人`:'先行28日平均 —',
+       dr:kpi.avg_7d!=null&&kpi.avg_7d<kpi.target},
+      {k:'直近4週平均', v:kpi.avg_28d!==null?`${kpi.avg_28d}人`:'—', unit:'人',
+       curr:kpi.avg_28d, prev:kpi.prev_28d_avg,
+       prevLabel:kpi.prev_28d_avg!=null?`前年同期 ${kpi.prev_28d_avg}人`:'前年同期 —'},
+      {k:'今年度平均',  v:kpi.fy_avg!==null?`${kpi.fy_avg}人`:'—', unit:'人',
+       curr:kpi.fy_avg, prev:kpi.prev_avg,
+       prevLabel:kpi.prev_avg!=null?`前年度 ${kpi.prev_avg}人`:'前年度 —'},
     ];
   } else if (currentTab === 'admission') {
     main = {
@@ -179,9 +277,35 @@ function renderSummary() {
       rate:kpi.rate_7d, status:kpi.status
     };
     refs = [
-      {k:'年度平均',  v:kpi.fy_avg!==null?`${kpi.fy_avg}人`:'—'},
-      {k:'年度達成率', v:kpi.fy_rate!==null?`${kpi.fy_rate}%`:'—', dr:kpi.fy_rate!=null&&kpi.fy_rate<90},
-      {k:'前年平均',  v:kpi.prev_avg!==null?`${kpi.prev_avg}人`:'—'},
+      {k:'直近14日（7日換算）', v:kpi.actual_14d_weekly!==null?`${kpi.actual_14d_weekly}人/週`:'—', unit:'人/週',
+       curr:kpi.actual_14d_weekly, prev:kpi.prior_range_weekly,
+       prevLabel:kpi.prior_range_weekly!=null?`先行4週 ${kpi.prior_range_weekly}人/週`:'先行4週 —'},
+      {k:'直近28日（7日換算）', v:kpi.actual_28d!==null?`${Math.round(kpi.actual_28d/4*10)/10}人/週`:'—', unit:'人/週',
+       curr:kpi.actual_28d!=null?Math.round(kpi.actual_28d/4*10)/10:null,
+       prev:kpi.prev_28d_total!=null?Math.round(kpi.prev_28d_total/4*10)/10:null,
+       prevLabel:kpi.prev_28d_total!=null?`前年同期 ${Math.round(kpi.prev_28d_total/4*10)/10}人/週`:'前年同期 —'},
+      {k:'年度平均（7日換算）', v:kpi.fy_avg!==null?`${kpi.fy_avg}人/週`:'—', unit:'人/週',
+       curr:kpi.fy_avg, prev:kpi.prev_fy_avg,
+       prevLabel:kpi.prev_fy_avg!=null?`前年度 ${kpi.prev_fy_avg}人/週`:'前年度 —'},
+    ];
+  } else if (currentTab === 'profit' && hasProfit) {
+    const pk = DATA.profit.kpi;
+    const pRate = pk.hospital_achievement;
+    const pGap = pk.hospital_target ? Math.round((pk.hospital_total - pk.hospital_target)*10)/10 : 0;
+    const pSt = pRate >= 100 ? {css:'ok',shape:'▲',text:'達成'} : pRate >= 90 ? {css:'wr',shape:'―',text:'接近'} : {css:'dr',shape:'▼',text:'未達'};
+    main = {
+      icon:'💰', label:'粗利（全科合計）', periodNote:`${pk.base_month} 月次`,
+      actual:pk.hospital_total, unit:'百万円', targetLabel:'月次目標',
+      target:pk.hospital_target, gap:pGap, gapUnit:'百万円',
+      rate:pRate, status:pSt
+    };
+    refs = [
+      {k:'直近月粗利',     v:pk.hospital_total!==null?`${pk.hospital_total}百万`:'—', unit:'百万',
+       curr:pk.hospital_total, prev:pk.prev_month_total},
+      {k:'直近3ヶ月平均', v:pk.hospital_3m_avg!==null?`${pk.hospital_3m_avg}百万/月`:'—', unit:'百万/月',
+       curr:pk.hospital_3m_avg, prev:pk.prev_3m_avg},
+      {k:'年度累計月平均', v:pk.hospital_ytd_monthly_avg!==null?`${pk.hospital_ytd_monthly_avg}百万/月`:'—', unit:'百万/月',
+       curr:pk.hospital_ytd_monthly_avg, prev:pk.prev_ytd_monthly_avg},
     ];
   } else {
     main = {
@@ -191,9 +315,15 @@ function renderSummary() {
       rate:kpi.rate, status:kpi.status
     };
     refs = [
-      {k:'時間内稼働率', v:kpi.in_hours_rate!==null?`${kpi.in_hours_rate}%`:'—'},
-      {k:'週間合計',     v:kpi.week_total!==null?`${kpi.week_total}件`:'—'},
-      {k:'年度平均',     v:kpi.fy_avg!==null?`${kpi.fy_avg}件/日`:'—'},
+      {k:'直近4週平日平均', v:kpi['4w_biz_avg']!==null?`${kpi['4w_biz_avg']}件/日`:'—', unit:'件/日',
+       curr:kpi['4w_biz_avg'], prev:kpi.prev_4w_avg,
+       prevLabel:kpi.prev_4w_avg!=null?`前年同期 ${kpi.prev_4w_avg}件/日`:'前年同期 —'},
+      {k:'直近7日合計',   v:kpi.week_total!==null?`${kpi.week_total}件`:'—', unit:'件',
+       curr:kpi.week_total, prev:kpi.prev_week_total,
+       prevLabel:kpi.prev_week_total!=null?`前年同期 ${kpi.prev_week_total}件`:'前年同期 —'},
+      {k:'年度平日平均',   v:kpi.fy_avg!==null?`${kpi.fy_avg}件/日`:'—', unit:'件/日',
+       curr:kpi.fy_avg, prev:kpi.prev_fy_avg,
+       prevLabel:kpi.prev_fy_avg!=null?`前年度 ${kpi.prev_fy_avg}件/日`:'前年度 —'},
     ];
   }
 
@@ -203,9 +333,14 @@ function renderSummary() {
   const st = main.status ? main.status.text : '—';
   const barW = Math.min((main.rate||0)/1.5, 100);  // 150%→100%幅
   const gapPfx = main.gap > 0 ? '+' : '';
+  // トレンド矢印
+  const kpiTrend = DATA.kpi[currentTab] && DATA.kpi[currentTab].trend;
+  const trendHtml = kpiTrend && kpiTrend.label
+    ? `<span class="cmp-dir ${kpiTrend.css}" style="font-size:10px;font-weight:800;padding:2px 6px;border-radius:4px;margin-left:6px">${kpiTrend.label}</span>`
+    : '';
 
-  const mainHtml = `<div class="bx-main">
-    <h2>${main.icon} ${main.label}</h2>
+  const mainHtml = `<div class="bx-main ${sc}">
+    <h2>${main.icon} ${main.label}${trendHtml}</h2>
     ${main.periodNote ? `<div class="period-note">${main.periodNote}</div>` : ''}
     <div class="main-val ${sc==='dr'?'dr':''}">${main.actual}<span class="main-unit">${main.unit}</span></div>
     <div class="tgt-row">
@@ -223,14 +358,30 @@ function renderSummary() {
     </div>
   </div>`;
 
-  const refsHtml = refs.map(r =>
-    `<div class="bx"><div class="k">${r.k}</div><div class="v${r.dr?' dr':''}">${r.v}</div></div>`
-  ).join('');
+  const refsHtml = refs.map(r => refCardHtml(r)).join('');
 
   document.getElementById('summaryBar').innerHTML = mainHtml + refsHtml;
 }
 
 function renderToolbar() {
+  if (currentTab === 'profit') {
+    const sortDefs = [
+      {k:'rate_desc', l:'達成率↓'}, {k:'rate_asc', l:'達成率↑'},
+      {k:'gap_desc',  l:'目標差↓'}, {k:'gap_asc',  l:'目標差↑'},
+    ];
+    const sortBtns = sortDefs.map(s =>
+      `<span class="btn${rankSort===s.k?' active':''}" onclick="setRankSort('${s.k}')">${s.l}</span>`
+    ).join('');
+    const profitPeriodDefs = [{l:'直近3ヶ月',p:'12w'},{l:'直近6ヶ月',p:'24w'},{l:'直近12ヶ月',p:'365d'}];
+    const profitPeriods = profitPeriodDefs.map(d =>
+      `<span class="btn${d.p===currentPeriod?' active':''}" onclick="setPeriod('${d.p}',this)">${d.l}</span>`
+    ).join('');
+    document.getElementById('toolbar').innerHTML = `
+      <div class="grp"><span class="gl">期間</span>${profitPeriods}</div>
+      <div class="grp"><span class="gl">順位基準</span>${sortBtns}</div>
+      <div class="grp"><span class="btn" onclick="window.print()">🖨️ 印刷</span></div>`;
+    return;
+  }
   const isOp = currentTab === 'operation';
   const axes = isOp
     ? `<span class="btn active">🩺 診療科別</span>`
@@ -373,6 +524,7 @@ function filterByDayType(dates, values, isWeekday) {
 }
 
 function renderChart() {
+  if (currentTab === 'profit') { renderProfitChart(); return; }
   const trend = DATA.trend[currentTab];
   if (!trend || !trend.dates.length) return;
   const cutoff = periodCutoff();
@@ -449,7 +601,7 @@ function renderChart() {
     yaxis:{range:[yLo,yHi],gridcolor:'#DCE1E9',title:{text:'',font:{size:10}}},
     legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},
     hovermode:'x unified',
-    margin:{l:50,r:20,t:10,b:55},height:380,
+    margin:{l:50,r:20,t:10,b:55},height:340,
     plot_bgcolor:'#fff',paper_bgcolor:'#fff',
     shapes: shapes,
   };
@@ -464,6 +616,7 @@ const RANK_SHOW = 10;
 let rankExpanded = false;
 
 function renderRanking() {
+  if (currentTab === 'profit') { renderProfitRanking(); return; }
   const raw = (DATA.perf[currentTab]||{})[currentAxis] || [];
 
   // クライアントサイドソート（差分も計算）
@@ -546,196 +699,368 @@ function openDrill(name) {
   if (!d) { console.warn('drill data not found:', name); return; }
   document.getElementById('drillName').textContent = name;
 
+  const isWard = !!d.ward_extra;
+  const we = d.ward_extra;
   const opLabel = d.operation.label || '全麻';
-  const showOp = d.ward_extra || d.operation.actual !== null;
-  const cards = [
-    {l:'🚪 新入院',p:'直近7日累計',v:d.admission.actual_7d,s:`目標 ${d.admission.target||'—'}`,rate:d.admission.rate,dr:d.admission.rate!=null&&d.admission.rate<90},
-    {l:'🛏️ 在院',p:`${DATA.meta.base_date} 時点`,v:d.inpatient.actual,s:`目標 ${d.inpatient.target||'—'}`,rate:d.inpatient.rate,dr:d.inpatient.rate!=null&&d.inpatient.rate<90},
-  ];
-  if (showOp) cards.push(
-    {l:`💉 ${opLabel}`,p:d.ward_extra?'':d.operation.label?'':'直近7日累計',v:d.operation.actual,s:d.operation.target?`目標 ${d.operation.target}`:'—',rate:d.operation.rate,dr:d.operation.rate!=null&&d.operation.rate<90}
-  );
-  if (d.ward_extra) {
-    const we=d.ward_extra;
-    cards.push({l:'🏥 利用率',v:we.util_rate!=null?we.util_rate+'%':'—',s:`病床数 ${we.beds||'—'}`,rate:null,dr:we.util_rate!=null&&we.util_rate<85});
-  }
-  document.getElementById('drillCards').innerHTML = cards.map(c =>
-    `<div class="mc"><div class="l">${c.l}${c.p?`<span style="font-size:9px;font-weight:600;color:var(--mu);margin-left:4px">${c.p}</span>`:''}</div><div class="v${c.dr?' dr':''}">${c.v}</div><div class="s">${c.s}${c.rate!=null?' ('+c.rate+'%)':''}</div></div>`
-  ).join('');
+  const isSurgeryDept = !isWard && d.operation.actual !== null;
+  const hasProfitChart = !isWard && !!d.profit_chart;
 
+  // ── KPI Cards (dept.htmlと同等) ──
+  const kpiRow = document.getElementById('drillKpiCards');
+  if (isWard) {
+    const inFlow = we.load || 0;
+    const outFlow = d.operation.actual || 0;
+    const netFlow = inFlow - outFlow;
+    const netCss = netFlow >= 0 ? '#0e7a54' : '#c4314b';
+    const inpSub = we.util_rate!=null ? `利用率 <strong>${we.util_rate}%</strong>（${we.beds||'—'}床）` : null;
+    const admActual = admType==='planned'?d.admission.planned_7d:admType==='emergency'?d.admission.emergency_7d:d.admission.actual_7d;
+    const admPeriodLabel = admType==='planned'?'直近7日（予定）':admType==='emergency'?'直近7日（緊急）':'直近7日累計';
+    const admTarget = admType==='all' ? d.admission.target : null;
+    const admRate   = admType==='all' ? d.admission.rate   : null;
+    kpiRow.innerHTML = `<div class="kc">
+      <h3>🔄 入退院フロー</h3><div class="period">${DATA.meta.base_date} 実績</div>
+      <div style="margin-top:10px">
+        <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0"><span style="color:var(--sub);font-weight:600">🚑 入院+転入</span><span style="font-weight:900;font-size:16px;color:#0D9488">${inFlow}名</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0"><span style="color:var(--sub);font-weight:600">🚶 退院+転出</span><span style="font-weight:900;font-size:16px;color:#e67e22">${outFlow}名</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-top:1px solid var(--ln);margin-top:4px;padding-top:6px"><span style="color:var(--sub);font-weight:600">純増減</span><span style="font-weight:900;font-size:16px;color:${netCss}">${netFlow>=0?'+':''}${netFlow}名</span></div>
+        ${we.util_rate!=null?`<div style="margin-top:8px;font-size:11px;color:var(--sub)">病床利用率 <strong style="color:${we.util_rate<85?'var(--dr)':'inherit'}">${we.util_rate}%</strong>（${we.beds||'—'}床）</div>`:''}
+      </div></div>`
+      + kpiCardHtml({icon:'🚪', label:'新入院', period:admPeriodLabel, actual:admActual, unit:'人', target:admTarget, rate:admRate})
+      + kpiCardHtml({icon:'🛏️', label:'在院患者', period:DATA.meta.base_date+' 時点', actual:d.inpatient.actual, unit:'人', target:d.inpatient.target, rate:d.inpatient.rate, sub:inpSub});
+    kpiRow.style.gridTemplateColumns = 'repeat(3,1fr)';
+  } else {
+    const admActual = admType==='planned'?d.admission.planned_7d:admType==='emergency'?d.admission.emergency_7d:d.admission.actual_7d;
+    const admPeriodLabel = admType==='planned'?'直近7日（予定）':admType==='emergency'?'直近7日（緊急）':'直近7日累計';
+    const admTarget = admType==='all' ? d.admission.target : null;
+    const admRate   = admType==='all' ? d.admission.rate   : null;
+    const dCards = [
+      kpiCardHtml({icon:'🚪', label:'新入院', period:admPeriodLabel, actual:admActual, unit:'人', target:admTarget, rate:admRate}),
+      kpiCardHtml({icon:'🛏️', label:'在院患者', period:DATA.meta.base_date+' 時点', actual:d.inpatient.actual, unit:'人', target:d.inpatient.target, rate:d.inpatient.rate}),
+    ];
+    if (isSurgeryDept) dCards.push(kpiCardHtml({icon:'💉', label:opLabel, period:'直近7日累計', actual:d.operation.actual, unit:'件', target:d.operation.target, rate:d.operation.rate}));
+    if (d.profit) dCards.push(kpiCardHtml({icon:'💰', label:'粗利', period:'今月', actual:d.profit.actual, unit:'百万円', gapUnit:'百万円', target:d.profit.target, rate:d.profit.rate}));
+    kpiRow.innerHTML = dCards.join('');
+    kpiRow.style.gridTemplateColumns = `repeat(${dCards.length >= 4 ? 2 : Math.min(dCards.length, 3)},1fr)`;
+  }
+
+  // ── Comment ──
   const comment = d.comment||'';
   const cel = document.getElementById('drillComment');
   cel.innerHTML = comment ? `📋 ${comment}` : '';
   cel.style.display = comment ? 'block' : 'none';
 
-  // ★課題5: ミニグラフ高さ225px、Y軸padding±5%で変化を強調
-  // ★課題6: メイン期間ボタンに同期してミニグラフも期間フィルタ
-  const miniCutoff = periodCutoff();
+  // ── Charts (dept.htmlと同等: period/dayType同期) ──
+  const cutoff = periodCutoff();
+  const drillWrap = document.getElementById('drillChartsWrap');
+  const chart4panel = document.getElementById('drillChart4panel');
+  const LAYOUT = {
+    font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
+    xaxis:{gridcolor:'#DCE1E9',tickformat:'%m/%d',tickangle:-45},
+    legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},
+    hovermode:'x unified', margin:{l:45,r:15,t:8,b:50}, height:320,
+    plot_bgcolor:'#fff', paper_bgcolor:'#fff',
+  };
 
-  function renderMini(elId, td, targetVal) {
+  function dRenderOneChart(elId, td, targetVal) {
     if (!td||!td.dates||!td.dates.length) {
-      document.getElementById(elId).innerHTML='<div style="color:#9daab8;font-size:11px;text-align:center;padding:60px 0">データなし</div>';
-      return;
+      document.getElementById(elId).innerHTML='<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">データなし</div>'; return;
     }
-    // ★修正: 全データでフィルタ→MA計算→期間切り取り
-    const ffAll = (td.is_weekday && td.is_weekday.length > 0)
-      ? filterByDayType(td.dates, td.values||[], td.is_weekday)
-      : {dates: td.dates, values: td.values||[]};
-    const allMA7 = calcMA7(ffAll.values);
-    const allMA28 = calcMA28(ffAll.values);
-    // 期間で切り取り
-    const si = Math.max(0, ffAll.dates.findIndex(x => x >= miniCutoff));
-    const ds = ffAll.dates.slice(si);
-    const vs = ffAll.values.slice(si);
-    const m7 = allMA7.slice(si);
-    const m28 = allMA28.slice(si);
+    const fAll = (td.is_weekday&&td.is_weekday.length>0)?filterByDayType(td.dates,td.values||[],td.is_weekday):{dates:td.dates,values:td.values||[]};
+    const allMA7=calcMA(fAll.values,7), allMA28=calcMA(fAll.values,28);
+    const si=Math.max(0,fAll.dates.findIndex(x=>x>=cutoff));
+    const ds=fAll.dates.slice(si), vs=fAll.values.slice(si), m7=allMA7.slice(si), m28=allMA28.slice(si);
     const tr=[], yV=[];
-    // 日次実績（メインと同じグレー細点線）
-    if (showDaily) { tr.push({name:'実績',x:ds,y:vs,type:'scatter',mode:'lines',line:{color:'#94A3B8',width:1,dash:'dot'},opacity:0.7,showlegend:false}); yV.push(...vs.filter(v=>v!=null)); }
-    // 7日MA（緑）
-    if (showMA7 && m7.length) { tr.push({name:'7日移動平均',x:ds,y:m7,type:'scatter',mode:'lines',line:{color:'#0D9488',width:2}}); yV.push(...m7.filter(v=>v!=null)); }
-    // 28日移動平均（オレンジ）
-    if (showMA28 && m28.length) { tr.push({name:'28日移動平均',x:ds,y:m28,type:'scatter',mode:'lines',line:{color:'#e67e22',width:1.5}}); yV.push(...m28.filter(v=>v!=null)); }
-    if (targetVal) { tr.push({name:'目標',x:[ds[0],ds[ds.length-1]],y:[targetVal,targetVal],type:'scatter',mode:'lines',line:{color:'#C0293B',width:1.5,dash:'dot'}}); yV.push(targetVal); }
-    const mn=yV.length?Math.min(...yV):0, mx=yV.length?Math.max(...yV):10;
-    const pd=(mx-mn)*.05||1;
-    // ゾーン
-    const mShapes = [{type:'rect',xref:'paper',yref:'y',x0:0,x1:1,y0:targetVal||0,y1:Math.ceil(mx+pd),fillcolor:'rgba(22,163,74,0.06)',line:{width:0}}];
-    if (targetVal) mShapes.push({type:'rect',xref:'paper',yref:'y',x0:0,x1:1,y0:(targetVal*0.95),y1:targetVal,fillcolor:'rgba(245,158,11,0.08)',line:{width:0}});
-    Plotly.newPlot(elId,tr,{font:{family:'Noto Sans JP,sans-serif',size:10,color:'#5A6A82'},xaxis:{gridcolor:'#DCE1E9',tickfont:{size:8},tickformat:'%m/%d'},yaxis:{range:[Math.max(0,Math.floor(mn-pd)),Math.ceil(mx+pd)],gridcolor:'#DCE1E9',tickfont:{size:9}},legend:{orientation:'h',x:0,y:-0.25,font:{size:9}},margin:{l:35,r:8,t:5,b:30},height:225,plot_bgcolor:'#fff',paper_bgcolor:'#fff',hovermode:'x unified',shapes:mShapes},{responsive:true,displayModeBar:false});
+    if (showDaily) { tr.push({name:'日次実績',x:ds,y:vs,type:'scatter',mode:'lines',line:{color:'#94A3B8',width:1,dash:'dot'},opacity:0.7}); yV.push(...vs.filter(v=>v!=null)); }
+    if (showMA7&&m7.length) { tr.push({name:'7日移動平均',x:ds,y:m7,type:'scatter',mode:'lines',line:{color:'#0D9488',width:2.5}}); yV.push(...m7.filter(v=>v!=null)); }
+    if (showMA28&&m28.length) { tr.push({name:'28日移動平均',x:ds,y:m28,type:'scatter',mode:'lines',line:{color:'#e67e22',width:2}}); yV.push(...m28.filter(v=>v!=null)); }
+    if (targetVal&&ds.length) { tr.push({name:`目標 ${Math.round(targetVal*10)/10}`,x:[ds[0],ds[ds.length-1]],y:[targetVal,targetVal],type:'scatter',mode:'lines',line:{color:'#C0293B',width:2,dash:'dot'}}); yV.push(targetVal); }
+    const mn=yV.length?Math.min(...yV):0, mx=yV.length?Math.max(...yV):10, pd=(mx-mn)*.08||2;
+    const yLo=Math.max(0,Math.floor(mn-pd)), yHi=Math.ceil(mx+pd);
+    const shapes=[];
+    if (targetVal) { shapes.push({type:'rect',xref:'paper',yref:'y',x0:0,x1:1,y0:targetVal,y1:yHi,fillcolor:'rgba(22,163,74,0.08)',line:{width:0}}); shapes.push({type:'rect',xref:'paper',yref:'y',x0:0,x1:1,y0:targetVal*0.95,y1:targetVal,fillcolor:'rgba(245,158,11,0.10)',line:{width:0}}); }
+    Plotly.newPlot(elId,tr,{...LAYOUT,yaxis:{range:[yLo,yHi],gridcolor:'#DCE1E9'},shapes},{responsive:true});
   }
 
-  // ★手術専用ミニグラフ: 7日ローリング合計で表示
-  function renderMiniSurgery(elId, td, weeklyTarget) {
+  function dRenderSurgeryChart(elId, td, weeklyTarget) {
     if (!td||!td.dates||!td.dates.length) {
-      document.getElementById(elId).innerHTML='<div style="color:#9daab8;font-size:11px;text-align:center;padding:60px 0">データなし</div>';
-      return;
+      document.getElementById(elId).innerHTML='<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">データなし</div>'; return;
     }
-    // ★修正: 全データでフィルタ→ローリング合計計算→期間切り取り
-    const ffAll = (td.is_weekday && td.is_weekday.length > 0)
-      ? filterByDayType(td.dates, td.values||[], td.is_weekday)
-      : {dates: td.dates, values: td.values||[]};
-    // ★暦日ベースで7日ローリング合計を計算（歯抜けデータ対応）
-    const allRS7 = calcRollingSumByDate(ffAll.dates, ffAll.values, 7);
-    // ★暦日ベースで28日合計÷4（4週平均）
-    const allRS28avg = calcRollingAvg4wByDate(ffAll.dates, ffAll.values);
-    // rs7の4点MA（ノイズ除去用）
-    const allRS7ma = calcMA(allRS7, 4);
-    // 期間で切り取り
-    const si = Math.max(0, ffAll.dates.findIndex(x => x >= miniCutoff));
-    const ds = ffAll.dates.slice(si);
-    const vs = ffAll.values.slice(si);
-    const rs7 = allRS7.slice(si);
-    const rs7ma = allRS7ma.slice(si);
-    const rs28avg = allRS28avg.slice(si);
-
-    const tgt = weeklyTarget;
-    const tr=[], yV=[];
-    // 週間実績（グレー細点線）
-    if (showDaily) {
-      tr.push({name:'週間実績',x:ds,y:rs7,type:'scatter',mode:'lines',
-        line:{color:'#94A3B8',width:1,dash:'dot'},opacity:0.7});
-      yV.push(...rs7.filter(v=>v!=null));
-    }
-    // 4週移動平均（緑線）― 全データで事前計算済み
-    if (showMA7 && rs7ma.length) {
-      tr.push({name:'4週移動平均',x:ds,y:rs7ma,type:'scatter',mode:'lines',
-        line:{color:'#0D9488',width:2}});
-      yV.push(...rs7ma.filter(v=>v!=null));
-    }
-    // 28日平均（オレンジ）
-    if (showMA28 && rs28avg.length) {
-      tr.push({name:'4週平均',x:ds,y:rs28avg,type:'scatter',mode:'lines',
-        line:{color:'#e67e22',width:1.5}});
-      yV.push(...rs28avg.filter(v=>v!=null));
-    }
-    if (tgt) {
-      tr.push({name:`週目標 ${tgt}`,x:[ds[0],ds[ds.length-1]],y:[tgt,tgt],
-        type:'scatter',mode:'lines',line:{color:'#C0293B',width:1.5,dash:'dot'}});
-      yV.push(tgt);
-    }
-    const mn=yV.length?Math.min(...yV):0, mx=yV.length?Math.max(...yV):10;
-    const pd=(mx-mn)*.05||1;
-    const mShapes = [{type:'rect',xref:'paper',yref:'y',x0:0,x1:1,y0:tgt||0,y1:Math.ceil(mx+pd),fillcolor:'rgba(22,163,74,0.06)',line:{width:0}}];
-    if (tgt) mShapes.push({type:'rect',xref:'paper',yref:'y',x0:0,x1:1,y0:(tgt*0.95),y1:tgt,fillcolor:'rgba(245,158,11,0.08)',line:{width:0}});
-    Plotly.newPlot(elId,tr,{font:{family:'Noto Sans JP,sans-serif',size:10,color:'#5A6A82'},xaxis:{gridcolor:'#DCE1E9',tickfont:{size:8},tickformat:'%m/%d'},yaxis:{range:[Math.max(0,Math.floor(mn-pd)),Math.ceil(mx+pd)],gridcolor:'#DCE1E9',tickfont:{size:9}},legend:{orientation:'h',x:0,y:-0.25,font:{size:9}},margin:{l:35,r:8,t:5,b:30},height:225,plot_bgcolor:'#fff',paper_bgcolor:'#fff',hovermode:'x unified',shapes:mShapes},{responsive:true,displayModeBar:false});
+    const fAll=(td.is_weekday&&td.is_weekday.length>0)?filterByDayType(td.dates,td.values||[],td.is_weekday):{dates:td.dates,values:td.values||[]};
+    const allRS7=calcRollingSumByDate(fAll.dates,fAll.values,7), allRS7ma=calcMA(allRS7,4);
+    const si=Math.max(0,fAll.dates.findIndex(x=>x>=cutoff));
+    const ds=fAll.dates.slice(si), rs7=allRS7.slice(si), rs7ma=allRS7ma.slice(si);
+    const tgt=weeklyTarget, tr=[], yV=[];
+    if (showDaily) { tr.push({name:'週間実績',x:ds,y:rs7,type:'scatter',mode:'lines',line:{color:'#94A3B8',width:1,dash:'dot'},opacity:0.7}); yV.push(...rs7.filter(v=>v!=null)); }
+    if (showMA7&&rs7ma.length) { tr.push({name:'4週移動平均',x:ds,y:rs7ma,type:'scatter',mode:'lines',line:{color:'#0D9488',width:2.5}}); yV.push(...rs7ma.filter(v=>v!=null)); }
+    if (tgt&&ds.length) { tr.push({name:`週目標 ${tgt}`,x:[ds[0],ds[ds.length-1]],y:[tgt,tgt],type:'scatter',mode:'lines',line:{color:'#C0293B',width:2,dash:'dot'}}); yV.push(tgt); }
+    const mn=yV.length?Math.min(...yV):0, mx=yV.length?Math.max(...yV):10, pd=(mx-mn)*.08||1;
+    const yLo=Math.max(0,Math.floor(mn-pd)), yHi=Math.ceil(mx+pd);
+    const shapes=[];
+    if (tgt) { shapes.push({type:'rect',xref:'paper',yref:'y',x0:0,x1:1,y0:tgt,y1:yHi,fillcolor:'rgba(22,163,74,0.08)',line:{width:0}}); shapes.push({type:'rect',xref:'paper',yref:'y',x0:0,x1:1,y0:tgt*0.95,y1:tgt,fillcolor:'rgba(245,158,11,0.10)',line:{width:0}}); }
+    Plotly.newPlot(elId,tr,{...LAYOUT,yaxis:{range:[yLo,yHi],gridcolor:'#DCE1E9'},shapes},{responsive:true});
   }
 
-  function renderMiniFlow(elId, admTd, outTd) {
-    if (!admTd || !outTd || !admTd.dates || !admTd.dates.length) {
-      document.getElementById(elId).innerHTML='<div style="color:#9daab8;font-size:11px;text-align:center;padding:60px 0">データなし</div>';
-      return;
+  function dRenderFlowChart(elId, admTd, outTd) {
+    if (!admTd||!outTd||!admTd.dates||!admTd.dates.length) {
+      document.getElementById(elId).innerHTML='<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">データなし</div>'; return;
     }
-    const aV  = admTd.values || [];
-    const oV  = outTd.values || [];
-    const net = aV.map((v, i) => (v || 0) - (oV[i] || 0));
-    const nm  = calcMA(net, 7);
-    const si  = Math.max(0, admTd.dates.findIndex(x => x >= miniCutoff));
-    const ds  = admTd.dates.slice(si);
-    const adm = aV.slice(si);
-    const out = oV.slice(si);
-    const nmS = nm.slice(si);
-    // 第1軸（バー）の範囲
-    const yV1  = [...adm, ...out.map(v => -v)].filter(v => v != null);
-    const mn1  = yV1.length ? Math.min(...yV1) : -5;
-    const mx1  = yV1.length ? Math.max(...yV1) : 5;
-    const pd1  = (mx1 - mn1) * 0.08 || 1;
-    // 第2軸（純増減移動平均）の範囲
-    const yV2  = nmS.filter(v => v != null);
-    const mn2  = yV2.length ? Math.min(...yV2) : -3;
-    const mx2  = yV2.length ? Math.max(...yV2) : 3;
-    const pd2  = (mx2 - mn2) * 0.15 || 1;
-    Plotly.newPlot(elId, [
-      { name:'入院+転入',     x:ds, y:adm,            type:'bar',     marker:{color:'#0D9488'}, opacity:0.75, yaxis:'y' },
-      { name:'退院+転出',     x:ds, y:out.map(v=>-v), type:'bar',     marker:{color:'#e67e22'}, opacity:0.75, yaxis:'y' },
-      { name:'純増減 移動平均', x:ds, y:nmS,           type:'scatter', mode:'lines',
-        line:{color:'#C0293B', width:2}, yaxis:'y2' },
-    ], {
-      barmode:'relative',
-      font:{family:'Noto Sans JP,sans-serif',size:10,color:'#5A6A82'},
-      xaxis:{gridcolor:'#DCE1E9', tickfont:{size:8}, tickformat:'%m/%d'},
-      yaxis:{range:[Math.floor(mn1-pd1), Math.ceil(mx1+pd1)], gridcolor:'#DCE1E9',
-             tickfont:{size:9}, zeroline:true, zerolinecolor:'#aaa', zerolinewidth:1},
-      yaxis2:{overlaying:'y', side:'right', range:[Math.floor(mn2-pd2), Math.ceil(mx2+pd2)],
-              gridcolor:'transparent', zeroline:true, zerolinecolor:'#C0293B', zerolinewidth:1,
-              tickfont:{size:8, color:'#C0293B'}},
-      legend:{orientation:'h',x:0,y:-0.25,font:{size:9}},
-      margin:{l:35,r:35,t:5,b:30}, height:225,
-      plot_bgcolor:'#fff', paper_bgcolor:'#fff', hovermode:'x unified',
-    }, {responsive:true, displayModeBar:false});
+    let dates=admTd.dates, aV=admTd.values||[], oV=outTd.values||[];
+    if (admTd.is_weekday&&admTd.is_weekday.length>0) {
+      const fd=[],fa=[],fo=[];
+      admTd.dates.forEach((d,i)=>{ const wd=admTd.is_weekday[i]; if((wd&&showWeekday)||(!wd&&showHoliday)){fd.push(d);fa.push(aV[i]);fo.push(oV[i]!=null?oV[i]:0);} });
+      dates=fd; aV=fa; oV=fo;
+    }
+    const netVals=aV.map((v,i)=>(v||0)-(oV[i]||0)), netMA7=calcMA(netVals,7);
+    const si=Math.max(0,dates.findIndex(x=>x>=cutoff));
+    const ds=dates.slice(si), adm=aV.slice(si), out=oV.slice(si), nm=netMA7.slice(si);
+    const yV1=[...adm,...out.map(v=>-v)].filter(v=>v!=null);
+    const mn1=yV1.length?Math.min(...yV1):-5, mx1=yV1.length?Math.max(...yV1):5;
+    const pd1=(mx1-mn1)*0.08||1;
+    const yAbs1=Math.max(Math.abs(mn1)+pd1, mx1+pd1);
+    const yV2=nm.filter(v=>v!=null);
+    const mn2=yV2.length?Math.min(...yV2):-3, mx2=yV2.length?Math.max(...yV2):3;
+    const pd2=(mx2-mn2)*0.15||1;
+    const yAbs2=Math.max(Math.abs(mn2)+pd2, mx2+pd2);
+    Plotly.newPlot(elId,[
+      {name:'入院+転入',x:ds,y:adm,type:'bar',marker:{color:'#0D9488'},opacity:0.75,yaxis:'y'},
+      {name:'退院+転出',x:ds,y:out.map(v=>-v),type:'bar',marker:{color:'#e67e22'},opacity:0.75,yaxis:'y'},
+      {name:'純増減 移動平均',x:ds,y:nm,type:'scatter',mode:'lines',line:{color:'#C0293B',width:2.5},yaxis:'y2'},
+    ],{barmode:'relative',font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
+      xaxis:{gridcolor:'#DCE1E9',tickformat:'%m/%d',tickangle:-45},
+      yaxis:{range:[-Math.ceil(yAbs1),Math.ceil(yAbs1)],gridcolor:'#DCE1E9',zeroline:true,zerolinecolor:'#888',zerolinewidth:1.5},
+      yaxis2:{overlaying:'y',side:'right',range:[-Math.ceil(yAbs2),Math.ceil(yAbs2)],gridcolor:'transparent',zeroline:true,zerolinecolor:'#C0293B',zerolinewidth:1,tickfont:{size:10,color:'#C0293B'}},
+      legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},hovermode:'x unified',margin:{l:45,r:45,t:8,b:50},height:320,
+      plot_bgcolor:'#fff',paper_bgcolor:'#fff'},{responsive:true});
   }
 
-  const isWard = !!d.ward_extra;
-  const isSurgeryDept = !isWard && d.operation.actual !== null;
-  const ann = s => `<span style="font-size:9px;font-weight:600;color:var(--mu);margin-left:5px">${s}</span>`;
-  document.getElementById('drillLabel1').innerHTML='🚪 新入院 推移'+ann('日次実績');
-  document.getElementById('drillLabel2').innerHTML='🛏️ 在院 推移'+ann('日次実績');
-  document.getElementById('drillLabel3').innerHTML=isWard?'🚑 入退院フロー':isSurgeryDept?'💉 全麻 推移'+ann('7日ローリング合計'):'— (全麻 非対象)';
+  function dRenderProfitChart(elId, bd) {
+    if (!bd||!bd.months||!bd.months.length) {
+      document.getElementById(elId).innerHTML='<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">粗利データなし</div>'; return;
+    }
+    const barColors=bd.months.map((_,i)=>{ const rate=bd.target?bd.values[i]/bd.target*100:0; return rate>=100?'#0e7a54':rate>=90?'#b45309':'#c4314b'; });
+    const tr=[{name:'粗利実績',x:bd.months,y:bd.values,type:'bar',marker:{color:barColors},opacity:0.9}];
+    if (bd.target) tr.push({name:'目標',x:[bd.months[0],bd.months[bd.months.length-1]],y:[bd.target,bd.target],type:'scatter',mode:'lines',line:{color:'#C0293B',width:2,dash:'dot'}});
+    const allY=[...bd.values,...(bd.target?[bd.target]:[])].filter(v=>v!=null);
+    const yMax=allY.length?Math.max(...allY)*1.15:10;
+    Plotly.newPlot(elId,tr,{font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},xaxis:{gridcolor:'#DCE1E9',tickangle:-45},yaxis:{range:[0,yMax],gridcolor:'#DCE1E9',title:{text:'百万円',font:{size:10}}},legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},hovermode:'x unified',margin:{l:55,r:15,t:8,b:65},height:320,plot_bgcolor:'#fff',paper_bgcolor:'#fff'},{responsive:true});
+  }
 
-  // 新入院種別フィルタをミニグラフにも適用
+  // ── Chart Layout ──
+  const _pLabels = {'12w':'直近12週','24w':'直近24週','365d':'直近365日'};
+  const suffix = `（${_pLabels[currentPeriod]}）`;
+  const admSuffix = admType==='planned'?' ／ 予定':admType==='emergency'?' ／ 緊急':'';
   const rawAdmTd = d.trend ? d.trend.admission : null;
   const filtAdmTd = (admType !== 'all' && rawAdmTd && rawAdmTd[admType])
     ? {...rawAdmTd, values: rawAdmTd[admType]} : rawAdmTd;
-  renderMini('drillChartAdm', filtAdmTd, (admType==='all' && d.admission.target) ? d.admission.target/7 : null);
-  renderMini('drillChartInp', d.trend?d.trend.inpatient:null, d.inpatient.target);
+  const admChartTarget = admType==='all' ? (d.admission.target ? d.admission.target/7 : null) : null;
+
+  document.getElementById('drillLabel1').textContent = `🚪 新入院${admSuffix} 推移${suffix}`;
+  document.getElementById('drillLabel2').textContent = `🛏️ 在院患者 推移${suffix}`;
+  dRenderOneChart('drillChartAdm', filtAdmTd, admChartTarget);
+  dRenderOneChart('drillChartInp', d.trend?d.trend.inpatient:null, d.inpatient.target);
+
   if (isWard) {
-    renderMiniFlow('drillChartOp', d.trend?d.trend.admission:null, d.trend?d.trend.outflow:null);
+    drillWrap.className = 'charts-container layout-2plus1';
+    chart4panel.style.display = 'none';
+    document.getElementById('drillLabel3').textContent = `🔄 入退院フロー${suffix}`;
+    dRenderFlowChart('drillChartOp', d.trend?d.trend.admission:null, d.trend?d.trend.outflow:null);
+  } else if (isSurgeryDept && hasProfitChart) {
+    drillWrap.className = 'charts-container layout-2x2';
+    chart4panel.style.display = '';
+    document.getElementById('drillLabel3').textContent = `💉 全麻手術 推移${suffix}`;
+    document.getElementById('drillLabel4').textContent = `💰 月次粗利 推移`;
+    dRenderSurgeryChart('drillChartOp', d.trend?d.trend.operation:null, d.operation.target);
+    dRenderProfitChart('drillChartProfit', d.profit_chart);
   } else if (isSurgeryDept) {
-    // ★手術は「直近7日ローリング合計」で表示し、目標は週目標そのまま
-    renderMiniSurgery('drillChartOp', d.trend?d.trend.operation:null, d.operation.target);
+    drillWrap.className = 'charts-container layout-2plus1';
+    chart4panel.style.display = 'none';
+    document.getElementById('drillLabel3').textContent = `💉 全麻手術 推移${suffix}`;
+    dRenderSurgeryChart('drillChartOp', d.trend?d.trend.operation:null, d.operation.target);
+  } else if (hasProfitChart) {
+    drillWrap.className = 'charts-container layout-2plus1';
+    chart4panel.style.display = 'none';
+    document.getElementById('drillLabel3').textContent = `💰 月次粗利 推移`;
+    dRenderProfitChart('drillChartOp', d.profit_chart);
   } else {
-    document.getElementById('drillChartOp').innerHTML='<div style="color:#9daab8;font-size:11px;text-align:center;padding:60px 0">全麻手術 非対象診療科</div>';
+    drillWrap.className = 'charts-container layout-2plus1';
+    chart4panel.style.display = 'none';
+    document.getElementById('drillLabel3').textContent = `— データなし`;
+    document.getElementById('drillChartOp').innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">対象データなし</div>';
   }
 
-  currentDrill = name;  // ★保持
+  currentDrill = name;
+  document.getElementById('drillPanel').classList.add('open');
+  document.getElementById('drillPanel').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+// ════ PROFIT CHART ════
+function profitMonthCount() {
+  if (currentPeriod === '12w') return 3;
+  if (currentPeriod === '24w') return 6;
+  return 12; // 365d
+}
+function renderProfitChart() {
+  if (!hasProfit) return;
+  const raw = DATA.profit.chart.global;
+  // 期間フィルタ
+  const n = profitMonthCount();
+  const g = {
+    months:  raw.months.slice(-n),
+    values:  raw.values.slice(-n),
+    targets: raw.targets.slice(-n),
+  };
+
+  // 月ごとに達成率を計算して色分け
+  const barColors = g.months.map((_, i) => {
+    const val = g.values[i], tgt = g.targets[i];
+    if (tgt == null || tgt === 0) return '#94A3B8';  // 目標なし: グレー
+    const rate = val / tgt * 100;
+    if (rate >= 100) return '#0e7a54';   // 達成: 緑
+    if (rate >= 90)  return '#b45309';   // 接近: 黄
+    return '#c4314b';                    // 未達: 赤
+  });
+
+  // 凡例用ダミートレース（色分け説明）
+  const legendDummies = [
+    {name:'▲ 達成（≥100%）', marker:{color:'#0e7a54'}},
+    {name:'― 接近（90-99%）', marker:{color:'#b45309'}},
+    {name:'▼ 未達（<90%）',  marker:{color:'#c4314b'}},
+  ].map(d => ({...d, x:[null], y:[null], type:'bar', showlegend:true}));
+
+  const traces = [
+    {name:'粗利実績', x:g.months, y:g.values, type:'bar',
+     marker:{color:barColors}, opacity:0.9, showlegend:false},
+    {name:'月次目標', x:g.months, y:g.targets, type:'scatter', mode:'lines+markers',
+     line:{color:'#C0293B',width:2,dash:'dot'}, marker:{size:5,color:'#C0293B'}},
+    ...legendDummies,
+  ];
+
+  const allY = [...g.values, ...g.targets.filter(v=>v!=null)];
+  const yMax = Math.max(...allY) * 1.15 || 10;
+  Plotly.newPlot('mainChart', traces, {
+    font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
+    xaxis:{gridcolor:'#DCE1E9',tickangle:-45},
+    yaxis:{range:[0,yMax],gridcolor:'#DCE1E9',title:{text:'百万円',font:{size:10}}},
+    legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},
+    barmode:'group', hovermode:'x unified',
+    margin:{l:55,r:20,t:10,b:65},height:340,
+    plot_bgcolor:'#fff',paper_bgcolor:'#fff',
+  },{responsive:true});
+  document.getElementById('chartTitle').textContent = '📊 粗利 月次推移（全科合計・達成状況で色分け）';
+}
+
+function renderProfitRanking() {
+  if (!hasProfit) return;
+  const items = DATA.profit.ranking.map((r,i) => ({...r, rank:i+1}));
+  // 目標差を事前計算
+  items.forEach(r => { r.gap = r.target != null ? Math.round((r.actual - r.target)*10)/10 : null; });
+  const sortFns = {
+    rate_desc: (a,b) => (b.rate??-Infinity) - (a.rate??-Infinity),
+    rate_asc:  (a,b) => (a.rate??Infinity)  - (b.rate??Infinity),
+    gap_desc:  (a,b) => (b.gap??-Infinity)  - (a.gap??-Infinity),
+    gap_asc:   (a,b) => (a.gap??Infinity)   - (b.gap??Infinity),
+  };
+  items.sort(sortFns[rankSort] || sortFns.rate_desc);
+  items.forEach((r,i) => r.rank = i+1);
+
+  const sortLabel = {rate_desc:'達成率↓',rate_asc:'達成率↑',gap_desc:'目標差↓',gap_asc:'目標差↑'}[rankSort];
+  document.getElementById('rankTitle').textContent = `🏆 診療科別 粗利達成状況（${sortLabel}）`;
+  rankExpanded = false;
+
+  const isGapSort = rankSort.startsWith('gap');
+  const maxAbsGap = isGapSort
+    ? Math.max(...items.filter(x => x.gap != null).map(x => Math.abs(x.gap)), 1)
+    : 1;
+
+  document.getElementById('rankList').innerHTML = items.map((r,i) => {
+    const gapStr = r.gap != null ? (r.gap >= 0 ? `+${r.gap}` : `${r.gap}`) + '百万' : '—';
+    const momStr = r.mom != null ? (r.mom > 0 ? `+${r.mom}` : `${r.mom}`) + '百万' : '';
+
+    let bw, barCss;
+    if (isGapSort && r.gap != null) {
+      bw = Math.round(Math.abs(r.gap) / maxAbsGap * 92);
+      barCss = r.gap >= 0 ? 'ok' : 'dr';
+    } else {
+      bw = Math.min((r.rate||0), 200) / 2;
+      barCss = r.status;
+    }
+
+    let mainVal, mainCss;
+    if (isGapSort) {
+      mainVal = gapStr;
+      mainCss = r.gap != null ? (r.gap >= 0 ? 'ok' : 'dr') : 'mu';
+    } else {
+      mainVal = `${r.shape} ${r.rate != null ? r.rate+'%' : '—'}`;
+      mainCss = r.status;
+    }
+
+    return `<div class="ri${i>=RANK_SHOW?' rank-extra':''}" onclick="openProfitDrill('${r.name}')">
+      <div class="num ${r.status}">${r.rank}</div>
+      <div><div class="nm">${r.name}</div><div class="mt2">${r.actual}百万 / 目標${r.target||'—'}百万 ${momStr?'<span style=\"color:'+(r.mom>=0?'var(--ok)':'var(--dr)')+'\">'+ momStr+'</span>':''}</div></div>
+      <div class="bar"><div class="fill ${barCss}" style="width:${bw}%"></div></div>
+      <div class="rt ${mainCss}">${mainVal}</div>
+      <div class="stl ${r.status}">${r.text}</div>
+      <div class="arrow">›</div></div>`;
+  }).join('');
+
+  document.querySelectorAll('.rank-extra').forEach(el => el.style.display = 'none');
+  const tog = document.getElementById('rankToggle');
+  const extra = items.length - RANK_SHOW;
+  if (extra > 0) { tog.style.display='block'; tog.textContent=`もっと見る（+${extra}件）▾`; tog.classList.remove('expanded'); }
+  else { tog.style.display='none'; }
+}
+
+function openProfitDrill(dept) {
+  if (!hasProfit) return;
+  const bd = DATA.profit.chart.by_dept[dept];
+  if (!bd) { console.warn('profit drill data not found:', dept); return; }
+  document.getElementById('drillName').textContent = dept;
+
+  // KPIカード
+  const rk = DATA.profit.ranking.find(r => r.name === dept) || {};
+  const kpiRow = document.getElementById('drillKpiCards');
+  kpiRow.innerHTML = kpiCardHtml({icon:'💰', label:'月次粗利', period:'今月', actual:rk.actual||0, unit:'百万円', gapUnit:'百万円', target:rk.target, rate:rk.rate})
+    + kpiCardHtml({icon:'📊', label:'達成率', period:'今月', actual:rk.rate!=null?rk.rate+'%':null, unit:'', target:null, rate:rk.rate})
+    + kpiCardHtml({icon:'📈', label:'前月比', period:'対前月', actual:rk.mom!=null?(rk.mom>0?'+':'')+rk.mom:null, unit:'百万円', target:null, rate:null});
+  kpiRow.style.gridTemplateColumns = 'repeat(3,1fr)';
+  document.getElementById('drillComment').style.display='none';
+
+  // チャートレイアウト
+  const drillWrap = document.getElementById('drillChartsWrap');
+  const chart4panel = document.getElementById('drillChart4panel');
+  drillWrap.className = 'charts-container layout-2plus1';
+  chart4panel.style.display = 'none';
+
+  document.getElementById('drillLabel1').textContent = '💰 月次粗利 推移';
+  document.getElementById('drillLabel2').textContent = '📊 達成率 推移';
+  document.getElementById('drillLabel3').textContent = '';
+
+  // 粗利棒グラフ
+  const traces1 = [{name:'粗利', x:bd.months, y:bd.values, type:'bar', marker:{color:'#0D9488'}, opacity:0.85}];
+  if (bd.target) traces1.push({name:'目標', x:[bd.months[0],bd.months[bd.months.length-1]], y:[bd.target,bd.target], type:'scatter', mode:'lines', line:{color:'#C0293B',width:2,dash:'dot'}});
+  const allY=[...bd.values,...(bd.target?[bd.target]:[])].filter(v=>v!=null);
+  const yMax=allY.length?Math.max(...allY)*1.15:10;
+  Plotly.newPlot('drillChartAdm', traces1, {font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},xaxis:{gridcolor:'#DCE1E9',tickangle:-45},yaxis:{range:[0,yMax],gridcolor:'#DCE1E9',title:{text:'百万円',font:{size:10}}},legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},hovermode:'x unified',margin:{l:55,r:15,t:8,b:65},height:320,plot_bgcolor:'#fff',paper_bgcolor:'#fff'},{responsive:true});
+
+  // 達成率折れ線グラフ
+  if (bd.achievements) {
+    const achTraces = [
+      {name:'達成率', x:bd.months, y:bd.achievements, type:'scatter', mode:'lines+markers', line:{color:'#0D9488',width:2.5}, marker:{size:5}},
+      {name:'100%', x:[bd.months[0],bd.months[bd.months.length-1]], y:[100,100], type:'scatter', mode:'lines', line:{color:'#C0293B',width:2,dash:'dot'}},
+    ];
+    Plotly.newPlot('drillChartInp', achTraces, {font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},xaxis:{gridcolor:'#DCE1E9',tickangle:-45},yaxis:{gridcolor:'#DCE1E9',title:{text:'%',font:{size:10}}},legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},hovermode:'x unified',margin:{l:45,r:15,t:8,b:65},height:320,plot_bgcolor:'#fff',paper_bgcolor:'#fff'},{responsive:true});
+  }
+  document.getElementById('drillChartOp').innerHTML = '';
+
+  currentDrill = dept;
   document.getElementById('drillPanel').classList.add('open');
   document.getElementById('drillPanel').scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 
 function closeDrill() {
-  currentDrill = null;  // ★クリア
+  currentDrill = null;
   document.getElementById('drillPanel').classList.remove('open');
-  ['drillChartAdm','drillChartInp','drillChartOp'].forEach(id => { try{Plotly.purge(id)}catch(e){} });
+  ['drillChartAdm','drillChartInp','drillChartOp','drillChartProfit'].forEach(id => { try{Plotly.purge(id)}catch(e){} });
 }
 </script>
 </body>
