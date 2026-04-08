@@ -5,6 +5,10 @@
 <title>診療KPIポータル</title>
 <style>
 :root{--bg:#f6f8fb;--s:#fff;--ink:#1a2332;--sub:#5f7084;--mu:#9daab8;--ln:#dfe5ed;--br:#0e4da4;--bl:#e8f0fe;--bd:#0a3671;--dr:#c4314b;--dr-bg:#fdf0f2;--dr-t:#8c1d35;--wr:#b45309;--wr-bg:#fef7ee;--ok:#0e7a54;--ok-bg:#ecfdf5;--inf:#2563eb;--r:18px;--sh:0 4px 14px rgba(10,22,42,.08)}
+[data-theme="dark"]{--bg:#0f1623;--s:#1a2738;--ink:#dde4ef;--sub:#8fa3b8;--mu:#4a5f74;--ln:#2a3a50;--br:#5b9cf6;--bl:#162340;--bd:#060d18;--dr:#f07090;--dr-bg:#2d1020;--dr-t:#f5a0b0;--wr:#f0a040;--wr-bg:#2a1a06;--ok:#34d39a;--ok-bg:#0a2518;--inf:#5b9cf6;--sh:0 4px 14px rgba(0,0,0,.4)}
+[data-theme="dark"] .at{background:#111e2e}
+[data-theme="dark"] .kc .tgt-row,[data-theme="dark"] .tgt-row{background:#111e2e}
+.dm-btn{background:transparent;border:1px solid rgba(255,255,255,.25);border-radius:8px;color:#a8bdd4;font-size:14px;padding:4px 9px;cursor:pointer;transition:all .15s;font-family:inherit;line-height:1}.dm-btn:hover{color:#fff;border-color:rgba(255,255,255,.5)}
 *{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
 .hdr{position:sticky;top:0;z-index:10;background:var(--bd);color:#fff;padding:10px 24px;display:flex;flex-direction:column;gap:0;box-shadow:var(--sh)}.hdr .row1{display:flex;justify-content:space-between;align-items:center}.hdr .left{display:flex;align-items:center;gap:10px}.badge{font-size:11px;background:var(--br);padding:3px 10px;border-radius:999px;font-weight:800}.title{font-size:17px;font-weight:900}.meta{font-size:12px;color:#a8bdd4}
 .nav-bar{display:flex;align-items:center;gap:4px;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.12)}.nav-bar a{font-size:12px;font-weight:800;text-decoration:none;padding:5px 13px;border-radius:8px;color:#a8bdd4;transition:all .15s;border:1px solid transparent}.nav-bar a:hover{color:#fff;border-color:rgba(255,255,255,.25)}.nav-bar a.active{background:rgba(255,255,255,.18);color:#fff;border-color:rgba(255,255,255,.35)}
@@ -34,6 +38,7 @@
   <div class="row1">
     <div class="left"><span class="badge">KPI</span><span class="title">🏥 診療ダッシュボード</span></div>
     <div class="meta">📅 {{ base_date }} ｜ 🕐 {{ generated_at }} 更新</div>
+    <button class="dm-btn" onclick="toggleDarkMode()">🌙</button>
   </div>
   <nav class="nav-bar">
     <a href="portal.html" class="active">🏥 ポータル</a>
@@ -123,6 +128,22 @@
       else if(y<lastY)hdr.classList.remove('hdr-hidden');
       lastY=y;ticking=false;
     });ticking=true;}
+  });
+})();
+/* ダークモード */
+(function(){
+  var h=document.documentElement;
+  var s=localStorage.getItem('theme');
+  if(s==='dark'||(s===null&&window.matchMedia('(prefers-color-scheme:dark)').matches))h.setAttribute('data-theme','dark');
+  window.toggleDarkMode=function(){
+    var dark=h.getAttribute('data-theme')==='dark';
+    dark?h.removeAttribute('data-theme'):h.setAttribute('data-theme','dark');
+    localStorage.setItem('theme',dark?'light':'dark');
+    var b=document.querySelector('.dm-btn');if(b)b.textContent=dark?'🌙':'☀️';
+  };
+  document.addEventListener('DOMContentLoaded',function(){
+    var b=document.querySelector('.dm-btn');
+    if(b)b.textContent=h.getAttribute('data-theme')==='dark'?'☀️':'🌙';
   });
 })();
 </script>
