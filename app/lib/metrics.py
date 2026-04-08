@@ -655,11 +655,27 @@ def build_kpi_summary(adm: pd.DataFrame, surg: pd.DataFrame,
     ma28_inp = round(ma28_inp.iloc[0], 1) if len(ma28_inp) > 0 else None
     wow_inp = week_over_week(series_inp, date)
 
+    # 平日/休日フラグを series_inp に結合（日付別に1レコードなので first で取得）
+    _daytype_map = adm.groupby("日付")["平日"].first()
+    series_inp = series_inp.merge(
+        _daytype_map.rename("is_wd").reset_index(),
+        on="日付", how="left",
+    )
+
+    # 平日/休日別平均を算出するヘルパー
+    def _wd_hd_avg(s: pd.DataFrame):
+        wd = s[s["is_wd"] == True]
+        hd = s[s["is_wd"] == False]
+        avg_wd = round(wd["値"].mean(), 1) if len(wd) > 0 else None
+        avg_hd = round(hd["値"].mean(), 1) if len(hd) > 0 else None
+        return avg_wd, avg_hd
+
     # 年度平均
     fy_year = date.year if date.month >= 4 else date.year - 1
     fy_start = pd.Timestamp(f"{fy_year}-04-01")
     fy_series = series_inp[(series_inp["日付"] >= fy_start) & (series_inp["日付"] <= date)]
     fy_avg_inp = round(fy_series["値"].mean(), 1) if len(fy_series) > 0 else None
+    fy_avg_inp_wd, fy_avg_inp_hd = _wd_hd_avg(fy_series)
 
     # 前年度（在院）
     prev_fy_start = pd.Timestamp(f"{fy_year - 1}-04-01")
@@ -686,6 +702,12 @@ def build_kpi_summary(adm: pd.DataFrame, surg: pd.DataFrame,
         (series_inp["日付"] <= date - timedelta(days=7))
     ]
     inp_prior_range_avg = round(inp_prior_range["値"].mean(), 1) if len(inp_prior_range) > 0 else None
+
+    # 在院: 直近7日・直近4週の平日/休日別平均
+    d7_series = series_inp[(series_inp["日付"] >= date - timedelta(days=6)) & (series_inp["日付"] <= date)]
+    avg_7d_inp_wd, avg_7d_inp_hd = _wd_hd_avg(d7_series)
+    d28_series = series_inp[(series_inp["日付"] >= date - timedelta(days=27)) & (series_inp["日付"] <= date)]
+    avg_28d_inp_wd, avg_28d_inp_hd = _wd_hd_avg(d28_series)
 
     # ── 新入院 ──
     series_nadm = build_daily_series(adm, "新入院患者数")
@@ -822,6 +844,12 @@ def build_kpi_summary(adm: pd.DataFrame, surg: pd.DataFrame,
         "inpatient_prev_7d_avg": prev_avg_7d_inp,
         "inpatient_prev_28d_avg": prev_avg_28d_inp,
         "inpatient_prior_range_avg": inp_prior_range_avg,  # days 8-35 avg (対照: 直近5週-7日)
+        "inpatient_avg_7d_wd": avg_7d_inp_wd,
+        "inpatient_avg_7d_hd": avg_7d_inp_hd,
+        "inpatient_avg_28d_wd": avg_28d_inp_wd,
+        "inpatient_avg_28d_hd": avg_28d_inp_hd,
+        "inpatient_fy_avg_wd": fy_avg_inp_wd,
+        "inpatient_fy_avg_hd": fy_avg_inp_hd,
         "inpatient_is_weekday": inp["is_weekday"],
         "inpatient_gap": round(inp["total"] - inp_target, 1),
         "inpatient_wow": wow_inp,
