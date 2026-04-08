@@ -15,6 +15,7 @@ from datetime import datetime
 from typing import Optional
 
 from .config import (
+    TARGET_INPATIENT_WEEKDAY, TARGET_INPATIENT_HOLIDAY,
     TARGET_INPATIENT_ALLDAY, TARGET_ADMISSION_WEEKLY, TARGET_GA_DAILY,
     KPI_ICONS, AXIS_ICONS, status_display, status_label,
     SURGERY_DISPLAY_DEPTS, NADM_DISPLAY_DEPTS,
@@ -535,6 +536,8 @@ def build_detail_json(adm, surg, targets, surg_targets,
                 "actual": kpi["inpatient_actual"],
                 "target": kpi["inpatient_target"],
                 "target_allday": kpi["inpatient_target_allday"],
+                "target_weekday": TARGET_INPATIENT_WEEKDAY,
+                "target_holiday": TARGET_INPATIENT_HOLIDAY,
                 "is_weekday": kpi["inpatient_is_weekday"],
                 "rate": kpi["inpatient_rate"],
                 "avg_7d": kpi["inpatient_avg_7d"],

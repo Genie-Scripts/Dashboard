@@ -245,9 +245,25 @@ function refCardHtml(r) {
     ? Math.min(r.curr / r.prev * 100, 150) : 0;
   const barW = Math.min(fillPct / 1.5, 100);  // 150%→100%幅
   const prevText = r.prevLabel || (r.prev != null ? `対照 ${r.prev}${r.unit||''}` : '対照 —');
+  // ★目標比較（refTarget が指定されている場合）
+  let tgtHtml = '';
+  if (r.refTarget != null && r.curr != null) {
+    const gap = Math.round((r.curr - r.refTarget)*10)/10;
+    const rate = Math.round(r.curr / r.refTarget * 1000)/10;
+    const tc = rate >= 100 ? 'ok' : rate >= 90 ? 'wr' : 'dr';
+    const gapPfx = gap > 0 ? '+' : '';
+    tgtHtml = `<div style="display:flex;align-items:center;gap:6px;margin-top:6px;padding:5px 8px;background:#f8f9fa;border-radius:8px;border:1px dashed var(--ln)">
+      <span style="font-size:11px">🎯</span>
+      <span style="font-size:12px;color:var(--mu);font-weight:700">${r.refTargetLabel||'目標'}</span>
+      <span style="font-size:13px;font-weight:800;color:var(--sub)">${r.refTarget}${r.unit||''}</span>
+      <span style="font-size:13px;font-weight:900;margin-left:auto" class="gap-val ${tc}">${gapPfx}${gap}${r.unit||''}</span>
+      <span style="font-size:11px;font-weight:800;padding:2px 6px;border-radius:5px" class="prog-st ${tc}">${rate}%</span>
+    </div>`;
+  }
   return `<div class="bx">
     <div class="k">${r.k}</div>
     <div class="v${r.dr?' dr':''}">${r.v}</div>
+    ${tgtHtml}
     <div class="cmp-bar"><div class="cmp-fill ${dir.css}" style="width:${barW}%"></div></div>
     <div class="cmp-meta">
       <span class="cmp-prev">${prevText}</span>
@@ -274,7 +290,8 @@ function renderSummary() {
       {k:'直近7日平均', v:kpi.avg_7d!==null?`${kpi.avg_7d}人`:'—', unit:'人',
        curr:kpi.avg_7d, prev:kpi.prior_range_avg,
        prevLabel:kpi.prior_range_avg!=null?`先行28日平均 ${kpi.prior_range_avg}人`:'先行28日平均 —',
-       dr:kpi.avg_7d!=null&&kpi.avg_7d<kpi.target},
+       dr:kpi.avg_7d!=null&&kpi.avg_7d<kpi.target,
+       refTarget:kpi.target_allday, refTargetLabel:'全日目標'},
       {k:'直近4週平均', v:kpi.avg_28d!==null?`${kpi.avg_28d}人`:'—', unit:'人',
        curr:kpi.avg_28d, prev:kpi.prev_28d_avg,
        prevLabel:kpi.prev_28d_avg!=null?`前年同期 ${kpi.prev_28d_avg}人`:'前年同期 —'},
@@ -348,8 +365,10 @@ function renderSummary() {
   const gapPfx = main.gap > 0 ? '+' : '';
   // トレンド矢印
   const kpiTrend = DATA.kpi[currentTab] && DATA.kpi[currentTab].trend;
+  const trendBg = {ok:'var(--ok-bg)',wr:'var(--wr-bg)',dr:'var(--dr-bg)',mu:'#f0f4f9'}[kpiTrend?kpiTrend.css:'mu']||'#f0f4f9';
+  const trendColor = {ok:'#065f42',wr:'#7c3a06',dr:'var(--dr-t)',mu:'var(--mu)'}[kpiTrend?kpiTrend.css:'mu']||'var(--mu)';
   const trendHtml = kpiTrend && kpiTrend.label
-    ? `<span class="cmp-dir ${kpiTrend.css}" style="font-size:10px;font-weight:800;padding:2px 6px;border-radius:4px;margin-left:6px">${kpiTrend.label}</span>`
+    ? `<span style="font-size:13px;font-weight:900;padding:4px 10px;border-radius:6px;margin-left:8px;background:${trendBg};color:${trendColor}">${kpiTrend.label}</span>`
     : '';
 
   const mainHtml = `<div class="bx-main ${sc}">
@@ -566,7 +585,15 @@ function renderChart() {
 
   // 種別フィルタ中は目標ラインを非表示
   const showTarget = !(currentTab === 'admission' && admType !== 'all');
-  let tgt = currentTab==='inpatient'?DATA.kpi.inpatient.target:Math.round(DATA.kpi.admission.target_weekly/7);
+  // ★在院: 平日/休日チェック状態で目標切替（両方=全日583, 平日のみ=600, 休日のみ=550）
+  let tgt;
+  if (currentTab === 'inpatient') {
+    if (showWeekday && showHoliday) tgt = DATA.kpi.inpatient.target_allday;
+    else if (showWeekday) tgt = DATA.kpi.inpatient.target_weekday;
+    else tgt = DATA.kpi.inpatient.target_holiday;
+  } else {
+    tgt = Math.round(DATA.kpi.admission.target_weekly / 7);
+  }
   const traces = [];
 
   const fMA28 = fAllMA28.slice(si);
@@ -587,8 +614,9 @@ function renderChart() {
       line:{color:'#e67e22',width:2}});
   }
   // ★目標ライン（種別フィルタ中は非表示）
+  const tgtLabel = currentTab==='inpatient' ? (showWeekday&&showHoliday?'全日目標':'平日/休日目標') : '目標';
   if (fDates.length && showTarget) {
-    traces.push({name:`目標 ${tgt}`, x:[fDates[0],fDates[fDates.length-1]], y:[tgt,tgt],
+    traces.push({name:`${tgtLabel} ${tgt}`, x:[fDates[0],fDates[fDates.length-1]], y:[tgt,tgt],
       type:'scatter', mode:'lines', line:{color:'#C0293B',width:2,dash:'dot'}});
   }
   // ★ゾーン凡例用ダミートレース
@@ -670,7 +698,7 @@ function renderOperationChart() {
     const si = Math.max(0, bp.dates.findIndex(d => d >= cutoff));
     const ds = bp.dates.slice(si), vs = bp.values.slice(si);
     traces.push({name:'昨年度30平日移動平均', x:ds, y:vs, type:'scatter', mode:'lines',
-      line:{color:'#94A3B8',width:1.5,dash:'dash'}});
+      line:{color:'#94A3B8',width:1.5}});
     yV.push(...vs.filter(v=>v!=null));
   }
 
