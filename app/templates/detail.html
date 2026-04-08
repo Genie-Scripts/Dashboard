@@ -241,31 +241,41 @@ function yoyDir(curr, prev) {
 /* サブカード（比較バー付き）HTML生成 */
 function refCardHtml(r) {
   const dir = yoyDir(r.curr, r.prev);
-  const fillPct = (r.prev != null && r.prev > 0 && r.curr != null)
-    ? Math.min(r.curr / r.prev * 100, 150) : 0;
-  const barW = Math.min(fillPct / 1.5, 100);  // 150%→100%幅
+  // ★refTarget が指定されている場合: バーは目標達成率で塗る
+  const barBase = r.refTarget != null ? r.refTarget : r.prev;
+  const fillPct = (barBase != null && barBase > 0 && r.curr != null)
+    ? Math.min(r.curr / barBase * 100, 150) : 0;
+  const barW = Math.min(fillPct / 1.5, 100);
+  const barCss = r.refTarget != null
+    ? (fillPct >= 100 ? 'ok' : fillPct >= 90 ? 'wr' : 'dr')
+    : dir.css;
   const prevText = r.prevLabel || (r.prev != null ? `対照 ${r.prev}${r.unit||''}` : '対照 —');
-  // ★目標比較（refTarget が指定されている場合）
-  let tgtHtml = '';
+  // ★目標行（達成率%はバー下へ移動）
+  let tgtHtml = '', rateHtml = '';
   if (r.refTarget != null && r.curr != null) {
     const gap = Math.round((r.curr - r.refTarget)*10)/10;
     const rate = Math.round(r.curr / r.refTarget * 1000)/10;
     const tc = rate >= 100 ? 'ok' : rate >= 90 ? 'wr' : 'dr';
     const gapPfx = gap > 0 ? '+' : '';
+    const stLabel = rate >= 100 ? '▲ 達成' : rate >= 90 ? '― 接近' : '▼ 未達';
     tgtHtml = `<div style="display:flex;align-items:center;gap:6px;margin-top:6px;padding:5px 8px;background:#f8f9fa;border-radius:8px;border:1px dashed var(--ln)">
       <span style="font-size:11px">🎯</span>
       <span style="font-size:12px;color:var(--mu);font-weight:700">${r.refTargetLabel||'目標'}</span>
       <span style="font-size:13px;font-weight:800;color:var(--sub)">${r.refTarget}${r.unit||''}</span>
       <span style="font-size:13px;font-weight:900;margin-left:auto" class="gap-val ${tc}">${gapPfx}${gap}${r.unit||''}</span>
-      <span style="font-size:11px;font-weight:800;padding:2px 6px;border-radius:5px" class="prog-st ${tc}">${rate}%</span>
+    </div>`;
+    rateHtml = `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:3px">
+      <span class="prog-pct ${tc}" style="font-size:12px;font-weight:900">${rate}%</span>
+      <span class="prog-st ${tc}" style="font-size:10px;font-weight:900;padding:2px 7px;border-radius:5px">${stLabel}</span>
     </div>`;
   }
   return `<div class="bx">
     <div class="k">${r.k}</div>
     <div class="v${r.dr?' dr':''}">${r.v}</div>
     ${tgtHtml}
-    <div class="cmp-bar"><div class="cmp-fill ${dir.css}" style="width:${barW}%"></div></div>
-    <div class="cmp-meta">
+    <div class="cmp-bar" style="margin-top:${r.refTarget!=null?'6':'8'}px"><div class="cmp-fill ${barCss}" style="width:${barW}%"></div></div>
+    ${rateHtml}
+    <div class="cmp-meta" style="margin-top:4px">
       <span class="cmp-prev">${prevText}</span>
       <span class="cmp-dir ${dir.css}">${dir.label}</span>
     </div>
@@ -288,8 +298,8 @@ function renderSummary() {
     };
     refs = [
       {k:'直近7日平均', v:kpi.avg_7d!==null?`${kpi.avg_7d}人`:'—', unit:'人',
-       curr:kpi.avg_7d, prev:kpi.prior_range_avg,
-       prevLabel:kpi.prior_range_avg!=null?`先行28日平均 ${kpi.prior_range_avg}人`:'先行28日平均 —',
+       curr:kpi.avg_7d, prev:kpi.target_allday,
+       prevLabel:`目標 ${kpi.target_allday}人`,
        dr:kpi.avg_7d!=null&&kpi.avg_7d<kpi.target,
        refTarget:kpi.target_allday, refTargetLabel:'全日目標'},
       {k:'直近4週平均', v:kpi.avg_28d!==null?`${kpi.avg_28d}人`:'—', unit:'人',
