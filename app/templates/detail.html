@@ -58,6 +58,9 @@
 @media(max-width:768px){.tabs{display:flex;overflow:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}.tab{min-width:150px;flex:0 0 auto}.tab .big{font-size:22px}.sum{grid-template-columns:1fr}.bx-main .main-val{font-size:24px}.main{grid-template-columns:1fr}.chart{height:220px}.ri{grid-template-columns:24px 1fr auto}.bar,.stl{display:none}.drill-chart{height:200px}.drill-graphs{grid-template-columns:1fr}.role{display:none}.hdr .row{flex-direction:column;align-items:flex-start}
 /* ★モバイル: KPIカード2列化・チャート1列化・はみ出し防止 */
 .kpi-row{grid-template-columns:repeat(2,1fr) !important;gap:8px}
+/* ★モバイル: 在院参照カード grid-column リセット・縦積み */
+.inp-refs-wrap{grid-column:auto !important}
+.inp-refs-grid{grid-template-columns:repeat(2,1fr) !important}
 .charts-container,.charts-container.layout-2plus1,.charts-container.layout-2x2,.charts-container.layout-3{grid-template-columns:1fr !important}
 .charts-container.layout-2plus1 .chart3-panel{grid-column:auto}
 .cpnl{overflow:hidden}.pnl{overflow:hidden}
