@@ -112,7 +112,7 @@ def is_operational_day(dt) -> bool:
 # ──────────────────────────────
 # 計測IDを設定すると全ページに GA タグが自動埋め込まれます（例: "G-XXXXXXXXXX"）
 # 空文字のままの場合は埋め込みをスキップします
-GA_MEASUREMENT_ID = "G-MYDENYNHLX"
+GA_MEASUREMENT_ID = "G-R843H5Z3R8"
 
 # ──────────────────────────────
 # 病院全体 KPI 目標値  ★v2.1 改定
