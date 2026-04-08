@@ -25,6 +25,7 @@ from .metrics import (
     build_nurse_watch_ranking, build_nurse_load_ranking,
     rolling7_new_admission, rolling7_surgery,
     build_daily_series, build_surgery_daily_series, add_moving_average,
+    build_biz_ma30_series,
     week_over_week, achievement_rate,
 )
 from .charts import (
@@ -282,10 +283,18 @@ def build_detail_json(adm, surg, targets, surg_targets,
     adm_trend = _trend_dict(series_nadm)
     _add_adm_breakdown(adm_trend, series_planned_hosp, series_emg_hosp)
 
+    # ★全麻 30平日移動平均（病院全体用）: 当年度 + 昨年度
+    biz_ma30_curr = build_biz_ma30_series(surg, base_date, prev_year=False)
+    biz_ma30_prev = build_biz_ma30_series(surg, base_date, prev_year=True)
+
+    op_trend = _trend_dict(series_surg)
+    op_trend["biz_ma30"] = biz_ma30_curr
+    op_trend["biz_ma30_prev"] = biz_ma30_prev
+
     trend = {
         "inpatient": _trend_dict(series_inp),
         "admission": adm_trend,
-        "operation": _trend_dict(series_surg),
+        "operation": op_trend,
     }
 
     # ── charts: 特殊グラフ用データ ──

@@ -281,6 +281,57 @@ def ga_rolling_calendar_dept(surg: pd.DataFrame, date: pd.Timestamp,
     }
 
 
+def build_biz_ma30_series(surg: pd.DataFrame, base_date: pd.Timestamp,
+                          prev_year: bool = False) -> dict:
+    """
+    全麻の30平日移動平均を日次時系列で返す（病院全体KPI用）。
+
+    各営業平日について、その日以前の直近30営業平日のGA件数平均を算出。
+    prev_year=True の場合、1年前のデータで同じ計算を行い、
+    日付は当年にアラインして返す。
+
+    Returns:
+        {"dates": [str, ...], "values": [float, ...]}
+    """
+    from .config import is_operational_day
+
+    offset = timedelta(days=365) if prev_year else timedelta(0)
+    shifted_base = base_date - offset
+
+    # 全麻の日次件数
+    ga = surg[surg["全麻"]].copy()
+    daily_ga = ga.groupby("手術実施日").size().reset_index(name="件数")
+    daily_ga = daily_ga.sort_values("手術実施日")
+    ga_map = dict(zip(daily_ga["手術実施日"], daily_ga["件数"]))
+
+    # 全日付リスト（データ範囲）
+    if len(daily_ga) == 0:
+        return {"dates": [], "values": []}
+    min_date = daily_ga["手術実施日"].min()
+    all_dates = pd.date_range(min_date, shifted_base, freq="D")
+
+    # 営業平日の日付と件数を収集
+    biz_dates = []
+    biz_counts = []
+    for d in all_dates:
+        if is_operational_day(d):
+            biz_dates.append(d)
+            biz_counts.append(ga_map.get(d, 0))
+
+    # 各営業平日について直近30平日の移動平均を算出
+    result_dates = []
+    result_values = []
+    for i, d in enumerate(biz_dates):
+        window_start = max(0, i - 29)
+        window = biz_counts[window_start:i + 1]
+        avg = round(sum(window) / len(window), 1)
+        out_date = d + offset if prev_year else d
+        result_dates.append(out_date.strftime("%Y-%m-%d"))
+        result_values.append(avg)
+
+    return {"dates": result_dates, "values": result_values}
+
+
 def build_weekly_agg(series: pd.DataFrame) -> pd.DataFrame:
     """日次→週次集約（月曜始まり）"""
     df = series.copy()

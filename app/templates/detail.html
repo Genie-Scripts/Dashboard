@@ -12,11 +12,11 @@
 .w{max-width:1280px;margin:0 auto;padding:16px 20px 48px}
 /* ★課題4: タブを大きく、数字を目立たせる */
 .tabs{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));background:var(--s);border:1px solid var(--ln);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh)}.tab{padding:16px 18px;border-right:1px solid var(--ln);cursor:pointer;transition:background .15s}.tab:last-child{border-right:none}.tab:hover{background:#f8fafc}.tab:not(.active){background:#f0f4f8;color:var(--sub)}.tab.active{background:var(--s);color:var(--ink);box-shadow:inset 0 -4px 0 var(--br),0 4px 12px rgba(14,77,164,.10)}.tab .nm{font-size:13px;font-weight:800}.tab .big{font-size:28px;font-weight:900;line-height:1.1;margin:4px 0}.tab:not(.active) .big{color:var(--sub)}.tab .per{font-size:11px;color:var(--sub);margin-top:2px}.tab .st{display:inline-block;font-size:10px;font-weight:900;padding:2px 8px;border-radius:999px;margin-left:4px;background:var(--dr-bg);color:var(--dr-t)}
-.sum{display:grid;grid-template-columns:1.4fr repeat(3,1fr);gap:10px;margin-top:12px}.bx{background:var(--bg);border:1px solid var(--ln);border-radius:14px;padding:12px 14px;box-shadow:0 2px 6px rgba(10,22,42,.04)}.bx h2{font-size:16px;margin:0}.bx .k{font-size:11px;color:var(--sub);font-weight:600}.bx .v{font-size:24px;font-weight:900;margin-top:4px}.bx .v.dr{color:var(--dr)}
-.bx .cmp-bar{height:4px;background:#edf2f7;border-radius:999px;overflow:hidden;margin-top:8px}.bx .cmp-fill{height:100%;border-radius:999px;transition:width .3s}.bx .cmp-fill.ok{background:var(--ok)}.bx .cmp-fill.wr{background:var(--wr)}.bx .cmp-fill.dr{background:var(--dr)}.bx .cmp-fill.mu{background:var(--mu)}.bx .cmp-meta{display:flex;justify-content:space-between;align-items:center;margin-top:3px}.bx .cmp-prev{font-size:9px;color:var(--mu)}.bx .cmp-dir{font-size:9px;font-weight:900;padding:1px 5px;border-radius:4px}.bx .cmp-dir.ok{background:var(--ok-bg);color:#065f42}.bx .cmp-dir.wr{background:var(--wr-bg);color:#7c3a06}.bx .cmp-dir.dr{background:var(--dr-bg);color:var(--dr-t)}.bx .cmp-dir.mu{color:var(--mu)}
+.sum{display:grid;grid-template-columns:1.4fr repeat(3,1fr);gap:10px;margin-top:12px}.bx{background:var(--bg);border:1px solid var(--ln);border-radius:14px;padding:12px 14px;box-shadow:0 2px 6px rgba(10,22,42,.04)}.bx h2{font-size:16px;margin:0}.bx .k{font-size:13px;color:var(--sub);font-weight:700}.bx .v{font-size:24px;font-weight:900;margin-top:4px}.bx .v.dr{color:var(--dr)}
+.bx .cmp-bar{height:4px;background:#edf2f7;border-radius:999px;overflow:hidden;margin-top:8px}.bx .cmp-fill{height:100%;border-radius:999px;transition:width .3s}.bx .cmp-fill.ok{background:var(--ok)}.bx .cmp-fill.wr{background:var(--wr)}.bx .cmp-fill.dr{background:var(--dr)}.bx .cmp-fill.mu{background:var(--mu)}.bx .cmp-meta{display:flex;justify-content:space-between;align-items:center;margin-top:3px}.bx .cmp-prev{font-size:13px;color:var(--sub);font-weight:600}.bx .cmp-dir{font-size:11px;font-weight:900;padding:2px 6px;border-radius:4px}.bx .cmp-dir.ok{background:var(--ok-bg);color:#065f42}.bx .cmp-dir.wr{background:var(--wr-bg);color:#7c3a06}.bx .cmp-dir.dr{background:var(--dr-bg);color:var(--dr-t)}.bx .cmp-dir.mu{color:var(--mu)}
 /* ★Plan-B: 実績+目標+差分 統合カード */
 .bx-main{background:var(--s);border:1px solid var(--ln);border-radius:14px;padding:14px 16px;box-shadow:0 2px 6px rgba(10,22,42,.04)}.bx-main.ok{background:var(--ok-bg)}.bx-main.wr{background:var(--wr-bg)}.bx-main.dr{background:var(--dr-bg)}.bx-main h2{font-size:14px;margin:0 0 6px;font-weight:800}.bx-main .period-note{font-size:11px;color:var(--sub);margin-bottom:4px}.bx-main .main-val{font-size:28px;font-weight:900;line-height:1.15}.bx-main .main-val.dr{color:var(--dr)}.bx-main .main-unit{font-size:14px;font-weight:400;color:var(--sub)}
-.tgt-row{display:flex;align-items:center;gap:8px;margin-top:8px;padding:6px 10px;background:#f8f9fa;border-radius:10px;border:1px dashed var(--ln)}.tgt-icon{font-size:12px}.tgt-label{font-size:10px;color:var(--mu);font-weight:700}.tgt-val{font-size:13px;font-weight:800;color:var(--sub)}.gap-val{font-size:13px;font-weight:900;margin-left:auto}.gap-val.dr{color:var(--dr)}.gap-val.wr{color:var(--wr)}.gap-val.ok{color:var(--ok)}
+.tgt-row{display:flex;align-items:center;gap:8px;margin-top:8px;padding:6px 10px;background:#f8f9fa;border-radius:10px;border:1px dashed var(--ln)}.tgt-icon{font-size:12px}.tgt-label{font-size:12px;color:var(--mu);font-weight:700}.tgt-val{font-size:14px;font-weight:800;color:var(--sub)}.gap-val{font-size:14px;font-weight:900;margin-left:auto}.gap-val.dr{color:var(--dr)}.gap-val.wr{color:var(--wr)}.gap-val.ok{color:var(--ok)}
 .prog-wrap{margin-top:6px}.prog-bar{height:6px;background:#edf2f7;border-radius:999px;overflow:hidden}.prog-fill{height:100%;border-radius:999px;transition:width .3s}.prog-fill.ok{background:var(--ok)}.prog-fill.wr{background:var(--wr)}.prog-fill.dr{background:var(--dr)}.prog-meta{display:flex;justify-content:space-between;align-items:center;margin-top:3px}.prog-pct{font-size:11px;font-weight:800}.prog-pct.dr{color:var(--dr)}.prog-pct.wr{color:var(--wr)}.prog-pct.ok{color:var(--ok)}.prog-status{font-size:9px;font-weight:800;padding:2px 7px;border-radius:5px}.prog-status.dr{background:var(--dr-bg);color:var(--dr-t)}.prog-status.wr{background:var(--wr-bg);color:#7c3a06}.prog-status.ok{background:var(--ok-bg);color:#065f42}
 .tb{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px}.grp{display:flex;align-items:center;gap:5px}.gl{font-size:12px;font-weight:800;color:var(--sub)}.btn{background:var(--s);border:1px solid var(--ln);border-radius:10px;padding:8px 14px;font-size:12px;font-weight:800;color:var(--sub);cursor:pointer;box-shadow:0 1px 3px rgba(10,22,42,.04);transition:all .15s}.btn:hover{border-color:#93b4e4;color:var(--br)}.btn.active{background:var(--bl);border-color:#93b4e4;color:var(--br)}
 .main{display:grid;grid-template-columns:1.15fr .85fr;gap:14px;margin-top:12px;align-items:start}.pnl-chart{}.pnl{background:var(--s);border:1px solid var(--ln);border-radius:var(--r);padding:18px;box-shadow:var(--sh);overflow:hidden}.pnl h3{margin:0 0 12px;font-size:14px;font-weight:800}
@@ -407,12 +407,18 @@ function renderToolbar() {
   ).join('');
   // ★平日/休日チェックボックス
   const mkChk = (id,lbl,checked,fn) => `<label style="font-size:11px;font-weight:700;color:var(--sub);cursor:pointer;display:flex;align-items:center;gap:2px"><input type="checkbox" ${checked?'checked':''} onchange="${fn}"> ${lbl}</label>`;
-  const dayChks = mkChk('wd','平日',showWeekday,"toggleDayType('weekday',this.checked)")
-    + mkChk('hd','休日',showHoliday,"toggleDayType('holiday',this.checked)");
-  // ★描画線チェックボックス
-  const lineChks = mkChk('d','日次実績',showDaily,"toggleLine('daily',this.checked)")
-    + mkChk('m7','7日移動平均',showMA7,"toggleLine('ma7',this.checked)")
-    + mkChk('m28','28日移動平均',showMA28,"toggleLine('ma28',this.checked)");
+  const dayChks = isOp
+    ? `<span style="font-size:11px;font-weight:700;color:var(--sub)">平日のみ（固定）</span>`
+    : mkChk('wd','平日',showWeekday,"toggleDayType('weekday',this.checked)")
+      + mkChk('hd','休日',showHoliday,"toggleDayType('holiday',this.checked)");
+  // ★描画線チェックボックス（operationタブはラベル差替え）
+  const lineChks = isOp
+    ? mkChk('d','日次実績（平日）',showDaily,"toggleLine('daily',this.checked)")
+      + mkChk('m7','30平日移動平均',showMA7,"toggleLine('ma7',this.checked)")
+      + mkChk('m28','昨年度',showMA28,"toggleLine('ma28',this.checked)")
+    : mkChk('d','日次実績',showDaily,"toggleLine('daily',this.checked)")
+      + mkChk('m7','7日移動平均',showMA7,"toggleLine('ma7',this.checked)")
+      + mkChk('m28','28日移動平均',showMA28,"toggleLine('ma28',this.checked)");
   // ★新入院種別ラジオ（admission タブのみ表示）
   const mkRad = (val,lbl) => `<label style="font-size:11px;font-weight:700;color:var(--sub);cursor:pointer;display:flex;align-items:center;gap:2px"><input type="radio" name="admType" value="${val}" ${admType===val?'checked':''} onchange="setAdmType('${val}')"> ${lbl}</label>`;
   const admTypeCtrl = currentTab==='admission'
@@ -538,6 +544,7 @@ function filterByDayType(dates, values, isWeekday) {
 
 function renderChart() {
   if (currentTab === 'profit') { renderProfitChart(); return; }
+  if (currentTab === 'operation') { renderOperationChart(); return; }
   const trend = DATA.trend[currentTab];
   if (!trend || !trend.dates.length) return;
   const cutoff = periodCutoff();
@@ -559,7 +566,7 @@ function renderChart() {
 
   // 種別フィルタ中は目標ラインを非表示
   const showTarget = !(currentTab === 'admission' && admType !== 'all');
-  let tgt = currentTab==='inpatient'?DATA.kpi.inpatient.target:currentTab==='admission'?Math.round(DATA.kpi.admission.target_weekly/7):DATA.kpi.operation.target;
+  let tgt = currentTab==='inpatient'?DATA.kpi.inpatient.target:Math.round(DATA.kpi.admission.target_weekly/7);
   const traces = [];
 
   const fMA28 = fAllMA28.slice(si);
@@ -619,9 +626,97 @@ function renderChart() {
     shapes: shapes,
   };
   Plotly.newPlot('mainChart',traces,layout,{responsive:true});
-  const titles = {inpatient:'在院患者数',admission:'新入院患者数',operation:'全身麻酔手術'};
+  const titles = {inpatient:'在院患者数',admission:'新入院患者数'};
   const admLabel = currentTab==='admission' && admType!=='all' ? (admType==='planned'?' ／ 予定入院':' ／ 緊急入院') : '';
-  document.getElementById('chartTitle').textContent = `📊 ${titles[currentTab]||''}${admLabel} 推移（${pLabels[currentPeriod]}${dayLabel}）`;
+  document.getElementById('chartTitle').textContent = `📊 ${titles[currentTab]||''} ${admLabel} 推移（${pLabels[currentPeriod]}${dayLabel}）`;
+}
+
+// ★全身麻酔 病院全体グラフ: 30平日移動平均 + 昨年度比較
+function renderOperationChart() {
+  const trend = DATA.trend.operation;
+  if (!trend) return;
+  const cutoff = periodCutoff();
+  const tgt = DATA.kpi.operation.target; // 21件/日
+  const traces = [], yV = [];
+
+  // ★日次実績（平日のみ）: trend.dates/valuesから平日だけ抽出
+  if (showDaily && trend.dates && trend.dates.length) {
+    const fd = [], fv = [];
+    for (let i = 0; i < trend.dates.length; i++) {
+      if (trend.is_weekday && trend.is_weekday[i]) {
+        fd.push(trend.dates[i]); fv.push(trend.values[i]);
+      }
+    }
+    const si = Math.max(0, fd.findIndex(d => d >= cutoff));
+    const ds = fd.slice(si), vs = fv.slice(si);
+    traces.push({name:'日次実績（平日）', x:ds, y:vs, type:'scatter', mode:'lines',
+      line:{color:'#94A3B8',width:1,dash:'dot'}, opacity:0.7});
+    yV.push(...vs.filter(v=>v!=null));
+  }
+
+  // ★30平日移動平均（当年度）: biz_ma30
+  const bm = trend.biz_ma30;
+  if (showMA7 && bm && bm.dates && bm.dates.length) {
+    const si = Math.max(0, bm.dates.findIndex(d => d >= cutoff));
+    const ds = bm.dates.slice(si), vs = bm.values.slice(si);
+    traces.push({name:'30平日移動平均', x:ds, y:vs, type:'scatter', mode:'lines',
+      line:{color:'#0D9488',width:2.5}});
+    yV.push(...vs.filter(v=>v!=null));
+  }
+
+  // ★昨年度30平日移動平均: biz_ma30_prev（色を変え細線）
+  const bp = trend.biz_ma30_prev;
+  if (showMA28 && bp && bp.dates && bp.dates.length) {
+    const si = Math.max(0, bp.dates.findIndex(d => d >= cutoff));
+    const ds = bp.dates.slice(si), vs = bp.values.slice(si);
+    traces.push({name:'昨年度30平日移動平均', x:ds, y:vs, type:'scatter', mode:'lines',
+      line:{color:'#94A3B8',width:1.5,dash:'dash'}});
+    yV.push(...vs.filter(v=>v!=null));
+  }
+
+  // ★目標ライン
+  if (tgt && yV.length) {
+    const allDates = traces.flatMap(t => t.x || []).filter(Boolean);
+    const minD = allDates.length ? allDates[0] : null;
+    const maxD = allDates.length ? allDates[allDates.length-1] : null;
+    if (minD && maxD) {
+      traces.push({name:`平日目標 ${tgt}件/日`, x:[minD,maxD], y:[tgt,tgt],
+        type:'scatter', mode:'lines', line:{color:'#C0293B',width:2,dash:'dot'}});
+      yV.push(tgt);
+    }
+  }
+
+  // ★ゾーン凡例用ダミー
+  traces.push({name:'達成ゾーン', x:[null], y:[null], type:'scatter', mode:'lines',
+    line:{width:8,color:'rgba(22,163,74,0.3)'}, showlegend:true});
+  traces.push({name:'注意ゾーン', x:[null], y:[null], type:'scatter', mode:'lines',
+    line:{width:8,color:'rgba(245,158,11,0.35)'}, showlegend:true});
+
+  // ★Y軸
+  const mn = yV.length ? Math.min(...yV) : 0, mx = yV.length ? Math.max(...yV) : 30;
+  const pd = (mx - mn) * 0.08 || 3;
+  const yLo = Math.max(0, Math.floor(mn - pd)), yHi = Math.ceil(mx + pd);
+
+  // ★ゾーン背景
+  const shapes = [];
+  if (tgt) {
+    shapes.push({type:'rect',xref:'paper',yref:'y',x0:0,x1:1,y0:tgt,y1:yHi,
+      fillcolor:'rgba(22,163,74,0.08)',line:{width:0}});
+    shapes.push({type:'rect',xref:'paper',yref:'y',x0:0,x1:1,y0:tgt*0.95,y1:tgt,
+      fillcolor:'rgba(245,158,11,0.10)',line:{width:0}});
+  }
+
+  const pLabels = {'12w':'直近12週','24w':'直近24週','365d':'直近365日'};
+  Plotly.newPlot('mainChart', traces, {
+    font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
+    xaxis:{gridcolor:'#DCE1E9',tickformat:'%m/%d',tickangle:-45},
+    yaxis:{range:[yLo,yHi],gridcolor:'#DCE1E9',title:{text:'件/平日',font:{size:10}}},
+    legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},
+    hovermode:'x unified',
+    margin:{l:50,r:20,t:10,b:55},height:_pH(340),
+    plot_bgcolor:'#fff',paper_bgcolor:'#fff',shapes,
+  },{responsive:true});
+  document.getElementById('chartTitle').textContent = `📊 全身麻酔手術 推移（${pLabels[currentPeriod]}・平日基準）`;
 }
 
 // ★課題1: 折りたたみバグ修正（クラス付け外しで制御）
@@ -800,12 +895,13 @@ function openDrill(name) {
       document.getElementById(elId).innerHTML='<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">データなし</div>'; return;
     }
     const fAll=(td.is_weekday&&td.is_weekday.length>0)?filterByDayType(td.dates,td.values||[],td.is_weekday):{dates:td.dates,values:td.values||[]};
-    const allRS7=calcRollingSumByDate(fAll.dates,fAll.values,7), allRS7ma=calcMA(allRS7,4);
+    const allRS7=calcRollingSumByDate(fAll.dates,fAll.values,7), allRS7ma=calcMA(allRS7,4), allRS7ma28=calcMA(allRS7,28);
     const si=Math.max(0,fAll.dates.findIndex(x=>x>=cutoff));
-    const ds=fAll.dates.slice(si), rs7=allRS7.slice(si), rs7ma=allRS7ma.slice(si);
+    const ds=fAll.dates.slice(si), rs7=allRS7.slice(si), rs7ma=allRS7ma.slice(si), rs7ma28=allRS7ma28.slice(si);
     const tgt=weeklyTarget, tr=[], yV=[];
     if (showDaily) { tr.push({name:'週間実績',x:ds,y:rs7,type:'scatter',mode:'lines',line:{color:'#94A3B8',width:1,dash:'dot'},opacity:0.7}); yV.push(...rs7.filter(v=>v!=null)); }
     if (showMA7&&rs7ma.length) { tr.push({name:'4週移動平均',x:ds,y:rs7ma,type:'scatter',mode:'lines',line:{color:'#0D9488',width:2.5}}); yV.push(...rs7ma.filter(v=>v!=null)); }
+    if (showMA28&&rs7ma28.length) { tr.push({name:'28日移動平均',x:ds,y:rs7ma28,type:'scatter',mode:'lines',line:{color:'#e67e22',width:2}}); yV.push(...rs7ma28.filter(v=>v!=null)); }
     if (tgt&&ds.length) { tr.push({name:`週目標 ${tgt}`,x:[ds[0],ds[ds.length-1]],y:[tgt,tgt],type:'scatter',mode:'lines',line:{color:'#C0293B',width:2,dash:'dot'}}); yV.push(tgt); }
     const mn=yV.length?Math.min(...yV):0, mx=yV.length?Math.max(...yV):10, pd=(mx-mn)*.08||1;
     const yLo=Math.max(0,Math.floor(mn-pd)), yHi=Math.ceil(mx+pd);

@@ -550,14 +550,15 @@ function renderSurgeryChart(elId, td, weeklyTarget) {
   const cutoff = periodCutoff();
   const fAll = (td.is_weekday && td.is_weekday.length > 0) ? filterByDayType(td.dates, td.values||[], td.is_weekday) : {dates: td.dates, values: td.values||[]};
   const allRS7 = calcRollingSumByDate(fAll.dates, fAll.values, 7);
-  const allRS7ma = calcMA(allRS7, 4);
+  const allRS7ma = calcMA(allRS7, 4), allRS7ma28 = calcMA(allRS7, 28);
   const si = Math.max(0, fAll.dates.findIndex(x => x >= cutoff));
-  const ds = fAll.dates.slice(si), rs7 = allRS7.slice(si), rs7ma = allRS7ma.slice(si);
+  const ds = fAll.dates.slice(si), rs7 = allRS7.slice(si), rs7ma = allRS7ma.slice(si), rs7ma28 = allRS7ma28.slice(si);
 
   const tgt = weeklyTarget;
   const traces = [], yV = [];
   if (showDaily) { traces.push({name:'週間実績',x:ds,y:rs7,type:'scatter',mode:'lines',line:{color:'#94A3B8',width:1,dash:'dot'},opacity:0.7}); yV.push(...rs7.filter(v=>v!=null)); }
   if (showMA7 && rs7ma.length) { traces.push({name:'4週移動平均',x:ds,y:rs7ma,type:'scatter',mode:'lines',line:{color:'#0D9488',width:2.5}}); yV.push(...rs7ma.filter(v=>v!=null)); }
+  if (showMA28 && rs7ma28.length) { traces.push({name:'28日移動平均',x:ds,y:rs7ma28,type:'scatter',mode:'lines',line:{color:'#e67e22',width:2}}); yV.push(...rs7ma28.filter(v=>v!=null)); }
   if (tgt && ds.length) { traces.push({name:`週目標 ${tgt}`,x:[ds[0],ds[ds.length-1]],y:[tgt,tgt],type:'scatter',mode:'lines',line:{color:'#C0293B',width:2,dash:'dot'}}); yV.push(tgt); }
 
   const mn=yV.length?Math.min(...yV):0, mx=yV.length?Math.max(...yV):10, pd=(mx-mn)*.08||1;
