@@ -22,7 +22,7 @@ from typing import Optional
 
 # ── ローカルモジュール ──
 sys.path.insert(0, str(Path(__file__).parent))
-from app.lib.config import DEFAULT_DATA_DIR
+from app.lib.config import DEFAULT_DATA_DIR, GA_MEASUREMENT_ID
 from app.lib.html_builder import build_portal_context, build_detail_json
 
 
@@ -34,6 +34,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--sort-by", default="achievement", choices=["achievement", "actual"])
     p.add_argument("--no-validate", action="store_true")
     p.add_argument("--no-redirect", action="store_true", help="旧URLリダイレクト生成をスキップ")
+    p.add_argument("--ga-id", default=None, help="Google Analytics 計測ID (例: G-XXXXXXXXXX)")
     p.add_argument("--quiet", "-q", action="store_true")
     p.add_argument("--setup", action="store_true", help="データフォルダの初期化のみ")
     return p.parse_args()
@@ -151,11 +152,15 @@ def generate(data_dir: str = DEFAULT_DATA_DIR,
              sort_by: str = "achievement",
              no_validate: bool = False,
              no_redirect: bool = False,
+             ga_id: str = None,
              quiet: bool = False) -> dict:
     """メイン生成処理"""
     generated_at = datetime.now()
     out_dir = Path(output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+
+    # ── Google Analytics ID 解決（引数 > config 定数）──
+    resolved_ga_id = (ga_id or GA_MEASUREMENT_ID or "").strip()
 
     # ── データ読込 ──
     adm, surg, targets, surg_targets, profit_monthly, base_date = \
@@ -171,6 +176,7 @@ def generate(data_dir: str = DEFAULT_DATA_DIR,
     portal_ctx = build_portal_context(
         adm, surg, targets, surg_targets, base_date, generated_at
     )
+    portal_ctx["ga_id"] = resolved_ga_id
     portal_tmpl = env.get_template("portal.html")
     portal_html = portal_tmpl.render(**portal_ctx)
     portal_path = out_dir / "portal.html"
@@ -189,6 +195,7 @@ def generate(data_dir: str = DEFAULT_DATA_DIR,
         "data_json": detail_json,
         "base_date": base_date.strftime("%Y-%m-%d"),
         "generated_at": generated_at.strftime("%Y/%m/%d %H:%M"),
+        "ga_id": resolved_ga_id,
     }
     detail_tmpl = env.get_template("detail.html")
     detail_html = detail_tmpl.render(**detail_ctx)
@@ -259,6 +266,7 @@ def main():
             sort_by=args.sort_by,
             no_validate=args.no_validate,
             no_redirect=args.no_redirect,
+            ga_id=args.ga_id,
             quiet=args.quiet,
         )
     except FileNotFoundError as e:

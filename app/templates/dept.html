@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>部門ダッシュボード</title>
+{% if ga_id %}<script async src="https://www.googletagmanager.com/gtag/js?id={{ ga_id }}"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','{{ ga_id }}');</script>{% endif %}
 <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 <style>
 :root{--bg:#f6f8fb;--s:#fff;--ink:#1a2332;--sub:#5f7084;--mu:#9daab8;--ln:#dfe5ed;--br:#0e4da4;--bl:#e8f0fe;--bd:#0a3671;--dr:#c4314b;--dr-bg:#fdf0f2;--dr-t:#8c1d35;--wr:#b45309;--wr-bg:#fef7ee;--ok:#0e7a54;--ok-bg:#ecfdf5;--inf:#2563eb;--r:18px;--sh:0 4px 14px rgba(10,22,42,.08)}
