@@ -545,8 +545,6 @@ function toggleDayType(type, checked) {
 function renderContent() {
   renderChart();
   renderRanking();
-  // ★課題4: 期間切替時にドリルダウンも再描画
-  if (currentDrill) openDrill(currentDrill);
 }
 
 function periodCutoff() {
@@ -858,7 +856,7 @@ function renderRanking() {
       sub2 = `${r.actual}/${r.target || '—'}`;
     }
 
-    return `<div class="ri${i>=RANK_SHOW?' rank-extra':''}" onclick="openDrill('${r.name}')">
+    return `<div class="ri${i>=RANK_SHOW?' rank-extra':''}" onclick="location.href='dept.html#'+encodeURIComponent('${r.name}')" style="cursor:pointer">
       <div class="num ${r.status}">${r.rank}</div>
       <div><div class="nm">${r.name}</div><div class="mt2">${sub2}</div></div>
       <div class="bar"><div class="fill ${barCss}" style="width:${bw}%"></div></div>
@@ -885,207 +883,7 @@ function toggleRankAll() {
   else { const n=document.querySelectorAll('.rank-extra').length; tog.textContent=`もっと見る（+${n}件）▾`; tog.classList.remove('expanded'); }
 }
 
-// ════ DRILL DOWN ════
-function openDrill(name) {
-  const d = DATA.drill[name];
-  if (!d) { console.warn('drill data not found:', name); return; }
-  document.getElementById('drillName').textContent = name;
-
-  const isWard = !!d.ward_extra;
-  const we = d.ward_extra;
-  const opLabel = d.operation.label || '全麻';
-  const isSurgeryDept = !isWard && d.operation.actual !== null;
-  const hasProfitChart = !isWard && !!d.profit_chart;
-
-  // ── KPI Cards (dept.htmlと同等) ──
-  const kpiRow = document.getElementById('drillKpiCards');
-  if (isWard) {
-    const inFlow = we.load || 0;
-    const outFlow = d.operation.actual || 0;
-    const netFlow = inFlow - outFlow;
-    const netCss = netFlow >= 0 ? '#0e7a54' : '#c4314b';
-    const inpSub = we.util_rate!=null ? `利用率 <strong>${we.util_rate}%</strong>（${we.beds||'—'}床）` : null;
-    const admActual = admType==='planned'?d.admission.planned_7d:admType==='emergency'?d.admission.emergency_7d:d.admission.actual_7d;
-    const admPeriodLabel = admType==='planned'?'直近7日（予定）':admType==='emergency'?'直近7日（緊急）':'直近7日累計';
-    const admTarget = admType==='all' ? d.admission.target : null;
-    const admRate   = admType==='all' ? d.admission.rate   : null;
-    kpiRow.innerHTML = `<div class="kc">
-      <h3>🔄 入退院フロー</h3><div class="period">${DATA.meta.base_date} 実績</div>
-      <div style="margin-top:10px">
-        <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0"><span style="color:var(--sub);font-weight:600">🚑 入院+転入</span><span style="font-weight:900;font-size:16px;color:#0D9488">${inFlow}名</span></div>
-        <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0"><span style="color:var(--sub);font-weight:600">🚶 退院+転出</span><span style="font-weight:900;font-size:16px;color:#e67e22">${outFlow}名</span></div>
-        <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-top:1px solid var(--ln);margin-top:4px;padding-top:6px"><span style="color:var(--sub);font-weight:600">純増減</span><span style="font-weight:900;font-size:16px;color:${netCss}">${netFlow>=0?'+':''}${netFlow}名</span></div>
-        ${we.util_rate!=null?`<div style="margin-top:8px;font-size:11px;color:var(--sub)">病床利用率 <strong style="color:${we.util_rate<85?'var(--dr)':'inherit'}">${we.util_rate}%</strong>（${we.beds||'—'}床）</div>`:''}
-      </div></div>`
-      + kpiCardHtml({icon:'🚪', label:'新入院', period:admPeriodLabel, actual:admActual, unit:'人', target:admTarget, rate:admRate})
-      + kpiCardHtml({icon:'🛏️', label:'在院患者', period:DATA.meta.base_date+' 時点', actual:d.inpatient.actual, unit:'人', target:d.inpatient.target, rate:d.inpatient.rate, sub:inpSub});
-    kpiRow.style.gridTemplateColumns = 'repeat(3,1fr)';
-  } else {
-    const admActual = admType==='planned'?d.admission.planned_7d:admType==='emergency'?d.admission.emergency_7d:d.admission.actual_7d;
-    const admPeriodLabel = admType==='planned'?'直近7日（予定）':admType==='emergency'?'直近7日（緊急）':'直近7日累計';
-    const admTarget = admType==='all' ? d.admission.target : null;
-    const admRate   = admType==='all' ? d.admission.rate   : null;
-    const dCards = [
-      kpiCardHtml({icon:'🚪', label:'新入院', period:admPeriodLabel, actual:admActual, unit:'人', target:admTarget, rate:admRate}),
-      kpiCardHtml({icon:'🛏️', label:'在院患者', period:DATA.meta.base_date+' 時点', actual:d.inpatient.actual, unit:'人', target:d.inpatient.target, rate:d.inpatient.rate}),
-    ];
-    if (isSurgeryDept) dCards.push(kpiCardHtml({icon:'💉', label:opLabel, period:'直近7日累計', actual:d.operation.actual, unit:'件', target:d.operation.target, rate:d.operation.rate}));
-    if (d.profit) dCards.push(kpiCardHtml({icon:'💰', label:'粗利', period:'今月', actual:d.profit.actual, unit:'百万円', gapUnit:'百万円', target:d.profit.target, rate:d.profit.rate}));
-    kpiRow.innerHTML = dCards.join('');
-    kpiRow.style.gridTemplateColumns = `repeat(${dCards.length >= 4 ? 2 : Math.min(dCards.length, 3)},1fr)`;
-  }
-
-  // ── Comment ──
-  const comment = d.comment||'';
-  const cel = document.getElementById('drillComment');
-  cel.innerHTML = comment ? `📋 ${comment}` : '';
-  cel.style.display = comment ? 'block' : 'none';
-
-  // ── Charts (dept.htmlと同等: period/dayType同期) ──
-  const cutoff = periodCutoff();
-  const drillWrap = document.getElementById('drillChartsWrap');
-  const chart4panel = document.getElementById('drillChart4panel');
-  const _drillH = _pH(320);
-  const LAYOUT = {
-    font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
-    xaxis:{gridcolor:'#DCE1E9',tickformat:'%m/%d',tickangle:-45},
-    legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},
-    hovermode:'x unified', margin:{l:45,r:15,t:8,b:50}, height:_drillH,
-    plot_bgcolor:'#fff', paper_bgcolor:'#fff',
-  };
-
-  function dRenderOneChart(elId, td, targetVal) {
-    if (!td||!td.dates||!td.dates.length) {
-      document.getElementById(elId).innerHTML='<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">データなし</div>'; return;
-    }
-    const fAll = (td.is_weekday&&td.is_weekday.length>0)?filterByDayType(td.dates,td.values||[],td.is_weekday):{dates:td.dates,values:td.values||[]};
-    const allMA7=calcMA(fAll.values,7), allMA28=calcMA(fAll.values,28);
-    const si=Math.max(0,fAll.dates.findIndex(x=>x>=cutoff));
-    const ds=fAll.dates.slice(si), vs=fAll.values.slice(si), m7=allMA7.slice(si), m28=allMA28.slice(si);
-    const tr=[], yV=[];
-    if (showDaily) { tr.push({name:'日次実績',x:ds,y:vs,type:'scatter',mode:'lines',line:{color:'#94A3B8',width:1,dash:'dot'},opacity:0.7}); yV.push(...vs.filter(v=>v!=null)); }
-    if (showMA7&&m7.length) { tr.push({name:'7日移動平均',x:ds,y:m7,type:'scatter',mode:'lines',line:{color:'#0D9488',width:2.5}}); yV.push(...m7.filter(v=>v!=null)); }
-    if (showMA28&&m28.length) { tr.push({name:'28日移動平均',x:ds,y:m28,type:'scatter',mode:'lines',line:{color:'#e67e22',width:2}}); yV.push(...m28.filter(v=>v!=null)); }
-    if (targetVal&&ds.length) { tr.push({name:`目標 ${Math.round(targetVal*10)/10}`,x:[ds[0],ds[ds.length-1]],y:[targetVal,targetVal],type:'scatter',mode:'lines',line:{color:'#C0293B',width:2,dash:'dot'}}); yV.push(targetVal); }
-    const mn=yV.length?Math.min(...yV):0, mx=yV.length?Math.max(...yV):10, pd=(mx-mn)*.08||2;
-    const yLo=Math.max(0,Math.floor(mn-pd)), yHi=Math.ceil(mx+pd);
-    const shapes=[];
-    if (targetVal) { shapes.push({type:'rect',xref:'paper',yref:'y',x0:0,x1:1,y0:targetVal,y1:yHi,fillcolor:'rgba(22,163,74,0.08)',line:{width:0}}); shapes.push({type:'rect',xref:'paper',yref:'y',x0:0,x1:1,y0:targetVal*0.95,y1:targetVal,fillcolor:'rgba(245,158,11,0.10)',line:{width:0}}); }
-    Plotly.newPlot(elId,tr,{...LAYOUT,yaxis:{range:[yLo,yHi],gridcolor:'#DCE1E9'},shapes},{responsive:true});
-  }
-
-  function dRenderSurgeryChart(elId, td, weeklyTarget) {
-    if (!td||!td.dates||!td.dates.length) {
-      document.getElementById(elId).innerHTML='<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">データなし</div>'; return;
-    }
-    const fAll=(td.is_weekday&&td.is_weekday.length>0)?filterByDayType(td.dates,td.values||[],td.is_weekday):{dates:td.dates,values:td.values||[]};
-    const allRS7=calcRollingSumByDate(fAll.dates,fAll.values,7), allRS7ma=calcMA(allRS7,4), allRS7ma28=calcMA(allRS7,28);
-    const si=Math.max(0,fAll.dates.findIndex(x=>x>=cutoff));
-    const ds=fAll.dates.slice(si), rs7=allRS7.slice(si), rs7ma=allRS7ma.slice(si), rs7ma28=allRS7ma28.slice(si);
-    const tgt=weeklyTarget, tr=[], yV=[];
-    if (showDaily) { tr.push({name:'週間実績',x:ds,y:rs7,type:'scatter',mode:'lines',line:{color:'#94A3B8',width:1,dash:'dot'},opacity:0.7}); yV.push(...rs7.filter(v=>v!=null)); }
-    if (showMA7&&rs7ma.length) { tr.push({name:'4週移動平均',x:ds,y:rs7ma,type:'scatter',mode:'lines',line:{color:'#0D9488',width:2.5}}); yV.push(...rs7ma.filter(v=>v!=null)); }
-    if (showMA28&&rs7ma28.length) { tr.push({name:'28日移動平均',x:ds,y:rs7ma28,type:'scatter',mode:'lines',line:{color:'#e67e22',width:2}}); yV.push(...rs7ma28.filter(v=>v!=null)); }
-    if (tgt&&ds.length) { tr.push({name:`週目標 ${tgt}`,x:[ds[0],ds[ds.length-1]],y:[tgt,tgt],type:'scatter',mode:'lines',line:{color:'#C0293B',width:2,dash:'dot'}}); yV.push(tgt); }
-    const mn=yV.length?Math.min(...yV):0, mx=yV.length?Math.max(...yV):10, pd=(mx-mn)*.08||1;
-    const yLo=Math.max(0,Math.floor(mn-pd)), yHi=Math.ceil(mx+pd);
-    const shapes=[];
-    if (tgt) { shapes.push({type:'rect',xref:'paper',yref:'y',x0:0,x1:1,y0:tgt,y1:yHi,fillcolor:'rgba(22,163,74,0.08)',line:{width:0}}); shapes.push({type:'rect',xref:'paper',yref:'y',x0:0,x1:1,y0:tgt*0.95,y1:tgt,fillcolor:'rgba(245,158,11,0.10)',line:{width:0}}); }
-    Plotly.newPlot(elId,tr,{...LAYOUT,yaxis:{range:[yLo,yHi],gridcolor:'#DCE1E9'},shapes},{responsive:true});
-  }
-
-  function dRenderFlowChart(elId, admTd, outTd) {
-    if (!admTd||!outTd||!admTd.dates||!admTd.dates.length) {
-      document.getElementById(elId).innerHTML='<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">データなし</div>'; return;
-    }
-    let dates=admTd.dates, aV=admTd.values||[], oV=outTd.values||[];
-    if (admTd.is_weekday&&admTd.is_weekday.length>0) {
-      const fd=[],fa=[],fo=[];
-      admTd.dates.forEach((d,i)=>{ const wd=admTd.is_weekday[i]; if((wd&&showWeekday)||(!wd&&showHoliday)){fd.push(d);fa.push(aV[i]);fo.push(oV[i]!=null?oV[i]:0);} });
-      dates=fd; aV=fa; oV=fo;
-    }
-    const netVals=aV.map((v,i)=>(v||0)-(oV[i]||0)), netMA7=calcMA(netVals,7);
-    const si=Math.max(0,dates.findIndex(x=>x>=cutoff));
-    const ds=dates.slice(si), adm=aV.slice(si), out=oV.slice(si), nm=netMA7.slice(si);
-    const yV1=[...adm,...out.map(v=>-v)].filter(v=>v!=null);
-    const mn1=yV1.length?Math.min(...yV1):-5, mx1=yV1.length?Math.max(...yV1):5;
-    const pd1=(mx1-mn1)*0.08||1;
-    const yAbs1=Math.max(Math.abs(mn1)+pd1, mx1+pd1);
-    const yV2=nm.filter(v=>v!=null);
-    const mn2=yV2.length?Math.min(...yV2):-3, mx2=yV2.length?Math.max(...yV2):3;
-    const pd2=(mx2-mn2)*0.15||1;
-    const yAbs2=Math.max(Math.abs(mn2)+pd2, mx2+pd2);
-    Plotly.newPlot(elId,[
-      {name:'入院+転入',x:ds,y:adm,type:'bar',marker:{color:'#0D9488'},opacity:0.75,yaxis:'y'},
-      {name:'退院+転出',x:ds,y:out.map(v=>-v),type:'bar',marker:{color:'#e67e22'},opacity:0.75,yaxis:'y'},
-      {name:'純増減 移動平均',x:ds,y:nm,type:'scatter',mode:'lines',line:{color:'#C0293B',width:2.5},yaxis:'y2'},
-    ],{barmode:'relative',font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
-      xaxis:{gridcolor:'#DCE1E9',tickformat:'%m/%d',tickangle:-45},
-      yaxis:{range:[-Math.ceil(yAbs1),Math.ceil(yAbs1)],gridcolor:'#DCE1E9',zeroline:true,zerolinecolor:'#888',zerolinewidth:1.5},
-      yaxis2:{overlaying:'y',side:'right',range:[-Math.ceil(yAbs2),Math.ceil(yAbs2)],gridcolor:'transparent',zeroline:true,zerolinecolor:'#C0293B',zerolinewidth:1,tickfont:{size:10,color:'#C0293B'}},
-      legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},hovermode:'x unified',margin:{l:45,r:45,t:8,b:50},height:_drillH,
-      plot_bgcolor:'#fff',paper_bgcolor:'#fff'},{responsive:true});
-  }
-
-  function dRenderProfitChart(elId, bd) {
-    if (!bd||!bd.months||!bd.months.length) {
-      document.getElementById(elId).innerHTML='<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">粗利データなし</div>'; return;
-    }
-    const barColors=bd.months.map((_,i)=>{ const rate=bd.target?bd.values[i]/bd.target*100:0; return rate>=100?'#0e7a54':rate>=90?'#b45309':'#c4314b'; });
-    const tr=[{name:'粗利実績',x:bd.months,y:bd.values,type:'bar',marker:{color:barColors},opacity:0.9}];
-    if (bd.target) tr.push({name:'目標',x:[bd.months[0],bd.months[bd.months.length-1]],y:[bd.target,bd.target],type:'scatter',mode:'lines',line:{color:'#C0293B',width:2,dash:'dot'}});
-    const allY=[...bd.values,...(bd.target?[bd.target]:[])].filter(v=>v!=null);
-    const yMax=allY.length?Math.max(...allY)*1.15:10;
-    Plotly.newPlot(elId,tr,{font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},xaxis:{gridcolor:'#DCE1E9',tickangle:-45},yaxis:{range:[0,yMax],gridcolor:'#DCE1E9',title:{text:'百万円',font:{size:10}}},legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},hovermode:'x unified',margin:{l:55,r:15,t:8,b:65},height:_pH(320),plot_bgcolor:'#fff',paper_bgcolor:'#fff'},{responsive:true});
-  }
-
-  // ── Chart Layout ──
-  const _pLabels = {'12w':'直近12週','24w':'直近24週','365d':'直近365日'};
-  const suffix = `（${_pLabels[currentPeriod]}）`;
-  const admSuffix = admType==='planned'?' ／ 予定':admType==='emergency'?' ／ 緊急':'';
-  const rawAdmTd = d.trend ? d.trend.admission : null;
-  const filtAdmTd = (admType !== 'all' && rawAdmTd && rawAdmTd[admType])
-    ? {...rawAdmTd, values: rawAdmTd[admType]} : rawAdmTd;
-  const admChartTarget = admType==='all' ? (d.admission.target ? d.admission.target/7 : null) : null;
-
-  document.getElementById('drillLabel1').textContent = `🚪 新入院${admSuffix} 推移${suffix}`;
-  document.getElementById('drillLabel2').textContent = `🛏️ 在院患者 推移${suffix}`;
-  dRenderOneChart('drillChartAdm', filtAdmTd, admChartTarget);
-  dRenderOneChart('drillChartInp', d.trend?d.trend.inpatient:null, d.inpatient.target);
-
-  if (isWard) {
-    drillWrap.className = 'charts-container layout-2plus1';
-    chart4panel.style.display = 'none';
-    document.getElementById('drillLabel3').textContent = `🔄 入退院フロー${suffix}`;
-    dRenderFlowChart('drillChartOp', d.trend?d.trend.admission:null, d.trend?d.trend.outflow:null);
-  } else if (isSurgeryDept && hasProfitChart) {
-    drillWrap.className = 'charts-container layout-2x2';
-    chart4panel.style.display = '';
-    document.getElementById('drillLabel3').textContent = `💉 全麻手術 推移${suffix}`;
-    document.getElementById('drillLabel4').textContent = `💰 月次粗利 推移`;
-    dRenderSurgeryChart('drillChartOp', d.trend?d.trend.operation:null, d.operation.target);
-    dRenderProfitChart('drillChartProfit', d.profit_chart);
-  } else if (isSurgeryDept) {
-    drillWrap.className = 'charts-container layout-2plus1';
-    chart4panel.style.display = 'none';
-    document.getElementById('drillLabel3').textContent = `💉 全麻手術 推移${suffix}`;
-    dRenderSurgeryChart('drillChartOp', d.trend?d.trend.operation:null, d.operation.target);
-  } else if (hasProfitChart) {
-    drillWrap.className = 'charts-container layout-2plus1';
-    chart4panel.style.display = 'none';
-    document.getElementById('drillLabel3').textContent = `💰 月次粗利 推移`;
-    dRenderProfitChart('drillChartOp', d.profit_chart);
-  } else {
-    drillWrap.className = 'charts-container layout-2plus1';
-    chart4panel.style.display = 'none';
-    document.getElementById('drillLabel3').textContent = `— データなし`;
-    document.getElementById('drillChartOp').innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">対象データなし</div>';
-  }
-
-  currentDrill = name;
-  document.getElementById('drillPanel').classList.add('open');
-  document.getElementById('drillPanel').scrollIntoView({behavior:'smooth',block:'nearest'});
-}
+// ════ DRILL DOWN (廃止: ランキングクリックはdept.htmlへ直接ジャンプ) ════
 
 // ════ PROFIT CHART ════
 function profitMonthCount() {
