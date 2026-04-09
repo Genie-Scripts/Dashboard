@@ -25,14 +25,16 @@
 .bx-main{background:var(--s);border:1px solid var(--ln);border-radius:14px;padding:14px 16px;box-shadow:0 2px 6px rgba(10,22,42,.04)}.bx-main.ok{background:var(--ok-bg)}.bx-main.wr{background:var(--wr-bg)}.bx-main.dr{background:var(--dr-bg)}.bx-main h2{font-size:14px;margin:0 0 6px;font-weight:800}.bx-main .period-note{font-size:11px;color:var(--sub);margin-bottom:4px}.bx-main .main-val{font-size:28px;font-weight:900;line-height:1.15}.bx-main .main-val.dr{color:var(--dr)}.bx-main .main-unit{font-size:14px;font-weight:400;color:var(--sub)}
 .tgt-row{display:flex;align-items:center;gap:8px;margin-top:8px;padding:6px 10px;background:#f8f9fa;border-radius:10px;border:1px dashed var(--ln)}.tgt-icon{font-size:12px}.tgt-label{font-size:12px;color:var(--mu);font-weight:700}.tgt-val{font-size:14px;font-weight:800;color:var(--sub)}.gap-val{font-size:14px;font-weight:900;margin-left:auto}.gap-val.dr{color:var(--dr)}.gap-val.wr{color:var(--wr)}.gap-val.ok{color:var(--ok)}
 .prog-wrap{margin-top:6px}.prog-bar{height:6px;background:#edf2f7;border-radius:999px;overflow:hidden}.prog-fill{height:100%;border-radius:999px;transition:width .3s}.prog-fill.ok{background:var(--ok)}.prog-fill.wr{background:var(--wr)}.prog-fill.dr{background:var(--dr)}.prog-meta{display:flex;justify-content:space-between;align-items:center;margin-top:3px}.prog-pct{font-size:11px;font-weight:800}.prog-pct.dr{color:var(--dr)}.prog-pct.wr{color:var(--wr)}.prog-pct.ok{color:var(--ok)}.prog-status{font-size:9px;font-weight:800;padding:2px 7px;border-radius:5px}.prog-status.dr{background:var(--dr-bg);color:var(--dr-t)}.prog-status.wr{background:var(--wr-bg);color:#7c3a06}.prog-status.ok{background:var(--ok-bg);color:#065f42}
-/* 在院: 全日/平日/休日タブ付き参照カードラッパー */
-.inp-refs-wrap{grid-column:2/5;display:flex;flex-direction:column;gap:6px}
-.inp-dt-tabs{display:flex;gap:4px;justify-content:flex-end}
-.inp-dt-tab{font-size:11px;font-weight:800;padding:4px 12px;border-radius:8px;cursor:pointer;color:var(--sub);background:var(--bg);border:1px solid var(--ln);transition:all .15s;user-select:none}
+/* 在院: 全日/平日/休日タブ（今年度平均カード内に配置） */
+.inp-dt-tabs{display:flex;gap:4px;margin-bottom:6px}
+.inp-dt-tab{font-size:10px;font-weight:800;padding:3px 10px;border-radius:6px;cursor:pointer;color:var(--sub);background:var(--bg);border:1px solid var(--ln);transition:all .15s;user-select:none}
 .inp-dt-tab:hover{border-color:#93b4e4;color:var(--br)}
 .inp-dt-tab.active{background:var(--bl);border-color:#93b4e4;color:var(--br)}
-.inp-refs-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.tb{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px}.grp{display:flex;align-items:center;gap:5px}.gl{font-size:12px;font-weight:800;color:var(--sub)}.btn{background:var(--s);border:1px solid var(--ln);border-radius:10px;padding:8px 14px;font-size:12px;font-weight:800;color:var(--sub);cursor:pointer;box-shadow:0 1px 3px rgba(10,22,42,.04);transition:all .15s}.btn:hover{border-color:#93b4e4;color:var(--br)}.btn.active{background:var(--bl);border-color:#93b4e4;color:var(--br)}
+/* グローバルバー（軸+入院種別） */
+.global-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px}
+/* パネル内コントロール */
+.pnl-ctrl{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--ln)}
+.grp{display:flex;align-items:center;gap:5px}.gl{font-size:12px;font-weight:800;color:var(--sub)}.btn{background:var(--s);border:1px solid var(--ln);border-radius:10px;padding:8px 14px;font-size:12px;font-weight:800;color:var(--sub);cursor:pointer;box-shadow:0 1px 3px rgba(10,22,42,.04);transition:all .15s}.btn:hover{border-color:#93b4e4;color:var(--br)}.btn.active{background:var(--bl);border-color:#93b4e4;color:var(--br)}
 .main{display:grid;grid-template-columns:1.15fr .85fr;gap:14px;margin-top:12px;align-items:start}.pnl-chart{}.pnl{background:var(--s);border:1px solid var(--ln);border-radius:var(--r);padding:18px;box-shadow:var(--sh);overflow:hidden}.pnl h3{margin:0 0 12px;font-size:14px;font-weight:800}
 .chart{width:100%;height:340px;overflow:hidden}
 .rk{display:grid;gap:6px}.ri{display:grid;grid-template-columns:26px 1fr 120px 55px 60px 16px;gap:6px;align-items:center;padding:10px;border:1px solid var(--ln);border-radius:12px;background:#fbfdff;cursor:pointer;transition:background .1s}.ri:hover{background:var(--bl)}.num{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900}.num.ok{background:#d1fae5;color:#065f42}.num.wr{background:#fef3c7;color:#92400e}.num.dr{background:#fce4ec;color:var(--dr-t)}.nm{font-size:13px;font-weight:900}.mt2{font-size:10px;color:var(--sub)}.bar{height:7px;background:#edf2f7;border-radius:999px;overflow:hidden}.fill{height:100%;border-radius:999px}.fill.ok{background:var(--ok)}.fill.wr{background:var(--wr)}.fill.dr{background:var(--dr)}.rt{font-size:12px;font-weight:900;text-align:right}.rt.ok{color:var(--ok)}.rt.wr{color:var(--wr)}.rt.dr{color:var(--dr)}.stl{font-size:9px;font-weight:800;text-align:center;padding:2px 5px;border-radius:5px}.stl.ok{background:var(--ok-bg);color:#065f42}.stl.wr{background:var(--wr-bg);color:#7c3a06}.stl.dr{background:var(--dr-bg);color:var(--dr-t)}.arrow{color:var(--mu);font-size:14px}
@@ -58,14 +60,13 @@
 @media(max-width:768px){.tabs{display:flex;overflow:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}.tab{min-width:150px;flex:0 0 auto}.tab .big{font-size:22px}.sum{grid-template-columns:1fr}.bx-main .main-val{font-size:24px}.main{grid-template-columns:1fr}.chart{height:220px}.ri{grid-template-columns:24px 1fr auto}.bar,.stl{display:none}.drill-chart{height:200px}.drill-graphs{grid-template-columns:1fr}.role{display:none}.hdr .row{flex-direction:column;align-items:flex-start}
 /* ★モバイル: KPIカード2列化・チャート1列化・はみ出し防止 */
 .kpi-row{grid-template-columns:repeat(2,1fr) !important;gap:8px}
-/* ★モバイル: 在院参照カード grid-column リセット・縦積み */
-.inp-refs-wrap{grid-column:auto !important}
-.inp-refs-grid{grid-template-columns:repeat(2,1fr) !important}
 .charts-container,.charts-container.layout-2plus1,.charts-container.layout-2x2,.charts-container.layout-3{grid-template-columns:1fr !important}
 .charts-container.layout-2plus1 .chart3-panel{grid-column:auto}
 .cpnl{overflow:hidden}.pnl{overflow:hidden}
 .w{overflow-x:hidden}
-.tb{gap:6px}.grp{flex-wrap:wrap}
+.grp{flex-wrap:wrap}
+/* ★モバイル: パネル内コントロール */
+.pnl-ctrl{gap:6px}.global-bar{gap:6px}
 /* ★モバイル: ヘッダー自動非表示 */
 .hdr{transition:transform .3s ease}.hdr.hdr-hidden{transform:translateY(-100%)}
 }
@@ -92,11 +93,11 @@
 <div class="w">
   <nav class="tabs" id="kpiTabs"></nav>
   <div class="sum" id="summaryBar"></div>
-  <div class="tb" id="toolbar"></div>
+  <div class="global-bar" id="globalBar"></div>
 
   <section class="main">
-    <div class="pnl pnl-chart"><h3 id="chartTitle">📊 推移グラフ</h3><div class="chart" id="mainChart"></div></div>
-    <div class="pnl pnl-rank">
+    <div class="pnl pnl-chart"><div class="pnl-ctrl" id="chartControls"></div><h3 id="chartTitle">📊 推移グラフ</h3><div class="chart" id="mainChart"></div></div>
+    <div class="pnl pnl-rank"><div class="pnl-ctrl" id="rankControls"></div>
       <h3 id="rankTitle">🏆 達成状況</h3>
       <div class="rk" id="rankList"></div>
       <div id="rankToggle" class="rank-toggle" style="display:none" onclick="toggleRankAll()">もっと見る &#9662;</div>
@@ -289,7 +290,16 @@ function refCardHtml(r) {
       <span class="prog-st ${tc}" style="font-size:10px;font-weight:900;padding:2px 7px;border-radius:5px">${stLabel}</span>
     </div>`;
   }
+  // 在院 今年度平均カード: 全日/平日/休日タブを内蔵
+  let inpTabsHtml = '';
+  if (r._inpDayTabs) {
+    const tabs = [['all','全日'],['wd','平日'],['hd','休日']];
+    inpTabsHtml = `<div class="inp-dt-tabs">${tabs.map(([k,l]) =>
+      `<span class="inp-dt-tab${inpDayFilter===k?' active':''}" onclick="setInpDayFilter('${k}')">${l}</span>`
+    ).join('')}</div>`;
+  }
   return `<div class="bx">
+    ${inpTabsHtml}
     <div class="k">${r.k}</div>
     <div class="v${r.dr?' dr':''}">${r.v}</div>
     ${tgtHtml}
@@ -316,30 +326,29 @@ function renderSummary() {
       target:kpi.target, gap:kpi.gap, gapUnit:'人',
       rate:kpi.rate, status:kpi.status
     };
-    // 全日/平日/休日タブ切替用のデータマップ
-    const dtMap = {
-      all: {avg7:kpi.avg_7d, avg28:kpi.avg_28d, fy:kpi.fy_avg,
-            tgt:kpi.target_allday, tgtLabel:'全日目標'},
-      wd:  {avg7:kpi.avg_7d_wd, avg28:kpi.avg_28d_wd, fy:kpi.fy_avg_wd,
-            tgt:kpi.target_weekday, tgtLabel:'平日目標'},
-      hd:  {avg7:kpi.avg_7d_hd, avg28:kpi.avg_28d_hd, fy:kpi.fy_avg_hd,
-            tgt:kpi.target_holiday, tgtLabel:'休日目標'},
+    // 7日平均・4週平均は全日固定、今年度平均のみ全日/平日/休日切替
+    const allTgt = kpi.target_allday;
+    const fyMap = {
+      all: {fy:kpi.fy_avg, tgt:kpi.target_allday, tgtLabel:'全日目標'},
+      wd:  {fy:kpi.fy_avg_wd, tgt:kpi.target_weekday, tgtLabel:'平日目標'},
+      hd:  {fy:kpi.fy_avg_hd, tgt:kpi.target_holiday, tgtLabel:'休日目標'},
     };
-    const dt = dtMap[inpDayFilter];
+    const fy = fyMap[inpDayFilter];
     refs = [
-      {k:'直近7日平均', v:dt.avg7!==null?`${dt.avg7}人`:'—', unit:'人',
-       curr:dt.avg7, prev:dt.tgt,
-       prevLabel:`${dt.tgtLabel} ${dt.tgt}人`,
-       dr:dt.avg7!=null&&dt.avg7<dt.tgt,
-       refTarget:dt.tgt, refTargetLabel:dt.tgtLabel},
-      {k:'直近4週平均', v:dt.avg28!==null?`${dt.avg28}人`:'—', unit:'人',
-       curr:dt.avg28, prev:kpi.prev_28d_avg,
+      {k:'直近7日平均', v:kpi.avg_7d!==null?`${kpi.avg_7d}人`:'—', unit:'人',
+       curr:kpi.avg_7d, prev:allTgt,
+       prevLabel:`全日目標 ${allTgt}人`,
+       dr:kpi.avg_7d!=null&&kpi.avg_7d<allTgt,
+       refTarget:allTgt, refTargetLabel:'全日目標'},
+      {k:'直近4週平均', v:kpi.avg_28d!==null?`${kpi.avg_28d}人`:'—', unit:'人',
+       curr:kpi.avg_28d, prev:kpi.prev_28d_avg,
        prevLabel:kpi.prev_28d_avg!=null?`前年同期 ${kpi.prev_28d_avg}人`:'前年同期 —',
-       refTarget:dt.tgt, refTargetLabel:dt.tgtLabel},
-      {k:'今年度平均',  v:dt.fy!==null?`${dt.fy}人`:'—', unit:'人',
-       curr:dt.fy, prev:kpi.prev_avg,
+       refTarget:allTgt, refTargetLabel:'全日目標'},
+      {k:'今年度平均',  v:fy.fy!==null?`${fy.fy}人`:'—', unit:'人',
+       curr:fy.fy, prev:kpi.prev_avg,
        prevLabel:kpi.prev_avg!=null?`前年度 ${kpi.prev_avg}人`:'前年度 —',
-       refTarget:dt.tgt, refTargetLabel:dt.tgtLabel},
+       refTarget:fy.tgt, refTargetLabel:fy.tgtLabel,
+       _inpDayTabs: true},
     ];
   } else if (currentTab === 'admission') {
     main = {
@@ -432,56 +441,52 @@ function renderSummary() {
     </div>
   </div>`;
 
-  let refsHtml = refs.map(r => refCardHtml(r)).join('');
-
-  // 在院タブのみ: 参照カード群の上に全日/平日/休日タブを追加
-  if (currentTab === 'inpatient') {
-    const tabs = [['all','全日'],['wd','平日'],['hd','休日']];
-    const tabsHtml = `<div class="inp-dt-tabs">${tabs.map(([k,l]) =>
-      `<span class="inp-dt-tab${inpDayFilter===k?' active':''}" onclick="setInpDayFilter('${k}')">${l}</span>`
-    ).join('')}</div>`;
-    refsHtml = `<div class="inp-refs-wrap">${tabsHtml}<div class="inp-refs-grid">${refsHtml}</div></div>`;
-  }
-
+  const refsHtml = refs.map(r => refCardHtml(r)).join('');
   document.getElementById('summaryBar').innerHTML = mainHtml + refsHtml;
 }
 
-function renderToolbar() {
-  if (currentTab === 'profit') {
-    const sortDefs = [
-      {k:'rate_desc', l:'達成率↓'}, {k:'rate_asc', l:'達成率↑'},
-      {k:'gap_desc',  l:'目標差↓'}, {k:'gap_asc',  l:'目標差↑'},
-    ];
-    const sortBtns = sortDefs.map(s =>
-      `<span class="btn${rankSort===s.k?' active':''}" onclick="setRankSort('${s.k}')">${s.l}</span>`
-    ).join('');
+// ── グローバルバー: 軸 + 入院種別 (両パネル共通) ──
+function renderGlobalBar() {
+  const isOp = currentTab === 'operation';
+  const isProfit = currentTab === 'profit';
+  const axes = (isOp || isProfit)
+    ? `<span class="btn active">🩺 診療科別</span>`
+    : `<span class="btn${currentAxis==='dept'?' active':''}" onclick="setAxis('dept',this)">🩺 診療科別</span>
+       <span class="btn${currentAxis==='ward'?' active':''}" onclick="setAxis('ward',this)">🏥 病棟別</span>`;
+  const mkRad = (val,lbl) => `<label style="font-size:11px;font-weight:700;color:var(--sub);cursor:pointer;display:flex;align-items:center;gap:2px"><input type="radio" name="admType" value="${val}" ${admType===val?'checked':''} onchange="setAdmType('${val}')"> ${lbl}</label>`;
+  const admTypeCtrl = currentTab==='admission'
+    ? `<div class="grp"><span class="gl">入院種別</span>${mkRad('all','全体')}${mkRad('planned','予定')}${mkRad('emergency','緊急')}</div>`
+    : '';
+  document.getElementById('globalBar').innerHTML = `
+    <div class="grp"><span class="gl">軸</span>${axes}</div>
+    ${admTypeCtrl}
+    <div class="grp" style="margin-left:auto"><span class="btn" onclick="window.print()">🖨️ 印刷</span></div>`;
+}
+
+// ── グラフパネル内コントロール: 期間 + 日種 + 描画 ──
+function renderChartControls() {
+  const isOp = currentTab === 'operation';
+  const isProfit = currentTab === 'profit';
+  const mkChk = (id,lbl,checked,fn) => `<label style="font-size:11px;font-weight:700;color:var(--sub);cursor:pointer;display:flex;align-items:center;gap:2px"><input type="checkbox" ${checked?'checked':''} onchange="${fn}"> ${lbl}</label>`;
+
+  if (isProfit) {
     const profitPeriodDefs = [{l:'直近3ヶ月',p:'12w'},{l:'直近6ヶ月',p:'24w'},{l:'直近12ヶ月',p:'365d'}];
     const profitPeriods = profitPeriodDefs.map(d =>
       `<span class="btn${d.p===currentPeriod?' active':''}" onclick="setPeriod('${d.p}',this)">${d.l}</span>`
     ).join('');
-    document.getElementById('toolbar').innerHTML = `
-      <div class="grp"><span class="gl">期間</span>${profitPeriods}</div>
-      <div class="grp"><span class="gl">順位基準</span>${sortBtns}</div>
-      <div class="grp"><span class="btn" onclick="window.print()">🖨️ 印刷</span></div>`;
+    document.getElementById('chartControls').innerHTML = `
+      <div class="grp"><span class="gl">期間</span>${profitPeriods}</div>`;
     return;
   }
-  const isOp = currentTab === 'operation';
-  const axes = isOp
-    ? `<span class="btn active">🩺 診療科別</span>`
-    : `<span class="btn${currentAxis==='dept'?' active':''}" onclick="setAxis('dept',this)">🩺 診療科別</span>
-       <span class="btn${currentAxis==='ward'?' active':''}" onclick="setAxis('ward',this)">🏥 病棟別</span>`;
-  // ★期間: 直近12週/24週/365日
+
   const periodDefs = [{l:'直近12週',p:'12w'},{l:'直近24週',p:'24w'},{l:'直近365日',p:'365d'}];
   const periods = periodDefs.map(d =>
     `<span class="btn${d.p===currentPeriod?' active':''}" onclick="setPeriod('${d.p}',this)">${d.l}</span>`
   ).join('');
-  // ★平日/休日チェックボックス
-  const mkChk = (id,lbl,checked,fn) => `<label style="font-size:11px;font-weight:700;color:var(--sub);cursor:pointer;display:flex;align-items:center;gap:2px"><input type="checkbox" ${checked?'checked':''} onchange="${fn}"> ${lbl}</label>`;
   const dayChks = isOp
     ? `<span style="font-size:11px;font-weight:700;color:var(--sub)">平日のみ（固定）</span>`
     : mkChk('wd','平日',showWeekday,"toggleDayType('weekday',this.checked)")
       + mkChk('hd','休日',showHoliday,"toggleDayType('holiday',this.checked)");
-  // ★描画線チェックボックス（operationタブはラベル差替え）
   const lineChks = isOp
     ? mkChk('d','日次実績（平日）',showDaily,"toggleLine('daily',this.checked)")
       + mkChk('m7','30平日移動平均',showMA7,"toggleLine('ma7',this.checked)")
@@ -489,12 +494,14 @@ function renderToolbar() {
     : mkChk('d','日次実績',showDaily,"toggleLine('daily',this.checked)")
       + mkChk('m7','7日移動平均',showMA7,"toggleLine('ma7',this.checked)")
       + mkChk('m28','28日移動平均',showMA28,"toggleLine('ma28',this.checked)");
-  // ★新入院種別ラジオ（admission タブのみ表示）
-  const mkRad = (val,lbl) => `<label style="font-size:11px;font-weight:700;color:var(--sub);cursor:pointer;display:flex;align-items:center;gap:2px"><input type="radio" name="admType" value="${val}" ${admType===val?'checked':''} onchange="setAdmType('${val}')"> ${lbl}</label>`;
-  const admTypeCtrl = currentTab==='admission'
-    ? `<div class="grp"><span class="gl">入院種別</span>${mkRad('all','全体')}${mkRad('planned','予定')}${mkRad('emergency','緊急')}</div>`
-    : '';
-  // ★ランキングソートボタン
+  document.getElementById('chartControls').innerHTML = `
+    <div class="grp"><span class="gl">期間</span>${periods}</div>
+    <div class="grp"><span class="gl">日種</span>${dayChks}</div>
+    <div class="grp"><span class="gl">描画</span>${lineChks}</div>`;
+}
+
+// ── ランキングパネル内コントロール: 順位基準 ──
+function renderRankControls() {
   const sortDefs = [
     {k:'rate_desc', l:'達成率↓'}, {k:'rate_asc', l:'達成率↑'},
     {k:'gap_desc',  l:'目標差↓'}, {k:'gap_asc',  l:'目標差↑'},
@@ -502,15 +509,12 @@ function renderToolbar() {
   const sortBtns = sortDefs.map(s =>
     `<span class="btn${rankSort===s.k?' active':''}" onclick="setRankSort('${s.k}')">${s.l}</span>`
   ).join('');
-  document.getElementById('toolbar').innerHTML = `
-    <div class="grp"><span class="gl">軸</span>${axes}</div>
-    <div class="grp"><span class="gl">期間</span>${periods}</div>
-    <div class="grp"><span class="gl">日種</span>${dayChks}</div>
-    <div class="grp"><span class="gl">描画</span>${lineChks}</div>
-    ${admTypeCtrl}
-    <div class="grp"><span class="gl">順位基準</span>${sortBtns}</div>
-    <div class="grp"><span class="btn" onclick="window.print()">🖨️ 印刷</span></div>`;
+  document.getElementById('rankControls').innerHTML = `
+    <div class="grp"><span class="gl">順位基準</span>${sortBtns}</div>`;
 }
+
+// 旧renderToolbar互換（呼び出し元を統合）
+function renderToolbar() { renderGlobalBar(); renderChartControls(); renderRankControls(); }
 
 function setAdmType(val) {
   admType = val;
@@ -518,7 +522,7 @@ function setAdmType(val) {
 }
 function setRankSort(val) {
   rankSort = val;
-  renderToolbar();   // ボタンの active 状態を更新
+  renderRankControls();
   renderRanking();
 }
 
