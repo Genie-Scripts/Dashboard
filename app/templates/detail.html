@@ -185,7 +185,7 @@ function switchTab(id) {
   if (id === 'operation' || id === 'profit') currentAxis = 'dept';
   admType = 'all';   // タブ切替でフィルタリセット
   inpDayFilter = 'all'; // 在院 全日/平日/休日リセット
-  rankSort = id === 'profit' ? 'rate_desc' : 'gap_asc';
+  rankSort = 'gap_asc';
   renderTabs(); renderAll();
 }
 function setAxis(ax, btn) {

@@ -63,7 +63,7 @@
       <div class="lb">{{ card.icon }} {{ card.label }}</div>
       <div class="sb">{{ card.period }}</div>
       <div class="vl">{{ card.value }}<small style="font-size:16px;font-weight:400">{{ card.unit }}</small></div>
-      <div class="gp">目標まで {{ card.gap }}{{ card.gap_unit }}</div>
+      <div class="gp">{% if card.gap == 0 %}目標達成！{% elif card.gap > 0 %}目標を {{ card.gap }}{{ card.gap_unit }}超過{% else %}目標まであと {{ -card.gap }}{{ card.gap_unit }}{% endif %}</div>
       <div class="cta"><span>詳細を見る</span><span class="cta-arrow">›</span></div>
     </a>
     {% endfor %}
