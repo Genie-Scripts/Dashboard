@@ -38,7 +38,7 @@
 <header class="hdr">
   <div class="row1">
     <div class="left"><span class="badge">KPI</span><span class="title">🏥 診療ダッシュボード</span></div>
-    <div class="meta">📅 2026-04-09 ｜ 🕐 2026/04/10 07:25 更新</div>
+    <div class="meta">📅 2026-04-12 ｜ 🕐 2026/04/13 07:19 更新</div>
     <button class="dm-btn" onclick="toggleDarkMode()">🌙</button>
   </div>
   <nav class="nav-bar">
@@ -50,9 +50,9 @@
 <div class="wrap">
 
   
-  <section class="alert danger">
-    <h2><span>🔴</span> 全麻が目標を下回っています</h2>
-    <p>在院 603人/目標600人（+3人） → 横ばい、新入院7日 358人/目標380人（-22人） ↑先週比+12%、全麻 18.6件/目標21件（-2.4件） → 横ばい</p>
+  <section class="alert warn">
+    <h2><span>🟡</span> 全麻と新入院が目標をやや下回っています</h2>
+    <p>在院 562人/目標550人（+12人） ↑先週比+8%、新入院7日 363人/目標380人（-17人） ↑先週比+16%、全麻 19.9件/目標21件（-1.1件） ↑先週比+8%</p>
   </section>
 
   
@@ -61,9 +61,9 @@
     <a class="kc ok" href="detail.html#inpatient">
       <span class="st ok">▲ 達成</span>
       <div class="lb">🛏️ 在院患者数</div>
-      <div class="sb">04/09 時点（平日目標600人）</div>
-      <div class="vl">603<small style="font-size:16px;font-weight:400">人</small></div>
-      <div class="gp">目標を 3人超過</div>
+      <div class="sb">04/12 時点（休日目標550人）</div>
+      <div class="vl">562<small style="font-size:16px;font-weight:400">人</small></div>
+      <div class="gp">目標を 12人超過</div>
       <div class="cta"><span>詳細を見る</span><span class="cta-arrow">›</span></div>
     </a>
     
@@ -71,17 +71,17 @@
       <span class="st wr">― 接近</span>
       <div class="lb">🚪 新入院患者数</div>
       <div class="sb">直近7日累計</div>
-      <div class="vl">358<small style="font-size:16px;font-weight:400">人</small></div>
-      <div class="gp">目標まであと 22人</div>
+      <div class="vl">363<small style="font-size:16px;font-weight:400">人</small></div>
+      <div class="gp">目標まであと 17人</div>
       <div class="cta"><span>詳細を見る</span><span class="cta-arrow">›</span></div>
     </a>
     
-    <a class="kc dr" href="detail.html#operation">
-      <span class="st dr">▼ 未達</span>
+    <a class="kc wr" href="detail.html#operation">
+      <span class="st wr">― 接近</span>
       <div class="lb">💉 全身麻酔手術</div>
       <div class="sb">直近7平日平均</div>
-      <div class="vl">18.6<small style="font-size:16px;font-weight:400">件/日</small></div>
-      <div class="gp">目標まであと 2.4件/日</div>
+      <div class="vl">19.9<small style="font-size:16px;font-weight:400">件/日</small></div>
+      <div class="gp">目標まであと 1.1件/日</div>
       <div class="cta"><span>詳細を見る</span><span class="cta-arrow">›</span></div>
     </a>
     
@@ -98,24 +98,24 @@
     <div class="pnl">
       <h3>🔴 要注視（目標との差が大きい順）</h3>
       
+      <a class="at" href="dept.html#眼科" style="text-decoration:none;color:inherit;display:grid;">
+        <div>
+          <div class="nm">眼科</div>
+          <div class="mt">🚪 新入院（直近7日累計）</div>
+        </div>
+        <div class="dl">-10.0人</div>
+        <div class="dt">実績 10 / 目標 19.8<br>
+          <span style="font-size:10px;color:var(--br)">詳細を見る →</span>
+        </div>
+      </a>
+      
       <a class="at" href="dept.html#総合内科" style="text-decoration:none;color:inherit;display:grid;">
         <div>
           <div class="nm">総合内科</div>
           <div class="mt">🚪 新入院（直近7日累計）</div>
         </div>
-        <div class="dl">-13.0人</div>
-        <div class="dt">実績 39 / 目標 51.9<br>
-          <span style="font-size:10px;color:var(--br)">詳細を見る →</span>
-        </div>
-      </a>
-      
-      <a class="at" href="dept.html#一般消化器外科" style="text-decoration:none;color:inherit;display:grid;">
-        <div>
-          <div class="nm">一般消化器外科</div>
-          <div class="mt">🚪 新入院（直近7日累計）</div>
-        </div>
-        <div class="dl">-7.0人</div>
-        <div class="dt">実績 15 / 目標 22.4<br>
+        <div class="dl">-10.0人</div>
+        <div class="dt">実績 42 / 目標 51.9<br>
           <span style="font-size:10px;color:var(--br)">詳細を見る →</span>
         </div>
       </a>
@@ -131,13 +131,13 @@
         </div>
       </a>
       
-      <a class="at" href="dept.html#循環器内科" style="text-decoration:none;color:inherit;display:grid;">
+      <a class="at" href="dept.html#一般消化器外科" style="text-decoration:none;color:inherit;display:grid;">
         <div>
-          <div class="nm">循環器内科</div>
+          <div class="nm">一般消化器外科</div>
           <div class="mt">🚪 新入院（直近7日累計）</div>
         </div>
         <div class="dl">-5.0人</div>
-        <div class="dt">実績 18 / 目標 23.3<br>
+        <div class="dt">実績 17 / 目標 22.4<br>
           <span style="font-size:10px;color:var(--br)">詳細を見る →</span>
         </div>
       </a>
@@ -145,7 +145,7 @@
       <a class="at" href="dept.html#9階A病棟" style="text-decoration:none;color:inherit;display:grid;">
         <div>
           <div class="nm">9階A病棟</div>
-          <div class="mt">🛏️ 在院患者数（04/09時点）</div>
+          <div class="mt">🛏️ 在院患者数（04/12時点）</div>
         </div>
         <div class="dl">-5.0人</div>
         <div class="dt">実績 17 / 目標 22.1<br>
@@ -157,21 +157,21 @@
     <div class="pnl">
       <h3>📈 改善トピック（前週同曜日比）</h3>
       
-      <a class="at imp" href="dept.html#総合内科" style="text-decoration:none;color:inherit;display:grid;">
-        <div><div class="nm">総合内科</div><div class="mt">🚪 新入院</div></div>
-        <div class="dl">+3人</div>
-        <div class="dt">前週同曜日比<br><span style="font-size:10px;color:var(--br)">詳細を見る →</span></div>
-      </a>
-      
-      <a class="at imp" href="dept.html#乳腺外科" style="text-decoration:none;color:inherit;display:grid;">
-        <div><div class="nm">乳腺外科</div><div class="mt">🚪 新入院</div></div>
+      <a class="at imp" href="dept.html#消化器内科" style="text-decoration:none;color:inherit;display:grid;">
+        <div><div class="nm">消化器内科</div><div class="mt">🚪 新入院</div></div>
         <div class="dl">+2人</div>
         <div class="dt">前週同曜日比<br><span style="font-size:10px;color:var(--br)">詳細を見る →</span></div>
       </a>
       
-      <a class="at imp" href="dept.html#歯科口腔外科" style="text-decoration:none;color:inherit;display:grid;">
-        <div><div class="nm">歯科口腔外科</div><div class="mt">🚪 新入院</div></div>
-        <div class="dl">+2人</div>
+      <a class="at imp" href="dept.html#循環器内科" style="text-decoration:none;color:inherit;display:grid;">
+        <div><div class="nm">循環器内科</div><div class="mt">🚪 新入院</div></div>
+        <div class="dl">+1人</div>
+        <div class="dt">前週同曜日比<br><span style="font-size:10px;color:var(--br)">詳細を見る →</span></div>
+      </a>
+      
+      <a class="at imp" href="dept.html#泌尿器科" style="text-decoration:none;color:inherit;display:grid;">
+        <div><div class="nm">泌尿器科</div><div class="mt">🚪 新入院</div></div>
+        <div class="dl">+1人</div>
         <div class="dt">前週同曜日比<br><span style="font-size:10px;color:var(--br)">詳細を見る →</span></div>
       </a>
       
@@ -179,7 +179,7 @@
   </section>
 
 
-  <div class="ft">🏥 診療ダッシュボード ポータル ｜ 生成 2026/04/10 07:25 ｜ 基準日 2026-04-09</div>
+  <div class="ft">🏥 診療ダッシュボード ポータル ｜ 生成 2026/04/13 07:19 ｜ 基準日 2026-04-12</div>
 </div>
 
 
