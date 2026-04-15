@@ -27,7 +27,7 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
-DEFAULT_MODEL = "gemma3:27b"
+DEFAULT_MODEL = "MedAIBase/MedGemma1.5:4b"
 DEFAULT_TEMPERATURE = 0.2
 DEFAULT_NUM_PREDICT = 260
 SNAPSHOT_RETAIN_DAYS = 30
