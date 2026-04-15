@@ -73,7 +73,7 @@
 <header class="hdr">
   <div class="row1">
     <div class="left"><span class="badge">KPI</span><span class="title">🏥 診療ダッシュボード</span></div>
-    <div class="meta">📅 2026-04-14 ｜ 🕐 2026/04/15 21:02 更新</div>
+    <div class="meta">📅 2026-04-15 ｜ 🕐 2026/04/16 06:46 更新</div>
     <button class="dm-btn" onclick="toggleDarkMode()">🌙</button>
   </div>
   <nav class="nav-bar">
@@ -86,22 +86,38 @@
 
   
   <section class="alert warn">
-    <h2><span>🟡</span> 新入院と全麻と在院が目標をやや下回っています</h2>
-    <p>在院 596人/目標600人（-4人） ↑先週比+7%、新入院7日 357人/目標380人（-23人） → 横ばい、全麻 20.3件/目標21件（-0.7件） ↑先週比+10%</p>
+    <h2><span>🟡</span> 全麻と新入院が目標をやや下回っています</h2>
+    <p>在院 602人/目標600人（+2人） ↑先週比+6%、新入院7日 374人/目標380人（-6人） ↑先週比+6%、全麻 19.9件/目標21件（-1.1件） ↑先週比+7%</p>
   </section>
 
   
+  
+  <section class="ws">
+    <div class="ws-hd">
+      <div class="ws-title">
+        <span class="ws-tag">📅 今週のハイライト</span>
+        <span class="ws-meta">vs 2026-04-14</span>
+      </div>
+      <span class="ws-fb">（差分のみ／LLM要約なし）</span>
+    </div>
+    
+    
+    <ul class="ws-diffs">
+      <li>手術室稼働率（直近7日）: 75.0% → 72.0%（-3.0%）</li><li>全麻手術件数（週累計）: 41件 → 57件（+16件、+39%）</li><li>新入院（直近7日累計）: 357人 → 374人（+17人、+5%）</li><li>緊急入院（直近7日累計）: 152件 → 164件（+12件、+8%）</li><li>在院患者数（7日平均）: 583.3人 → 584.3人（+1.0人）</li>
+    </ul>
+    
+  </section>
   
 
   
   <section class="kpi">
     
-    <a class="kc wr" href="detail.html#inpatient">
-      <span class="st wr">― 接近</span>
+    <a class="kc ok" href="detail.html#inpatient">
+      <span class="st ok">▲ 達成</span>
       <div class="lb">🛏️ 在院患者数</div>
-      <div class="sb">04/14 時点（平日目標600人）</div>
-      <div class="vl">596<small style="font-size:16px;font-weight:400">人</small></div>
-      <div class="gp">目標まであと 4人</div>
+      <div class="sb">04/15 時点（平日目標600人）</div>
+      <div class="vl">602<small style="font-size:16px;font-weight:400">人</small></div>
+      <div class="gp">目標を 2人超過</div>
       <div class="cta"><span>詳細を見る</span><span class="cta-arrow">›</span></div>
     </a>
     
@@ -109,8 +125,8 @@
       <span class="st wr">― 接近</span>
       <div class="lb">🚪 新入院患者数</div>
       <div class="sb">直近7日累計</div>
-      <div class="vl">357<small style="font-size:16px;font-weight:400">人</small></div>
-      <div class="gp">目標まであと 23人</div>
+      <div class="vl">374<small style="font-size:16px;font-weight:400">人</small></div>
+      <div class="gp">目標まであと 6人</div>
       <div class="cta"><span>詳細を見る</span><span class="cta-arrow">›</span></div>
     </a>
     
@@ -118,8 +134,8 @@
       <span class="st wr">― 接近</span>
       <div class="lb">💉 全身麻酔手術</div>
       <div class="sb">直近7平日平均</div>
-      <div class="vl">20.3<small style="font-size:16px;font-weight:400">件/日</small></div>
-      <div class="gp">目標まであと 0.7件/日</div>
+      <div class="vl">19.9<small style="font-size:16px;font-weight:400">件/日</small></div>
+      <div class="gp">目標まであと 1.1件/日</div>
       <div class="cta"><span>詳細を見る</span><span class="cta-arrow">›</span></div>
     </a>
     
@@ -175,17 +191,17 @@
       <div class="ai-arr">›</div>
     </a>
     
-    <a class="ai-card warn" href="dept.html#5階A病棟">
+    <a class="ai-card warn" href="dept.html#9階A病棟">
       <div class="ai-ic">🛏️</div>
       <div>
         <div class="ai-hl">
           <span class="ai-sev">要注視</span>
-          <span>5階A病棟の在院低下</span>
+          <span>9階A病棟の在院低下</span>
           <span class="ai-fb">（ルール生成）</span>
         </div>
         <div class="ai-bd">
           
-            5階A病棟の在院患者数が目標を下回っている／5階A病棟の空床が想定以上に発生しており、稼働改善の余地がある
+            9階A病棟の在院患者数が目標を下回っている／9階A病棟の空床が想定以上に発生しており、稼働改善の余地がある
           
         </div>
         
@@ -193,17 +209,17 @@
       <div class="ai-arr">›</div>
     </a>
     
-    <a class="ai-card info" href="dept.html#呼吸器内科">
+    <a class="ai-card info" href="dept.html#循環器内科">
       <div class="ai-ic">📈</div>
       <div>
         <div class="ai-hl">
           <span class="ai-sev">トピック</span>
-          <span>呼吸器内科の新入院が回復</span>
+          <span>循環器内科の新入院が回復</span>
           <span class="ai-fb">（ルール生成）</span>
         </div>
         <div class="ai-bd">
           
-            呼吸器内科の新入院が前週同曜日比で明確に増加した／この勢いを維持できれば月次目標への寄与が見込める
+            循環器内科の新入院が前週同曜日比で明確に増加した／この勢いを維持できれば月次目標への寄与が見込める
           
         </div>
         
@@ -224,8 +240,8 @@
           <div class="nm">眼科</div>
           <div class="mt">🚪 新入院（直近7日累計）</div>
         </div>
-        <div class="dl">-8.0人</div>
-        <div class="dt">実績 10 / 目標 17.5<br>
+        <div class="dl">-6.0人</div>
+        <div class="dt">実績 11 / 目標 17.5<br>
           <span style="font-size:10px;color:var(--br)">詳細を見る →</span>
         </div>
       </a>
@@ -246,19 +262,19 @@
           <div class="nm">小児科</div>
           <div class="mt">🚪 新入院（直近7日累計）</div>
         </div>
-        <div class="dl">-5.0人</div>
-        <div class="dt">実績 23 / 目標 27.7<br>
+        <div class="dl">-4.0人</div>
+        <div class="dt">実績 24 / 目標 27.7<br>
           <span style="font-size:10px;color:var(--br)">詳細を見る →</span>
         </div>
       </a>
       
-      <a class="at" href="dept.html#循環器内科" style="text-decoration:none;color:inherit;display:grid;">
+      <a class="at" href="dept.html#脳神経外科" style="text-decoration:none;color:inherit;display:grid;">
         <div>
-          <div class="nm">循環器内科</div>
+          <div class="nm">脳神経外科</div>
           <div class="mt">🚪 新入院（直近7日累計）</div>
         </div>
-        <div class="dl">-4.0人</div>
-        <div class="dt">実績 21 / 目標 24.9<br>
+        <div class="dl">-3.0人</div>
+        <div class="dt">実績 1 / 目標 4.2<br>
           <span style="font-size:10px;color:var(--br)">詳細を見る →</span>
         </div>
       </a>
@@ -278,20 +294,20 @@
     <div class="pnl">
       <h3>📈 改善トピック（前週同曜日比）</h3>
       
-      <a class="at imp" href="dept.html#呼吸器内科" style="text-decoration:none;color:inherit;display:grid;">
-        <div><div class="nm">呼吸器内科</div><div class="mt">🚪 新入院</div></div>
+      <a class="at imp" href="dept.html#循環器内科" style="text-decoration:none;color:inherit;display:grid;">
+        <div><div class="nm">循環器内科</div><div class="mt">🚪 新入院</div></div>
         <div class="dl">+5人</div>
         <div class="dt">前週同曜日比<br><span style="font-size:10px;color:var(--br)">詳細を見る →</span></div>
       </a>
       
-      <a class="at imp" href="dept.html#一般消化器外科" style="text-decoration:none;color:inherit;display:grid;">
-        <div><div class="nm">一般消化器外科</div><div class="mt">🚪 新入院</div></div>
+      <a class="at imp" href="dept.html#救急科" style="text-decoration:none;color:inherit;display:grid;">
+        <div><div class="nm">救急科</div><div class="mt">🚪 新入院</div></div>
         <div class="dl">+3人</div>
         <div class="dt">前週同曜日比<br><span style="font-size:10px;color:var(--br)">詳細を見る →</span></div>
       </a>
       
-      <a class="at imp" href="dept.html#耳鼻咽喉科" style="text-decoration:none;color:inherit;display:grid;">
-        <div><div class="nm">耳鼻咽喉科</div><div class="mt">🚪 新入院</div></div>
+      <a class="at imp" href="dept.html#血液内科" style="text-decoration:none;color:inherit;display:grid;">
+        <div><div class="nm">血液内科</div><div class="mt">🚪 新入院</div></div>
         <div class="dl">+2人</div>
         <div class="dt">前週同曜日比<br><span style="font-size:10px;color:var(--br)">詳細を見る →</span></div>
       </a>
@@ -300,7 +316,7 @@
   </section>
 
 
-  <div class="ft">🏥 診療ダッシュボード ポータル ｜ 生成 2026/04/15 21:02 ｜ 基準日 2026-04-14</div>
+  <div class="ft">🏥 診療ダッシュボード ポータル ｜ 生成 2026/04/16 06:46 ｜ 基準日 2026-04-15</div>
 </div>
 
 

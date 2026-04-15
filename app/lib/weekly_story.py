@@ -162,13 +162,20 @@ def upsert_snapshot(history: list, snap: dict, retain_days: int = SNAPSHOT_RETAI
 
 def find_prior_snapshot(history: list, base_date: pd.Timestamp,
                         lookback_days: int = WOW_LOOKBACK_DAYS) -> Optional[dict]:
-    """base_date - lookback_days 以前で最も新しいスナップショット"""
-    target = (base_date - timedelta(days=lookback_days)).strftime("%Y-%m-%d")
-    candidates = [s for s in history
-                  if s.get("base_date") and s["base_date"] <= target]
-    if not candidates:
+    """base_date より前のスナップショットのうち、base_date - lookback_days に最も近いもの。
+
+    履歴が十分に溜まっていない初期段階でも表示できるよう、厳密な「7日前以前」を
+    要求しない。ラベル側（prior_date）で実際の比較日を明示する想定。
+    """
+    bd_str = base_date.strftime("%Y-%m-%d")
+    earlier = [s for s in history
+               if s.get("base_date") and s["base_date"] < bd_str]
+    if not earlier:
         return None
-    return max(candidates, key=lambda s: s["base_date"])
+    target = base_date - timedelta(days=lookback_days)
+    return min(earlier, key=lambda s: abs(
+        (pd.Timestamp(s["base_date"]) - target).days
+    ))
 
 
 # ════════════════════════════════════════
