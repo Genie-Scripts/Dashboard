@@ -1,5 +1,5 @@
 """
-alerts.py — 予兆アラート検知（純Python・LLM不使用）
+alerts.py — AIアラート検知（純Python・LLM不使用）
 
 KPI・ランキング・WoW差分から「注目すべき事実」を抽出し、
 構造化 dict で返す。数値判定はここで完結させ、LLMには

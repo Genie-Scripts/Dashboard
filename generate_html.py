@@ -170,11 +170,36 @@ def generate(data_dir: str = DEFAULT_DATA_DIR,
     results = {}
 
     # ════════════════════════════════════════
+    # 週次ストーリー（WoW差分特化）— portal に埋め込むため先行生成
+    # ════════════════════════════════════════
+    weekly_story_result = None
+    try:
+        from app.lib.metrics import build_kpi_summary
+        from app.lib.weekly_story import build_weekly_story
+        log("週次ストーリー生成中...")
+        kpi = build_kpi_summary(adm, surg, base_date, targets, surg_targets)
+        snapshot_path = out_dir / "output" / "last_kpi.json"
+        weekly_story_result = build_weekly_story(
+            adm, surg, kpi, profit_monthly, base_date, snapshot_path,
+            quiet=quiet,
+        )
+        if weekly_story_result.get("story"):
+            log(f"週次ストーリー: {weekly_story_result['story']}", "ok")
+        elif weekly_story_result.get("diffs"):
+            log(f"週次ストーリー: 差分{len(weekly_story_result['diffs'])}件（LLM要約なし）", "warn")
+        else:
+            log("週次ストーリー: 差分なし / 前回スナップショット無し", "info")
+    except Exception as e:
+        log(f"週次ストーリー生成スキップ: {e}", "warn")
+    results["weekly_story"] = weekly_story_result
+
+    # ════════════════════════════════════════
     # Layer-1: portal.html
     # ════════════════════════════════════════
     log("portal.html 生成中...")
     portal_ctx = build_portal_context(
-        adm, surg, targets, surg_targets, base_date, generated_at
+        adm, surg, targets, surg_targets, base_date, generated_at,
+        weekly_story=weekly_story_result,
     )
     portal_ctx["ga_id"] = resolved_ga_id
     portal_tmpl = env.get_template("portal.html")
@@ -232,10 +257,18 @@ def generate(data_dir: str = DEFAULT_DATA_DIR,
     print(f"  基準日: {base_date.strftime('%Y-%m-%d')}")
     print(f"  出力:")
     for k, v in results.items():
-        if k != "redirects":
-            print(f"    {k}: {v}")
+        if k in ("redirects", "weekly_story"):
+            continue
+        print(f"    {k}: {v}")
     if "redirects" in results:
         print(f"    リダイレクト: {len(results['redirects'])}件")
+    ws = results.get("weekly_story")
+    if ws and (ws.get("story") or ws.get("diffs")):
+        print(f"    週次ストーリー（vs {ws.get('prior_date') or '—'}）:")
+        for d in ws.get("diffs", []):
+            print(f"      - {d}")
+        if ws.get("story"):
+            print(f"    要約: {ws['story']}")
     print(f"{'='*50}\n")
 
     return results

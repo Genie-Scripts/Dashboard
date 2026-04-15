@@ -154,7 +154,8 @@ def _build_attention_cards(adm, surg, base_date, targets, surg_targets):
 
 def build_portal_context(adm, surg, targets, surg_targets,
                          base_date, generated_at=None,
-                         include_ai_alerts: bool = True) -> dict:
+                         include_ai_alerts: bool = True,
+                         weekly_story: dict = None) -> dict:
     """
     portal.html テンプレート用のコンテキスト辞書を生成。
 
@@ -226,11 +227,12 @@ def build_portal_context(adm, surg, targets, surg_targets,
         "attention": attention,
         "improvement": improvement,
         "ai_alerts": ai_alerts,
+        "weekly_story": weekly_story,
     }
 
 
 def _build_ai_alerts(adm, surg, targets, surg_targets, base_date) -> list:
-    """予兆アラート検知 + LLM ナラティブ生成。失敗しても空リストを返す。"""
+    """AIアラート検知 + LLM ナラティブ生成。失敗しても空リストを返す。"""
     try:
         from .alerts import detect_alerts
         from .ai_narrative import narrate_alerts

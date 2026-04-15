@@ -49,6 +49,18 @@
 .ai-card.info .ai-sev{background:var(--inf);color:#fff}
 .ai-fb{font-size:11px;color:var(--mu);margin-left:auto;font-weight:600}
 @media(max-width:768px){.ai-card{grid-template-columns:auto 1fr;gap:10px;padding:12px 14px}.ai-card .ai-arr{display:none}}
+.ws{background:var(--s);border:1px solid var(--ln);border-left:5px solid var(--br);border-radius:var(--r);padding:16px 20px;margin-bottom:16px;box-shadow:var(--sh)}
+.ws .ws-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+.ws .ws-title{font-size:14px;font-weight:900;color:var(--ink);display:flex;align-items:center;gap:8px}
+.ws .ws-tag{display:inline-flex;align-items:center;gap:6px;background:var(--bl);color:var(--br);padding:3px 10px;border-radius:999px;font-size:11px;font-weight:800}
+.ws .ws-meta{font-size:11px;color:var(--mu);font-weight:500}
+.ws .ws-summary{font-size:13.5px;line-height:1.75;color:var(--ink);margin:4px 0 10px;padding:10px 12px;background:var(--bl);border-radius:10px}
+[data-theme="dark"] .ws .ws-summary{background:rgba(91,156,246,.08)}
+.ws .ws-diffs{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:1fr 1fr;gap:6px 16px}
+.ws .ws-diffs li{font-size:12px;color:var(--sub);line-height:1.55;padding-left:14px;position:relative}
+.ws .ws-diffs li::before{content:"▸";position:absolute;left:0;color:var(--br);font-weight:900}
+.ws .ws-fb{font-size:11px;color:var(--mu);font-style:italic}
+@media(max-width:768px){.ws .ws-diffs{grid-template-columns:1fr}}
 .ft{text-align:center;font-size:11px;color:var(--mu);padding:24px 0;border-top:1px solid var(--ln);margin-top:12px}
 .nav{position:fixed;bottom:0;left:0;right:0;background:rgba(246,248,251,.96);backdrop-filter:blur(8px);padding:10px 14px 18px;z-index:10;display:none}.nav .bar{max-width:430px;margin:0 auto;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;background:var(--s);border:1px solid var(--ln);border-radius:16px;padding:8px;box-shadow:var(--sh)}.nav a{text-decoration:none;background:var(--bl);color:var(--br);border-radius:12px;padding:10px 6px;text-align:center;font-size:11px;font-weight:800;display:flex;flex-direction:column;align-items:center;gap:2px}
 @media(max-width:768px){.kpi{grid-template-columns:1fr 1fr}.g2{grid-template-columns:1fr}.vl{font-size:30px}.nav{display:block}.wrap{padding-bottom:120px}.kc.dept{min-height:auto;padding:16px}
@@ -78,6 +90,27 @@
     <p>{{ headline.detail }}</p>
   </section>
 
+  {# ── 今週のハイライト（WoW差分） ── #}
+  {% if weekly_story and (weekly_story.story or weekly_story.diffs) %}
+  <section class="ws">
+    <div class="ws-hd">
+      <div class="ws-title">
+        <span class="ws-tag">📅 今週のハイライト</span>
+        {% if weekly_story.prior_date %}<span class="ws-meta">vs {{ weekly_story.prior_date }}</span>{% endif %}
+      </div>
+      {% if not weekly_story.story %}<span class="ws-fb">（差分のみ／LLM要約なし）</span>{% endif %}
+    </div>
+    {% if weekly_story.story %}
+    <p class="ws-summary">{{ weekly_story.story }}</p>
+    {% endif %}
+    {% if weekly_story.diffs %}
+    <ul class="ws-diffs">
+      {% for d in weekly_story.diffs %}<li>{{ d }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+  </section>
+  {% endif %}
+
   {# ── KPIカード×3 ── #}
   <section class="kpi">
     {% for card in kpi_cards %}
@@ -98,11 +131,11 @@
     </a>
   </section>
 
-  {# ── AI 予兆アラート ── #}
+  {# ── AI アラート ── #}
   {% if ai_alerts %}
   <section class="ai-sec">
     <div class="ai-hd">
-      <span class="ai-tag">🤖 AI 予兆アラート</span>
+      <span class="ai-tag">🤖 AIアラート</span>
       <span style="font-size:10px;color:var(--mu);font-weight:500">数値はPython検知、文章はローカルLLM翻訳</span>
     </div>
     {% for a in ai_alerts %}
