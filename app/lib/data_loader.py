@@ -73,8 +73,20 @@ def _read_admission_file(path: Path) -> pd.DataFrame:
     if path.suffix.lower() in (".xlsx", ".xls"):
         df = pd.read_excel(path, engine="openpyxl")
     else:
-        df = pd.read_csv(path, encoding="utf-8-sig", engine="python",
-                          on_bad_lines="skip")
+        # 文字コードを自動判別（UTF-8で失敗したらCP932で試行）
+        def _read_csv_with_enc(skiprows=0):
+            try:
+                return pd.read_csv(path, encoding="utf-8-sig", engine="python",
+                                   on_bad_lines="skip", skiprows=skiprows)
+            except (UnicodeDecodeError, UnicodeError):
+                return pd.read_csv(path, encoding="cp932", engine="python",
+                                   on_bad_lines="skip", skiprows=skiprows)
+
+        df = _read_csv_with_enc()
+        # 1行目がメタデータ行の場合（ヘッダーに「日付」列がない）は skiprows=1 で再読込
+        if "日付" not in df.columns:
+            df = _read_csv_with_enc(skiprows=1)
+
     df["日付"] = pd.to_datetime(df["日付"], errors="coerce")
     df = df.dropna(subset=["日付"])
     num_cols = ["在院患者数", "入院患者数", "緊急入院患者数",
@@ -83,7 +95,6 @@ def _read_admission_file(path: Path) -> pd.DataFrame:
         if c in df.columns:
             df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0).astype(int)
     return df
-
 
 def _normalize_time_str(series: pd.Series) -> pd.Series:
     """
@@ -259,7 +270,10 @@ def load_surgery_targets(data_dir: str = DEFAULT_DATA_DIR) -> pd.DataFrame:
     frames = []
     for f in files:
         try:
-            df = pd.read_csv(f, encoding="utf-8-sig")
+            try:
+                df = pd.read_csv(f, encoding="utf-8-sig")
+            except (UnicodeDecodeError, UnicodeError):
+                df = pd.read_csv(f, encoding="cp932")
             df.columns = ["実施診療科", "週目標"]
             df["週目標"] = pd.to_numeric(df["週目標"], errors="coerce")
             frames.append(df)
@@ -290,7 +304,10 @@ def load_inpatient_targets(data_dir: str = DEFAULT_DATA_DIR) -> pd.DataFrame:
     frames = []
     for f in files:
         try:
-            df = pd.read_csv(f, encoding="utf-8-sig")
+            try:
+                df = pd.read_csv(f, encoding="utf-8-sig")
+            except (UnicodeDecodeError, UnicodeError):
+                df = pd.read_csv(f, encoding="cp932")
             df["目標値"] = pd.to_numeric(df["目標値"], errors="coerce")
             if "病床数" in df.columns:
                 df["病床数"] = pd.to_numeric(df["病床数"], errors="coerce")
@@ -299,7 +316,6 @@ def load_inpatient_targets(data_dir: str = DEFAULT_DATA_DIR) -> pd.DataFrame:
             warnings.warn(f"在院目標ファイル読込スキップ: {f.name} — {e}")
 
     return frames[-1].reset_index(drop=True) if frames else pd.DataFrame()
-
 
 def load_profit_data(data_dir: str = DEFAULT_DATA_DIR) -> pd.DataFrame:
     """
