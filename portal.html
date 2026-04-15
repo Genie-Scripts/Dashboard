@@ -26,6 +26,29 @@
 .lb{font-size:14px;color:var(--sub)}.sb{font-size:12px;color:var(--mu);margin-top:2px}.vl{font-size:40px;font-weight:900;line-height:1.05;margin:10px 0 6px}.gp{font-size:14px;font-weight:800;color:var(--dr-t)}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}.pnl{background:var(--s);border:1px solid var(--ln);border-radius:var(--r);padding:18px;box-shadow:var(--sh)}.pnl h3{margin:0 0 12px;font-size:14px;font-weight:800}
 .at{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;border:1px solid var(--ln);border-radius:14px;padding:12px;margin-bottom:8px;background:#fbfdff;border-left:4px solid var(--dr)}.at.imp{border-left-color:var(--inf)}.at .nm{font-weight:900;font-size:14px}.at .mt{font-size:11px;color:var(--sub)}.at .dl{font-size:22px;font-weight:900;color:var(--dr-t)}.at.imp .dl{color:var(--inf)}.at .dt{font-size:11px;color:var(--mu);text-align:right}
+.ai-sec{margin-bottom:16px}
+.ai-sec .ai-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 2px 10px;font-size:12px;color:var(--sub);font-weight:800;letter-spacing:.04em}
+.ai-sec .ai-hd .ai-tag{display:inline-flex;align-items:center;gap:6px;background:var(--bl);color:var(--br);padding:3px 10px;border-radius:999px;font-size:11px}
+.ai-card{background:var(--s);border:1px solid var(--ln);border-left:5px solid var(--inf);border-radius:var(--r);padding:14px 18px;margin-bottom:10px;box-shadow:var(--sh);display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:start;text-decoration:none;color:inherit;transition:all .15s}
+.ai-card:hover{box-shadow:0 10px 26px rgba(10,22,42,.12);transform:translateY(-1px)}
+.ai-card.danger{border-left-color:var(--dr);background:var(--dr-bg)}
+.ai-card.warn{border-left-color:var(--wr);background:var(--wr-bg)}
+.ai-card.info{border-left-color:var(--inf)}
+.ai-card .ai-ic{font-size:22px;line-height:1.1;padding-top:2px}
+.ai-card .ai-hl{font-size:14px;font-weight:900;color:var(--ink);margin-bottom:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ai-card .ai-bd{font-size:12.5px;line-height:1.65;color:var(--sub)}
+.ai-card .ai-ac{margin-top:6px;font-size:12px;color:var(--ink);background:rgba(255,255,255,.55);border:1px dashed var(--ln);border-radius:10px;padding:7px 10px}
+[data-theme="dark"] .ai-card .ai-ac{background:rgba(255,255,255,.04)}
+.ai-card .ai-ac b{color:var(--br);margin-right:4px}
+.ai-card .ai-arr{font-size:18px;color:var(--mu);align-self:center}
+.ai-card.danger .ai-hl{color:var(--dr-t)}
+.ai-card.warn .ai-hl{color:#7c3a06}
+.ai-sev{font-size:10px;font-weight:900;padding:2px 8px;border-radius:999px;background:var(--bl);color:var(--br);letter-spacing:.04em}
+.ai-card.danger .ai-sev{background:var(--dr);color:#fff}
+.ai-card.warn .ai-sev{background:var(--wr);color:#fff}
+.ai-card.info .ai-sev{background:var(--inf);color:#fff}
+.ai-fb{font-size:11px;color:var(--mu);margin-left:auto;font-weight:600}
+@media(max-width:768px){.ai-card{grid-template-columns:auto 1fr;gap:10px;padding:12px 14px}.ai-card .ai-arr{display:none}}
 .ft{text-align:center;font-size:11px;color:var(--mu);padding:24px 0;border-top:1px solid var(--ln);margin-top:12px}
 .nav{position:fixed;bottom:0;left:0;right:0;background:rgba(246,248,251,.96);backdrop-filter:blur(8px);padding:10px 14px 18px;z-index:10;display:none}.nav .bar{max-width:430px;margin:0 auto;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;background:var(--s);border:1px solid var(--ln);border-radius:16px;padding:8px;box-shadow:var(--sh)}.nav a{text-decoration:none;background:var(--bl);color:var(--br);border-radius:12px;padding:10px 6px;text-align:center;font-size:11px;font-weight:800;display:flex;flex-direction:column;align-items:center;gap:2px}
 @media(max-width:768px){.kpi{grid-template-columns:1fr 1fr}.g2{grid-template-columns:1fr}.vl{font-size:30px}.nav{display:block}.wrap{padding-bottom:120px}.kc.dept{min-height:auto;padding:16px}
@@ -38,7 +61,7 @@
 <header class="hdr">
   <div class="row1">
     <div class="left"><span class="badge">KPI</span><span class="title">🏥 診療ダッシュボード</span></div>
-    <div class="meta">📅 2026-04-14 ｜ 🕐 2026/04/15 10:43 更新</div>
+    <div class="meta">📅 2026-04-14 ｜ 🕐 2026/04/15 20:27 更新</div>
     <button class="dm-btn" onclick="toggleDarkMode()">🌙</button>
   </div>
   <nav class="nav-bar">
@@ -92,6 +115,97 @@
       <div class="cta"><span>部門別を見る</span><span class="cta-arrow">›</span></div>
     </a>
   </section>
+
+  
+  
+  <section class="ai-sec">
+    <div class="ai-hd">
+      <span class="ai-tag">🤖 AI 予兆アラート</span>
+      <span style="font-size:10px;color:var(--mu);font-weight:500">数値はPython検知、文章はローカルLLM翻訳</span>
+    </div>
+    
+    <a class="ai-card warn" href="dept.html#眼科">
+      <div class="ai-ic">🏥</div>
+      <div>
+        <div class="ai-hl">
+          <span class="ai-sev">要注視</span>
+          <span>眼科入院患者数の状況</span>
+          
+        </div>
+        <div class="ai-bd">
+          
+            眼科における新入院患者数は、直近7日間の累計において、設定された週次目標を達成できておりません。状況を注視し、今後の動向を確認する必要があります。
+          
+        </div>
+        
+        <div class="ai-ac"><b>推奨</b>眼科新入院患者数の状況を詳細に分析し、目標達成に向けた改善策の検討を開始してください。関係部署との連携も視野に入れ、対応を進めてください。</div>
+        
+      </div>
+      <div class="ai-arr">›</div>
+    </a>
+    
+    <a class="ai-card warn" href="dept.html#総合内科">
+      <div class="ai-ic">🏥</div>
+      <div>
+        <div class="ai-hl">
+          <span class="ai-sev">要注視</span>
+          <span>総合内科入院状況</span>
+          
+        </div>
+        <div class="ai-bd">
+          
+            総合内科における新入院患者数は、直近7日間の累計で週次目標を達成しておりません。状況を注視しつつ、関係部署と連携した対応をご検討ください。
+          
+        </div>
+        
+        <div class="ai-ac"><b>推奨</b>入院患者数増加に向け、集客活動の強化や、患者紹介元の連携促進等をご検討ください。効果測定のため、定期的な状況確認を実施してください。</div>
+        
+      </div>
+      <div class="ai-arr">›</div>
+    </a>
+    
+    <a class="ai-card warn" href="dept.html#5階A病棟">
+      <div class="ai-ic">🛏️</div>
+      <div>
+        <div class="ai-hl">
+          <span class="ai-sev">要注視</span>
+          <span>5階A病棟稼働状況</span>
+          
+        </div>
+        <div class="ai-bd">
+          
+            5階A病棟において、在院患者数が目標値を下回る状況が確認されています。また、想定以上の空床が発生しており、病床稼働率の改善が期待されます。
+          
+        </div>
+        
+        <div class="ai-ac"><b>推奨</b>5階A病棟の患者受け入れ体制を見直し、早期の稼働改善を目指してください。関係部署と連携し、受け入れ状況のモニタリングを強化することを推奨します。</div>
+        
+      </div>
+      <div class="ai-arr">›</div>
+    </a>
+    
+    <a class="ai-card info" href="dept.html#呼吸器内科">
+      <div class="ai-ic">📈</div>
+      <div>
+        <div class="ai-hl">
+          <span class="ai-sev">トピック</span>
+          <span>呼吸器内科入院状況</span>
+          
+        </div>
+        <div class="ai-bd">
+          
+            呼吸器内科において、新入院患者数が前週の同曜日と比較して明確に増加しました。この傾向が継続した場合、月次目標の達成に貢献する可能性があります。
+          
+        </div>
+        
+        <div class="ai-ac"><b>推奨</b>呼吸器内科の入院状況を注視し、患者フローやリソース配分について、必要に応じて調整を検討してください。詳細な状況把握のため、定期的なデータ分析を実施ください。</div>
+        
+      </div>
+      <div class="ai-arr">›</div>
+    </a>
+    
+  </section>
+  
 
   
   <section class="g2">
@@ -179,7 +293,7 @@
   </section>
 
 
-  <div class="ft">🏥 診療ダッシュボード ポータル ｜ 生成 2026/04/15 10:43 ｜ 基準日 2026-04-14</div>
+  <div class="ft">🏥 診療ダッシュボード ポータル ｜ 生成 2026/04/15 20:27 ｜ 基準日 2026-04-14</div>
 </div>
 
 

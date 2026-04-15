@@ -153,7 +153,8 @@ def _build_attention_cards(adm, surg, base_date, targets, surg_targets):
 # ═══════════════════════════════════════
 
 def build_portal_context(adm, surg, targets, surg_targets,
-                         base_date, generated_at=None) -> dict:
+                         base_date, generated_at=None,
+                         include_ai_alerts: bool = True) -> dict:
     """
     portal.html テンプレート用のコンテキスト辞書を生成。
 
@@ -213,6 +214,10 @@ def build_portal_context(adm, surg, targets, surg_targets,
         },
     ]
 
+    # ── AI アラート（Ollama未起動時は空リストで無害に継続） ──
+    ai_alerts = (_build_ai_alerts(adm, surg, targets, surg_targets, base_date)
+                 if include_ai_alerts else [])
+
     return {
         "base_date": base_date.strftime("%Y-%m-%d"),
         "generated_at": (generated_at or datetime.now()).strftime("%Y/%m/%d %H:%M"),
@@ -220,7 +225,26 @@ def build_portal_context(adm, surg, targets, surg_targets,
         "kpi_cards": kpi_cards,
         "attention": attention,
         "improvement": improvement,
+        "ai_alerts": ai_alerts,
     }
+
+
+def _build_ai_alerts(adm, surg, targets, surg_targets, base_date) -> list:
+    """予兆アラート検知 + LLM ナラティブ生成。失敗しても空リストを返す。"""
+    try:
+        from .alerts import detect_alerts
+        from .ai_narrative import narrate_alerts
+    except ImportError:
+        return []
+    try:
+        raw = detect_alerts(adm, surg, targets, surg_targets, base_date)
+        if not raw:
+            return []
+        return narrate_alerts(raw)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"AI アラート生成スキップ: {e}")
+        return []
 
 
 # ═══════════════════════════════════════
@@ -489,7 +513,9 @@ def build_detail_json(adm, surg, targets, surg_targets,
         }
 
     # ── attention / improvement ──
-    portal_ctx = build_portal_context(adm, surg, targets, surg_targets, base_date, generated_at)
+    # detail.html では AI アラートは不要（portal.html 専用）
+    portal_ctx = build_portal_context(adm, surg, targets, surg_targets, base_date,
+                                       generated_at, include_ai_alerts=False)
 
     # ── profit: 粗利データ ──
     profit_section = None
