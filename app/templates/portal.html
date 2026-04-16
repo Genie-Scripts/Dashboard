@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>診療KPIポータル</title>
+<link rel="stylesheet" href="css/shared-tokens.css">
+<link rel="stylesheet" href="css/shared-components.css">
 {% if ga_id %}<script async src="https://www.googletagmanager.com/gtag/js?id={{ ga_id }}"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','{{ ga_id }}');</script>{% endif %}
 <style>
-/* ── デザイントークン ── */
 :root{
-  /* 既存変数 */
   --bg:#f6f8fb;--s:#fff;--ink:#1a2332;--sub:#5f7084;--mu:#9daab8;--ln:#dfe5ed;
   --br:#0e4da4;--bl:#e8f0fe;--bd:#0a3671;
   --dr:#c4314b;--dr-bg:#fdf0f2;--dr-t:#8c1d35;
@@ -15,32 +15,6 @@
   --ok:#0e7a54;--ok-bg:#ecfdf5;
   --inf:#2563eb;
   --r:18px;--sh:0 4px 14px rgba(10,22,42,.08);
-  /* カード共通 */
-  --card-border-radius:12px;
-  --card-box-shadow:0 1px 3px rgba(0,0,0,.08);
-  --card-padding:20px;
-  /* タイポグラフィ */
-  --font-kpi-value:2rem;
-  --font-section-heading:1.1rem;
-  --font-body:0.95rem;
-  --font-caption:0.8rem;
-  /* ステータス色 */
-  --color-achieved:#22c55e;
-  --color-approaching:#f59e0b;
-  --color-missed:#ef4444;
-  /* ステータス背景色 */
-  --bg-achieved:#f0fdf4;
-  --bg-approaching:#fffbeb;
-  --bg-missed:#fef2f2;
-  /* priority バッジ色 */
-  --badge-high:#ef4444;
-  --badge-mid:#f59e0b;
-  --badge-low:#3b82f6;
-  /* 共通テキスト */
-  --color-primary:#1e3a5f;
-  --color-text:#374151;
-  --color-muted:#6b7280;
-  --color-border:#e5e7eb;
 }
 [data-theme="dark"]{
   --bg:#0f1623;--s:#1a2738;--ink:#dde4ef;--sub:#8fa3b8;--mu:#4a5f74;--ln:#2a3a50;
@@ -49,7 +23,6 @@
   --wr:#f0a040;--wr-bg:#2a1a06;
   --ok:#34d39a;--ok-bg:#0a2518;
   --inf:#5b9cf6;--sh:0 4px 14px rgba(0,0,0,.4);
-  --bg-achieved:#0a2518;--bg-approaching:#2a1a06;--bg-missed:#2d1020;
 }
 .dm-btn{background:transparent;border:1px solid rgba(255,255,255,.25);border-radius:8px;color:#a8bdd4;font-size:14px;padding:4px 9px;cursor:pointer;transition:all .15s;font-family:inherit;line-height:1}.dm-btn:hover{color:#fff;border-color:rgba(255,255,255,.5)}
 *{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
