@@ -152,7 +152,7 @@
 <header class="hdr">
   <div class="row1">
     <div class="left"><span class="badge">KPI</span><span class="title">🏥 診療ダッシュボード</span></div>
-    <div class="meta">📅 2026-04-15 ｜ 🕐 2026/04/16 17:07 更新</div>
+    <div class="meta">📅 2026-04-15 ｜ 🕐 2026/04/16 20:40 更新</div>
     <button class="dm-btn" onclick="toggleDarkMode()">🌙</button>
   </div>
   <nav class="nav-bar">
@@ -178,7 +178,7 @@
     
     <div class="sb-detail" id="sb-detail" hidden>
       
-      <p class="sb-story">直近7日間の手術室稼働率が3.0%低下し、全麻手術件数も16件増加しました。新入院数も5%増加しています。一方で、在院患者数は1.0人増加し、緊急入院数も8%増加しています。祝日・連休の影響を考慮し、数値の変動を淡々と報告します。</p>
+      <p class="sb-story">直近7日間の手術室稼働率が3.0%低下し、全麻手術件数も16件増加しました。新入院数も5%増加しています。一方で、在院患者数や緊急入院数は増加傾向にあります。祝日・連休の影響を考慮し、数値の変動を客観的に報告します。</p>
       
       
       
@@ -275,11 +275,11 @@
                       aria-expanded="false" aria-controls="narrative-w1"
                       onclick="event.preventDefault();event.stopPropagation();toggleNarrative('w1')">▸</button>
             </a>
-            <div class="triage-headline">ICU 新入院数、目標達成率40%</div>
+            <div class="triage-headline">新入院40%(▲18.0人) | 在院111%(+0.6人)</div>
             <div class="triage-narrative" id="narrative-w1" hidden
                  role="region" aria-label="ICU 詳細">
-              <div class="triage-obs">🤖 ICU 新入院数実績12人、目標30.0人。達成率40%。前週比新入院数+2人。</div>
-              <div class="triage-sug">ICU 新入院数目標達成に向け、人員配置や受け入れ体制の最適化を検討する。</div>
+              <div class="triage-obs">🤖 直近7日、新入院実績12人。目標30.0人に対し、達成率40%で目標まであと18.0人。前週同曜日比で前週比+2人増。</div>
+              <div class="triage-sug">目標達成に向け、入院患者の受け入れ体制強化と、早期退院支援策の検討を推奨。</div>
             </div>
             
           </div>
@@ -294,11 +294,11 @@
                       aria-expanded="false" aria-controls="narrative-w2"
                       onclick="event.preventDefault();event.stopPropagation();toggleNarrative('w2')">▸</button>
             </a>
-            <div class="triage-headline">新入院患者数、目標未達</div>
+            <div class="triage-headline">新入院68%(▲6.0人) | 在院86%(▲3.1人)</div>
             <div class="triage-narrative" id="narrative-w2" hidden
                  role="region" aria-label="9階A病棟 詳細">
-              <div class="triage-obs">🤖 新入院患者数は目標の68%に達し、前週比で3人減少。在院患者数は目標の86%に達し、前週比で1人増加。</div>
-              <div class="triage-sug">新入院患者数の目標達成に向け、入院勧誘活動の強化や、患者様への説明会の実施を検討する。</div>
+              <div class="triage-obs">🤖 新入院実績13人、目標19.0人（達成率68%）。目標まであと6.0人。</div>
+              <div class="triage-sug">新入院数の目標達成に向け、入室時の情報収集や連携強化を検討。</div>
             </div>
             
           </div>
@@ -313,11 +313,11 @@
                       aria-expanded="false" aria-controls="narrative-w3"
                       onclick="event.preventDefault();event.stopPropagation();toggleNarrative('w3')">▸</button>
             </a>
-            <div class="triage-headline">新入院患者数、前週比で減少</div>
+            <div class="triage-headline">新入院70%(▲9.0人) | 在院104%(+0.6人)</div>
             <div class="triage-narrative" id="narrative-w3" hidden
                  role="region" aria-label="HCU 詳細">
-              <div class="triage-obs">🤖 新入院患者数は実績21人、目標30.0人に対し達成率70%です。前週同曜日比で3人減少しています。</div>
-              <div class="triage-sug">患者受け入れの状況を再評価し、受け入れ基準の見直しや、他の病棟への転院促進などを検討してください。</div>
+              <div class="triage-obs">🤖 新入院実績21人、目標30.0人。目標達成率70%で、目標達成まで9.0人不足。</div>
+              <div class="triage-sug">目標達成に向け、入院促進策の検討を推奨。</div>
             </div>
             
           </div>
@@ -332,11 +332,11 @@
                       aria-expanded="false" aria-controls="narrative-w4"
                       onclick="event.preventDefault();event.stopPropagation();toggleNarrative('w4')">▸</button>
             </a>
-            <div class="triage-headline">新入院患者数、目標達成率83%</div>
+            <div class="triage-headline">新入院83%(▲7.0人) | 在院96%(▲1.6人)</div>
             <div class="triage-narrative" id="narrative-w4" hidden
                  role="region" aria-label="3階A病棟 詳細">
-              <div class="triage-obs">🤖 直近7日、新入院患者数は実績34人、目標41.0人に対し、達成率83%です。前週同曜日比で3人増加しました。</div>
-              <div class="triage-sug">目標達成率が83%と、目標達成率96%の在院患者数と比較して、新入院患者数の目標達成率が低い傾向にあります。目標達成率を向上させるための、入院患者の受け入れ体制の最適化や、入院促進策の検討が有効と考えられます。</div>
+              <div class="triage-obs">🤖 新入院患者数は目標達成率83%で、目標まであと7人。在院患者数は目標達成率96%で、目標まであと1.6人。</div>
+              <div class="triage-sug">目標達成に向け、新入院患者数の増加を継続する。在院患者数の維持を支えるため、効率的な患者管理を検討する。</div>
             </div>
             
           </div>
@@ -399,11 +399,11 @@
                       aria-expanded="false" aria-controls="narrative-d1"
                       onclick="event.preventDefault();event.stopPropagation();toggleNarrative('d1')">▸</button>
             </a>
-            <div class="triage-headline">呼吸器外科、新入院数、在院患者数、手術数、粗利が目標達成</div>
+            <div class="triage-headline">新入院107%(+0.2人) | 在院50%(▲3.0人) | 手術71%(▲0.8件) | 粗利104%</div>
             <div class="triage-narrative" id="narrative-d1" hidden
                  role="region" aria-label="呼吸器外科 詳細">
-              <div class="triage-obs">🤖 新入院は目標達成率107%、在院患者数は目標達成率50%、手術数は目標達成率71%、粗利は達成率104%です。</div>
-              <div class="triage-sug">継続的な患者受け入れ戦略と、手術計画の最適化により、目標達成率の向上を目指します。</div>
+              <div class="triage-obs">🤖 新入院実績3人、目標2.8人に対し、達成率107%で目標超過。在院患者実績3人、目標6.0人に対し、達成率50%で目標まであと3人。手術実績2件、目標2.8件に対し、達成率71%で目標まであと0.8件。</div>
+              <div class="triage-sug">新入院数、在院患者数、手術件数について、目標達成に向けた継続的なモニタリングと、必要に応じてリソース配分の見直しを検討する。</div>
             </div>
             
           </div>
@@ -418,11 +418,11 @@
                       aria-expanded="false" aria-controls="narrative-d2"
                       onclick="event.preventDefault();event.stopPropagation();toggleNarrative('d2')">▸</button>
             </a>
-            <div class="triage-headline">腎内科、新入院数、在院患者数、粗利達成率を確認</div>
+            <div class="triage-headline">新入院67%(▲3.0人) | 在院87%(▲2.0人) | 粗利97%</div>
             <div class="triage-narrative" id="narrative-d2" hidden
                  role="region" aria-label="腎内科 詳細">
-              <div class="triage-obs">🤖 新入院は目標の67%達成、在院患者数は目標の87%達成、粗利は目標の97%達成</div>
-              <div class="triage-sug">新入院数、在院患者数、粗利の達成状況を継続的にモニタリングし、目標達成に向けた改善策を検討する</div>
+              <div class="triage-obs">🤖 新入院は目標の9.0人に対し、実績6人で達成率67%です。在院患者は目標の15.0人に対し、実績13人で達成率87%です。粗利は97%で目標達成です。</div>
+              <div class="triage-sug">新入院の目標達成率を向上させるための、患者の早期退院を促す情報提供や、予約システムの活用を検討してください。</div>
             </div>
             
           </div>
@@ -437,11 +437,11 @@
                       aria-expanded="false" aria-controls="narrative-d3"
                       onclick="event.preventDefault();event.stopPropagation();toggleNarrative('d3')">▸</button>
             </a>
-            <div class="triage-headline">小児科、新入院数、在院患者数、粗利達成率を確認</div>
+            <div class="triage-headline">新入院87%(▲3.7人) | 在院94%(▲1.0人) | 粗利65%</div>
             <div class="triage-narrative" id="narrative-d3" hidden
                  role="region" aria-label="小児科 詳細">
-              <div class="triage-obs">🤖 新入院は目標達成率87%、在院患者数は目標達成率94%、粗利は達成率65%を達成。</div>
-              <div class="triage-sug">新入院数、在院患者数、粗利達成率を継続的にモニタリングし、目標達成に向けた改善策を検討する。</div>
+              <div class="triage-obs">🤖 新入院実績24人、目標27.7人。在院患者実績17人、目標18.0人。粗利達成率65%。</div>
+              <div class="triage-sug">新入院目標達成に向け、予約調整や地域連携強化を検討。在院患者目標達成に向け、早期退院支援策を導入。</div>
             </div>
             
           </div>
@@ -456,11 +456,11 @@
                       aria-expanded="false" aria-controls="narrative-d4"
                       onclick="event.preventDefault();event.stopPropagation();toggleNarrative('d4')">▸</button>
             </a>
-            <div class="triage-headline">手術件数、在院患者数、新入院数、粗利が目標達成傾向</div>
+            <div class="triage-headline">新入院84%(▲2.3人) | 在院88%(▲1.5人) | 手術99%(▲0.1件) | 粗利81%</div>
             <div class="triage-narrative" id="narrative-d4" hidden
                  role="region" aria-label="乳腺外科 詳細">
-              <div class="triage-obs">🤖 新入院は目標達成率84%、在院患者数は目標達成率88%、手術件数は目標達成率99%、粗利は達成率81%を達成しています。前週同曜日比で新入院が前週比-2人となっています。</div>
-              <div class="triage-sug">手術件数、在院患者数、新入院数、粗利の目標達成に向け、各KPIの達成状況を継続的にモニタリングし、必要に応じて改善策を検討してください。</div>
+              <div class="triage-obs">🤖 新入院実績12人、目標14.3人。在院患者実績11人、目標12.5人。手術実績8件、目標8.1件。粗利達成率81%。</div>
+              <div class="triage-sug">目標達成率の向上に向け、新入院・在院患者の受け入れ体制見直しを検討。手術件数については、現状維持で目標達成。粗利改善のため、費用管理徹底を促す。</div>
             </div>
             
           </div>
@@ -475,11 +475,11 @@
                       aria-expanded="false" aria-controls="narrative-d5"
                       onclick="event.preventDefault();event.stopPropagation();toggleNarrative('d5')">▸</button>
             </a>
-            <div class="triage-headline">脳神経内科、在院患者数、粗利達成率が目標を上回る</div>
+            <div class="triage-headline">新入院81%(▲0.7人) | 在院105%(+1.0人) | 粗利82%</div>
             <div class="triage-narrative" id="narrative-d5" hidden
                  role="region" aria-label="脳神経内科 詳細">
-              <div class="triage-obs">🤖 新入院は目標の81%達成。在院患者数は目標の105%達成。粗利は目標の82%達成。</div>
-              <div class="triage-sug">継続的な患者受け入れと収益確保に向け、現在の傾向を維持・強化する。</div>
+              <div class="triage-obs">🤖 新入院実績3人、目標3.7人に対し、達成率81%で目標達成まで0.7人差。在院患者実績21人、目標20.0人に対し、達成率105%で目標+1.0人超過。粗利達成率82%。</div>
+              <div class="triage-sug">新入院目標達成に向け、引き続き患者獲得活動を推進。在院患者数、粗利達成率ともに目標達成状況であり、継続的なモニタリングと改善策の検討を推奨。</div>
             </div>
             
           </div>
@@ -520,7 +520,7 @@
   </section>
 
   <div class="ft">
-    🏥 診療ダッシュボード ポータル ｜ 生成 2026/04/16 17:07 ｜ 基準日 2026-04-15<br>
+    🏥 診療ダッシュボード ポータル ｜ 生成 2026/04/16 20:40 ｜ 基準日 2026-04-15<br>
     <span style="font-size:10px">※ 数値はPython検知、文章はローカルLLM翻訳（ollama未起動時は定型文）</span>
   </div>
 </div>

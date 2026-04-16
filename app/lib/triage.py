@@ -69,6 +69,8 @@ TRIAGE_SYSTEM_PROMPT = """あなたは病院経営会議向けの要約ライタ
 8. 「合成達成率」という語句およびその数値（パーセント）を
    observation / suggestion に出力しない。
    個別KPI（新入院・在院患者・手術・粗利）の達成状況で表現すること。
+9. headline / observation / suggestion に診療科名・病棟名を含めない。
+   科名・病棟名は画面上で別途表示されるため、重複を避けること。
 
 【出力スキーマ】
 {
@@ -182,6 +184,9 @@ def score_departments(adm: pd.DataFrame, surg: pd.DataFrame,
             "op_actual": op_actual,
             "op_target": round(float(op_target), 1) if op_target else None,
             "profit_rate": profit_rate,
+            "adm_gap": round(float(adm_target) - adm_actual, 1) if adm_target else None,
+            "inp_gap": round(float(inp_target) - inp_actual, 1) if inp_target else None,
+            "op_gap": round(float(op_target) - op_actual, 1) if (is_surgery and op_target) else None,
         })
 
     results.sort(key=lambda x: x["composite_rate"])
@@ -255,6 +260,9 @@ def score_wards(adm: pd.DataFrame, targets: dict,
             "op_actual": None,
             "op_target": None,
             "profit_rate": None,
+            "adm_gap": round(float(adm_target) - adm_actual, 1) if adm_target else None,
+            "inp_gap": round(float(inp_target) - inp_actual, 1) if inp_target else None,
+            "op_gap": None,
         })
 
     results.sort(key=lambda x: x["composite_rate"])
@@ -279,20 +287,26 @@ def pick_targets(scored: list[dict], adm: pd.DataFrame,
         # facts 生成
         facts = []
         if item["adm_rate"] is not None and item["adm_target"] is not None:
+            adm_gap = item.get("adm_gap", 0) or 0
+            adm_gap_str = f"・目標まであと{adm_gap:.1f}人" if adm_gap > 0 else f"・目標+{abs(adm_gap):.1f}人超過"
             facts.append(
                 f"新入院（直近7日）: 実績{item['adm_actual']:.0f}人 / "
-                f"目標{item['adm_target']:.1f}人（達成率{item['adm_rate']:.0f}%）"
+                f"目標{item['adm_target']:.1f}人（達成率{item['adm_rate']:.0f}%{adm_gap_str}）"
             )
         if item["inp_rate"] is not None and item["inp_target"] is not None:
+            inp_gap = item.get("inp_gap", 0) or 0
+            inp_gap_str = f"・目標まであと{inp_gap:.1f}人" if inp_gap > 0 else f"・目標+{abs(inp_gap):.1f}人超過"
             facts.append(
                 f"在院患者: 実績{item['inp_actual']:.0f}人 / "
-                f"目標{item['inp_target']:.1f}人（達成率{item['inp_rate']:.0f}%）"
+                f"目標{item['inp_target']:.1f}人（達成率{item['inp_rate']:.0f}%{inp_gap_str}）"
             )
         if (item.get("is_surgery_dept") and item["op_rate"] is not None
                 and item["op_target"] is not None):
+            op_gap = item.get("op_gap", 0) or 0
+            op_gap_str = f"・目標まであと{op_gap:.1f}件" if op_gap > 0 else f"・目標+{abs(op_gap):.1f}件超過"
             facts.append(
                 f"手術（直近7日）: 実績{item['op_actual']:.0f}件 / "
-                f"目標{item['op_target']:.1f}件（達成率{item['op_rate']:.0f}%）"
+                f"目標{item['op_target']:.1f}件（達成率{item['op_rate']:.0f}%{op_gap_str}）"
             )
         if item.get("profit_rate") is not None:
             facts.append(f"粗利: 達成率{item['profit_rate']:.0f}%")
@@ -313,6 +327,24 @@ def pick_targets(scored: list[dict], adm: pd.DataFrame,
                 wow_hint = f"新入院が前週比{wow:+.0f}人"
         except Exception:
             pass
+
+        # KPI サマリー行（テンプレート headline 用: 達成率+差分をコンパクトに表示）
+        kpi_parts = []
+        if item["adm_rate"] is not None:
+            adm_gap = item.get("adm_gap", 0) or 0
+            gap_s = f"▲{adm_gap:.1f}" if adm_gap > 0 else f"+{abs(adm_gap):.1f}"
+            kpi_parts.append(f"新入院{item['adm_rate']:.0f}%({gap_s}人)")
+        if item["inp_rate"] is not None:
+            inp_gap = item.get("inp_gap", 0) or 0
+            gap_s = f"▲{inp_gap:.1f}" if inp_gap > 0 else f"+{abs(inp_gap):.1f}"
+            kpi_parts.append(f"在院{item['inp_rate']:.0f}%({gap_s}人)")
+        if item.get("is_surgery_dept") and item["op_rate"] is not None:
+            op_gap = item.get("op_gap", 0) or 0
+            gap_s = f"▲{op_gap:.1f}" if op_gap > 0 else f"+{abs(op_gap):.1f}"
+            kpi_parts.append(f"手術{item['op_rate']:.0f}%({gap_s}件)")
+        if item.get("profit_rate") is not None:
+            kpi_parts.append(f"粗利{item['profit_rate']:.0f}%")
+        item["kpi_summary"] = " | ".join(kpi_parts)
 
         entity_label = "病棟" if is_ward else "科"
         item["rank_from_bottom"] = i + 1
@@ -354,17 +386,20 @@ def _build_triage_prompt(item: dict) -> str:
 - JSON 以外の文字（```、前置き、末尾コメント）を出力しないこと"""
 
 
-def _sanitize_narrative_text(text: str) -> str:
-    """合成スコア数値の露出を防ぐ後処理（多重防衛・層3）"""
+def _sanitize_narrative_text(text: str, entity_name: str = "") -> str:
+    """合成スコア数値の露出・科名重複を防ぐ後処理（多重防衛・層3）"""
     import re
     # "合成達成率XX%" / "合成達成率 XX %" 等を除去
     text = re.sub(r'合成達成率\s*[\d.]+\s*%', '', text)
     # "総合スコアXX%" / "合成スコアXX%" 等のバリエーションも除去
     text = re.sub(r'(総合|合成)[スコア達成率]*\s*[\d.]+\s*%', '', text)
+    # 科名・病棟名の重複除去（先頭の「XXX、」「XXXは」「XXXの」パターン）
+    if entity_name:
+        text = re.sub(rf'^{re.escape(entity_name)}[、はの：:]\s*', '', text)
     return text.strip()
 
 
-def _extract_triage_json(text: str) -> Optional[dict]:
+def _extract_triage_json(text: str, entity_name: str = "") -> Optional[dict]:
     """LLM 出力から JSON を取り出し、4キーを検証・サニタイズして返す"""
     if not text:
         return None
@@ -383,9 +418,9 @@ def _extract_triage_json(text: str) -> Optional[dict]:
         return None
     return {
         "priority":    str(obj.get("priority", "")).strip(),
-        "headline":    _sanitize_narrative_text(str(obj["headline"])),
-        "observation": _sanitize_narrative_text(str(obj["observation"])),
-        "suggestion":  _sanitize_narrative_text(str(obj["suggestion"])),
+        "headline":    _sanitize_narrative_text(str(obj["headline"]), entity_name),
+        "observation": _sanitize_narrative_text(str(obj["observation"]), entity_name),
+        "suggestion":  _sanitize_narrative_text(str(obj["suggestion"]), entity_name),
     }
 
 
@@ -413,7 +448,7 @@ def _make_fallback_narrative(item: dict) -> dict:
     suggestion = "、".join(dict.fromkeys(suggestions)) or "目標達成に向けた状況確認を推奨します"
     return {
         "priority":    item["priority"],
-        "headline":    f"{item['name']}の目標未達",
+        "headline":    f"{kpi_list}が目標未達",
         "observation": observation,
         "suggestion":  suggestion,
     }
@@ -445,7 +480,7 @@ def _narrate_one(item: dict, model: str, temperature: float) -> Optional[dict]:
         return None
 
     content = (res.get("message") or {}).get("content", "")
-    result = _extract_triage_json(content)
+    result = _extract_triage_json(content, entity_name=item["name"])
     if result is None:
         return None
 

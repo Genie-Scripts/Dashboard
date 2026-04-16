@@ -247,7 +247,7 @@
                       aria-expanded="false" aria-controls="narrative-w{{ loop.index }}"
                       onclick="event.preventDefault();event.stopPropagation();toggleNarrative('w{{ loop.index }}')">▸</button>
             </a>
-            <div class="triage-headline">{{ item.narrative.headline }}</div>
+            <div class="triage-headline">{{ item.kpi_summary }}</div>
             <div class="triage-narrative" id="narrative-w{{ loop.index }}" hidden
                  role="region" aria-label="{{ item.name }} 詳細">
               <div class="triage-obs">🤖 {{ item.narrative.observation }}</div>
@@ -310,7 +310,7 @@
                       aria-expanded="false" aria-controls="narrative-d{{ loop.index }}"
                       onclick="event.preventDefault();event.stopPropagation();toggleNarrative('d{{ loop.index }}')">▸</button>
             </a>
-            <div class="triage-headline">{{ item.narrative.headline }}</div>
+            <div class="triage-headline">{{ item.kpi_summary }}</div>
             <div class="triage-narrative" id="narrative-d{{ loop.index }}" hidden
                  role="region" aria-label="{{ item.name }} 詳細">
               <div class="triage-obs">🤖 {{ item.narrative.observation }}</div>
