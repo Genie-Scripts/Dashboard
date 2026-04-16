@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 # ────────────────────────────────────
 # 設定（必要に応じて上書き）
 # ────────────────────────────────────
-DEFAULT_MODEL = "MedAIBase/MedGemma1.5:4b"
+DEFAULT_MODEL = "llm-jp-4-8b-thinking:q4_k_m"
 DEFAULT_TEMPERATURE = 0.2
 DEFAULT_NUM_PREDICT = 220          # 出力トークン上限
 REQUEST_TIMEOUT_SEC = 60           # 1 アラートあたりの上限
