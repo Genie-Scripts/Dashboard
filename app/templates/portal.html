@@ -245,7 +245,7 @@
               <span class="triage-name">{{ item.name }}</span>
               <button class="triage-acc-btn" id="acc-btn-w{{ loop.index }}"
                       aria-expanded="false" aria-controls="narrative-w{{ loop.index }}"
-                      onclick="event.preventDefault();event.stopPropagation();toggleNarrative('w{{ loop.index }}')">▸</button>
+                      onclick="event.preventDefault();event.stopPropagation();toggleNarrative('w{{ loop.index }}')">▼詳細</button>
             </a>
             <div class="triage-headline">{{ item.kpi_summary }}</div>
             <div class="triage-narrative" id="narrative-w{{ loop.index }}" hidden
@@ -308,7 +308,7 @@
               <span class="triage-name">{{ item.name }}</span>
               <button class="triage-acc-btn" id="acc-btn-d{{ loop.index }}"
                       aria-expanded="false" aria-controls="narrative-d{{ loop.index }}"
-                      onclick="event.preventDefault();event.stopPropagation();toggleNarrative('d{{ loop.index }}')">▸</button>
+                      onclick="event.preventDefault();event.stopPropagation();toggleNarrative('d{{ loop.index }}')">▼詳細</button>
             </a>
             <div class="triage-headline">{{ item.kpi_summary }}</div>
             <div class="triage-narrative" id="narrative-d{{ loop.index }}" hidden
@@ -406,7 +406,7 @@ function toggleNarrative(idx) {
   if (!el || !btn) return;
   var expanded = !el.hidden;
   el.hidden = expanded;
-  btn.textContent = expanded ? '▸' : '▾';
+  btn.textContent = expanded ? '▼詳細' : '▲閉じる';
   btn.setAttribute('aria-expanded', String(!expanded));
 }
 
