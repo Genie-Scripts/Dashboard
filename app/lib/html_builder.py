@@ -155,20 +155,20 @@ def _build_attention_cards(adm, surg, base_date, targets, surg_targets):
 def build_portal_context(adm, surg, targets, surg_targets,
                          base_date, generated_at=None,
                          include_ai_alerts: bool = True,
-                         weekly_story: dict = None) -> dict:
+                         weekly_story: dict = None,
+                         profit_monthly=None) -> dict:
     """
     portal.html テンプレート用のコンテキスト辞書を生成。
 
     Returns:
-        Jinja2テンプレートに渡す辞書（headline, kpi_cards, attention, improvement 等）
+        Jinja2テンプレートに渡す辞書（headline, kpi_cards, triage, improvement 等）
     """
     kpi = build_kpi_summary(adm, surg, base_date, targets, surg_targets)
 
-    # ★要注視カード: 絶対差（人・件）が大きい順で選出、目標以上は除外
+    # ★要注視カード（detail.html 用に維持）
     attention = _build_attention_cards(adm, surg, base_date, targets, surg_targets)
 
-    # 改善トピック: 新入院の前週同曜日比で上位3件を配列で返す
-    series_nadm = build_daily_series(adm, "新入院患者数")
+    # 改善トピック: 新入院の前週同曜日比で上位3件
     improvement_candidates = []
     for dept in NADM_DISPLAY_DEPTS:
         s = build_daily_series(adm, "新入院患者数", group_col="診療科名", group_val=dept)
@@ -215,7 +215,10 @@ def build_portal_context(adm, surg, targets, surg_targets,
         },
     ]
 
-    # ── AI アラート（Ollama未起動時は空リストで無害に継続） ──
+    # ── 部門トリアージ（多KPI合成スコアリング + LLMナラティブ）──
+    triage = _build_triage(adm, surg, targets, surg_targets, profit_monthly, base_date)
+
+    # ── AI アラート（後方互換：include_ai_alerts=True 時のみ。portal では使用しない）──
     ai_alerts = (_build_ai_alerts(adm, surg, targets, surg_targets, base_date)
                  if include_ai_alerts else [])
 
@@ -224,11 +227,28 @@ def build_portal_context(adm, surg, targets, surg_targets,
         "generated_at": (generated_at or datetime.now()).strftime("%Y/%m/%d %H:%M"),
         "headline": kpi["headline"],
         "kpi_cards": kpi_cards,
-        "attention": attention,
+        "triage": triage,
+        "attention": attention,       # detail.html 用に維持
         "improvement": improvement,
         "ai_alerts": ai_alerts,
         "weekly_story": weekly_story,
     }
+
+
+def _build_triage(adm, surg, targets, surg_targets, profit_monthly, base_date) -> list:
+    """部門トリアージを生成。失敗しても空リストを返す。"""
+    try:
+        from .triage import build_triage_section
+    except ImportError:
+        return []
+    try:
+        return build_triage_section(
+            adm, surg, targets, surg_targets, profit_monthly, base_date
+        )
+    except Exception as e:
+        import logging as _logging
+        _logging.getLogger(__name__).warning(f"部門トリアージ生成スキップ: {e}")
+        return []
 
 
 def _build_ai_alerts(adm, surg, targets, surg_targets, base_date) -> list:
@@ -517,7 +537,8 @@ def build_detail_json(adm, surg, targets, surg_targets,
     # ── attention / improvement ──
     # detail.html では AI アラートは不要（portal.html 専用）
     portal_ctx = build_portal_context(adm, surg, targets, surg_targets, base_date,
-                                       generated_at, include_ai_alerts=False)
+                                       generated_at, include_ai_alerts=False,
+                                       profit_monthly=profit_monthly)
 
     # ── profit: 粗利データ ──
     profit_section = None

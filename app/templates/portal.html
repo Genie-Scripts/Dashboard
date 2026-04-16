@@ -5,67 +5,137 @@
 <title>診療KPIポータル</title>
 {% if ga_id %}<script async src="https://www.googletagmanager.com/gtag/js?id={{ ga_id }}"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','{{ ga_id }}');</script>{% endif %}
 <style>
-:root{--bg:#f6f8fb;--s:#fff;--ink:#1a2332;--sub:#5f7084;--mu:#9daab8;--ln:#dfe5ed;--br:#0e4da4;--bl:#e8f0fe;--bd:#0a3671;--dr:#c4314b;--dr-bg:#fdf0f2;--dr-t:#8c1d35;--wr:#b45309;--wr-bg:#fef7ee;--ok:#0e7a54;--ok-bg:#ecfdf5;--inf:#2563eb;--r:18px;--sh:0 4px 14px rgba(10,22,42,.08)}
-[data-theme="dark"]{--bg:#0f1623;--s:#1a2738;--ink:#dde4ef;--sub:#8fa3b8;--mu:#4a5f74;--ln:#2a3a50;--br:#5b9cf6;--bl:#162340;--bd:#060d18;--dr:#f07090;--dr-bg:#2d1020;--dr-t:#f5a0b0;--wr:#f0a040;--wr-bg:#2a1a06;--ok:#34d39a;--ok-bg:#0a2518;--inf:#5b9cf6;--sh:0 4px 14px rgba(0,0,0,.4)}
-[data-theme="dark"] .at{background:#111e2e}
-[data-theme="dark"] .kc .tgt-row,[data-theme="dark"] .tgt-row{background:#111e2e}
+/* ── デザイントークン ── */
+:root{
+  /* 既存変数 */
+  --bg:#f6f8fb;--s:#fff;--ink:#1a2332;--sub:#5f7084;--mu:#9daab8;--ln:#dfe5ed;
+  --br:#0e4da4;--bl:#e8f0fe;--bd:#0a3671;
+  --dr:#c4314b;--dr-bg:#fdf0f2;--dr-t:#8c1d35;
+  --wr:#b45309;--wr-bg:#fef7ee;
+  --ok:#0e7a54;--ok-bg:#ecfdf5;
+  --inf:#2563eb;
+  --r:18px;--sh:0 4px 14px rgba(10,22,42,.08);
+  /* カード共通 */
+  --card-border-radius:12px;
+  --card-box-shadow:0 1px 3px rgba(0,0,0,.08);
+  --card-padding:20px;
+  /* タイポグラフィ */
+  --font-kpi-value:2rem;
+  --font-section-heading:1.1rem;
+  --font-body:0.95rem;
+  --font-caption:0.8rem;
+  /* ステータス色 */
+  --color-achieved:#22c55e;
+  --color-approaching:#f59e0b;
+  --color-missed:#ef4444;
+  /* ステータス背景色 */
+  --bg-achieved:#f0fdf4;
+  --bg-approaching:#fffbeb;
+  --bg-missed:#fef2f2;
+  /* priority バッジ色 */
+  --badge-high:#ef4444;
+  --badge-mid:#f59e0b;
+  --badge-low:#3b82f6;
+  /* 共通テキスト */
+  --color-primary:#1e3a5f;
+  --color-text:#374151;
+  --color-muted:#6b7280;
+  --color-border:#e5e7eb;
+}
+[data-theme="dark"]{
+  --bg:#0f1623;--s:#1a2738;--ink:#dde4ef;--sub:#8fa3b8;--mu:#4a5f74;--ln:#2a3a50;
+  --br:#5b9cf6;--bl:#162340;--bd:#060d18;
+  --dr:#f07090;--dr-bg:#2d1020;--dr-t:#f5a0b0;
+  --wr:#f0a040;--wr-bg:#2a1a06;
+  --ok:#34d39a;--ok-bg:#0a2518;
+  --inf:#5b9cf6;--sh:0 4px 14px rgba(0,0,0,.4);
+  --bg-achieved:#0a2518;--bg-approaching:#2a1a06;--bg-missed:#2d1020;
+}
 .dm-btn{background:transparent;border:1px solid rgba(255,255,255,.25);border-radius:8px;color:#a8bdd4;font-size:14px;padding:4px 9px;cursor:pointer;transition:all .15s;font-family:inherit;line-height:1}.dm-btn:hover{color:#fff;border-color:rgba(255,255,255,.5)}
 *{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
+/* ── ヘッダー ── */
 .hdr{position:sticky;top:0;z-index:10;background:var(--bd);color:#fff;padding:10px 24px;display:flex;flex-direction:column;gap:0;box-shadow:var(--sh)}.hdr .row1{display:flex;justify-content:space-between;align-items:center}.hdr .left{display:flex;align-items:center;gap:10px}.badge{font-size:11px;background:var(--br);padding:3px 10px;border-radius:999px;font-weight:800}.title{font-size:17px;font-weight:900}.meta{font-size:12px;color:#a8bdd4}
 .nav-bar{display:flex;align-items:center;gap:4px;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.12)}.nav-bar a{font-size:12px;font-weight:800;text-decoration:none;padding:5px 13px;border-radius:8px;color:#a8bdd4;transition:all .15s;border:1px solid transparent}.nav-bar a:hover{color:#fff;border-color:rgba(255,255,255,.25)}.nav-bar a.active{background:rgba(255,255,255,.18);color:#fff;border-color:rgba(255,255,255,.35)}
 @media(max-width:768px){.nav-bar{flex-wrap:wrap;gap:6px}}
+/* ── レイアウト ── */
 .wrap{max-width:1100px;margin:0 auto;padding:20px 20px 80px}
-.alert{background:var(--dr-bg);border:1px solid #f5c6cb;border-left:5px solid var(--dr);border-radius:var(--r);padding:18px 20px;margin-bottom:16px;box-shadow:var(--sh)}.alert h2{font-size:17px;color:var(--dr-t);margin-bottom:6px;display:flex;align-items:center;gap:8px}.alert p{font-size:13px;color:var(--sub);line-height:1.7}
-.alert.warn{border-left-color:var(--wr);background:var(--wr-bg)}.alert.warn h2{color:#7c3a06}
-.alert.ok{border-left-color:var(--ok);background:var(--ok-bg)}.alert.ok h2{color:#065f42}
-.kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px}
+/* ── ステータスバー ── */
+.sb-bar{border-radius:var(--card-border-radius);margin-bottom:16px;border:1px solid var(--color-border);box-shadow:var(--card-box-shadow);overflow:hidden}
+.sb-bar.sb-ok{background:var(--bg-achieved);border-color:#bbf7d0}
+.sb-bar.sb-warn{background:var(--bg-approaching);border-color:#fde68a}
+.sb-bar.sb-danger{background:var(--bg-missed);border-color:#fecaca}
+.sb-row{display:flex;align-items:center;gap:10px;padding:12px 16px}
+.sb-icon{font-size:18px;flex-shrink:0}
+.sb-text{flex:1;font-size:14px;font-weight:800;color:var(--ink)}
+.sb-toggle{background:transparent;border:1px solid var(--color-border);border-radius:8px;color:var(--sub);font-size:12px;font-weight:700;padding:4px 10px;cursor:pointer;white-space:nowrap;font-family:inherit;transition:all .15s}
+.sb-toggle:hover{border-color:var(--br);color:var(--br)}
+.sb-detail{padding:0 16px 14px;border-top:1px dashed var(--color-border)}
+.sb-story{font-size:13.5px;line-height:1.75;color:var(--ink);margin:10px 0 8px;padding:10px 12px;background:rgba(255,255,255,.6);border-radius:10px}
+[data-theme="dark"] .sb-story{background:rgba(255,255,255,.06)}
+.sb-items{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:4px}
+.sb-items li{font-size:12.5px;color:var(--sub);padding-left:14px;position:relative;line-height:1.55}
+.sb-items li::before{content:"・";position:absolute;left:0;color:var(--br)}
+/* ── KPIカード ── */
+.kpi{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px}
 .kc{display:block;text-decoration:none;color:inherit;background:var(--s);border:1px solid var(--ln);border-radius:var(--r);padding:18px;box-shadow:var(--sh);position:relative;transition:all .2s}.kc:hover{box-shadow:0 12px 32px rgba(10,22,42,.14);transform:translateY(-2px)}.kc .st{position:absolute;right:14px;top:14px;font-size:11px;font-weight:900;padding:3px 10px;border-radius:999px}.kc .st.dr{background:var(--dr-bg);color:var(--dr-t)}.kc .st.wr{background:var(--wr-bg);color:#7c3a06}.kc .st.ok{background:var(--ok-bg);color:#065f42}
 .kc.dr{border-top:5px solid var(--dr);background:var(--dr-bg)}.kc.wr{border-top:5px solid var(--wr);background:var(--wr-bg)}.kc.ok{border-top:5px solid var(--ok);background:var(--ok-bg)}
 .kc .cta{display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding:8px 12px;background:var(--bl);border-radius:10px;font-size:13px;font-weight:800;color:var(--br);transition:background .15s}.kc:hover .cta{background:#d4e4fc}.cta-arrow{font-size:16px;font-weight:900;transition:transform .15s}.kc:hover .cta-arrow{transform:translateX(3px)}
-.kc.dept{border-top:5px solid var(--br);display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;min-height:180px}.kc.dept .dept-icon{font-size:36px;margin-bottom:8px}.kc.dept .dept-title{font-size:16px;font-weight:900;color:var(--ink);margin-bottom:4px}.kc.dept .dept-sub{font-size:12px;color:var(--sub);margin-bottom:10px}.kc.dept .cta{justify-content:center;gap:6px;width:100%}
 .lb{font-size:14px;color:var(--sub)}.sb{font-size:12px;color:var(--mu);margin-top:2px}.vl{font-size:40px;font-weight:900;line-height:1.05;margin:10px 0 6px}.gp{font-size:14px;font-weight:800;color:var(--dr-t)}
-.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}.pnl{background:var(--s);border:1px solid var(--ln);border-radius:var(--r);padding:18px;box-shadow:var(--sh)}.pnl h3{margin:0 0 12px;font-size:14px;font-weight:800}
-.at{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;border:1px solid var(--ln);border-radius:14px;padding:12px;margin-bottom:8px;background:#fbfdff;border-left:4px solid var(--dr)}.at.imp{border-left-color:var(--inf)}.at .nm{font-weight:900;font-size:14px}.at .mt{font-size:11px;color:var(--sub)}.at .dl{font-size:22px;font-weight:900;color:var(--dr-t)}.at.imp .dl{color:var(--inf)}.at .dt{font-size:11px;color:var(--mu);text-align:right}
-.ai-sec{margin-bottom:16px}
-.ai-sec .ai-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 2px 10px;font-size:12px;color:var(--sub);font-weight:800;letter-spacing:.04em}
-.ai-sec .ai-hd .ai-tag{display:inline-flex;align-items:center;gap:6px;background:var(--bl);color:var(--br);padding:3px 10px;border-radius:999px;font-size:11px}
-.ai-card{background:var(--s);border:1px solid var(--ln);border-left:5px solid var(--inf);border-radius:var(--r);padding:14px 18px;margin-bottom:10px;box-shadow:var(--sh);display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:start;text-decoration:none;color:inherit;transition:all .15s}
-.ai-card:hover{box-shadow:0 10px 26px rgba(10,22,42,.12);transform:translateY(-1px)}
-.ai-card.danger{border-left-color:var(--dr);background:var(--dr-bg)}
-.ai-card.warn{border-left-color:var(--wr);background:var(--wr-bg)}
-.ai-card.info{border-left-color:var(--inf)}
-.ai-card .ai-ic{font-size:22px;line-height:1.1;padding-top:2px}
-.ai-card .ai-hl{font-size:14px;font-weight:900;color:var(--ink);margin-bottom:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.ai-card .ai-bd{font-size:12.5px;line-height:1.65;color:var(--sub)}
-.ai-card .ai-ac{margin-top:6px;font-size:12px;color:var(--ink);background:rgba(255,255,255,.55);border:1px dashed var(--ln);border-radius:10px;padding:7px 10px}
-[data-theme="dark"] .ai-card .ai-ac{background:rgba(255,255,255,.04)}
-.ai-card .ai-ac b{color:var(--br);margin-right:4px}
-.ai-card .ai-arr{font-size:18px;color:var(--mu);align-self:center}
-.ai-card.danger .ai-hl{color:var(--dr-t)}
-.ai-card.warn .ai-hl{color:#7c3a06}
-.ai-sev{font-size:10px;font-weight:900;padding:2px 8px;border-radius:999px;background:var(--bl);color:var(--br);letter-spacing:.04em}
-.ai-card.danger .ai-sev{background:var(--dr);color:#fff}
-.ai-card.warn .ai-sev{background:var(--wr);color:#fff}
-.ai-card.info .ai-sev{background:var(--inf);color:#fff}
-.ai-fb{font-size:11px;color:var(--mu);margin-left:auto;font-weight:600}
-@media(max-width:768px){.ai-card{grid-template-columns:auto 1fr;gap:10px;padding:12px 14px}.ai-card .ai-arr{display:none}}
-.ws{background:var(--s);border:1px solid var(--ln);border-left:5px solid var(--br);border-radius:var(--r);padding:16px 20px;margin-bottom:16px;box-shadow:var(--sh)}
-.ws .ws-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
-.ws .ws-title{font-size:14px;font-weight:900;color:var(--ink);display:flex;align-items:center;gap:8px}
-.ws .ws-tag{display:inline-flex;align-items:center;gap:6px;background:var(--bl);color:var(--br);padding:3px 10px;border-radius:999px;font-size:11px;font-weight:800}
-.ws .ws-meta{font-size:11px;color:var(--mu);font-weight:500}
-.ws .ws-summary{font-size:13.5px;line-height:1.75;color:var(--ink);margin:4px 0 10px;padding:10px 12px;background:var(--bl);border-radius:10px}
-[data-theme="dark"] .ws .ws-summary{background:rgba(91,156,246,.08)}
-.ws .ws-diffs{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:1fr 1fr;gap:6px 16px}
-.ws .ws-diffs li{font-size:12px;color:var(--sub);line-height:1.55;padding-left:14px;position:relative}
-.ws .ws-diffs li::before{content:"▸";position:absolute;left:0;color:var(--br);font-weight:900}
-.ws .ws-fb{font-size:11px;color:var(--mu);font-style:italic}
-@media(max-width:768px){.ws .ws-diffs{grid-template-columns:1fr}}
+/* ── 部門トリアージ ── */
+.triage-sec{background:var(--s);border:1px solid var(--ln);border-radius:var(--r);margin-bottom:16px;box-shadow:var(--sh);overflow:hidden}
+.triage-hd{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--ln)}
+.triage-hd-title{font-size:var(--font-section-heading);font-weight:900;color:var(--ink)}
+.triage-tabs{display:flex;gap:6px;border:1px solid var(--ln);border-radius:10px;padding:3px;background:var(--bg)}
+.triage-tab{background:transparent;border:none;border-radius:8px;font-size:12px;font-weight:700;padding:5px 12px;cursor:pointer;color:var(--sub);transition:all .15s;font-family:inherit}
+.triage-tab.active{background:var(--s);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.triage-tab:hover:not(.active){color:var(--ink);background:rgba(255,255,255,.5)}
+.triage-panel{padding:12px 0}
+/* トリアージ行（narrative あり） */
+.triage-item{border-bottom:1px solid var(--ln);padding:10px 18px}
+.triage-item:last-child{border-bottom:none}
+.triage-item-row{display:flex;align-items:center;gap:10px;cursor:pointer;text-decoration:none;color:inherit}
+.triage-item-row:hover .triage-name{color:var(--br)}
+.pri-badge{font-size:10px;font-weight:900;padding:3px 8px;border-radius:999px;color:#fff;flex-shrink:0;letter-spacing:.04em}
+.pri-badge.high{background:var(--badge-high)}
+.pri-badge.mid{background:var(--badge-mid)}
+.pri-badge.low{background:var(--badge-low)}
+.triage-name{flex:1;font-size:14px;font-weight:800;color:var(--ink)}
+.triage-rate{font-size:14px;font-weight:700;color:var(--sub);min-width:48px;text-align:right}
+.triage-acc-btn{background:transparent;border:1px solid var(--ln);border-radius:6px;color:var(--mu);font-size:13px;padding:2px 7px;cursor:pointer;flex-shrink:0;font-family:inherit;transition:all .15s}
+.triage-acc-btn:hover{border-color:var(--br);color:var(--br)}
+.triage-headline{font-size:12.5px;color:var(--sub);margin:4px 0 0 0;padding-left:2px}
+.triage-narrative{margin-top:8px;padding:10px 12px;background:var(--bl);border-radius:10px;font-size:12.5px;line-height:1.7}
+[data-theme="dark"] .triage-narrative{background:rgba(91,156,246,.08)}
+.triage-obs{color:var(--sub);margin-bottom:4px}
+.triage-sug{color:var(--ink);font-weight:600}
+.triage-sug::before{content:"→ ";color:var(--br)}
+/* トリアージ行（facts のみ・簡易表示） */
+.triage-facts-row{display:flex;align-items:center;gap:8px;padding:8px 18px;border-bottom:1px solid var(--ln);text-decoration:none;color:inherit}
+.triage-facts-row:last-child{border-bottom:none}
+.triage-facts-row:hover .triage-facts-name{color:var(--br)}
+.triage-facts-dash{color:var(--mu);font-size:13px;flex-shrink:0}
+.triage-facts-name{font-size:13px;font-weight:700;color:var(--ink);min-width:80px}
+.triage-facts-body{font-size:12px;color:var(--sub);flex:1;display:flex;gap:10px;flex-wrap:wrap}
+.triage-facts-body span{white-space:nowrap}
+/* 改善タブ */
+.imp-row{display:flex;align-items:center;gap:10px;padding:10px 18px;border-bottom:1px solid var(--ln);text-decoration:none;color:inherit}
+.imp-row:last-child{border-bottom:none}
+.imp-row:hover .imp-name{color:var(--br)}
+.imp-rank{width:20px;height:20px;border-radius:50%;background:var(--bl);color:var(--br);font-size:11px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.imp-name{flex:1;font-size:14px;font-weight:800;color:var(--ink)}
+.imp-delta{font-size:15px;font-weight:900;color:var(--ok)}
+.imp-compare{font-size:11px;color:var(--mu)}
+/* フッター */
 .ft{text-align:center;font-size:11px;color:var(--mu);padding:24px 0;border-top:1px solid var(--ln);margin-top:12px}
+/* SP固定ナビ */
 .nav{position:fixed;bottom:0;left:0;right:0;background:rgba(246,248,251,.96);backdrop-filter:blur(8px);padding:10px 14px 18px;z-index:10;display:none}.nav .bar{max-width:430px;margin:0 auto;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;background:var(--s);border:1px solid var(--ln);border-radius:16px;padding:8px;box-shadow:var(--sh)}.nav a{text-decoration:none;background:var(--bl);color:var(--br);border-radius:12px;padding:10px 6px;text-align:center;font-size:11px;font-weight:800;display:flex;flex-direction:column;align-items:center;gap:2px}
-@media(max-width:768px){.kpi{grid-template-columns:1fr 1fr}.g2{grid-template-columns:1fr}.vl{font-size:30px}.nav{display:block}.wrap{padding-bottom:120px}.kc.dept{min-height:auto;padding:16px}
-/* ★モバイル: ヘッダー自動非表示 */
-.hdr{transition:transform .3s ease}.hdr.hdr-hidden{transform:translateY(-100%)}
+@media(max-width:768px){
+  .kpi{grid-template-columns:1fr 1fr}
+  .vl{font-size:30px}
+  .nav{display:block}
+  .wrap{padding-bottom:120px}
+  .hdr{transition:transform .3s ease}.hdr.hdr-hidden{transform:translateY(-100%)}
+  .triage-facts-body{flex-direction:column;gap:3px}
 }
 </style>
 </head>
@@ -84,34 +154,39 @@
 </header>
 <div class="wrap">
 
-  {# ── ヘッドラインアラート ── #}
-  <section class="alert {{ headline.level }}">
-    <h2><span>{{ headline.icon }}</span> {{ headline.text }}</h2>
-    <p>{{ headline.detail }}</p>
-  </section>
-
-  {# ── 今週のハイライト（WoW差分） ── #}
-  {% if weekly_story and (weekly_story.story or weekly_story.diffs) %}
-  <section class="ws">
-    <div class="ws-hd">
-      <div class="ws-title">
-        <span class="ws-tag">📅 今週のハイライト</span>
-        {% if weekly_story.prior_date %}<span class="ws-meta">vs {{ weekly_story.prior_date }}</span>{% endif %}
-      </div>
-      {% if not weekly_story.story %}<span class="ws-fb">（差分のみ／LLM要約なし）</span>{% endif %}
+  {# ── ステータスバー（①サマリーバナー + ②今週のハイライト 統合） ── #}
+  {% set sb_class = "sb-" + headline.level %}
+  <section class="sb-bar {{ sb_class }}" aria-label="全体ステータス">
+    <div class="sb-row">
+      <span class="sb-icon">{{ headline.icon }}</span>
+      <span class="sb-text">{{ headline.text }}</span>
+      {% if weekly_story and (weekly_story.story or weekly_story.diffs) %}
+      <button class="sb-toggle" id="sb-toggle-btn"
+              onclick="toggleStatusBar()" aria-expanded="false"
+              aria-controls="sb-detail">▼ 詳細</button>
+      {% endif %}
     </div>
-    {% if weekly_story.story %}
-    <p class="ws-summary">{{ weekly_story.story }}</p>
-    {% endif %}
-    {% if weekly_story.diffs %}
-    <ul class="ws-diffs">
-      {% for d in weekly_story.diffs %}<li>{{ d }}</li>{% endfor %}
-    </ul>
+    {% if weekly_story and (weekly_story.story or weekly_story.diffs) %}
+    <div class="sb-detail" id="sb-detail" hidden>
+      {% if weekly_story.story %}
+      <p class="sb-story">{{ weekly_story.story }}</p>
+      {% endif %}
+      {% set extra_diffs = [] %}
+      {% for d in weekly_story.diffs %}
+        {% if "手術室稼働率" in d or "緊急入院" in d %}
+          {% if extra_diffs.append(d) %}{% endif %}
+        {% endif %}
+      {% endfor %}
+      {% if extra_diffs %}
+      <ul class="sb-items">
+        {% for d in extra_diffs %}<li>{{ d }}</li>{% endfor %}
+      </ul>
+      {% endif %}
+    </div>
     {% endif %}
   </section>
-  {% endif %}
 
-  {# ── KPIカード×3 ── #}
+  {# ── KPIカード×3（⑤部門別リンクカード削除済み → 3列均等） ── #}
   <section class="kpi">
     {% for card in kpi_cards %}
     <a class="kc {{ card.status.css }}" href="{{ card.href }}">
@@ -123,82 +198,90 @@
       <div class="cta"><span>詳細を見る</span><span class="cta-arrow">›</span></div>
     </a>
     {% endfor %}
-    <a class="kc dept" href="dept.html">
-      <div class="dept-icon">🏥</div>
-      <div class="dept-title">部門別ダッシュボード</div>
-      <div class="dept-sub">診療科・病棟ごとの詳細</div>
-      <div class="cta"><span>部門別を見る</span><span class="cta-arrow">›</span></div>
-    </a>
   </section>
 
-  {# ── AI アラート ── #}
-  {% if ai_alerts %}
-  <section class="ai-sec">
-    <div class="ai-hd">
-      <span class="ai-tag">🤖 AIアラート</span>
-      <span style="font-size:10px;color:var(--mu);font-weight:500">数値はPython検知、文章はローカルLLM翻訳</span>
+  {# ── 部門トリアージ（⑥AIアラート + ⑦要注視 + ⑧改善 統合・置換） ── #}
+  <section class="triage-sec" aria-label="部門トリアージ">
+    <div class="triage-hd">
+      <span class="triage-hd-title">🧭 部門トリアージ</span>
+      <div class="triage-tabs" role="tablist" aria-label="トリアージタブ">
+        <button class="triage-tab active" data-tab="attention" role="tab"
+                aria-selected="true" aria-controls="triage-attention"
+                onclick="switchTriageTab('attention')">🔴 要注視</button>
+        <button class="triage-tab" data-tab="improvement" role="tab"
+                aria-selected="false" aria-controls="triage-improvement"
+                onclick="switchTriageTab('improvement')">📈 改善</button>
+      </div>
     </div>
-    {% for a in ai_alerts %}
-    <a class="ai-card {{ a.severity }}" href="{{ a.meta.href or '#' }}">
-      <div class="ai-ic">{{ a.icon }}</div>
-      <div>
-        <div class="ai-hl">
-          <span class="ai-sev">{% if a.severity == 'danger' %}要対応{% elif a.severity == 'warn' %}要注視{% else %}トピック{% endif %}</span>
-          <span>{% if a.narrative %}{{ a.narrative.headline }}{% else %}{{ a.title_fallback }}{% endif %}</span>
-          {% if not a.narrative %}<span class="ai-fb">（ルール生成）</span>{% endif %}
-        </div>
-        <div class="ai-bd">
-          {% if a.narrative %}
-            {{ a.narrative.body }}
+
+    {# 要注視タブ #}
+    <div id="triage-attention" class="triage-panel" role="tabpanel">
+      {% if triage %}
+        {% for item in triage %}
+        <div class="triage-item">
+          {% if item.narrative %}
+          {# narrative あり: priority バッジ + headline + アコーディオン #}
+          <a class="triage-item-row" href="{{ item.href }}"
+             onclick="event.preventDefault();toggleNarrative({{ loop.index }});location.href='{{ item.href }}'">
+            <span class="pri-badge {{ item.priority }}"
+                  aria-label="優先度 {{ item.priority }}">
+              {% if item.priority == "high" %}🚨 HIGH
+              {% elif item.priority == "mid" %}⚠ MID
+              {% else %}ℹ LOW{% endif %}
+            </span>
+            <span class="triage-name">{{ item.name }}</span>
+            <span class="triage-rate">{{ "%.1f"|format(item.composite_rate) }}%</span>
+            <button class="triage-acc-btn" id="acc-btn-{{ loop.index }}"
+                    data-narrative="{{ loop.index }}"
+                    aria-expanded="false"
+                    aria-controls="narrative-{{ loop.index }}"
+                    onclick="event.preventDefault();event.stopPropagation();toggleNarrative({{ loop.index }})">▸</button>
+          </a>
+          <div class="triage-headline">{{ item.narrative.headline }}</div>
+          <div class="triage-narrative" id="narrative-{{ loop.index }}" hidden
+               role="region" aria-label="{{ item.name }} 詳細">
+            <div class="triage-obs">🤖 {{ item.narrative.observation }}</div>
+            <div class="triage-sug">{{ item.narrative.suggestion }}</div>
+          </div>
           {% else %}
-            {% for f in a.facts %}{{ f }}{% if not loop.last %}／{% endif %}{% endfor %}
+          {# narrative なし: facts のみ簡易行表示 #}
+          <a class="triage-facts-row" href="{{ item.href }}">
+            <span class="triage-facts-dash">──</span>
+            <span class="triage-facts-name">{{ item.name }}</span>
+            <div class="triage-facts-body">
+              {% for f in item.facts %}<span>{{ f }}</span>{% endfor %}
+            </div>
+          </a>
           {% endif %}
         </div>
-        {% if a.narrative and a.narrative.action %}
-        <div class="ai-ac"><b>推奨</b>{{ a.narrative.action }}</div>
-        {% endif %}
-      </div>
-      <div class="ai-arr">›</div>
-    </a>
-    {% endfor %}
-  </section>
-  {% endif %}
-
-  {# ── 要注視 + 改善 ── #}
-  <section class="g2">
-    <div class="pnl">
-      <h3>🔴 要注視（目標との差が大きい順）</h3>
-      {% for item in attention %}
-      <a class="at" href="{{ item.href }}" style="text-decoration:none;color:inherit;display:grid;">
-        <div>
-          <div class="nm">{{ item.name }}</div>
-          <div class="mt">{{ item.icon }} {{ item.period_label }}</div>
-        </div>
-        <div class="dl">{{ item.gap }}人</div>
-        <div class="dt">実績 {{ item.actual }} / 目標 {{ item.target }}<br>
-          <span style="font-size:10px;color:var(--br)">詳細を見る →</span>
-        </div>
-      </a>
+        {% endfor %}
       {% else %}
-      <p style="color:var(--mu);font-size:13px;">要注視項目なし</p>
-      {% endfor %}
+      <p style="color:var(--mu);font-size:13px;padding:16px 18px;">要注視科なし（全科が目標90%以上）</p>
+      {% endif %}
     </div>
-    <div class="pnl">
-      <h3>📈 改善トピック（前週同曜日比）</h3>
-      {% for imp in improvement %}
-      <a class="at imp" href="{{ imp.href }}" style="text-decoration:none;color:inherit;display:grid;">
-        <div><div class="nm">{{ imp.name }}</div><div class="mt">🚪 新入院</div></div>
-        <div class="dl">+{{ imp.delta }}人</div>
-        <div class="dt">{{ imp.compare }}<br><span style="font-size:10px;color:var(--br)">詳細を見る →</span></div>
-      </a>
+
+    {# 改善タブ #}
+    <div id="triage-improvement" class="triage-panel" role="tabpanel" hidden>
+      {% if improvement %}
+        {% for imp in improvement %}
+        <a class="imp-row" href="{{ imp.href }}">
+          <span class="imp-rank">{{ loop.index }}</span>
+          <span class="imp-name">{{ imp.name }}</span>
+          <span style="font-size:12px;color:var(--sub)">🚪 新入院</span>
+          <span class="imp-delta">+{{ imp.delta }}人</span>
+          <span class="imp-compare">{{ imp.compare }}</span>
+        </a>
+        {% endfor %}
       {% else %}
-      <p style="color:var(--mu);font-size:13px;">改善トピックなし</p>
-      {% endfor %}
+      <p style="color:var(--mu);font-size:13px;padding:16px 18px;">改善トピックなし</p>
+      {% endif %}
     </div>
   </section>
 
-
-  <div class="ft">🏥 診療ダッシュボード ポータル ｜ 生成 {{ generated_at }} ｜ 基準日 {{ base_date }}</div>
+  <div class="ft">
+    🏥 診療ダッシュボード ポータル ｜ 生成 {{ generated_at }} ｜ 基準日 {{ base_date }}<br>
+    <span style="font-size:10px">※ 数値はPython検知、文章はローカルLLM翻訳（ollama未起動時は定型文）</span>
+  </div>
 </div>
 
 {# SP固定ナビ #}
@@ -208,7 +291,42 @@
   <a href="detail.html#operation"><span>💉</span>手術</a>
 </div></nav>
 <script>
-/* ★モバイル: ヘッダー自動非表示（スクロール↓で隠す / ↑で戻す） */
+/* ── ステータスバー開閉 ── */
+function toggleStatusBar() {
+  var detail = document.getElementById('sb-detail');
+  var btn = document.getElementById('sb-toggle-btn');
+  if (!detail) return;
+  var expanded = !detail.hidden;
+  detail.hidden = expanded;
+  btn.textContent = expanded ? '▼ 詳細' : '▲ 閉じる';
+  btn.setAttribute('aria-expanded', String(!expanded));
+}
+
+/* ── トリアージタブ切替 ── */
+function switchTriageTab(tab) {
+  ['attention', 'improvement'].forEach(function(t) {
+    var panel = document.getElementById('triage-' + t);
+    var btn = document.querySelector('[data-tab="' + t + '"]');
+    if (!panel || !btn) return;
+    var active = (t === tab);
+    panel.hidden = !active;
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-selected', String(active));
+  });
+}
+
+/* ── トリアージ narrative アコーディオン ── */
+function toggleNarrative(idx) {
+  var el = document.getElementById('narrative-' + idx);
+  var btn = document.getElementById('acc-btn-' + idx);
+  if (!el || !btn) return;
+  var expanded = !el.hidden;
+  el.hidden = expanded;
+  btn.textContent = expanded ? '▸' : '▾';
+  btn.setAttribute('aria-expanded', String(!expanded));
+}
+
+/* ★モバイル: ヘッダー自動非表示 */
 (function(){
   var hdr=document.querySelector('.hdr'),lastY=window.scrollY,ticking=false;
   window.addEventListener('scroll',function(){
@@ -220,6 +338,7 @@
     });ticking=true;}
   });
 })();
+
 /* ダークモード */
 (function(){
   var h=document.documentElement;
