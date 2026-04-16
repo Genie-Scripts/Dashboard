@@ -261,13 +261,16 @@ def compute_wow_diffs(current: dict, prior: dict) -> list[str]:
 # ════════════════════════════════════════
 
 def _build_user_prompt(diffs: list[str], base_date: str, prior_date: str) -> str:
+    from .eval_rules import build_weekly_context
     body = "\n".join(f"- {d}" for d in diffs)
+    context = build_weekly_context()
+    context_block = f"\n\n{context}" if context else ""
     return f"""以下は病院KPIの今週（{base_date}基準）と前回保存時（{prior_date}基準）の確定差分です。
 この変化を臨床管理の観点で150字以内にまとめ、JSON を1つだけ出力してください。
 
 【確定差分】
 {body}
-
+{context_block}
 【注意】
 - 差分事実にない数値・原因・人物を補わない
 - 出力は {{"story": "..."}} の JSON のみ（```や前置き禁止）"""

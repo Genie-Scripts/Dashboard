@@ -65,12 +65,15 @@ TRIAGE_SYSTEM_PROMPT = """あなたは病院経営会議向けの要約ライタ
 5. 改善傾向がある KPI には肯定的な言及を加える
 6. 出力は指定 JSON スキーマのみ。前置きや説明文を付けない
 7. 日本語、簡潔・丁寧・事務的なトーン
+8. 「合成達成率」という語句およびその数値（パーセント）を
+   observation / suggestion に出力しない。
+   個別KPI（新入院・在院患者・手術・粗利）の達成状況で表現すること。
 
 【出力スキーマ】
 {
   "priority": "high|mid|low",
   "headline": "20字以内の見出し（体言止め可）",
-  "observation": "事実の描写 50字以内",
+  "observation": "個別KPIの達成状況を述べる 50字以内",
   "suggestion": "推奨アクション 80字以内（汎用的・実行可能）"
 }"""
 
@@ -249,7 +252,7 @@ def _build_triage_prompt(item: dict) -> str:
     return f"""以下の確定事実を要約し、JSON を1つだけ出力してください。
 
 【診療科】{item['name']}（下位{item['rank_from_bottom']}位 / 全{item['total_depts']}科）
-【合成達成率】{item['composite_rate']:.1f}%（priority: {item['priority']}）
+【優先度】{item['priority']}
 
 【確定事実】
 {facts_block}{wow_line}
@@ -257,12 +260,23 @@ def _build_triage_prompt(item: dict) -> str:
 【注意】
 - priority は必ず "{item['priority']}" を出力すること（Python で再検証する）
 - headline / observation / suggestion / priority の4キーを持つ JSON を出力すること
+- 「合成達成率」という語句・その数値は出力しないこと
 - 事実にない数値・原因・人物を補わないこと
 - JSON 以外の文字（```、前置き、末尾コメント）を出力しないこと"""
 
 
+def _sanitize_narrative_text(text: str) -> str:
+    """合成スコア数値の露出を防ぐ後処理（多重防衛・層3）"""
+    import re
+    # "合成達成率XX%" / "合成達成率 XX %" 等を除去
+    text = re.sub(r'合成達成率\s*[\d.]+\s*%', '', text)
+    # "総合スコアXX%" / "合成スコアXX%" 等のバリエーションも除去
+    text = re.sub(r'(総合|合成)[スコア達成率]*\s*[\d.]+\s*%', '', text)
+    return text.strip()
+
+
 def _extract_triage_json(text: str) -> Optional[dict]:
-    """LLM 出力から JSON を取り出し、4キーを検証して返す"""
+    """LLM 出力から JSON を取り出し、4キーを検証・サニタイズして返す"""
     if not text:
         return None
     start = text.find("{")
@@ -280,30 +294,38 @@ def _extract_triage_json(text: str) -> Optional[dict]:
         return None
     return {
         "priority":    str(obj.get("priority", "")).strip(),
-        "headline":    str(obj["headline"]).strip(),
-        "observation": str(obj["observation"]).strip(),
-        "suggestion":  str(obj["suggestion"]).strip(),
+        "headline":    _sanitize_narrative_text(str(obj["headline"])),
+        "observation": _sanitize_narrative_text(str(obj["observation"])),
+        "suggestion":  _sanitize_narrative_text(str(obj["suggestion"])),
     }
 
 
 def _make_fallback_narrative(item: dict) -> dict:
-    """LLM 失敗時の Python 定型文 fallback"""
+    """LLM 失敗時の Python 定型文 fallback（合成スコアを表に出さない）"""
+    # 未達 KPI を列挙して observation を生成
+    underfulfilled = []
     suggestions = []
     for fact in item["facts"]:
         if "新入院" in fact:
+            underfulfilled.append("新入院")
             suggestions.append(FALLBACK_SUGGESTIONS["adm"])
         elif "在院" in fact:
+            underfulfilled.append("在院患者")
             suggestions.append(FALLBACK_SUGGESTIONS["inp"])
         elif "手術" in fact:
+            underfulfilled.append("手術")
             suggestions.append(FALLBACK_SUGGESTIONS["op"])
         elif "粗利" in fact:
+            underfulfilled.append("粗利")
             suggestions.append(FALLBACK_SUGGESTIONS["profit"])
-    # 重複除去して結合
+
+    kpi_list = "・".join(dict.fromkeys(underfulfilled)) or "複数KPI"
+    observation = f"{kpi_list}で目標を下回っています"
     suggestion = "、".join(dict.fromkeys(suggestions)) or "目標達成に向けた状況確認を推奨します"
     return {
         "priority":    item["priority"],
         "headline":    f"{item['name']}の目標未達",
-        "observation": f"合成達成率{item['composite_rate']:.0f}%で目標を下回っています",
+        "observation": observation,
         "suggestion":  suggestion,
     }
 
