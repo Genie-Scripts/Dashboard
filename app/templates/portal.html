@@ -85,40 +85,49 @@
 .triage-sec{background:var(--s);border:1px solid var(--ln);border-radius:var(--r);margin-bottom:16px;box-shadow:var(--sh);overflow:hidden}
 .triage-hd{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--ln)}
 .triage-hd-title{font-size:var(--font-section-heading);font-weight:900;color:var(--ink)}
-.triage-tabs{display:flex;gap:6px;border:1px solid var(--ln);border-radius:10px;padding:3px;background:var(--bg)}
-.triage-tab{background:transparent;border:none;border-radius:8px;font-size:12px;font-weight:700;padding:5px 12px;cursor:pointer;color:var(--sub);transition:all .15s;font-family:inherit}
-.triage-tab.active{background:var(--s);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.1)}
-.triage-tab:hover:not(.active){color:var(--ink);background:rgba(255,255,255,.5)}
+/* 第1階層タブ（病棟/診療科） */
+.triage-tabs-l1{display:flex;gap:6px;border:1px solid var(--ln);border-radius:10px;padding:3px;background:var(--bg)}
+.triage-tab-l1{background:transparent;border:none;border-radius:8px;font-size:13px;font-weight:800;padding:6px 14px;cursor:pointer;color:var(--sub);transition:all .15s;font-family:inherit}
+.triage-tab-l1.active{background:var(--s);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.triage-tab-l1:hover:not(.active){color:var(--ink);background:rgba(255,255,255,.5)}
+/* 第2階層タブ（要注視/改善） */
+.triage-tabs-l2{display:flex;gap:4px;padding:10px 18px 0;border-bottom:1px solid var(--ln)}
+.triage-tab-l2{background:transparent;border:none;border-bottom:2px solid transparent;font-size:12px;font-weight:700;padding:4px 10px 8px;cursor:pointer;color:var(--sub);transition:all .15s;font-family:inherit}
+.triage-tab-l2.active{color:var(--ink);border-bottom-color:var(--br)}
+.triage-tab-l2:hover:not(.active){color:var(--ink)}
 .triage-panel{padding:12px 0}
-/* トリアージ行（narrative あり） */
-.triage-item{border-bottom:1px solid var(--ln);padding:10px 18px}
+/* トリアージ行（信号機スタイル） */
+.triage-item{border-bottom:1px solid var(--ln);border-left:4px solid transparent;padding:10px 18px 10px 14px}
 .triage-item:last-child{border-bottom:none}
+.triage-item.high{border-left-color:#e74c3c}
+.triage-item.mid{border-left-color:#f39c12}
+.triage-item.low{border-left-color:#27ae60}
 .triage-item-row{display:flex;align-items:center;gap:10px;cursor:pointer;text-decoration:none;color:inherit}
 .triage-item-row:hover .triage-name{color:var(--br)}
-.pri-badge{font-size:10px;font-weight:900;padding:3px 8px;border-radius:999px;color:#fff;flex-shrink:0;letter-spacing:.04em}
-.pri-badge.high{background:var(--badge-high)}
-.pri-badge.mid{background:var(--badge-mid)}
-.pri-badge.low{background:var(--badge-low)}
+.pri-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.pri-dot.high{background:#e74c3c}
+.pri-dot.mid{background:#f39c12}
+.pri-dot.low{background:#27ae60}
 .triage-name{flex:1;font-size:14px;font-weight:800;color:var(--ink)}
-.triage-rate{font-size:14px;font-weight:700;color:var(--sub);min-width:48px;text-align:right}
 .triage-acc-btn{background:transparent;border:1px solid var(--ln);border-radius:6px;color:var(--mu);font-size:13px;padding:2px 7px;cursor:pointer;flex-shrink:0;font-family:inherit;transition:all .15s}
 .triage-acc-btn:hover{border-color:var(--br);color:var(--br)}
-.triage-headline{font-size:12.5px;color:var(--sub);margin:4px 0 0 0;padding-left:2px}
+.triage-headline{font-size:12.5px;color:var(--sub);margin:4px 0 0 0;padding-left:24px}
 .triage-narrative{margin-top:8px;padding:10px 12px;background:var(--bl);border-radius:10px;font-size:12.5px;line-height:1.7}
 [data-theme="dark"] .triage-narrative{background:rgba(91,156,246,.08)}
 .triage-obs{color:var(--sub);margin-bottom:4px}
 .triage-sug{color:var(--ink);font-weight:600}
-.triage-sug::before{content:"→ ";color:var(--br)}
+.triage-sug::before{content:"\2192 ";color:var(--br)}
 /* トリアージ行（facts のみ・簡易表示） */
-.triage-facts-row{display:flex;align-items:center;gap:8px;padding:8px 18px;border-bottom:1px solid var(--ln);text-decoration:none;color:inherit}
+.triage-facts-row{display:flex;align-items:center;gap:8px;padding:8px 18px 8px 14px;border-bottom:1px solid var(--ln);border-left:4px solid transparent;text-decoration:none;color:inherit}
 .triage-facts-row:last-child{border-bottom:none}
+.triage-facts-row.high{border-left-color:#e74c3c}
+.triage-facts-row.mid{border-left-color:#f39c12}
 .triage-facts-row:hover .triage-facts-name{color:var(--br)}
-.triage-facts-dash{color:var(--mu);font-size:13px;flex-shrink:0}
 .triage-facts-name{font-size:13px;font-weight:700;color:var(--ink);min-width:80px}
 .triage-facts-body{font-size:12px;color:var(--sub);flex:1;display:flex;gap:10px;flex-wrap:wrap}
 .triage-facts-body span{white-space:nowrap}
 /* 改善タブ */
-.imp-row{display:flex;align-items:center;gap:10px;padding:10px 18px;border-bottom:1px solid var(--ln);text-decoration:none;color:inherit}
+.imp-row{display:flex;align-items:center;gap:10px;padding:10px 18px 10px 14px;border-bottom:1px solid var(--ln);border-left:4px solid #27ae60;text-decoration:none;color:inherit}
 .imp-row:last-child{border-bottom:none}
 .imp-row:hover .imp-name{color:var(--br)}
 .imp-rank{width:20px;height:20px;border-radius:50%;background:var(--bl);color:var(--br);font-size:11px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0}
@@ -200,81 +209,144 @@
     {% endfor %}
   </section>
 
-  {# ── 部門トリアージ（⑥AIアラート + ⑦要注視 + ⑧改善 統合・置換） ── #}
+  {# ── 部門トリアージ（2階層タブ: L1=病棟/診療科, L2=要注視/改善） ── #}
   <section class="triage-sec" aria-label="部門トリアージ">
     <div class="triage-hd">
       <span class="triage-hd-title">🧭 部門トリアージ</span>
-      <div class="triage-tabs" role="tablist" aria-label="トリアージタブ">
-        <button class="triage-tab active" data-tab="attention" role="tab"
-                aria-selected="true" aria-controls="triage-attention"
-                onclick="switchTriageTab('attention')">🔴 要注視</button>
-        <button class="triage-tab" data-tab="improvement" role="tab"
-                aria-selected="false" aria-controls="triage-improvement"
-                onclick="switchTriageTab('improvement')">📈 改善</button>
+      <div class="triage-tabs-l1" role="tablist" aria-label="部門カテゴリ">
+        <button class="triage-tab-l1 active" data-l1="ward" role="tab"
+                aria-selected="true"
+                onclick="switchTriageL1('ward')">🏥 病棟</button>
+        <button class="triage-tab-l1" data-l1="dept" role="tab"
+                aria-selected="false"
+                onclick="switchTriageL1('dept')">🩺 診療科</button>
       </div>
     </div>
 
-    {# 要注視タブ #}
-    <div id="triage-attention" class="triage-panel" role="tabpanel">
-      {% if triage %}
-        {% for item in triage %}
-        <div class="triage-item">
-          {% if item.narrative %}
-          {# narrative あり: priority バッジ + headline + アコーディオン #}
-          <a class="triage-item-row" href="{{ item.href }}"
-             onclick="event.preventDefault();toggleNarrative({{ loop.index }});location.href='{{ item.href }}'">
-            <span class="pri-badge {{ item.priority }}"
-                  aria-label="優先度 {{ item.priority }}">
-              {% if item.priority == "high" %}🚨 HIGH
-              {% elif item.priority == "mid" %}⚠ MID
-              {% else %}ℹ LOW{% endif %}
-            </span>
-            <span class="triage-name">{{ item.name }}</span>
-            <span class="triage-rate">{{ "%.1f"|format(item.composite_rate) }}%</span>
-            <button class="triage-acc-btn" id="acc-btn-{{ loop.index }}"
-                    data-narrative="{{ loop.index }}"
-                    aria-expanded="false"
-                    aria-controls="narrative-{{ loop.index }}"
-                    onclick="event.preventDefault();event.stopPropagation();toggleNarrative({{ loop.index }})">▸</button>
-          </a>
-          <div class="triage-headline">{{ item.narrative.headline }}</div>
-          <div class="triage-narrative" id="narrative-{{ loop.index }}" hidden
-               role="region" aria-label="{{ item.name }} 詳細">
-            <div class="triage-obs">🤖 {{ item.narrative.observation }}</div>
-            <div class="triage-sug">{{ item.narrative.suggestion }}</div>
-          </div>
-          {% else %}
-          {# narrative なし: facts のみ簡易行表示 #}
-          <a class="triage-facts-row" href="{{ item.href }}">
-            <span class="triage-facts-dash">──</span>
-            <span class="triage-facts-name">{{ item.name }}</span>
-            <div class="triage-facts-body">
-              {% for f in item.facts %}<span>{{ f }}</span>{% endfor %}
+    {# ── 病棟パネル ── #}
+    <div id="triage-l1-ward" class="triage-l1-panel">
+      <div class="triage-tabs-l2" role="tablist" aria-label="病棟サブタブ">
+        <button class="triage-tab-l2 active" data-l2="ward-attention" role="tab"
+                aria-selected="true"
+                onclick="switchTriageL2('ward','attention')">🔴 要注視</button>
+        <button class="triage-tab-l2" data-l2="ward-improvement" role="tab"
+                aria-selected="false"
+                onclick="switchTriageL2('ward','improvement')">📈 改善</button>
+      </div>
+      {# 病棟 要注視 #}
+      <div id="triage-ward-attention" class="triage-panel" role="tabpanel">
+        {% if triage.ward %}
+          {% for item in triage.ward %}
+          <div class="triage-item {{ item.priority }}">
+            {% if item.narrative %}
+            <a class="triage-item-row" href="{{ item.href }}"
+               onclick="event.preventDefault();toggleNarrative('w{{ loop.index }}');location.href='{{ item.href }}'">
+              <span class="pri-dot {{ item.priority }}" aria-label="優先度 {{ item.priority }}"></span>
+              <span class="triage-name">{{ item.name }}</span>
+              <button class="triage-acc-btn" id="acc-btn-w{{ loop.index }}"
+                      aria-expanded="false" aria-controls="narrative-w{{ loop.index }}"
+                      onclick="event.preventDefault();event.stopPropagation();toggleNarrative('w{{ loop.index }}')">▸</button>
+            </a>
+            <div class="triage-headline">{{ item.narrative.headline }}</div>
+            <div class="triage-narrative" id="narrative-w{{ loop.index }}" hidden
+                 role="region" aria-label="{{ item.name }} 詳細">
+              <div class="triage-obs">🤖 {{ item.narrative.observation }}</div>
+              <div class="triage-sug">{{ item.narrative.suggestion }}</div>
             </div>
+            {% else %}
+            <a class="triage-facts-row {{ item.priority }}" href="{{ item.href }}">
+              <span class="pri-dot {{ item.priority }}"></span>
+              <span class="triage-facts-name">{{ item.name }}</span>
+              <div class="triage-facts-body">
+                {% for f in item.facts %}<span>{{ f }}</span>{% endfor %}
+              </div>
+            </a>
+            {% endif %}
+          </div>
+          {% endfor %}
+        {% else %}
+        <p style="color:var(--mu);font-size:13px;padding:16px 18px;">要注視病棟なし（全病棟が目標90%以上）</p>
+        {% endif %}
+      </div>
+      {# 病棟 改善 #}
+      <div id="triage-ward-improvement" class="triage-panel" role="tabpanel" hidden>
+        {% if improvement.ward %}
+          {% for imp in improvement.ward %}
+          <a class="imp-row" href="{{ imp.href }}">
+            <span class="imp-rank">{{ loop.index }}</span>
+            <span class="imp-name">{{ imp.name }}</span>
+            <span style="font-size:12px;color:var(--sub)">🚪 新入院</span>
+            <span class="imp-delta">+{{ imp.delta }}人</span>
+            <span class="imp-compare">{{ imp.compare }}</span>
           </a>
-          {% endif %}
-        </div>
-        {% endfor %}
-      {% else %}
-      <p style="color:var(--mu);font-size:13px;padding:16px 18px;">要注視科なし（全科が目標90%以上）</p>
-      {% endif %}
+          {% endfor %}
+        {% else %}
+        <p style="color:var(--mu);font-size:13px;padding:16px 18px;">改善トピックなし</p>
+        {% endif %}
+      </div>
     </div>
 
-    {# 改善タブ #}
-    <div id="triage-improvement" class="triage-panel" role="tabpanel" hidden>
-      {% if improvement %}
-        {% for imp in improvement %}
-        <a class="imp-row" href="{{ imp.href }}">
-          <span class="imp-rank">{{ loop.index }}</span>
-          <span class="imp-name">{{ imp.name }}</span>
-          <span style="font-size:12px;color:var(--sub)">🚪 新入院</span>
-          <span class="imp-delta">+{{ imp.delta }}人</span>
-          <span class="imp-compare">{{ imp.compare }}</span>
-        </a>
-        {% endfor %}
-      {% else %}
-      <p style="color:var(--mu);font-size:13px;padding:16px 18px;">改善トピックなし</p>
-      {% endif %}
+    {# ── 診療科パネル ── #}
+    <div id="triage-l1-dept" class="triage-l1-panel" hidden>
+      <div class="triage-tabs-l2" role="tablist" aria-label="診療科サブタブ">
+        <button class="triage-tab-l2 active" data-l2="dept-attention" role="tab"
+                aria-selected="true"
+                onclick="switchTriageL2('dept','attention')">🔴 要注視</button>
+        <button class="triage-tab-l2" data-l2="dept-improvement" role="tab"
+                aria-selected="false"
+                onclick="switchTriageL2('dept','improvement')">📈 改善</button>
+      </div>
+      {# 診療科 要注視 #}
+      <div id="triage-dept-attention" class="triage-panel" role="tabpanel">
+        {% if triage.dept %}
+          {% for item in triage.dept %}
+          <div class="triage-item {{ item.priority }}">
+            {% if item.narrative %}
+            <a class="triage-item-row" href="{{ item.href }}"
+               onclick="event.preventDefault();toggleNarrative('d{{ loop.index }}');location.href='{{ item.href }}'">
+              <span class="pri-dot {{ item.priority }}" aria-label="優先度 {{ item.priority }}"></span>
+              <span class="triage-name">{{ item.name }}</span>
+              <button class="triage-acc-btn" id="acc-btn-d{{ loop.index }}"
+                      aria-expanded="false" aria-controls="narrative-d{{ loop.index }}"
+                      onclick="event.preventDefault();event.stopPropagation();toggleNarrative('d{{ loop.index }}')">▸</button>
+            </a>
+            <div class="triage-headline">{{ item.narrative.headline }}</div>
+            <div class="triage-narrative" id="narrative-d{{ loop.index }}" hidden
+                 role="region" aria-label="{{ item.name }} 詳細">
+              <div class="triage-obs">🤖 {{ item.narrative.observation }}</div>
+              <div class="triage-sug">{{ item.narrative.suggestion }}</div>
+            </div>
+            {% else %}
+            <a class="triage-facts-row {{ item.priority }}" href="{{ item.href }}">
+              <span class="pri-dot {{ item.priority }}"></span>
+              <span class="triage-facts-name">{{ item.name }}</span>
+              <div class="triage-facts-body">
+                {% for f in item.facts %}<span>{{ f }}</span>{% endfor %}
+              </div>
+            </a>
+            {% endif %}
+          </div>
+          {% endfor %}
+        {% else %}
+        <p style="color:var(--mu);font-size:13px;padding:16px 18px;">要注視科なし（全科が目標90%以上）</p>
+        {% endif %}
+      </div>
+      {# 診療科 改善 #}
+      <div id="triage-dept-improvement" class="triage-panel" role="tabpanel" hidden>
+        {% if improvement.dept %}
+          {% for imp in improvement.dept %}
+          <a class="imp-row" href="{{ imp.href }}">
+            <span class="imp-rank">{{ loop.index }}</span>
+            <span class="imp-name">{{ imp.name }}</span>
+            <span style="font-size:12px;color:var(--sub)">🚪 新入院</span>
+            <span class="imp-delta">+{{ imp.delta }}人</span>
+            <span class="imp-compare">{{ imp.compare }}</span>
+          </a>
+          {% endfor %}
+        {% else %}
+        <p style="color:var(--mu);font-size:13px;padding:16px 18px;">改善トピックなし</p>
+        {% endif %}
+      </div>
     </div>
   </section>
 
@@ -302,13 +374,25 @@ function toggleStatusBar() {
   btn.setAttribute('aria-expanded', String(!expanded));
 }
 
-/* ── トリアージタブ切替 ── */
-function switchTriageTab(tab) {
-  ['attention', 'improvement'].forEach(function(t) {
-    var panel = document.getElementById('triage-' + t);
-    var btn = document.querySelector('[data-tab="' + t + '"]');
+/* ── トリアージ第1階層タブ切替（病棟/診療科） ── */
+function switchTriageL1(category) {
+  ['ward', 'dept'].forEach(function(c) {
+    var panel = document.getElementById('triage-l1-' + c);
+    var btn = document.querySelector('[data-l1="' + c + '"]');
     if (!panel || !btn) return;
-    var active = (t === tab);
+    var active = (c === category);
+    panel.hidden = !active;
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-selected', String(active));
+  });
+}
+/* ── トリアージ第2階層タブ切替（要注視/改善） ── */
+function switchTriageL2(category, sub) {
+  ['attention', 'improvement'].forEach(function(s) {
+    var panel = document.getElementById('triage-' + category + '-' + s);
+    var btn = document.querySelector('[data-l2="' + category + '-' + s + '"]');
+    if (!panel || !btn) return;
+    var active = (s === sub);
     panel.hidden = !active;
     btn.classList.toggle('active', active);
     btn.setAttribute('aria-selected', String(active));

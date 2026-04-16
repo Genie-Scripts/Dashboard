@@ -168,19 +168,38 @@ def build_portal_context(adm, surg, targets, surg_targets,
     # ★要注視カード（detail.html 用に維持）
     attention = _build_attention_cards(adm, surg, base_date, targets, surg_targets)
 
-    # 改善トピック: 新入院の前週同曜日比で上位3件
-    improvement_candidates = []
+    # 改善トピック: 新入院の前週同曜日比で上位3件（診療科）
+    dept_imp_candidates = []
     for dept in NADM_DISPLAY_DEPTS:
         s = build_daily_series(adm, "新入院患者数", group_col="診療科名", group_val=dept)
         wow = week_over_week(s, base_date)
         if wow is not None and wow > 0:
-            improvement_candidates.append({
+            dept_imp_candidates.append({
                 "name": dept, "kpi": "admission",
                 "delta": int(wow), "compare": "前週同曜日比",
                 "href": f"dept.html#{dept}",
             })
-    improvement_candidates.sort(key=lambda x: -x["delta"])
-    improvement = improvement_candidates[:3] if improvement_candidates else []
+    dept_imp_candidates.sort(key=lambda x: -x["delta"])
+    dept_improvement = dept_imp_candidates[:3] if dept_imp_candidates else []
+
+    # 改善トピック: 新入院の前週同曜日比で上位3件（病棟）
+    from .config import WARD_NAMES, WARD_HIDDEN
+    ward_imp_candidates = []
+    for wcode, wname in WARD_NAMES.items():
+        if wcode in WARD_HIDDEN:
+            continue
+        s = build_daily_series(adm, "新入院患者数_病棟", group_col="病棟コード", group_val=wcode)
+        wow = week_over_week(s, base_date)
+        if wow is not None and wow > 0:
+            ward_imp_candidates.append({
+                "name": wname, "kpi": "admission",
+                "delta": int(wow), "compare": "前週同曜日比",
+                "href": "detail.html#inpatient?axis=ward",
+            })
+    ward_imp_candidates.sort(key=lambda x: -x["delta"])
+    ward_improvement = ward_imp_candidates[:3] if ward_imp_candidates else []
+
+    improvement = {"dept": dept_improvement, "ward": ward_improvement}
 
     # KPIカード情報
     kpi_cards = [
@@ -235,12 +254,12 @@ def build_portal_context(adm, surg, targets, surg_targets,
     }
 
 
-def _build_triage(adm, surg, targets, surg_targets, profit_monthly, base_date) -> list:
-    """部門トリアージを生成。失敗しても空リストを返す。"""
+def _build_triage(adm, surg, targets, surg_targets, profit_monthly, base_date) -> dict:
+    """部門トリアージを生成。失敗しても空 dict を返す。"""
     try:
         from .triage import build_triage_section
     except ImportError:
-        return []
+        return {"dept": [], "ward": []}
     try:
         return build_triage_section(
             adm, surg, targets, surg_targets, profit_monthly, base_date
@@ -248,7 +267,7 @@ def _build_triage(adm, surg, targets, surg_targets, profit_monthly, base_date) -
     except Exception as e:
         import logging as _logging
         _logging.getLogger(__name__).warning(f"部門トリアージ生成スキップ: {e}")
-        return []
+        return {"dept": [], "ward": []}
 
 
 def _build_ai_alerts(adm, surg, targets, surg_targets, base_date) -> list:

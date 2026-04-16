@@ -20,6 +20,7 @@ import pandas as pd
 
 from .config import (
     NADM_DISPLAY_DEPTS, SURGERY_DISPLAY_DEPTS,
+    WARD_NAMES, WARD_HIDDEN,
 )
 from .metrics import (
     rolling7_new_admission, rolling7_surgery,
@@ -167,6 +168,7 @@ def score_departments(adm: pd.DataFrame, surg: pd.DataFrame,
 
         results.append({
             "name": dept,
+            "entity_type": "dept",
             "composite_rate": round(composite_rate, 1),
             "priority": priority,
             "is_surgery_dept": is_surgery,
@@ -186,6 +188,79 @@ def score_departments(adm: pd.DataFrame, surg: pd.DataFrame,
     return results
 
 
+def score_wards(adm: pd.DataFrame, targets: dict,
+                base_date: pd.Timestamp) -> list[dict]:
+    """
+    全病棟の合成達成率を計算して返す（新入院 + 在院の2KPI）。
+
+    Returns:
+        list of {name, ward_code, entity_type, composite_rate, priority,
+                 adm_rate, inp_rate, adm_actual, adm_target,
+                 inp_actual, inp_target}
+        composite_rate 昇順（低い順）
+    """
+    r7_nadm = rolling7_new_admission(adm, base_date)
+    inp_by_ward = daily_inpatient(adm, base_date)["by_ward"]
+    nadm_tgt = targets.get("new_admission", {}).get("ward", {})
+    inp_tgt  = targets.get("inpatient", {}).get("ward", {})
+
+    results = []
+    for wcode, wname in WARD_NAMES.items():
+        if wcode in WARD_HIDDEN:
+            continue
+
+        adm_actual = r7_nadm["by_ward"].get(wcode, 0)
+        adm_target = nadm_tgt.get(wcode)
+        inp_actual = inp_by_ward.get(wcode, 0)
+        inp_target = inp_tgt.get(wcode)
+
+        adm_rate = achievement_rate(adm_actual, adm_target)
+        inp_rate = achievement_rate(inp_actual, inp_target)
+
+        weighted_sum = 0.0
+        weight_total = 0.0
+        if adm_rate is not None:
+            weighted_sum += adm_rate * WEIGHT_ADM
+            weight_total += WEIGHT_ADM
+        if inp_rate is not None:
+            weighted_sum += inp_rate * WEIGHT_INP
+            weight_total += WEIGHT_INP
+
+        if weight_total == 0:
+            continue
+
+        composite_rate = weighted_sum / weight_total
+
+        if composite_rate < PRIORITY_HIGH_THRESHOLD:
+            priority = "high"
+        elif composite_rate < PRIORITY_MID_THRESHOLD:
+            priority = "mid"
+        else:
+            priority = "low"
+
+        results.append({
+            "name": wname,
+            "ward_code": wcode,
+            "entity_type": "ward",
+            "composite_rate": round(composite_rate, 1),
+            "priority": priority,
+            "is_surgery_dept": False,
+            "adm_rate": adm_rate,
+            "adm_actual": adm_actual,
+            "adm_target": round(float(adm_target), 1) if adm_target else None,
+            "inp_rate": inp_rate,
+            "inp_actual": inp_actual,
+            "inp_target": round(float(inp_target), 1) if inp_target else None,
+            "op_rate": None,
+            "op_actual": None,
+            "op_target": None,
+            "profit_rate": None,
+        })
+
+    results.sort(key=lambda x: x["composite_rate"])
+    return results
+
+
 # ════════════════════════════════════════
 # 対象抽出 + facts 生成
 # ════════════════════════════════════════
@@ -193,13 +268,13 @@ def score_departments(adm: pd.DataFrame, surg: pd.DataFrame,
 def pick_targets(scored: list[dict], adm: pd.DataFrame,
                  base_date: pd.Timestamp) -> list[dict]:
     """
-    composite_rate < COMPOSITE_THRESHOLD の科を抽出し、
+    composite_rate < COMPOSITE_THRESHOLD の科/病棟を抽出し、
     facts 配列 + WoW ヒントを付与して返す。
     """
     items = [s for s in scored if s["composite_rate"] < COMPOSITE_THRESHOLD]
 
     for i, item in enumerate(items):
-        dept = item["name"]
+        is_ward = item.get("entity_type") == "ward"
 
         # facts 生成
         facts = []
@@ -213,31 +288,43 @@ def pick_targets(scored: list[dict], adm: pd.DataFrame,
                 f"在院患者: 実績{item['inp_actual']:.0f}人 / "
                 f"目標{item['inp_target']:.1f}人（達成率{item['inp_rate']:.0f}%）"
             )
-        if (item["is_surgery_dept"] and item["op_rate"] is not None
+        if (item.get("is_surgery_dept") and item["op_rate"] is not None
                 and item["op_target"] is not None):
             facts.append(
                 f"手術（直近7日）: 実績{item['op_actual']:.0f}件 / "
                 f"目標{item['op_target']:.1f}件（達成率{item['op_rate']:.0f}%）"
             )
-        if item["profit_rate"] is not None:
+        if item.get("profit_rate") is not None:
             facts.append(f"粗利: 達成率{item['profit_rate']:.0f}%")
 
         # WoW ヒント（新入院前週比）
         wow_hint = None
         try:
-            s = build_daily_series(adm, "新入院患者数", group_col="診療科名", group_val=dept)
+            if is_ward:
+                s = build_daily_series(adm, "新入院患者数_病棟",
+                                       group_col="病棟コード",
+                                       group_val=item["ward_code"])
+            else:
+                s = build_daily_series(adm, "新入院患者数",
+                                       group_col="診療科名",
+                                       group_val=item["name"])
             wow = week_over_week(s, base_date)
             if wow is not None:
                 wow_hint = f"新入院が前週比{wow:+.0f}人"
         except Exception:
             pass
 
+        entity_label = "病棟" if is_ward else "科"
         item["rank_from_bottom"] = i + 1
-        item["total_depts"] = len(items)
+        item["total_items"] = len(items)
+        item["entity_label"] = entity_label
         item["facts"] = facts
         item["wow_hint"] = wow_hint
         item["narrative"] = None   # LLM で後から付与
-        item["href"] = f"dept.html#{dept}"
+        if is_ward:
+            item["href"] = "detail.html#inpatient?axis=ward"
+        else:
+            item["href"] = f"dept.html#{item['name']}"
 
     return items
 
@@ -249,9 +336,11 @@ def pick_targets(scored: list[dict], adm: pd.DataFrame,
 def _build_triage_prompt(item: dict) -> str:
     facts_block = "\n".join(f"- {f}" for f in item["facts"])
     wow_line = f"\n・前週同曜日比: {item['wow_hint']}" if item.get("wow_hint") else ""
+    entity_label = item.get("entity_label", "科")
+    total_label = f"全{item['total_items']}{entity_label}" if "total_items" in item else f"全{item.get('total_depts', '?')}科"
     return f"""以下の確定事実を要約し、JSON を1つだけ出力してください。
 
-【診療科】{item['name']}（下位{item['rank_from_bottom']}位 / 全{item['total_depts']}科）
+【{item.get('entity_label', '診療科')}】{item['name']}（下位{item['rank_from_bottom']}位 / {total_label}）
 【優先度】{item['priority']}
 
 【確定事実】
@@ -400,30 +489,39 @@ def narrate_triage(items: list[dict],
 # エントリポイント
 # ════════════════════════════════════════
 
+def _narrate_items(items: list[dict], use_llm_narrative: bool,
+                   model: str, quiet: bool) -> list[dict]:
+    """items にナラティブを付与して返す（共通処理）"""
+    if not items:
+        return []
+    if use_llm_narrative:
+        return narrate_triage(items, model=model, quiet=quiet)
+    return [dict(item, narrative=_make_fallback_narrative(item)) for item in items]
+
+
 def build_triage_section(adm: pd.DataFrame, surg: pd.DataFrame,
                          targets: dict, surg_targets: dict,
                          profit_monthly: Optional[pd.DataFrame],
                          base_date: pd.Timestamp,
                          model: str = DEFAULT_MODEL,
                          use_llm_narrative: bool = True,
-                         quiet: bool = False) -> list[dict]:
+                         quiet: bool = False) -> dict:
     """
-    portal_ctx["triage"] に渡すリストを生成するエントリポイント。
+    portal_ctx["triage"] に渡す dict を生成するエントリポイント。
 
     Returns:
-        composite_rate < 90 の科リスト（composite_rate 昇順）。
+        {"dept": [...], "ward": [...]}
+        各リストは composite_rate < 90 の要素（composite_rate 昇順）。
         各要素に priority バッジ・facts・narrative が付与済み。
     """
-    scored = score_departments(adm, surg, targets, surg_targets, profit_monthly, base_date)
-    items  = pick_targets(scored, adm, base_date)
+    # 診療科
+    dept_scored = score_departments(adm, surg, targets, surg_targets, profit_monthly, base_date)
+    dept_items  = pick_targets(dept_scored, adm, base_date)
+    dept_items  = _narrate_items(dept_items, use_llm_narrative, model, quiet)
 
-    if not items:
-        return []
+    # 病棟
+    ward_scored = score_wards(adm, targets, base_date)
+    ward_items  = pick_targets(ward_scored, adm, base_date)
+    ward_items  = _narrate_items(ward_items, use_llm_narrative, model, quiet)
 
-    if use_llm_narrative:
-        items = narrate_triage(items, model=model, quiet=quiet)
-    else:
-        # fallback のみ付与
-        items = [dict(item, narrative=_make_fallback_narrative(item)) for item in items]
-
-    return items
+    return {"dept": dept_items, "ward": ward_items}

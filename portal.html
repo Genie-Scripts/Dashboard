@@ -85,40 +85,49 @@
 .triage-sec{background:var(--s);border:1px solid var(--ln);border-radius:var(--r);margin-bottom:16px;box-shadow:var(--sh);overflow:hidden}
 .triage-hd{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--ln)}
 .triage-hd-title{font-size:var(--font-section-heading);font-weight:900;color:var(--ink)}
-.triage-tabs{display:flex;gap:6px;border:1px solid var(--ln);border-radius:10px;padding:3px;background:var(--bg)}
-.triage-tab{background:transparent;border:none;border-radius:8px;font-size:12px;font-weight:700;padding:5px 12px;cursor:pointer;color:var(--sub);transition:all .15s;font-family:inherit}
-.triage-tab.active{background:var(--s);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.1)}
-.triage-tab:hover:not(.active){color:var(--ink);background:rgba(255,255,255,.5)}
+/* 第1階層タブ（病棟/診療科） */
+.triage-tabs-l1{display:flex;gap:6px;border:1px solid var(--ln);border-radius:10px;padding:3px;background:var(--bg)}
+.triage-tab-l1{background:transparent;border:none;border-radius:8px;font-size:13px;font-weight:800;padding:6px 14px;cursor:pointer;color:var(--sub);transition:all .15s;font-family:inherit}
+.triage-tab-l1.active{background:var(--s);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.triage-tab-l1:hover:not(.active){color:var(--ink);background:rgba(255,255,255,.5)}
+/* 第2階層タブ（要注視/改善） */
+.triage-tabs-l2{display:flex;gap:4px;padding:10px 18px 0;border-bottom:1px solid var(--ln)}
+.triage-tab-l2{background:transparent;border:none;border-bottom:2px solid transparent;font-size:12px;font-weight:700;padding:4px 10px 8px;cursor:pointer;color:var(--sub);transition:all .15s;font-family:inherit}
+.triage-tab-l2.active{color:var(--ink);border-bottom-color:var(--br)}
+.triage-tab-l2:hover:not(.active){color:var(--ink)}
 .triage-panel{padding:12px 0}
-/* トリアージ行（narrative あり） */
-.triage-item{border-bottom:1px solid var(--ln);padding:10px 18px}
+/* トリアージ行（信号機スタイル） */
+.triage-item{border-bottom:1px solid var(--ln);border-left:4px solid transparent;padding:10px 18px 10px 14px}
 .triage-item:last-child{border-bottom:none}
+.triage-item.high{border-left-color:#e74c3c}
+.triage-item.mid{border-left-color:#f39c12}
+.triage-item.low{border-left-color:#27ae60}
 .triage-item-row{display:flex;align-items:center;gap:10px;cursor:pointer;text-decoration:none;color:inherit}
 .triage-item-row:hover .triage-name{color:var(--br)}
-.pri-badge{font-size:10px;font-weight:900;padding:3px 8px;border-radius:999px;color:#fff;flex-shrink:0;letter-spacing:.04em}
-.pri-badge.high{background:var(--badge-high)}
-.pri-badge.mid{background:var(--badge-mid)}
-.pri-badge.low{background:var(--badge-low)}
+.pri-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.pri-dot.high{background:#e74c3c}
+.pri-dot.mid{background:#f39c12}
+.pri-dot.low{background:#27ae60}
 .triage-name{flex:1;font-size:14px;font-weight:800;color:var(--ink)}
-.triage-rate{font-size:14px;font-weight:700;color:var(--sub);min-width:48px;text-align:right}
 .triage-acc-btn{background:transparent;border:1px solid var(--ln);border-radius:6px;color:var(--mu);font-size:13px;padding:2px 7px;cursor:pointer;flex-shrink:0;font-family:inherit;transition:all .15s}
 .triage-acc-btn:hover{border-color:var(--br);color:var(--br)}
-.triage-headline{font-size:12.5px;color:var(--sub);margin:4px 0 0 0;padding-left:2px}
+.triage-headline{font-size:12.5px;color:var(--sub);margin:4px 0 0 0;padding-left:24px}
 .triage-narrative{margin-top:8px;padding:10px 12px;background:var(--bl);border-radius:10px;font-size:12.5px;line-height:1.7}
 [data-theme="dark"] .triage-narrative{background:rgba(91,156,246,.08)}
 .triage-obs{color:var(--sub);margin-bottom:4px}
 .triage-sug{color:var(--ink);font-weight:600}
-.triage-sug::before{content:"→ ";color:var(--br)}
+.triage-sug::before{content:"\2192 ";color:var(--br)}
 /* トリアージ行（facts のみ・簡易表示） */
-.triage-facts-row{display:flex;align-items:center;gap:8px;padding:8px 18px;border-bottom:1px solid var(--ln);text-decoration:none;color:inherit}
+.triage-facts-row{display:flex;align-items:center;gap:8px;padding:8px 18px 8px 14px;border-bottom:1px solid var(--ln);border-left:4px solid transparent;text-decoration:none;color:inherit}
 .triage-facts-row:last-child{border-bottom:none}
+.triage-facts-row.high{border-left-color:#e74c3c}
+.triage-facts-row.mid{border-left-color:#f39c12}
 .triage-facts-row:hover .triage-facts-name{color:var(--br)}
-.triage-facts-dash{color:var(--mu);font-size:13px;flex-shrink:0}
 .triage-facts-name{font-size:13px;font-weight:700;color:var(--ink);min-width:80px}
 .triage-facts-body{font-size:12px;color:var(--sub);flex:1;display:flex;gap:10px;flex-wrap:wrap}
 .triage-facts-body span{white-space:nowrap}
 /* 改善タブ */
-.imp-row{display:flex;align-items:center;gap:10px;padding:10px 18px;border-bottom:1px solid var(--ln);text-decoration:none;color:inherit}
+.imp-row{display:flex;align-items:center;gap:10px;padding:10px 18px 10px 14px;border-bottom:1px solid var(--ln);border-left:4px solid #27ae60;text-decoration:none;color:inherit}
 .imp-row:last-child{border-bottom:none}
 .imp-row:hover .imp-name{color:var(--br)}
 .imp-rank{width:20px;height:20px;border-radius:50%;background:var(--bl);color:var(--br);font-size:11px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0}
@@ -143,7 +152,7 @@
 <header class="hdr">
   <div class="row1">
     <div class="left"><span class="badge">KPI</span><span class="title">🏥 診療ダッシュボード</span></div>
-    <div class="meta">📅 2026-04-15 ｜ 🕐 2026/04/16 14:41 更新</div>
+    <div class="meta">📅 2026-04-15 ｜ 🕐 2026/04/16 17:07 更新</div>
     <button class="dm-btn" onclick="toggleDarkMode()">🌙</button>
   </div>
   <nav class="nav-bar">
@@ -169,7 +178,7 @@
     
     <div class="sb-detail" id="sb-detail" hidden>
       
-      <p class="sb-story">直近7日間の手術室稼働率が3.0%低下し、全麻手術件数も16件増加しました。新入院数も5%増加しています。一方で、在院患者数や緊急入院数は増加傾向にあります。祝日・連休の影響を考慮し、数値の変動を客観的に報告します。</p>
+      <p class="sb-story">直近7日間の手術室稼働率が3.0%低下し、全麻手術件数も16件増加しました。新入院数も5%増加しています。一方で、在院患者数は1.0人増加し、緊急入院数も8%増加しています。祝日・連休の影響を考慮し、数値の変動を淡々と報告します。</p>
       
       
       
@@ -232,192 +241,286 @@
   <section class="triage-sec" aria-label="部門トリアージ">
     <div class="triage-hd">
       <span class="triage-hd-title">🧭 部門トリアージ</span>
-      <div class="triage-tabs" role="tablist" aria-label="トリアージタブ">
-        <button class="triage-tab active" data-tab="attention" role="tab"
-                aria-selected="true" aria-controls="triage-attention"
-                onclick="switchTriageTab('attention')">🔴 要注視</button>
-        <button class="triage-tab" data-tab="improvement" role="tab"
-                aria-selected="false" aria-controls="triage-improvement"
-                onclick="switchTriageTab('improvement')">📈 改善</button>
+      <div class="triage-tabs-l1" role="tablist" aria-label="部門カテゴリ">
+        <button class="triage-tab-l1 active" data-l1="ward" role="tab"
+                aria-selected="true"
+                onclick="switchTriageL1('ward')">🏥 病棟</button>
+        <button class="triage-tab-l1" data-l1="dept" role="tab"
+                aria-selected="false"
+                onclick="switchTriageL1('dept')">🩺 診療科</button>
       </div>
     </div>
 
     
-    <div id="triage-attention" class="triage-panel" role="tabpanel">
+    <div id="triage-l1-ward" class="triage-l1-panel">
+      <div class="triage-tabs-l2" role="tablist" aria-label="病棟サブタブ">
+        <button class="triage-tab-l2 active" data-l2="ward-attention" role="tab"
+                aria-selected="true"
+                onclick="switchTriageL2('ward','attention')">🔴 要注視</button>
+        <button class="triage-tab-l2" data-l2="ward-improvement" role="tab"
+                aria-selected="false"
+                onclick="switchTriageL2('ward','improvement')">📈 改善</button>
+      </div>
       
+      <div id="triage-ward-attention" class="triage-panel" role="tabpanel">
         
-        <div class="triage-item">
           
-          
-          <a class="triage-item-row" href="dept.html#呼吸器外科"
-             onclick="event.preventDefault();toggleNarrative(1);location.href='dept.html#呼吸器外科'">
-            <span class="pri-badge mid"
-                  aria-label="優先度 mid">
-              ⚠ MID
-              
-            </span>
-            <span class="triage-name">呼吸器外科</span>
-            <span class="triage-rate">81.8%</span>
-            <button class="triage-acc-btn" id="acc-btn-1"
-                    data-narrative="1"
-                    aria-expanded="false"
-                    aria-controls="narrative-1"
-                    onclick="event.preventDefault();event.stopPropagation();toggleNarrative(1)">▸</button>
-          </a>
-          <div class="triage-headline">新入院、在院患者、手術、粗利の達成状況</div>
-          <div class="triage-narrative" id="narrative-1" hidden
-               role="region" aria-label="呼吸器外科 詳細">
-            <div class="triage-obs">🤖 新入院は目標を上回る達成率107%を達成。在院患者は目標の50%を達成。手術は目標の71%を達成。粗利は目標の104%を達成。</div>
-            <div class="triage-sug">新入院の達成率を維持し、在院患者と手術の達成率向上を継続する。</div>
+          <div class="triage-item high">
+            
+            <a class="triage-item-row" href="detail.html#inpatient?axis=ward"
+               onclick="event.preventDefault();toggleNarrative('w1');location.href='detail.html#inpatient?axis=ward'">
+              <span class="pri-dot high" aria-label="優先度 high"></span>
+              <span class="triage-name">ICU</span>
+              <button class="triage-acc-btn" id="acc-btn-w1"
+                      aria-expanded="false" aria-controls="narrative-w1"
+                      onclick="event.preventDefault();event.stopPropagation();toggleNarrative('w1')">▸</button>
+            </a>
+            <div class="triage-headline">ICU 新入院数、目標達成率40%</div>
+            <div class="triage-narrative" id="narrative-w1" hidden
+                 role="region" aria-label="ICU 詳細">
+              <div class="triage-obs">🤖 ICU 新入院数実績12人、目標30.0人。達成率40%。前週比新入院数+2人。</div>
+              <div class="triage-sug">ICU 新入院数目標達成に向け、人員配置や受け入れ体制の最適化を検討する。</div>
+            </div>
+            
           </div>
           
-        </div>
-        
-        <div class="triage-item">
-          
-          
-          <a class="triage-item-row" href="dept.html#腎内科"
-             onclick="event.preventDefault();toggleNarrative(2);location.href='dept.html#腎内科'">
-            <span class="pri-badge mid"
-                  aria-label="優先度 mid">
-              ⚠ MID
-              
-            </span>
-            <span class="triage-name">腎内科</span>
-            <span class="triage-rate">82.0%</span>
-            <button class="triage-acc-btn" id="acc-btn-2"
-                    data-narrative="2"
-                    aria-expanded="false"
-                    aria-controls="narrative-2"
-                    onclick="event.preventDefault();event.stopPropagation();toggleNarrative(2)">▸</button>
-          </a>
-          <div class="triage-headline">腎内科、新入院数、在院患者数、粗利は目標達成</div>
-          <div class="triage-narrative" id="narrative-2" hidden
-               role="region" aria-label="腎内科 詳細">
-            <div class="triage-obs">🤖 新入院は目標の67%、在院患者数は目標の87%を達成。粗利は目標達成率97%を達成。</div>
-            <div class="triage-sug">新入院数、在院患者数、粗利の目標達成状況を継続的にモニタリングし、課題があれば原因分析と対策を講じる。</div>
+          <div class="triage-item high">
+            
+            <a class="triage-item-row" href="detail.html#inpatient?axis=ward"
+               onclick="event.preventDefault();toggleNarrative('w2');location.href='detail.html#inpatient?axis=ward'">
+              <span class="pri-dot high" aria-label="優先度 high"></span>
+              <span class="triage-name">9階A病棟</span>
+              <button class="triage-acc-btn" id="acc-btn-w2"
+                      aria-expanded="false" aria-controls="narrative-w2"
+                      onclick="event.preventDefault();event.stopPropagation();toggleNarrative('w2')">▸</button>
+            </a>
+            <div class="triage-headline">新入院患者数、目標未達</div>
+            <div class="triage-narrative" id="narrative-w2" hidden
+                 role="region" aria-label="9階A病棟 詳細">
+              <div class="triage-obs">🤖 新入院患者数は目標の68%に達し、前週比で3人減少。在院患者数は目標の86%に達し、前週比で1人増加。</div>
+              <div class="triage-sug">新入院患者数の目標達成に向け、入院勧誘活動の強化や、患者様への説明会の実施を検討する。</div>
+            </div>
+            
           </div>
           
-        </div>
-        
-        <div class="triage-item">
-          
-          
-          <a class="triage-item-row" href="dept.html#小児科"
-             onclick="event.preventDefault();toggleNarrative(3);location.href='dept.html#小児科'">
-            <span class="pri-badge mid"
-                  aria-label="優先度 mid">
-              ⚠ MID
-              
-            </span>
-            <span class="triage-name">小児科</span>
-            <span class="triage-rate">83.4%</span>
-            <button class="triage-acc-btn" id="acc-btn-3"
-                    data-narrative="3"
-                    aria-expanded="false"
-                    aria-controls="narrative-3"
-                    onclick="event.preventDefault();event.stopPropagation();toggleNarrative(3)">▸</button>
-          </a>
-          <div class="triage-headline">小児科、新入院数、在院患者数、粗利達成率を確認</div>
-          <div class="triage-narrative" id="narrative-3" hidden
-               role="region" aria-label="小児科 詳細">
-            <div class="triage-obs">🤖 新入院数は目標達成率87%で、在院患者数は目標達成率94%で、粗利達成率は65%です。前週同曜日比で新入院数は1人増加しました。</div>
-            <div class="triage-sug">新入院数と在院患者数の目標達成率を向上させるための、患者の早期退院を促す施策や、在院患者数の増加を抑えるための、病床管理の最適化を検討してください。</div>
+          <div class="triage-item mid">
+            
+            <a class="triage-item-row" href="detail.html#inpatient?axis=ward"
+               onclick="event.preventDefault();toggleNarrative('w3');location.href='detail.html#inpatient?axis=ward'">
+              <span class="pri-dot mid" aria-label="優先度 mid"></span>
+              <span class="triage-name">HCU</span>
+              <button class="triage-acc-btn" id="acc-btn-w3"
+                      aria-expanded="false" aria-controls="narrative-w3"
+                      onclick="event.preventDefault();event.stopPropagation();toggleNarrative('w3')">▸</button>
+            </a>
+            <div class="triage-headline">新入院患者数、前週比で減少</div>
+            <div class="triage-narrative" id="narrative-w3" hidden
+                 role="region" aria-label="HCU 詳細">
+              <div class="triage-obs">🤖 新入院患者数は実績21人、目標30.0人に対し達成率70%です。前週同曜日比で3人減少しています。</div>
+              <div class="triage-sug">患者受け入れの状況を再評価し、受け入れ基準の見直しや、他の病棟への転院促進などを検討してください。</div>
+            </div>
+            
           </div>
           
-        </div>
-        
-        <div class="triage-item">
-          
-          
-          <a class="triage-item-row" href="dept.html#乳腺外科"
-             onclick="event.preventDefault();toggleNarrative(4);location.href='dept.html#乳腺外科'">
-            <span class="pri-badge mid"
-                  aria-label="優先度 mid">
-              ⚠ MID
-              
-            </span>
-            <span class="triage-name">乳腺外科</span>
-            <span class="triage-rate">88.9%</span>
-            <button class="triage-acc-btn" id="acc-btn-4"
-                    data-narrative="4"
-                    aria-expanded="false"
-                    aria-controls="narrative-4"
-                    onclick="event.preventDefault();event.stopPropagation();toggleNarrative(4)">▸</button>
-          </a>
-          <div class="triage-headline">手術件数、在院患者数、新入院数、粗利が目標達成傾向</div>
-          <div class="triage-narrative" id="narrative-4" hidden
-               role="region" aria-label="乳腺外科 詳細">
-            <div class="triage-obs">🤖 新入院は目標達成率84%、在院患者数は目標達成率88%、手術件数は目標達成率99%を達成。粗利は達成率81%を達成。</div>
-            <div class="triage-sug">手術件数、在院患者数、新入院数、粗利の目標達成を継続する。</div>
+          <div class="triage-item mid">
+            
+            <a class="triage-item-row" href="detail.html#inpatient?axis=ward"
+               onclick="event.preventDefault();toggleNarrative('w4');location.href='detail.html#inpatient?axis=ward'">
+              <span class="pri-dot mid" aria-label="優先度 mid"></span>
+              <span class="triage-name">3階A病棟</span>
+              <button class="triage-acc-btn" id="acc-btn-w4"
+                      aria-expanded="false" aria-controls="narrative-w4"
+                      onclick="event.preventDefault();event.stopPropagation();toggleNarrative('w4')">▸</button>
+            </a>
+            <div class="triage-headline">新入院患者数、目標達成率83%</div>
+            <div class="triage-narrative" id="narrative-w4" hidden
+                 role="region" aria-label="3階A病棟 詳細">
+              <div class="triage-obs">🤖 直近7日、新入院患者数は実績34人、目標41.0人に対し、達成率83%です。前週同曜日比で3人増加しました。</div>
+              <div class="triage-sug">目標達成率が83%と、目標達成率96%の在院患者数と比較して、新入院患者数の目標達成率が低い傾向にあります。目標達成率を向上させるための、入院患者の受け入れ体制の最適化や、入院促進策の検討が有効と考えられます。</div>
+            </div>
+            
           </div>
           
-        </div>
         
-        <div class="triage-item">
-          
-          
-          <a class="triage-item-row" href="dept.html#脳神経内科"
-             onclick="event.preventDefault();toggleNarrative(5);location.href='dept.html#脳神経内科'">
-            <span class="pri-badge mid"
-                  aria-label="優先度 mid">
-              ⚠ MID
-              
-            </span>
-            <span class="triage-name">脳神経内科</span>
-            <span class="triage-rate">89.6%</span>
-            <button class="triage-acc-btn" id="acc-btn-5"
-                    data-narrative="5"
-                    aria-expanded="false"
-                    aria-controls="narrative-5"
-                    onclick="event.preventDefault();event.stopPropagation();toggleNarrative(5)">▸</button>
-          </a>
-          <div class="triage-headline">脳神経内科、新入院数、在院患者数、粗利達成率を確認</div>
-          <div class="triage-narrative" id="narrative-5" hidden
-               role="region" aria-label="脳神経内科 詳細">
-            <div class="triage-obs">🤖 新入院は目標達成率81%で、前週比+1人。在院患者数は目標達成率105%で、前週同曜日比で増加。粗利達成率は82%で目標達成。</div>
-            <div class="triage-sug">新入院数の目標達成率を維持し、在院患者数の目標達成率を維持する。粗利達成率を維持する。</div>
-          </div>
-          
-        </div>
-        
+      </div>
       
+      <div id="triage-ward-improvement" class="triage-panel" role="tabpanel" hidden>
+        
+          
+          <a class="imp-row" href="detail.html#inpatient?axis=ward">
+            <span class="imp-rank">1</span>
+            <span class="imp-name">2階B病棟</span>
+            <span style="font-size:12px;color:var(--sub)">🚪 新入院</span>
+            <span class="imp-delta">+5人</span>
+            <span class="imp-compare">前週同曜日比</span>
+          </a>
+          
+          <a class="imp-row" href="detail.html#inpatient?axis=ward">
+            <span class="imp-rank">2</span>
+            <span class="imp-name">7階A病棟</span>
+            <span style="font-size:12px;color:var(--sub)">🚪 新入院</span>
+            <span class="imp-delta">+4人</span>
+            <span class="imp-compare">前週同曜日比</span>
+          </a>
+          
+          <a class="imp-row" href="detail.html#inpatient?axis=ward">
+            <span class="imp-rank">3</span>
+            <span class="imp-name">3階A病棟</span>
+            <span style="font-size:12px;color:var(--sub)">🚪 新入院</span>
+            <span class="imp-delta">+3人</span>
+            <span class="imp-compare">前週同曜日比</span>
+          </a>
+          
+        
+      </div>
     </div>
 
     
-    <div id="triage-improvement" class="triage-panel" role="tabpanel" hidden>
+    <div id="triage-l1-dept" class="triage-l1-panel" hidden>
+      <div class="triage-tabs-l2" role="tablist" aria-label="診療科サブタブ">
+        <button class="triage-tab-l2 active" data-l2="dept-attention" role="tab"
+                aria-selected="true"
+                onclick="switchTriageL2('dept','attention')">🔴 要注視</button>
+        <button class="triage-tab-l2" data-l2="dept-improvement" role="tab"
+                aria-selected="false"
+                onclick="switchTriageL2('dept','improvement')">📈 改善</button>
+      </div>
       
+      <div id="triage-dept-attention" class="triage-panel" role="tabpanel">
         
-        <a class="imp-row" href="dept.html#循環器内科">
-          <span class="imp-rank">1</span>
-          <span class="imp-name">循環器内科</span>
-          <span style="font-size:12px;color:var(--sub)">🚪 新入院</span>
-          <span class="imp-delta">+5人</span>
-          <span class="imp-compare">前週同曜日比</span>
-        </a>
+          
+          <div class="triage-item mid">
+            
+            <a class="triage-item-row" href="dept.html#呼吸器外科"
+               onclick="event.preventDefault();toggleNarrative('d1');location.href='dept.html#呼吸器外科'">
+              <span class="pri-dot mid" aria-label="優先度 mid"></span>
+              <span class="triage-name">呼吸器外科</span>
+              <button class="triage-acc-btn" id="acc-btn-d1"
+                      aria-expanded="false" aria-controls="narrative-d1"
+                      onclick="event.preventDefault();event.stopPropagation();toggleNarrative('d1')">▸</button>
+            </a>
+            <div class="triage-headline">呼吸器外科、新入院数、在院患者数、手術数、粗利が目標達成</div>
+            <div class="triage-narrative" id="narrative-d1" hidden
+                 role="region" aria-label="呼吸器外科 詳細">
+              <div class="triage-obs">🤖 新入院は目標達成率107%、在院患者数は目標達成率50%、手術数は目標達成率71%、粗利は達成率104%です。</div>
+              <div class="triage-sug">継続的な患者受け入れ戦略と、手術計画の最適化により、目標達成率の向上を目指します。</div>
+            </div>
+            
+          </div>
+          
+          <div class="triage-item mid">
+            
+            <a class="triage-item-row" href="dept.html#腎内科"
+               onclick="event.preventDefault();toggleNarrative('d2');location.href='dept.html#腎内科'">
+              <span class="pri-dot mid" aria-label="優先度 mid"></span>
+              <span class="triage-name">腎内科</span>
+              <button class="triage-acc-btn" id="acc-btn-d2"
+                      aria-expanded="false" aria-controls="narrative-d2"
+                      onclick="event.preventDefault();event.stopPropagation();toggleNarrative('d2')">▸</button>
+            </a>
+            <div class="triage-headline">腎内科、新入院数、在院患者数、粗利達成率を確認</div>
+            <div class="triage-narrative" id="narrative-d2" hidden
+                 role="region" aria-label="腎内科 詳細">
+              <div class="triage-obs">🤖 新入院は目標の67%達成、在院患者数は目標の87%達成、粗利は目標の97%達成</div>
+              <div class="triage-sug">新入院数、在院患者数、粗利の達成状況を継続的にモニタリングし、目標達成に向けた改善策を検討する</div>
+            </div>
+            
+          </div>
+          
+          <div class="triage-item mid">
+            
+            <a class="triage-item-row" href="dept.html#小児科"
+               onclick="event.preventDefault();toggleNarrative('d3');location.href='dept.html#小児科'">
+              <span class="pri-dot mid" aria-label="優先度 mid"></span>
+              <span class="triage-name">小児科</span>
+              <button class="triage-acc-btn" id="acc-btn-d3"
+                      aria-expanded="false" aria-controls="narrative-d3"
+                      onclick="event.preventDefault();event.stopPropagation();toggleNarrative('d3')">▸</button>
+            </a>
+            <div class="triage-headline">小児科、新入院数、在院患者数、粗利達成率を確認</div>
+            <div class="triage-narrative" id="narrative-d3" hidden
+                 role="region" aria-label="小児科 詳細">
+              <div class="triage-obs">🤖 新入院は目標達成率87%、在院患者数は目標達成率94%、粗利は達成率65%を達成。</div>
+              <div class="triage-sug">新入院数、在院患者数、粗利達成率を継続的にモニタリングし、目標達成に向けた改善策を検討する。</div>
+            </div>
+            
+          </div>
+          
+          <div class="triage-item mid">
+            
+            <a class="triage-item-row" href="dept.html#乳腺外科"
+               onclick="event.preventDefault();toggleNarrative('d4');location.href='dept.html#乳腺外科'">
+              <span class="pri-dot mid" aria-label="優先度 mid"></span>
+              <span class="triage-name">乳腺外科</span>
+              <button class="triage-acc-btn" id="acc-btn-d4"
+                      aria-expanded="false" aria-controls="narrative-d4"
+                      onclick="event.preventDefault();event.stopPropagation();toggleNarrative('d4')">▸</button>
+            </a>
+            <div class="triage-headline">手術件数、在院患者数、新入院数、粗利が目標達成傾向</div>
+            <div class="triage-narrative" id="narrative-d4" hidden
+                 role="region" aria-label="乳腺外科 詳細">
+              <div class="triage-obs">🤖 新入院は目標達成率84%、在院患者数は目標達成率88%、手術件数は目標達成率99%、粗利は達成率81%を達成しています。前週同曜日比で新入院が前週比-2人となっています。</div>
+              <div class="triage-sug">手術件数、在院患者数、新入院数、粗利の目標達成に向け、各KPIの達成状況を継続的にモニタリングし、必要に応じて改善策を検討してください。</div>
+            </div>
+            
+          </div>
+          
+          <div class="triage-item mid">
+            
+            <a class="triage-item-row" href="dept.html#脳神経内科"
+               onclick="event.preventDefault();toggleNarrative('d5');location.href='dept.html#脳神経内科'">
+              <span class="pri-dot mid" aria-label="優先度 mid"></span>
+              <span class="triage-name">脳神経内科</span>
+              <button class="triage-acc-btn" id="acc-btn-d5"
+                      aria-expanded="false" aria-controls="narrative-d5"
+                      onclick="event.preventDefault();event.stopPropagation();toggleNarrative('d5')">▸</button>
+            </a>
+            <div class="triage-headline">脳神経内科、在院患者数、粗利達成率が目標を上回る</div>
+            <div class="triage-narrative" id="narrative-d5" hidden
+                 role="region" aria-label="脳神経内科 詳細">
+              <div class="triage-obs">🤖 新入院は目標の81%達成。在院患者数は目標の105%達成。粗利は目標の82%達成。</div>
+              <div class="triage-sug">継続的な患者受け入れと収益確保に向け、現在の傾向を維持・強化する。</div>
+            </div>
+            
+          </div>
+          
         
-        <a class="imp-row" href="dept.html#救急科">
-          <span class="imp-rank">2</span>
-          <span class="imp-name">救急科</span>
-          <span style="font-size:12px;color:var(--sub)">🚪 新入院</span>
-          <span class="imp-delta">+3人</span>
-          <span class="imp-compare">前週同曜日比</span>
-        </a>
-        
-        <a class="imp-row" href="dept.html#血液内科">
-          <span class="imp-rank">3</span>
-          <span class="imp-name">血液内科</span>
-          <span style="font-size:12px;color:var(--sub)">🚪 新入院</span>
-          <span class="imp-delta">+2人</span>
-          <span class="imp-compare">前週同曜日比</span>
-        </a>
-        
+      </div>
       
+      <div id="triage-dept-improvement" class="triage-panel" role="tabpanel" hidden>
+        
+          
+          <a class="imp-row" href="dept.html#循環器内科">
+            <span class="imp-rank">1</span>
+            <span class="imp-name">循環器内科</span>
+            <span style="font-size:12px;color:var(--sub)">🚪 新入院</span>
+            <span class="imp-delta">+5人</span>
+            <span class="imp-compare">前週同曜日比</span>
+          </a>
+          
+          <a class="imp-row" href="dept.html#救急科">
+            <span class="imp-rank">2</span>
+            <span class="imp-name">救急科</span>
+            <span style="font-size:12px;color:var(--sub)">🚪 新入院</span>
+            <span class="imp-delta">+3人</span>
+            <span class="imp-compare">前週同曜日比</span>
+          </a>
+          
+          <a class="imp-row" href="dept.html#形成外科">
+            <span class="imp-rank">3</span>
+            <span class="imp-name">形成外科</span>
+            <span style="font-size:12px;color:var(--sub)">🚪 新入院</span>
+            <span class="imp-delta">+2人</span>
+            <span class="imp-compare">前週同曜日比</span>
+          </a>
+          
+        
+      </div>
     </div>
   </section>
 
   <div class="ft">
-    🏥 診療ダッシュボード ポータル ｜ 生成 2026/04/16 14:41 ｜ 基準日 2026-04-15<br>
+    🏥 診療ダッシュボード ポータル ｜ 生成 2026/04/16 17:07 ｜ 基準日 2026-04-15<br>
     <span style="font-size:10px">※ 数値はPython検知、文章はローカルLLM翻訳（ollama未起動時は定型文）</span>
   </div>
 </div>
@@ -440,13 +543,25 @@ function toggleStatusBar() {
   btn.setAttribute('aria-expanded', String(!expanded));
 }
 
-/* ── トリアージタブ切替 ── */
-function switchTriageTab(tab) {
-  ['attention', 'improvement'].forEach(function(t) {
-    var panel = document.getElementById('triage-' + t);
-    var btn = document.querySelector('[data-tab="' + t + '"]');
+/* ── トリアージ第1階層タブ切替（病棟/診療科） ── */
+function switchTriageL1(category) {
+  ['ward', 'dept'].forEach(function(c) {
+    var panel = document.getElementById('triage-l1-' + c);
+    var btn = document.querySelector('[data-l1="' + c + '"]');
     if (!panel || !btn) return;
-    var active = (t === tab);
+    var active = (c === category);
+    panel.hidden = !active;
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-selected', String(active));
+  });
+}
+/* ── トリアージ第2階層タブ切替（要注視/改善） ── */
+function switchTriageL2(category, sub) {
+  ['attention', 'improvement'].forEach(function(s) {
+    var panel = document.getElementById('triage-' + category + '-' + s);
+    var btn = document.querySelector('[data-l2="' + category + '-' + s + '"]');
+    if (!panel || !btn) return;
+    var active = (s === sub);
     panel.hidden = !active;
     btn.classList.toggle('active', active);
     btn.setAttribute('aria-selected', String(active));
