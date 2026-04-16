@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>診療KPIポータル</title>
-<link rel="stylesheet" href="css/shared-tokens.css">
-<link rel="stylesheet" href="css/shared-components.css">
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-R843H5Z3R8"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-R843H5Z3R8');</script>
 <style>
+/* ── デザイントークン ── */
 :root{
+  /* 既存変数 */
   --bg:#f6f8fb;--s:#fff;--ink:#1a2332;--sub:#5f7084;--mu:#9daab8;--ln:#dfe5ed;
   --br:#0e4da4;--bl:#e8f0fe;--bd:#0a3671;
   --dr:#c4314b;--dr-bg:#fdf0f2;--dr-t:#8c1d35;
@@ -15,6 +15,32 @@
   --ok:#0e7a54;--ok-bg:#ecfdf5;
   --inf:#2563eb;
   --r:18px;--sh:0 4px 14px rgba(10,22,42,.08);
+  /* カード共通 */
+  --card-border-radius:12px;
+  --card-box-shadow:0 1px 3px rgba(0,0,0,.08);
+  --card-padding:20px;
+  /* タイポグラフィ */
+  --font-kpi-value:2rem;
+  --font-section-heading:1.1rem;
+  --font-body:0.95rem;
+  --font-caption:0.8rem;
+  /* ステータス色 */
+  --color-achieved:#22c55e;
+  --color-approaching:#f59e0b;
+  --color-missed:#ef4444;
+  /* ステータス背景色 */
+  --bg-achieved:#f0fdf4;
+  --bg-approaching:#fffbeb;
+  --bg-missed:#fef2f2;
+  /* priority バッジ色 */
+  --badge-high:#ef4444;
+  --badge-mid:#f59e0b;
+  --badge-low:#3b82f6;
+  /* 共通テキスト */
+  --color-primary:#1e3a5f;
+  --color-text:#374151;
+  --color-muted:#6b7280;
+  --color-border:#e5e7eb;
 }
 [data-theme="dark"]{
   --bg:#0f1623;--s:#1a2738;--ink:#dde4ef;--sub:#8fa3b8;--mu:#4a5f74;--ln:#2a3a50;
@@ -23,6 +49,7 @@
   --wr:#f0a040;--wr-bg:#2a1a06;
   --ok:#34d39a;--ok-bg:#0a2518;
   --inf:#5b9cf6;--sh:0 4px 14px rgba(0,0,0,.4);
+  --bg-achieved:#0a2518;--bg-approaching:#2a1a06;--bg-missed:#2d1020;
 }
 .dm-btn{background:transparent;border:1px solid rgba(255,255,255,.25);border-radius:8px;color:#a8bdd4;font-size:14px;padding:4px 9px;cursor:pointer;transition:all .15s;font-family:inherit;line-height:1}.dm-btn:hover{color:#fff;border-color:rgba(255,255,255,.5)}
 *{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
@@ -116,7 +143,7 @@
 <header class="hdr">
   <div class="row1">
     <div class="left"><span class="badge">KPI</span><span class="title">🏥 診療ダッシュボード</span></div>
-    <div class="meta">📅 2026-04-15 ｜ 🕐 2026/04/16 13:32 更新</div>
+    <div class="meta">📅 2026-04-15 ｜ 🕐 2026/04/16 14:41 更新</div>
     <button class="dm-btn" onclick="toggleDarkMode()">🌙</button>
   </div>
   <nav class="nav-bar">
@@ -142,7 +169,7 @@
     
     <div class="sb-detail" id="sb-detail" hidden>
       
-      <p class="sb-story">今週、全麻手術件数が前週比で16件増加し、手術室稼働率が3.0%低下しました。新入院数も5%増加しています。一方で、在院患者数は1.0人増加し、緊急入院数も8%増加しています。祝日期間の影響を考慮し、手術件数の増加は一時的なものと見られます。</p>
+      <p class="sb-story">直近7日間の手術室稼働率が3.0%低下し、全麻手術件数も16件増加しました。新入院数も5%増加しています。一方で、在院患者数や緊急入院数は増加傾向にあります。祝日・連休の影響を考慮し、数値の変動を客観的に報告します。</p>
       
       
       
@@ -237,11 +264,11 @@
                     aria-controls="narrative-1"
                     onclick="event.preventDefault();event.stopPropagation();toggleNarrative(1)">▸</button>
           </a>
-          <div class="triage-headline">新入院数、在院患者数、手術件数が目標達成</div>
+          <div class="triage-headline">新入院、在院患者、手術、粗利の達成状況</div>
           <div class="triage-narrative" id="narrative-1" hidden
                role="region" aria-label="呼吸器外科 詳細">
-            <div class="triage-obs">🤖 新入院は目標を上回る達成率107%、在院患者数は目標の50%を達成。手術件数は目標の71%を達成。粗利は目標達成率104%を達成。</div>
-            <div class="triage-sug">新入院数、在院患者数、手術件数が目標達成。粗利は目標達成率104%を達成。今後も目標達成に向けた取り組みを継続する。</div>
+            <div class="triage-obs">🤖 新入院は目標を上回る達成率107%を達成。在院患者は目標の50%を達成。手術は目標の71%を達成。粗利は目標の104%を達成。</div>
+            <div class="triage-sug">新入院の達成率を維持し、在院患者と手術の達成率向上を継続する。</div>
           </div>
           
         </div>
@@ -268,7 +295,7 @@
           <div class="triage-narrative" id="narrative-2" hidden
                role="region" aria-label="腎内科 詳細">
             <div class="triage-obs">🤖 新入院は目標の67%、在院患者数は目標の87%を達成。粗利は目標達成率97%を達成。</div>
-            <div class="triage-sug">新入院数の目標達成に向け、受け入れ体制の強化や、患者の早期退院促進策の検討を推奨。</div>
+            <div class="triage-sug">新入院数、在院患者数、粗利の目標達成状況を継続的にモニタリングし、課題があれば原因分析と対策を講じる。</div>
           </div>
           
         </div>
@@ -294,8 +321,8 @@
           <div class="triage-headline">小児科、新入院数、在院患者数、粗利達成率を確認</div>
           <div class="triage-narrative" id="narrative-3" hidden
                role="region" aria-label="小児科 詳細">
-            <div class="triage-obs">🤖 新入院は目標達成率87%、在院患者数は目標達成率94%、粗利は達成率65%を達成。</div>
-            <div class="triage-sug">新入院数、在院患者数、粗利達成率を継続的にモニタリングし、目標達成に向けた改善策を検討する。</div>
+            <div class="triage-obs">🤖 新入院数は目標達成率87%で、在院患者数は目標達成率94%で、粗利達成率は65%です。前週同曜日比で新入院数は1人増加しました。</div>
+            <div class="triage-sug">新入院数と在院患者数の目標達成率を向上させるための、患者の早期退院を促す施策や、在院患者数の増加を抑えるための、病床管理の最適化を検討してください。</div>
           </div>
           
         </div>
@@ -318,11 +345,11 @@
                     aria-controls="narrative-4"
                     onclick="event.preventDefault();event.stopPropagation();toggleNarrative(4)">▸</button>
           </a>
-          <div class="triage-headline">新入院数、在院患者数、手術件数が目標達成傾向</div>
+          <div class="triage-headline">手術件数、在院患者数、新入院数、粗利が目標達成傾向</div>
           <div class="triage-narrative" id="narrative-4" hidden
                role="region" aria-label="乳腺外科 詳細">
-            <div class="triage-obs">🤖 新入院は目標比-2人、在院患者数は目標達成、手術件数は目標達成率99%を達成</div>
-            <div class="triage-sug">手術件数達成率が99%であることから、手術計画の最適化を継続する</div>
+            <div class="triage-obs">🤖 新入院は目標達成率84%、在院患者数は目標達成率88%、手術件数は目標達成率99%を達成。粗利は達成率81%を達成。</div>
+            <div class="triage-sug">手術件数、在院患者数、新入院数、粗利の目標達成を継続する。</div>
           </div>
           
         </div>
@@ -348,8 +375,8 @@
           <div class="triage-headline">脳神経内科、新入院数、在院患者数、粗利達成率を確認</div>
           <div class="triage-narrative" id="narrative-5" hidden
                role="region" aria-label="脳神経内科 詳細">
-            <div class="triage-obs">🤖 新入院は目標達成率81%、在院患者数は目標達成率105%、粗利達成率は82%です。前週同曜日比で新入院が1人増加しました。</div>
-            <div class="triage-sug">各KPIの達成状況を継続的にモニタリングし、目標達成に向けた改善策を検討してください。</div>
+            <div class="triage-obs">🤖 新入院は目標達成率81%で、前週比+1人。在院患者数は目標達成率105%で、前週同曜日比で増加。粗利達成率は82%で目標達成。</div>
+            <div class="triage-sug">新入院数の目標達成率を維持し、在院患者数の目標達成率を維持する。粗利達成率を維持する。</div>
           </div>
           
         </div>
@@ -390,7 +417,7 @@
   </section>
 
   <div class="ft">
-    🏥 診療ダッシュボード ポータル ｜ 生成 2026/04/16 13:32 ｜ 基準日 2026-04-15<br>
+    🏥 診療ダッシュボード ポータル ｜ 生成 2026/04/16 14:41 ｜ 基準日 2026-04-15<br>
     <span style="font-size:10px">※ 数値はPython検知、文章はローカルLLM翻訳（ollama未起動時は定型文）</span>
   </div>
 </div>
