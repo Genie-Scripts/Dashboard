@@ -1,0 +1,499 @@
+{
+  "snapshots": [
+    {
+      "base_date": "2026-04-14",
+      "inpatient": {
+        "avg_7d": 583.3,
+        "rate": 99.3
+      },
+      "admission": {
+        "actual_7d": 357,
+        "planned_7d": 206,
+        "emergency_7d": 152,
+        "rate_7d": 93.9
+      },
+      "operation": {
+        "week_total": 41,
+        "rate": 96.7,
+        "or_util_7d": 75.0
+      },
+      "profit_top": [
+        {
+          "rank": 1,
+          "name": "循環器内科",
+          "rate": 108.1
+        },
+        {
+          "rank": 2,
+          "name": "歯科口腔外科",
+          "rate": 107.6
+        },
+        {
+          "rank": 3,
+          "name": "呼吸器外科",
+          "rate": 103.8
+        },
+        {
+          "rank": 4,
+          "name": "皮膚科",
+          "rate": 102.8
+        },
+        {
+          "rank": 5,
+          "name": "脳神経外科",
+          "rate": 102.2
+        }
+      ]
+    },
+    {
+      "base_date": "2026-04-15",
+      "inpatient": {
+        "avg_7d": 584.3,
+        "rate": 100.3
+      },
+      "admission": {
+        "actual_7d": 374,
+        "planned_7d": 210,
+        "emergency_7d": 164,
+        "rate_7d": 98.4
+      },
+      "operation": {
+        "week_total": 57,
+        "rate": 94.8,
+        "or_util_7d": 72.0
+      },
+      "profit_top": [
+        {
+          "rank": 1,
+          "name": "循環器内科",
+          "rate": 108.1
+        },
+        {
+          "rank": 2,
+          "name": "歯科口腔外科",
+          "rate": 107.6
+        },
+        {
+          "rank": 3,
+          "name": "呼吸器外科",
+          "rate": 103.8
+        },
+        {
+          "rank": 4,
+          "name": "皮膚科",
+          "rate": 102.8
+        },
+        {
+          "rank": 5,
+          "name": "脳神経外科",
+          "rate": 102.2
+        }
+      ]
+    },
+    {
+      "base_date": "2026-04-16",
+      "inpatient": {
+        "avg_7d": 584.9,
+        "rate": 101.2
+      },
+      "admission": {
+        "actual_7d": 371,
+        "planned_7d": 207,
+        "emergency_7d": 164,
+        "rate_7d": 97.6
+      },
+      "operation": {
+        "week_total": 76,
+        "rate": 95.7,
+        "or_util_7d": 71.4
+      },
+      "profit_top": [
+        {
+          "rank": 1,
+          "name": "歯科口腔外科",
+          "rate": 132.7
+        },
+        {
+          "rank": 2,
+          "name": "呼吸器外科",
+          "rate": 125.3
+        },
+        {
+          "rank": 3,
+          "name": "皮膚科",
+          "rate": 121.9
+        },
+        {
+          "rank": 4,
+          "name": "形成外科",
+          "rate": 121.5
+        },
+        {
+          "rank": 5,
+          "name": "循環器内科",
+          "rate": 118.3
+        }
+      ]
+    },
+    {
+      "base_date": "2026-04-20",
+      "inpatient": {
+        "avg_7d": 581.4,
+        "rate": 100.3
+      },
+      "admission": {
+        "actual_7d": 393,
+        "planned_7d": 206,
+        "emergency_7d": 187,
+        "rate_7d": 103.4
+      },
+      "operation": {
+        "week_total": 21,
+        "rate": 99.5,
+        "or_util_7d": 71.4
+      },
+      "profit_top": [
+        {
+          "rank": 1,
+          "name": "歯科口腔外科",
+          "rate": 132.7
+        },
+        {
+          "rank": 2,
+          "name": "呼吸器外科",
+          "rate": 125.3
+        },
+        {
+          "rank": 3,
+          "name": "皮膚科",
+          "rate": 121.9
+        },
+        {
+          "rank": 4,
+          "name": "形成外科",
+          "rate": 121.5
+        },
+        {
+          "rank": 5,
+          "name": "循環器内科",
+          "rate": 118.3
+        }
+      ]
+    },
+    {
+      "base_date": "2026-04-21",
+      "inpatient": {
+        "avg_7d": 582.7,
+        "rate": 100.8
+      },
+      "admission": {
+        "actual_7d": 391,
+        "planned_7d": 203,
+        "emergency_7d": 189,
+        "rate_7d": 102.9
+      },
+      "operation": {
+        "week_total": 43,
+        "rate": 95.7,
+        "or_util_7d": 71.1
+      },
+      "profit_top": [
+        {
+          "rank": 1,
+          "name": "歯科口腔外科",
+          "rate": 132.7
+        },
+        {
+          "rank": 2,
+          "name": "呼吸器外科",
+          "rate": 125.3
+        },
+        {
+          "rank": 3,
+          "name": "皮膚科",
+          "rate": 121.9
+        },
+        {
+          "rank": 4,
+          "name": "形成外科",
+          "rate": 121.5
+        },
+        {
+          "rank": 5,
+          "name": "循環器内科",
+          "rate": 118.3
+        }
+      ]
+    },
+    {
+      "base_date": "2026-04-22",
+      "inpatient": {
+        "avg_7d": 584.1,
+        "rate": 102.2
+      },
+      "admission": {
+        "actual_7d": 375,
+        "planned_7d": 204,
+        "emergency_7d": 173,
+        "rate_7d": 98.7
+      },
+      "operation": {
+        "week_total": 60,
+        "rate": 94.8,
+        "or_util_7d": 74.5
+      },
+      "profit_top": [
+        {
+          "rank": 1,
+          "name": "歯科口腔外科",
+          "rate": 132.7
+        },
+        {
+          "rank": 2,
+          "name": "呼吸器外科",
+          "rate": 125.3
+        },
+        {
+          "rank": 3,
+          "name": "皮膚科",
+          "rate": 121.9
+        },
+        {
+          "rank": 4,
+          "name": "形成外科",
+          "rate": 121.5
+        },
+        {
+          "rank": 5,
+          "name": "循環器内科",
+          "rate": 118.3
+        }
+      ]
+    },
+    {
+      "base_date": "2026-04-23",
+      "inpatient": {
+        "avg_7d": 585.7,
+        "rate": 103.3
+      },
+      "admission": {
+        "actual_7d": 374,
+        "planned_7d": 202,
+        "emergency_7d": 176,
+        "rate_7d": 98.4
+      },
+      "operation": {
+        "week_total": 78,
+        "rate": 91.9,
+        "or_util_7d": 72.3
+      },
+      "profit_top": [
+        {
+          "rank": 1,
+          "name": "歯科口腔外科",
+          "rate": 132.7
+        },
+        {
+          "rank": 2,
+          "name": "呼吸器外科",
+          "rate": 125.3
+        },
+        {
+          "rank": 3,
+          "name": "皮膚科",
+          "rate": 121.9
+        },
+        {
+          "rank": 4,
+          "name": "形成外科",
+          "rate": 121.5
+        },
+        {
+          "rank": 5,
+          "name": "循環器内科",
+          "rate": 118.3
+        }
+      ]
+    },
+    {
+      "base_date": "2026-04-26",
+      "inpatient": {
+        "avg_7d": 585.6,
+        "rate": 99.3
+      },
+      "admission": {
+        "actual_7d": 362,
+        "planned_7d": 207,
+        "emergency_7d": 159,
+        "rate_7d": 95.3
+      },
+      "operation": {
+        "week_total": 100,
+        "rate": 95.7,
+        "or_util_7d": 69.4
+      },
+      "profit_top": [
+        {
+          "rank": 1,
+          "name": "歯科口腔外科",
+          "rate": 132.7
+        },
+        {
+          "rank": 2,
+          "name": "呼吸器外科",
+          "rate": 125.3
+        },
+        {
+          "rank": 3,
+          "name": "皮膚科",
+          "rate": 121.9
+        },
+        {
+          "rank": 4,
+          "name": "形成外科",
+          "rate": 121.5
+        },
+        {
+          "rank": 5,
+          "name": "循環器内科",
+          "rate": 118.3
+        }
+      ]
+    },
+    {
+      "base_date": "2026-04-27",
+      "inpatient": {
+        "avg_7d": 585.6,
+        "rate": 100.3
+      },
+      "admission": {
+        "actual_7d": 358,
+        "planned_7d": 209,
+        "emergency_7d": 152,
+        "rate_7d": 94.2
+      },
+      "operation": {
+        "week_total": 24,
+        "rate": 99.5,
+        "or_util_7d": 70.4
+      },
+      "profit_top": [
+        {
+          "rank": 1,
+          "name": "歯科口腔外科",
+          "rate": 132.7
+        },
+        {
+          "rank": 2,
+          "name": "呼吸器外科",
+          "rate": 125.3
+        },
+        {
+          "rank": 3,
+          "name": "皮膚科",
+          "rate": 121.9
+        },
+        {
+          "rank": 4,
+          "name": "形成外科",
+          "rate": 121.5
+        },
+        {
+          "rank": 5,
+          "name": "循環器内科",
+          "rate": 118.3
+        }
+      ]
+    },
+    {
+      "base_date": "2026-04-29",
+      "inpatient": {
+        "avg_7d": 575.7,
+        "rate": 95.0
+      },
+      "admission": {
+        "actual_7d": 309,
+        "planned_7d": 170,
+        "emergency_7d": 143,
+        "rate_7d": 81.3
+      },
+      "operation": {
+        "week_total": 46,
+        "rate": 99.5,
+        "or_util_7d": 69.1
+      },
+      "profit_top": [
+        {
+          "rank": 1,
+          "name": "歯科口腔外科",
+          "rate": 132.7
+        },
+        {
+          "rank": 2,
+          "name": "呼吸器外科",
+          "rate": 125.3
+        },
+        {
+          "rank": 3,
+          "name": "皮膚科",
+          "rate": 121.9
+        },
+        {
+          "rank": 4,
+          "name": "形成外科",
+          "rate": 121.5
+        },
+        {
+          "rank": 5,
+          "name": "循環器内科",
+          "rate": 118.3
+        }
+      ]
+    },
+    {
+      "base_date": "2026-04-30",
+      "inpatient": {
+        "avg_7d": 573.3,
+        "rate": 100.2
+      },
+      "admission": {
+        "actual_7d": 323,
+        "planned_7d": 179,
+        "emergency_7d": 146,
+        "rate_7d": 85.0
+      },
+      "operation": {
+        "week_total": 69,
+        "rate": 100.5,
+        "or_util_7d": 75.1
+      },
+      "profit_top": [
+        {
+          "rank": 1,
+          "name": "歯科口腔外科",
+          "rate": 132.7
+        },
+        {
+          "rank": 2,
+          "name": "呼吸器外科",
+          "rate": 125.3
+        },
+        {
+          "rank": 3,
+          "name": "皮膚科",
+          "rate": 121.9
+        },
+        {
+          "rank": 4,
+          "name": "形成外科",
+          "rate": 121.5
+        },
+        {
+          "rank": 5,
+          "name": "循環器内科",
+          "rate": 118.3
+        }
+      ]
+    }
+  ]
+}
