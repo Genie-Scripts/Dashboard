@@ -40,6 +40,21 @@ else
   echo "✅ Ollama はすでに起動中" >> "$LOG"
 fi
 
+# ── 0b. 必要モデルの存在確認・自動pull ──
+# app/lib/ai_narrative.py の DEFAULT_MODEL と一致させる（環境変数で上書き可）
+OLLAMA_MODEL="${OLLAMA_MODEL:-ki-krugle-jp/llm-jp-4-8b-thinking:q4_k_m}"
+if ! ollama list 2>/dev/null | awk 'NR>1 {print $1}' | grep -qx "$OLLAMA_MODEL"; then
+  echo "📥 モデル '$OLLAMA_MODEL' が未取得 — pullします..." >> "$LOG"
+  notify "モデル取得中: $OLLAMA_MODEL" "Ollama"
+  if ollama pull "$OLLAMA_MODEL" >> "$LOG" 2>&1; then
+    echo "✅ モデル取得完了: $OLLAMA_MODEL" >> "$LOG"
+  else
+    echo "⚠️  モデル取得失敗 — AI生成はスキップされます" >> "$LOG"
+  fi
+else
+  echo "✅ モデル準備済: $OLLAMA_MODEL" >> "$LOG"
+fi
+
 # ── 0. ディレクトリ移動と環境有効化 ──
 # スクリプトがある場所（Dashboardフォルダ）へ移動
 cd "$(dirname "$0")"
@@ -78,10 +93,22 @@ MSG="Dashboard update: $(date '+%Y/%m/%d %H:%M') [M5-Pro]"
 git commit -m "$MSG" >> "$LOG" 2>&1
 echo "✅ コミット: $MSG" >> "$LOG"
 
-# ── 5. プッシュ ──
+# ── 5. プッシュ（non-fast-forward 時は rebase で1回リトライ）──
 # SSH通信設定済みなので、パスワードなしで通るはずです
-if ! git push origin main >> "$LOG" 2>&1; then
-  error_dialog "GitHubへのpushに失敗しました。SSH接続を確認してください。"
+push_with_retry() {
+  if git push origin main >> "$LOG" 2>&1; then
+    return 0
+  fi
+  echo "⚠️  push拒否 — リモートの変更を取り込んでリトライします" >> "$LOG"
+  if ! git pull --rebase origin main >> "$LOG" 2>&1; then
+    echo "❌ rebase 失敗（コンフリクトの可能性）" >> "$LOG"
+    return 1
+  fi
+  git push origin main >> "$LOG" 2>&1
+}
+
+if ! push_with_retry; then
+  error_dialog "GitHubへのpushに失敗しました。手動で 'git pull --rebase origin main' 後に再実行してください。"
   exit 1
 fi
 
