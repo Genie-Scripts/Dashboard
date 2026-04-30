@@ -18,6 +18,7 @@ alerts.py が返した「確定事実」を受け取り、ローカルLLMで
 from __future__ import annotations
 import json
 import logging
+import os
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -26,7 +27,8 @@ logger = logging.getLogger(__name__)
 # ────────────────────────────────────
 # 設定（必要に応じて上書き）
 # ────────────────────────────────────
-DEFAULT_MODEL = "llm-jp-4-8b-thinking:q4_k_m"
+# 環境変数 OLLAMA_MODEL で deploy.sh と一元管理
+DEFAULT_MODEL = os.environ.get("OLLAMA_MODEL", "ki-krugle-jp/llm-jp-4-8b-thinking:q4_k_m")
 DEFAULT_TEMPERATURE = 0.2
 DEFAULT_NUM_PREDICT = 220          # 出力トークン上限
 REQUEST_TIMEOUT_SEC = 60           # 1 アラートあたりの上限
