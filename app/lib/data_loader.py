@@ -65,6 +65,18 @@ def _check_folder(folder: Path, label: str) -> None:
         )
 
 
+def _normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """先頭BOM/置換文字('?')と前後空白を列名から除去。
+
+    Excel等から UTF-8 BOM 付きCSVを cp932 で再保存すると、BOM (U+FEFF)
+    が cp932 で表現できず literal '?' に置換されて保存される事例がある。
+    その状態で読み込むと先頭列名が '?部門コード' のようになり KeyError を
+    引き起こすため、CSV読込直後に正規化する。
+    """
+    df.columns = [str(c).lstrip("﻿?").strip() for c in df.columns]
+    return df
+
+
 # ────────────────────────────────────────────────────
 # 単一ファイル読込（内部用）
 # ────────────────────────────────────────────────────
@@ -83,9 +95,10 @@ def _read_admission_file(path: Path) -> pd.DataFrame:
                                    on_bad_lines="skip", skiprows=skiprows)
 
         df = _read_csv_with_enc()
+        df = _normalize_columns(df)
         # 1行目がメタデータ行の場合（ヘッダーに「日付」列がない）は skiprows=1 で再読込
         if "日付" not in df.columns:
-            df = _read_csv_with_enc(skiprows=1)
+            df = _normalize_columns(_read_csv_with_enc(skiprows=1))
 
     df["日付"] = pd.to_datetime(df["日付"], errors="coerce")
     df = df.dropna(subset=["日付"])
@@ -119,6 +132,7 @@ def _read_surgery_file(path: Path) -> pd.DataFrame:
     else:
         df = pd.read_csv(path, encoding="cp932", engine="python",
                           on_bad_lines="skip")
+    df = _normalize_columns(df)
     df["手術実施日"] = pd.to_datetime(df["手術実施日"], errors="coerce")
     df = df.dropna(subset=["手術実施日"])
     # 入室・退室時刻の書式をHH:MMに統一（ファイル間の書式揺れを吸収）
@@ -308,6 +322,7 @@ def load_inpatient_targets(data_dir: str = DEFAULT_DATA_DIR) -> pd.DataFrame:
                 df = pd.read_csv(f, encoding="utf-8-sig")
             except (UnicodeDecodeError, UnicodeError):
                 df = pd.read_csv(f, encoding="cp932")
+            df = _normalize_columns(df)
             df["目標値"] = pd.to_numeric(df["目標値"], errors="coerce")
             if "病床数" in df.columns:
                 df["病床数"] = pd.to_numeric(df["病床数"], errors="coerce")
