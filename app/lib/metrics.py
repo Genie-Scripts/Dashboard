@@ -21,6 +21,7 @@ from .config import (
     THRESHOLD_DANGER, THRESHOLD_OK,
     status_label, status_display,
     build_headline,
+    is_operational_day,
 )
 
 
@@ -38,7 +39,7 @@ def daily_inpatient(adm: pd.DataFrame, date: pd.Timestamp) -> dict:
     by_ward = (day[day["病棟_表示"]]
                .groupby("病棟コード")["在院患者数"].sum()
                .astype(int).to_dict())
-    is_weekday = date.weekday() < 5
+    is_weekday = is_operational_day(date)
     return {
         "date": date, "total": total, "is_weekday": is_weekday,
         "by_dept": by_dept, "by_ward": by_ward,
