@@ -20,3 +20,6 @@ Temp/
 
 # 仕様書・モックアップ（ローカル作業用）
 spec/
+
+# Claude Code local settings
+.claude/
