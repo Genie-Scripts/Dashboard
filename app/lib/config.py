@@ -108,6 +108,34 @@ def is_operational_day(dt) -> bool:
 
 
 # ──────────────────────────────
+# 粗利 営業日換算評価
+# ──────────────────────────────
+# 月次目標を「1営業日あたり目標」に分解する際の標準営業日数（固定）。
+# 月ごとの営業日数のばらつき（GW・お盆・年末年始）で達成率が歪まないよう、
+# 達成率を 日次粗利 / 日次目標 で評価するための分母として使う。
+STD_BIZ_DAYS_PER_MONTH = 20
+
+_BIZ_DAYS_CACHE: dict = {}
+
+
+def biz_days_in_month(month) -> int:
+    """
+    対象月（Timestampや日付）に含まれる営業平日数を返す。
+    結果は (year, month) でキャッシュする。
+    """
+    import pandas as _pd
+    ts = _pd.Timestamp(month)
+    key = (ts.year, ts.month)
+    if key in _BIZ_DAYS_CACHE:
+        return _BIZ_DAYS_CACHE[key]
+    start = ts.replace(day=1)
+    end = (start + _pd.offsets.MonthEnd(0))
+    count = sum(1 for d in _pd.date_range(start, end, freq="D") if is_operational_day(d))
+    _BIZ_DAYS_CACHE[key] = count
+    return count
+
+
+# ──────────────────────────────
 # Google Analytics 設定
 # ──────────────────────────────
 # 計測IDを設定すると全ページに GA タグが自動埋め込まれます（例: "G-XXXXXXXXXX"）

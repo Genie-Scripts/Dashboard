@@ -167,8 +167,9 @@ function renderTabs() {
   if (hasProfit) {
     const pk = DATA.profit.kpi;
     const pSt = pk.hospital_achievement >= 100 ? {css:'ok',shape:'▲',text:'達成'} : pk.hospital_achievement >= 90 ? {css:'wr',shape:'―',text:'接近'} : {css:'dr',shape:'▼',text:'未達'};
+    const bdLabel = pk.current_biz_days != null ? ` (営業${pk.current_biz_days}日)` : '';
     tabs.push({id:'profit', icon:'💰', name:'粗利',
-      big:`${pk.hospital_total}百万円`, per:`${pk.base_month} 全科合計`,
+      big:`${pk.hospital_total}百万円`, per:`${pk.base_month} 全科合計${bdLabel}`,
       st:pSt});
   }
   document.getElementById('kpiTabs').innerHTML = tabs.map(t =>
@@ -374,15 +375,17 @@ function renderSummary() {
     const pRate = pk.hospital_achievement;
     const pGap = pk.hospital_target ? Math.round((pk.hospital_total - pk.hospital_target)*10)/10 : 0;
     const pSt = pRate >= 100 ? {css:'ok',shape:'▲',text:'達成'} : pRate >= 90 ? {css:'wr',shape:'―',text:'接近'} : {css:'dr',shape:'▼',text:'未達'};
+    const bdNote = pk.current_biz_days != null
+      ? ` (営業${pk.current_biz_days}日 / 標準${pk.std_biz_days}日換算)` : '';
     main = {
-      icon:'💰', label:'粗利（全科合計）', periodNote:`${pk.base_month} 月次`,
+      icon:'💰', label:'粗利（全科合計）', periodNote:`${pk.base_month} 月次${bdNote}`,
       actual:pk.hospital_total, unit:'百万円', targetLabel:'月次目標',
       target:pk.hospital_target, gap:pGap, gapUnit:'百万円',
       rate:pRate, status:pSt
     };
     refs = [
-      {k:'直近月粗利',     v:pk.hospital_total!==null?`${pk.hospital_total}百万`:'—', unit:'百万',
-       curr:pk.hospital_total, prev:pk.prev_month_total},
+      {k:'日次ペース',     v:pk.hospital_daily_pace!==null?`${pk.hospital_daily_pace}万/営業日`:'—', unit:'万/営業日',
+       curr:pk.hospital_daily_pace, refTarget:pk.hospital_daily_target, refTargetLabel:'日次目標'},
       {k:'直近3ヶ月平均', v:pk.hospital_3m_avg!==null?`${pk.hospital_3m_avg}百万/月`:'—', unit:'百万/月',
        curr:pk.hospital_3m_avg, prev:pk.prev_3m_avg},
       {k:'年度累計月平均', v:pk.hospital_ytd_monthly_avg!==null?`${pk.hospital_ytd_monthly_avg}百万/月`:'—', unit:'百万/月',
@@ -926,7 +929,7 @@ function renderProfitChart() {
   const traces = [
     {name:'粗利実績', x:g.months, y:g.values, type:'bar',
      marker:{color:barColors}, opacity:0.9, showlegend:false},
-    {name:'月次目標', x:g.months, y:g.targets, type:'scatter', mode:'lines+markers',
+    {name:'月次目標(営業日換算)', x:g.months, y:g.targets, type:'scatter', mode:'lines+markers',
      line:{color:'#C0293B',width:2,dash:'dot'}, marker:{size:5,color:'#C0293B'}},
     ...legendDummies,
   ];
@@ -942,7 +945,7 @@ function renderProfitChart() {
     margin:{l:55,r:20,t:10,b:65},height:_pH(340),
     plot_bgcolor:'#fff',paper_bgcolor:'#fff',
   },{responsive:true});
-  document.getElementById('chartTitle').textContent = '📊 粗利 月次推移（全科合計・達成状況で色分け）';
+  document.getElementById('chartTitle').textContent = '📊 粗利 月次推移（全科合計・営業日換算の達成状況で色分け）';
 }
 
 function renderProfitRanking() {
@@ -1014,11 +1017,13 @@ function openProfitDrill(dept) {
 
   // KPIカード
   const rk = DATA.profit.ranking.find(r => r.name === dept) || {};
+  const bdSuffix = rk.biz_days != null ? `(営業${rk.biz_days}日)` : '今月';
   const kpiRow = document.getElementById('drillKpiCards');
   kpiRow.innerHTML = kpiCardHtml({icon:'💰', label:'月次粗利', period:'今月', actual:rk.actual||0, unit:'百万円', gapUnit:'百万円', target:rk.target, rate:rk.rate})
-    + kpiCardHtml({icon:'📊', label:'達成率', period:'今月', actual:rk.rate!=null?rk.rate+'%':null, unit:'', target:null, rate:rk.rate})
+    + kpiCardHtml({icon:'🗓️', label:'日次ペース', period:bdSuffix, actual:rk.daily_pace!=null?rk.daily_pace:null, unit:'万/営業日', target:rk.daily_target, rate:rk.rate})
+    + kpiCardHtml({icon:'📊', label:'達成率(営業日換算)', period:'今月', actual:rk.rate!=null?rk.rate+'%':null, unit:'', target:null, rate:rk.rate})
     + kpiCardHtml({icon:'📈', label:'前月比', period:'対前月', actual:rk.mom!=null?(rk.mom>0?'+':'')+rk.mom:null, unit:'百万円', target:null, rate:null});
-  kpiRow.style.gridTemplateColumns = 'repeat(3,1fr)';
+  kpiRow.style.gridTemplateColumns = 'repeat(4,1fr)';
   document.getElementById('drillComment').style.display='none';
 
   // チャートレイアウト

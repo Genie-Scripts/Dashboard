@@ -568,14 +568,23 @@ def build_detail_json(adm, surg, targets, surg_targets,
             from .profit import get_latest_month_summary
             p_latest = get_latest_month_summary(profit_monthly)
             p_ranking = []
+            from .config import STD_BIZ_DAYS_PER_MONTH as _STD_BD
             for i, r in p_latest.iterrows():
                 st = status_display(r["達成率"]) if pd.notna(r["達成率"]) else status_display(0)
+                biz = r.get("当月営業日数")
+                dp = (round(float(r["粗利"]) / float(biz) / 10, 1)
+                      if pd.notna(r["粗利"]) and pd.notna(biz) and float(biz) > 0 else None)
+                dt = (round(float(r["月次目標"]) / _STD_BD / 10, 1)
+                      if pd.notna(r["月次目標"]) and float(r["月次目標"]) > 0 else None)
                 p_ranking.append({
                     "rank": i + 1,
                     "name": r["診療科名"],
                     "actual": round(float(r["粗利"]) / 1000, 1) if pd.notna(r["粗利"]) else 0,
                     "target": round(float(r["月次目標"]) / 1000, 1) if pd.notna(r["月次目標"]) else None,
                     "rate": float(r["達成率"]) if pd.notna(r["達成率"]) else None,
+                    "daily_pace": dp,                                      # 万円/営業日
+                    "daily_target": dt,                                    # 万円/営業日
+                    "biz_days": int(biz) if pd.notna(biz) else None,
                     "mom": round(float(r["前月比"]) / 1000, 1) if pd.notna(r.get("前月比")) else None,
                     "status": st["css"],
                     "shape": st["shape"],

@@ -1123,10 +1123,13 @@ def main():
         pk1, pk2, pk3, pk4 = st.columns(4)
         ach_total = profit_kpi["hospital_achievement"]
         p_st = get_status(ach_total)
+        bd_cur = profit_kpi.get("current_biz_days")
+        bd_std = profit_kpi.get("std_biz_days")
+        bd_note = f"営業{bd_cur}日 / 標準{bd_std}日換算" if bd_cur else "営業日換算"
         with pk1:
             kpi_card(
                 label="全科合計（直近月）",
-                period="直近月",
+                period=f"直近月 ({bd_note})",
                 value=f"{profit_kpi['hospital_total']:.1f}",
                 unit="百万円",
                 actual_num=profit_kpi['hospital_total'],
@@ -1134,7 +1137,9 @@ def main():
                 achievement=ach_total,
                 meta_items=[
                     {"lbl": "月次目標", "val": f"{profit_kpi['hospital_target']:.0f}M"},
-                    {"lbl": "達成率",   "val": f"{ach_total:.1f}%" if ach_total else "—"},
+                    {"lbl": "日次ペース", "val": f"{profit_kpi['hospital_daily_pace']:.1f}万/営業日" if profit_kpi.get('hospital_daily_pace') is not None else "—"},
+                    {"lbl": "日次目標",  "val": f"{profit_kpi['hospital_daily_target']:.1f}万/営業日" if profit_kpi.get('hospital_daily_target') is not None else "—"},
+                    {"lbl": "達成率",    "val": f"{ach_total:.1f}%" if ach_total else "—"},
                 ],
                 status=p_st,
             )
@@ -1142,7 +1147,7 @@ def main():
             ytd_ach = profit_kpi.get("hospital_ytd_achievement")
             kpi_card(
                 label="年度累計粗利",
-                period="年度累計",
+                period="年度累計 (営業日換算)",
                 value=f"{profit_kpi['hospital_ytd']:.2f}",
                 unit="十億円",
                 actual_num=profit_kpi['hospital_ytd'],
@@ -1155,22 +1160,26 @@ def main():
                 status="neutral",
             )
         with pk3:
-            st.markdown("**🏆 達成率上位3科**")
+            st.markdown("**🏆 達成率上位3科** <small>(営業日換算)</small>", unsafe_allow_html=True)
             for item in profit_kpi["top3"]:
                 ach = item["achievement"]
                 st_ = get_status(ach)
+                dp = item.get("daily_pace")
+                dp_str = f"{dp:.1f}万/営業日" if dp is not None else "—"
                 st.markdown(
                     f'📈 **{item["name"]}** <span class="badge-{st_}">{ach:.1f}%</span>  '
-                    f'<small>{item["actual"]:.1f}M / {item["target"] or "—"}M</small>',
+                    f'<small>{dp_str} ・ {item["actual"]:.1f}M / {item["target"] or "—"}M</small>',
                     unsafe_allow_html=True)
         with pk4:
-            st.markdown("**⚠️ 達成率下位3科**")
+            st.markdown("**⚠️ 達成率下位3科** <small>(営業日換算)</small>", unsafe_allow_html=True)
             for item in profit_kpi["bottom3"]:
                 ach = item["achievement"]
                 st_ = get_status(ach)
+                dp = item.get("daily_pace")
+                dp_str = f"{dp:.1f}万/営業日" if dp is not None else "—"
                 st.markdown(
                     f'📉 **{item["name"]}** <span class="badge-{st_}">{ach:.1f}%</span>  '
-                    f'<small>{item["actual"]:.1f}M / {item["target"] or "—"}M</small>',
+                    f'<small>{dp_str} ・ {item["actual"]:.1f}M / {item["target"] or "—"}M</small>',
                     unsafe_allow_html=True)
 
         st.markdown("---")
