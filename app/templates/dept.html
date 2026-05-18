@@ -590,15 +590,21 @@ function renderProfitDeptChart(elId, bd) {
     document.getElementById(elId).innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">粗利データなし</div>';
     return;
   }
+  const tgtArr = (bd.targets && bd.targets.length === bd.months.length) ? bd.targets : null;
   const barColors = bd.months.map((_, i) => {
-    const val = bd.values[i], tgt = bd.target;
-    if (!tgt) return '#94A3B8';
+    const val = bd.values[i];
+    const tgt = tgtArr ? tgtArr[i] : bd.target;
+    if (tgt == null || !tgt) return '#94A3B8';
     const rate = val / tgt * 100;
     return rate >= 100 ? '#0e7a54' : rate >= 90 ? '#b45309' : '#c4314b';
   });
   const traces = [{name:'粗利実績', x:bd.months, y:bd.values, type:'bar', marker:{color:barColors}, opacity:0.9}];
-  if (bd.target) traces.push({name:'目標', x:[bd.months[0],bd.months[bd.months.length-1]], y:[bd.target,bd.target], type:'scatter', mode:'lines', line:{color:'#C0293B',width:2,dash:'dot'}});
-  const allY = [...bd.values, ...(bd.target ? [bd.target] : [])].filter(v=>v!=null);
+  if (tgtArr) {
+    traces.push({name:'目標(営業日補正)', x:bd.months, y:tgtArr, type:'scatter', mode:'lines+markers', line:{color:'#C0293B',width:2,dash:'dot',shape:'hv'}, marker:{size:5,color:'#C0293B'}});
+  } else if (bd.target) {
+    traces.push({name:'目標', x:[bd.months[0],bd.months[bd.months.length-1]], y:[bd.target,bd.target], type:'scatter', mode:'lines', line:{color:'#C0293B',width:2,dash:'dot'}});
+  }
+  const allY = [...bd.values, ...(tgtArr || (bd.target ? [bd.target] : []))].filter(v=>v!=null);
   const yMax = allY.length ? Math.max(...allY) * 1.15 : 10;
   Plotly.newPlot(elId, traces, {
     font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},

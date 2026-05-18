@@ -323,14 +323,24 @@ def build_profit_chart_data(profit_monthly: pd.DataFrame) -> dict:
     for dept, grp in profit_monthly.groupby("診療科名"):
         grp = grp.sort_values("月")
         tgt = grp["月次目標"].iloc[-1] if len(grp) > 0 else None
+        d_biz = grp["当月営業日数"].astype("float")
+        d_targets_adj = np.where(
+            grp["月次目標"].notna() & (d_biz > 0),
+            grp["月次目標"] * d_biz / STD_BIZ_DAYS_PER_MONTH,
+            np.nan,
+        )
         by_dept[dept] = {
-            "months":       [_fmt_month(m) for m in grp["月"]],
-            "values":       [round(v / 1000, 1) for v in grp["粗利"]],
-            "target":       round(float(tgt) / 1000, 1) if pd.notna(tgt) else None,
-            "achievements": [round(float(a), 1) if pd.notna(a) else None
-                             for a in grp["達成率"]],
-            "biz_days":     [int(b) if pd.notna(b) else None
-                             for b in grp["当月営業日数"]],
+            "months":          [_fmt_month(m) for m in grp["月"]],
+            "values":          [round(v / 1000, 1) for v in grp["粗利"]],
+            "target":          round(float(tgt) / 1000, 1) if pd.notna(tgt) else None,
+            "targets":         [round(v / 1000, 1) if pd.notna(v) else None
+                                for v in d_targets_adj],
+            "targets_nominal": [round(float(v) / 1000, 1) if pd.notna(v) else None
+                                for v in grp["月次目標"]],
+            "achievements":    [round(float(a), 1) if pd.notna(a) else None
+                                for a in grp["達成率"]],
+            "biz_days":        [int(b) if pd.notna(b) else None
+                                for b in grp["当月営業日数"]],
         }
 
     return {"global": global_data, "by_dept": by_dept}
