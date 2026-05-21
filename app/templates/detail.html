@@ -110,11 +110,9 @@
     <div class="dr-body">
       <div class="kpi-row" id="drillKpiCards"></div>
       <div id="drillComment" style="display:none;margin:10px 0 12px;padding:10px 14px;background:#f8fafc;border-radius:10px;font-size:13px;color:var(--sub)"></div>
-      <div id="drillChartsWrap" class="charts-container layout-2plus1">
-        <div class="cpnl"><h4 id="drillLabel1">🚪 新入院 推移</h4><div class="drill-chart" id="drillChartAdm"></div></div>
-        <div class="cpnl"><h4 id="drillLabel2">🛏️ 在院 推移</h4><div class="drill-chart" id="drillChartInp"></div></div>
-        <div class="cpnl chart3-panel"><h4 id="drillLabel3">💉 全麻 推移</h4><div class="drill-chart" id="drillChartOp"></div></div>
-        <div class="cpnl" id="drillChart4panel" style="display:none"><h4 id="drillLabel4">💰 月次粗利 推移</h4><div class="drill-chart" id="drillChartProfit"></div></div>
+      <div id="drillChartsWrap" class="charts-container layout-2x2">
+        <div class="cpnl"><h4 id="drillLabel1">💰 月次粗利 推移</h4><div class="drill-chart" id="drillChartAdm"></div></div>
+        <div class="cpnl"><h4 id="drillLabel2">📊 達成率 推移</h4><div class="drill-chart" id="drillChartInp"></div></div>
       </div>
     </div>
   </div>
@@ -1046,15 +1044,8 @@ function openProfitDrill(dept) {
   kpiRow.style.gridTemplateColumns = `repeat(${cards.length},1fr)`;
   document.getElementById('drillComment').style.display='none';
 
-  // チャートレイアウト
-  const drillWrap = document.getElementById('drillChartsWrap');
-  const chart4panel = document.getElementById('drillChart4panel');
-  drillWrap.className = 'charts-container layout-2plus1';
-  chart4panel.style.display = 'none';
-
   document.getElementById('drillLabel1').textContent = '💰 月次粗利 推移';
   document.getElementById('drillLabel2').textContent = '📊 達成率 推移';
-  document.getElementById('drillLabel3').textContent = '';
 
   // 粗利棒グラフ
   const traces1 = [{name:'粗利', x:bd.months, y:bd.values, type:'bar', marker:{color:'#0D9488'}, opacity:0.85}];
@@ -1071,7 +1062,6 @@ function openProfitDrill(dept) {
     ];
     Plotly.newPlot('drillChartInp', achTraces, {font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},xaxis:{gridcolor:'#DCE1E9',tickangle:-45},yaxis:{gridcolor:'#DCE1E9',title:{text:'%',font:{size:10}}},legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},hovermode:'x unified',margin:{l:45,r:15,t:8,b:65},height:_pH(320),plot_bgcolor:'#fff',paper_bgcolor:'#fff'},{responsive:true});
   }
-  document.getElementById('drillChartOp').innerHTML = '';
 
   currentDrill = dept;
   document.getElementById('drillPanel').classList.add('open');
@@ -1081,7 +1071,7 @@ function openProfitDrill(dept) {
 function closeDrill() {
   currentDrill = null;
   document.getElementById('drillPanel').classList.remove('open');
-  ['drillChartAdm','drillChartInp','drillChartOp','drillChartProfit'].forEach(id => { try{Plotly.purge(id)}catch(e){} });
+  ['drillChartAdm','drillChartInp'].forEach(id => { try{Plotly.purge(id)}catch(e){} });
 }
 </script>
 <script>
