@@ -82,21 +82,34 @@ def load_and_preprocess(data_dir: str, base_date_str: Optional[str] = None,
     if "profit_data" in data and len(data.get("profit_data", pd.DataFrame())) > 0:
         try:
             from app.lib.profit import build_profit_monthly
+            pb  = data.get("profit_breakdown")
+            ptb = data.get("profit_targets_breakdown")
             profit_monthly = build_profit_monthly(
-                data["profit_data"], data.get("profit_targets", pd.DataFrame())
+                data["profit_data"], data.get("profit_targets", pd.DataFrame()),
+                profit_breakdown=pb, profit_targets_breakdown=ptb,
             )
-            log(f"粗利: {len(profit_monthly):,} 行")
+            mode = "内訳" if (pb is not None and ptb is not None) else "旧式"
+            log(f"粗利({mode}): {len(profit_monthly):,} 行")
         except Exception as e:
             log(f"粗利データ前処理スキップ: {e}", "warn")
     else:
         # load_all に profit_data が含まれない場合、個別読込を試行
         try:
-            from app.lib.data_loader import load_profit_data, load_profit_targets
+            from app.lib.data_loader import (
+                load_profit_data, load_profit_targets,
+                load_profit_breakdown, load_profit_targets_breakdown,
+            )
             from app.lib.profit import build_profit_monthly
-            pd_raw = load_profit_data(data_dir)
-            pt_raw = load_profit_targets(data_dir)
-            profit_monthly = build_profit_monthly(pd_raw, pt_raw)
-            log(f"粗利（個別読込）: {len(profit_monthly):,} 行")
+            pd_raw  = load_profit_data(data_dir)
+            pt_raw  = load_profit_targets(data_dir)
+            pb_raw  = load_profit_breakdown(data_dir)
+            ptb_raw = load_profit_targets_breakdown(data_dir)
+            profit_monthly = build_profit_monthly(
+                pd_raw, pt_raw,
+                profit_breakdown=pb_raw, profit_targets_breakdown=ptb_raw,
+            )
+            mode = "内訳" if (pb_raw is not None and ptb_raw is not None) else "旧式"
+            log(f"粗利({mode}・個別読込): {len(profit_monthly):,} 行")
         except Exception as e:
             log(f"粗利データなし（スキップ）: {e}", "warn")
 

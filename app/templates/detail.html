@@ -376,7 +376,10 @@ function renderSummary() {
     const pGap = pk.hospital_target ? Math.round((pk.hospital_total - pk.hospital_target)*10)/10 : 0;
     const pSt = pRate >= 100 ? {css:'ok',shape:'▲',text:'達成'} : pRate >= 90 ? {css:'wr',shape:'―',text:'接近'} : {css:'dr',shape:'▼',text:'未達'};
     const bdNote = pk.current_biz_days != null
-      ? ` (営業${pk.current_biz_days}日 / 標準${pk.std_biz_days}日換算)` : '';
+      ? (pk.has_breakdown
+          ? ` (営業${pk.current_biz_days}日 / 暦${pk.current_cal_days}日 補正)`
+          : ` (営業${pk.current_biz_days}日 / 標準${pk.std_biz_days}日換算)`)
+      : '';
     main = {
       icon:'💰', label:'粗利（全科合計）', periodNote:`${pk.base_month} 月次${bdNote}`,
       actual:pk.hospital_total, unit:'百万円', targetLabel:'月次目標',
@@ -1017,13 +1020,30 @@ function openProfitDrill(dept) {
 
   // KPIカード
   const rk = DATA.profit.ranking.find(r => r.name === dept) || {};
+  const hasBdDept = rk.gairai_daily_pace != null || rk.nyuin_daily_pace != null;
   const bdSuffix = rk.biz_days != null ? `(営業${rk.biz_days}日)` : '今月';
+  const calSuffix = rk.cal_days != null ? `(暦${rk.cal_days}日)` : '今月';
+  const achLabel = hasBdDept ? '達成率(内訳補正)' : '達成率(営業日換算)';
   const kpiRow = document.getElementById('drillKpiCards');
-  kpiRow.innerHTML = kpiCardHtml({icon:'💰', label:'月次粗利', period:'今月', actual:rk.actual||0, unit:'百万円', gapUnit:'百万円', target:rk.target, rate:rk.rate})
-    + kpiCardHtml({icon:'🗓️', label:'日次ペース', period:bdSuffix, actual:rk.daily_pace!=null?rk.daily_pace:null, unit:'万/営業日', target:rk.daily_target, rate:rk.rate})
-    + kpiCardHtml({icon:'📊', label:'達成率(営業日換算)', period:'今月', actual:rk.rate!=null?rk.rate+'%':null, unit:'', target:null, rate:rk.rate})
-    + kpiCardHtml({icon:'📈', label:'前月比', period:'対前月', actual:rk.mom!=null?(rk.mom>0?'+':'')+rk.mom:null, unit:'百万円', target:null, rate:null});
-  kpiRow.style.gridTemplateColumns = 'repeat(4,1fr)';
+  const cards = [
+    kpiCardHtml({icon:'💰', label:'月次粗利', period:'今月', actual:rk.actual||0, unit:'百万円', gapUnit:'百万円', target:rk.target, rate:rk.rate})
+  ];
+  if (hasBdDept) {
+    cards.push(kpiCardHtml({icon:'🏥', label:'外来 日次ペース', period:bdSuffix,
+                            actual:rk.gairai_daily_pace, unit:'万/営業日',
+                            target:rk.gairai_daily_target, rate:null}));
+    cards.push(kpiCardHtml({icon:'🛏️', label:'入院 日次ペース', period:calSuffix,
+                            actual:rk.nyuin_daily_pace, unit:'万/暦日',
+                            target:rk.nyuin_daily_target, rate:null}));
+  } else {
+    cards.push(kpiCardHtml({icon:'🗓️', label:'日次ペース', period:bdSuffix,
+                            actual:rk.daily_pace!=null?rk.daily_pace:null, unit:'万/営業日',
+                            target:rk.daily_target, rate:rk.rate}));
+  }
+  cards.push(kpiCardHtml({icon:'📊', label:achLabel, period:'今月', actual:rk.rate!=null?rk.rate+'%':null, unit:'', target:null, rate:rk.rate}));
+  cards.push(kpiCardHtml({icon:'📈', label:'前月比', period:'対前月', actual:rk.mom!=null?(rk.mom>0?'+':'')+rk.mom:null, unit:'百万円', target:null, rate:null}));
+  kpiRow.innerHTML = cards.join('');
+  kpiRow.style.gridTemplateColumns = `repeat(${cards.length},1fr)`;
   document.getElementById('drillComment').style.display='none';
 
   // チャートレイアウト

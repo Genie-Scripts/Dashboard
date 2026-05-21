@@ -568,15 +568,20 @@ def build_detail_json(adm, surg, targets, surg_targets,
             from .profit import get_latest_month_summary
             p_latest = get_latest_month_summary(profit_monthly)
             p_ranking = []
-            from .config import STD_BIZ_DAYS_PER_MONTH as _STD_BD
+            from .config import (
+                STD_BIZ_DAYS_PER_MONTH as _STD_BD,
+                STD_CAL_DAYS_PER_MONTH as _STD_CD,
+            )
+            has_bd = "外来粗利" in p_latest.columns
             for i, r in p_latest.iterrows():
                 st = status_display(r["達成率"]) if pd.notna(r["達成率"]) else status_display(0)
                 biz = r.get("当月営業日数")
+                cal = r.get("当月暦日数") if has_bd else None
                 dp = (round(float(r["粗利"]) / float(biz) / 10, 1)
                       if pd.notna(r["粗利"]) and pd.notna(biz) and float(biz) > 0 else None)
                 dt = (round(float(r["月次目標"]) / _STD_BD / 10, 1)
                       if pd.notna(r["月次目標"]) and float(r["月次目標"]) > 0 else None)
-                p_ranking.append({
+                entry = {
                     "rank": i + 1,
                     "name": r["診療科名"],
                     "actual": round(float(r["粗利"]) / 1000, 1) if pd.notna(r["粗利"]) else 0,
@@ -589,7 +594,22 @@ def build_detail_json(adm, surg, targets, surg_targets,
                     "status": st["css"],
                     "shape": st["shape"],
                     "text": st["text"],
-                })
+                }
+                if has_bd:
+                    g_val = r.get("外来粗利")
+                    n_val = r.get("入院粗利")
+                    g_tgt = r.get("外来目標")
+                    n_tgt = r.get("入院目標")
+                    entry["cal_days"] = int(cal) if pd.notna(cal) else None
+                    entry["gairai_daily_pace"]   = (round(float(g_val) / float(biz) / 10, 1)
+                                                     if pd.notna(g_val) and pd.notna(biz) and float(biz) > 0 else None)
+                    entry["nyuin_daily_pace"]    = (round(float(n_val) / float(cal) / 10, 1)
+                                                     if pd.notna(n_val) and pd.notna(cal) and float(cal) > 0 else None)
+                    entry["gairai_daily_target"] = (round(float(g_tgt) / _STD_BD / 10, 1)
+                                                     if pd.notna(g_tgt) and float(g_tgt) > 0 else None)
+                    entry["nyuin_daily_target"]  = (round(float(n_tgt) / _STD_CD / 10, 1)
+                                                     if pd.notna(n_tgt) and float(n_tgt) > 0 else None)
+                p_ranking.append(entry)
             profit_section = {
                 "kpi": p_kpi,
                 "chart": p_chart,

@@ -809,6 +809,186 @@
           "rate": 104.9
         }
       ]
+    },
+    {
+      "base_date": "2026-05-17",
+      "inpatient": {
+        "avg_7d": 583.0,
+        "rate": 97.6
+      },
+      "admission": {
+        "actual_7d": 398,
+        "planned_7d": 244,
+        "emergency_7d": 156,
+        "rate_7d": 104.7
+      },
+      "operation": {
+        "week_total": 110,
+        "rate": 103.3,
+        "or_util_7d": 75.3
+      },
+      "profit_top": [
+        {
+          "rank": 1,
+          "name": "歯科口腔外科",
+          "rate": 149.1
+        },
+        {
+          "rank": 2,
+          "name": "メンタルケア科",
+          "rate": 110.7
+        },
+        {
+          "rank": 3,
+          "name": "放射線治療科",
+          "rate": 108.5
+        },
+        {
+          "rank": 4,
+          "name": "総合内科",
+          "rate": 105.1
+        },
+        {
+          "rank": 5,
+          "name": "心臓血管外科",
+          "rate": 104.9
+        }
+      ]
+    },
+    {
+      "base_date": "2026-05-18",
+      "inpatient": {
+        "avg_7d": 581.9,
+        "rate": 94.8
+      },
+      "admission": {
+        "actual_7d": 389,
+        "planned_7d": 239,
+        "emergency_7d": 152,
+        "rate_7d": 102.4
+      },
+      "operation": {
+        "week_total": 22,
+        "rate": 105.2,
+        "or_util_7d": 76.3
+      },
+      "profit_top": [
+        {
+          "rank": 1,
+          "name": "歯科口腔外科",
+          "rate": 149.1
+        },
+        {
+          "rank": 2,
+          "name": "メンタルケア科",
+          "rate": 110.7
+        },
+        {
+          "rank": 3,
+          "name": "放射線治療科",
+          "rate": 108.5
+        },
+        {
+          "rank": 4,
+          "name": "総合内科",
+          "rate": 105.1
+        },
+        {
+          "rank": 5,
+          "name": "心臓血管外科",
+          "rate": 104.9
+        }
+      ]
+    },
+    {
+      "base_date": "2026-05-19",
+      "inpatient": {
+        "avg_7d": 579.4,
+        "rate": 96.0
+      },
+      "admission": {
+        "actual_7d": 381,
+        "planned_7d": 235,
+        "emergency_7d": 148,
+        "rate_7d": 100.3
+      },
+      "operation": {
+        "week_total": 41,
+        "rate": 101.4,
+        "or_util_7d": 74.9
+      },
+      "profit_top": [
+        {
+          "rank": 1,
+          "name": "歯科口腔外科",
+          "rate": 149.1
+        },
+        {
+          "rank": 2,
+          "name": "メンタルケア科",
+          "rate": 110.7
+        },
+        {
+          "rank": 3,
+          "name": "放射線治療科",
+          "rate": 108.5
+        },
+        {
+          "rank": 4,
+          "name": "総合内科",
+          "rate": 105.1
+        },
+        {
+          "rank": 5,
+          "name": "心臓血管外科",
+          "rate": 104.9
+        }
+      ]
+    },
+    {
+      "base_date": "2026-05-20",
+      "inpatient": {
+        "avg_7d": 575.1,
+        "rate": 98.2
+      },
+      "admission": {
+        "actual_7d": 364,
+        "planned_7d": 217,
+        "emergency_7d": 147,
+        "rate_7d": 95.8
+      },
+      "operation": {
+        "week_total": 60,
+        "rate": 99.5,
+        "or_util_7d": 73.1
+      },
+      "profit_top": [
+        {
+          "rank": 1,
+          "name": "歯科口腔外科",
+          "rate": 154.1
+        },
+        {
+          "rank": 2,
+          "name": "総合内科",
+          "rate": 111.5
+        },
+        {
+          "rank": 3,
+          "name": "心臓血管外科",
+          "rate": 111.1
+        },
+        {
+          "rank": 4,
+          "name": "メンタルケア科",
+          "rate": 110.6
+        },
+        {
+          "rank": 5,
+          "name": "放射線治療科",
+          "rate": 108.5
+        }
+      ]
     }
   ]
 }

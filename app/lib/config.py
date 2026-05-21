@@ -115,6 +115,10 @@ def is_operational_day(dt) -> bool:
 # 達成率を 日次粗利 / 日次目標 で評価するための分母として使う。
 STD_BIZ_DAYS_PER_MONTH = 20
 
+# 入院粗利は土日祝も患者がゼロにならないため暦日基準で補正する。
+# 年平均（365/12 ≒ 30.4167）を標準月日数として使う。
+STD_CAL_DAYS_PER_MONTH = 365.0 / 12
+
 _BIZ_DAYS_CACHE: dict = {}
 
 
@@ -133,6 +137,13 @@ def biz_days_in_month(month) -> int:
     count = sum(1 for d in _pd.date_range(start, end, freq="D") if is_operational_day(d))
     _BIZ_DAYS_CACHE[key] = count
     return count
+
+
+def calendar_days_in_month(month) -> int:
+    """対象月の暦日数（28〜31）を返す。"""
+    import pandas as _pd
+    ts = _pd.Timestamp(month)
+    return (ts.replace(day=1) + _pd.offsets.MonthEnd(0)).day
 
 
 # ──────────────────────────────

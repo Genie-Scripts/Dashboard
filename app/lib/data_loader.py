@@ -332,10 +332,51 @@ def load_inpatient_targets(data_dir: str = DEFAULT_DATA_DIR) -> pd.DataFrame:
 
     return frames[-1].reset_index(drop=True) if frames else pd.DataFrame()
 
+# 粗利内訳シート名（外来/入院の2系統）
+PROFIT_SHEET_GAIRAI = "外来"
+PROFIT_SHEET_NYUIN  = "入院"
+PROFIT_TARGET_SHEET_GAIRAI = "外来目標"
+PROFIT_TARGET_SHEET_NYUIN  = "入院目標"
+
+
+def _coerce_month_col(series: pd.Series) -> pd.Series:
+    """月列を datetime に揃える。Excel シリアル日付（整数）にも対応。"""
+    parsed = pd.to_datetime(series, errors="coerce")
+    # 1990年未満（=シリアル整数を nanoseconds 解釈してしまった場合）は再変換
+    EXCEL_EPOCH = pd.Timestamp("1899-12-30")
+    needs_serial = parsed.isna() | (parsed.dt.year < 1990)
+    if needs_serial.any():
+        numeric = pd.to_numeric(series, errors="coerce")
+        serial = EXCEL_EPOCH + pd.to_timedelta(numeric, unit="D")
+        parsed = parsed.where(~needs_serial, serial)
+    return parsed
+
+
+def _melt_profit_grid(df: pd.DataFrame) -> pd.DataFrame:
+    """粗利グリッド1シート（1列目=診療科名・以降=月列）を縦持ち化"""
+    id_col = df.columns[0]
+    melted = df.melt(id_vars=[id_col], var_name="月", value_name="粗利")
+    melted.columns = ["診療科名", "月", "粗利"]
+    melted["月"]   = _coerce_month_col(melted["月"])
+    melted["粗利"] = pd.to_numeric(melted["粗利"], errors="coerce")
+    return melted.dropna(subset=["月"])
+
+
+def _take_profit_target_cols(df: pd.DataFrame) -> pd.DataFrame:
+    """粗利目標1シートから (診療科名, 月次目標) を抽出"""
+    result = df.iloc[:, :2].copy()
+    result.columns = ["診療科名", "月次目標"]
+    result["月次目標"] = pd.to_numeric(result["月次目標"], errors="coerce")
+    return result.dropna(subset=["診療科名"])
+
+
 def load_profit_data(data_dir: str = DEFAULT_DATA_DIR) -> pd.DataFrame:
     """
     profit_data/ フォルダ内の粗利データを読込・縦持ち変換。
     複数xlsxがある場合は最新ファイルを使用。
+
+    シート「外来」「入院」が揃っている場合は両者の合算を返す。
+    旧形式（単一シート）の場合は最初のシートを合計として読む。
 
     Returns:
         DataFrame: 診療科名, 月, 粗利（千円）
@@ -348,20 +389,54 @@ def load_profit_data(data_dir: str = DEFAULT_DATA_DIR) -> pd.DataFrame:
         raise FileNotFoundError(f"{folder} に .xlsx ファイルがありません。")
 
     path = files[-1]  # 最新ファイルを使用
-    df = pd.read_excel(path, engine="openpyxl")
-    id_col = df.columns[0]
-    melted = df.melt(id_vars=[id_col], var_name="月", value_name="粗利")
-    melted.columns = ["診療科名", "月", "粗利"]
-    melted["月"]   = pd.to_datetime(melted["月"], errors="coerce")
-    melted["粗利"] = pd.to_numeric(melted["粗利"], errors="coerce")
-    melted = melted.dropna(subset=["月"])
-    return melted.sort_values(["診療科名", "月"]).reset_index(drop=True)
+    sheets = pd.read_excel(path, engine="openpyxl", sheet_name=None)
+
+    if PROFIT_SHEET_GAIRAI in sheets and PROFIT_SHEET_NYUIN in sheets:
+        gairai = _melt_profit_grid(sheets[PROFIT_SHEET_GAIRAI])
+        nyuin  = _melt_profit_grid(sheets[PROFIT_SHEET_NYUIN])
+        merged = (pd.concat([gairai, nyuin], ignore_index=True)
+                    .groupby(["診療科名", "月"], as_index=False)["粗利"].sum())
+        return merged.sort_values(["診療科名", "月"]).reset_index(drop=True)
+
+    first_sheet = next(iter(sheets.values()))
+    return (_melt_profit_grid(first_sheet)
+            .sort_values(["診療科名", "月"])
+            .reset_index(drop=True))
+
+
+def load_profit_breakdown(data_dir: str = DEFAULT_DATA_DIR) -> Optional[pd.DataFrame]:
+    """
+    粗利の外来/入院内訳を取得。内訳シートが揃っていない場合は None を返す。
+
+    Returns:
+        DataFrame: 診療科名, 月, 区分(外来/入院), 粗利（千円） または None
+    """
+    folder = _folder(data_dir, "profit_data")
+    if not folder.exists():
+        return None
+    files = _list_files(folder, [".xlsx"])
+    if not files:
+        return None
+
+    path = files[-1]
+    sheets = pd.read_excel(path, engine="openpyxl", sheet_name=None)
+    if PROFIT_SHEET_GAIRAI not in sheets or PROFIT_SHEET_NYUIN not in sheets:
+        return None
+
+    gairai = _melt_profit_grid(sheets[PROFIT_SHEET_GAIRAI]).assign(区分="外来")
+    nyuin  = _melt_profit_grid(sheets[PROFIT_SHEET_NYUIN]).assign(区分="入院")
+    return (pd.concat([gairai, nyuin], ignore_index=True)
+              .sort_values(["診療科名", "月", "区分"])
+              .reset_index(drop=True))
 
 
 def load_profit_targets(data_dir: str = DEFAULT_DATA_DIR) -> pd.DataFrame:
     """
     profit_target/ フォルダ内の粗利目標を読込。
     複数ある場合は最新ファイルを使用。
+
+    シート「外来目標」「入院目標」が揃っている場合は両者の合算を返す。
+    旧形式（単一シート）の場合は最初のシートを合計として読む。
 
     Returns:
         DataFrame: 診療科名, 月次目標（千円）
@@ -374,11 +449,43 @@ def load_profit_targets(data_dir: str = DEFAULT_DATA_DIR) -> pd.DataFrame:
         raise FileNotFoundError(f"{folder} に .xlsx ファイルがありません。")
 
     path = files[-1]
-    df = pd.read_excel(path, engine="openpyxl")
-    result = df.iloc[:, :2].copy()
-    result.columns = ["診療科名", "月次目標"]
-    result["月次目標"] = pd.to_numeric(result["月次目標"], errors="coerce")
-    return result.dropna(subset=["診療科名"])
+    sheets = pd.read_excel(path, engine="openpyxl", sheet_name=None)
+
+    if PROFIT_TARGET_SHEET_GAIRAI in sheets and PROFIT_TARGET_SHEET_NYUIN in sheets:
+        gairai = _take_profit_target_cols(sheets[PROFIT_TARGET_SHEET_GAIRAI])
+        nyuin  = _take_profit_target_cols(sheets[PROFIT_TARGET_SHEET_NYUIN])
+        merged = (pd.concat([gairai, nyuin], ignore_index=True)
+                    .groupby("診療科名", as_index=False)["月次目標"].sum())
+        return merged
+
+    first_sheet = next(iter(sheets.values()))
+    return _take_profit_target_cols(first_sheet)
+
+
+def load_profit_targets_breakdown(data_dir: str = DEFAULT_DATA_DIR) -> Optional[pd.DataFrame]:
+    """
+    粗利目標の外来/入院内訳を取得。内訳シートが揃っていない場合は None を返す。
+
+    Returns:
+        DataFrame: 診療科名, 区分(外来/入院), 月次目標（千円） または None
+    """
+    folder = _folder(data_dir, "profit_target")
+    if not folder.exists():
+        return None
+    files = _list_files(folder, [".xlsx"])
+    if not files:
+        return None
+
+    path = files[-1]
+    sheets = pd.read_excel(path, engine="openpyxl", sheet_name=None)
+    if PROFIT_TARGET_SHEET_GAIRAI not in sheets or PROFIT_TARGET_SHEET_NYUIN not in sheets:
+        return None
+
+    gairai = _take_profit_target_cols(sheets[PROFIT_TARGET_SHEET_GAIRAI]).assign(区分="外来")
+    nyuin  = _take_profit_target_cols(sheets[PROFIT_TARGET_SHEET_NYUIN]).assign(区分="入院")
+    return (pd.concat([gairai, nyuin], ignore_index=True)
+              .sort_values(["診療科名", "区分"])
+              .reset_index(drop=True))
 
 
 # ────────────────────────────────────────────────────
@@ -391,20 +498,24 @@ def load_all(data_dir: str = DEFAULT_DATA_DIR) -> dict:
 
     Returns:
         dict with keys:
-            admission         — 入院データ（複数ファイルマージ済み）
-            surgery           — 手術データ（複数ファイルマージ済み）
-            surgery_targets   — 手術目標
-            inpatient_targets — 在院・新入院目標
-            profit_data       — 粗利データ
-            profit_targets    — 粗利目標
+            admission                 — 入院データ（複数ファイルマージ済み）
+            surgery                   — 手術データ（複数ファイルマージ済み）
+            surgery_targets           — 手術目標
+            inpatient_targets         — 在院・新入院目標
+            profit_data               — 粗利データ（外来＋入院合算）
+            profit_targets            — 粗利目標（外来＋入院合算）
+            profit_breakdown          — 粗利の外来/入院内訳（None 可）
+            profit_targets_breakdown  — 粗利目標の外来/入院内訳（None 可）
     """
     return {
-        "admission":         load_admission_data(data_dir),
-        "surgery":           load_surgery_data(data_dir),
-        "surgery_targets":   load_surgery_targets(data_dir),
-        "inpatient_targets": load_inpatient_targets(data_dir),
-        "profit_data":       load_profit_data(data_dir),
-        "profit_targets":    load_profit_targets(data_dir),
+        "admission":                load_admission_data(data_dir),
+        "surgery":                  load_surgery_data(data_dir),
+        "surgery_targets":          load_surgery_targets(data_dir),
+        "inpatient_targets":        load_inpatient_targets(data_dir),
+        "profit_data":              load_profit_data(data_dir),
+        "profit_targets":           load_profit_targets(data_dir),
+        "profit_breakdown":         load_profit_breakdown(data_dir),
+        "profit_targets_breakdown": load_profit_targets_breakdown(data_dir),
     }
 
 

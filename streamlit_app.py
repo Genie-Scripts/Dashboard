@@ -1107,11 +1107,19 @@ def main():
 
         # 粗利データ読込
         try:
-            from app.lib.data_loader import load_profit_data, load_profit_targets
+            from app.lib.data_loader import (
+                load_profit_data, load_profit_targets,
+                load_profit_breakdown, load_profit_targets_breakdown,
+            )
             from app.lib.profit import build_profit_monthly, build_profit_kpi, build_profit_chart_data
             profit_raw  = load_profit_data(data_dir)
             profit_tgts = load_profit_targets(data_dir)
-            profit_mth  = build_profit_monthly(profit_raw, profit_tgts)
+            profit_bd   = load_profit_breakdown(data_dir)
+            profit_tbd  = load_profit_targets_breakdown(data_dir)
+            profit_mth  = build_profit_monthly(
+                profit_raw, profit_tgts,
+                profit_breakdown=profit_bd, profit_targets_breakdown=profit_tbd,
+            )
         except Exception as e:
             st.error(f"粗利データ読込エラー: {e}")
             st.stop()
@@ -1124,8 +1132,15 @@ def main():
         ach_total = profit_kpi["hospital_achievement"]
         p_st = get_status(ach_total)
         bd_cur = profit_kpi.get("current_biz_days")
+        cal_cur = profit_kpi.get("current_cal_days")
         bd_std = profit_kpi.get("std_biz_days")
-        bd_note = f"営業{bd_cur}日 / 標準{bd_std}日換算" if bd_cur else "営業日換算"
+        has_bd = profit_kpi.get("has_breakdown", False)
+        if has_bd and cal_cur:
+            bd_note = f"営業{bd_cur}日 / 暦{cal_cur}日 補正"
+        elif bd_cur:
+            bd_note = f"営業{bd_cur}日 / 標準{bd_std}日換算"
+        else:
+            bd_note = "営業日換算"
         with pk1:
             kpi_card(
                 label="全科合計（直近月）",
