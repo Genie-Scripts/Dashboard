@@ -51,10 +51,10 @@
 .kc .prog{margin-top:4px}.kc .prog-bar{height:5px;background:#edf2f7;border-radius:999px;overflow:hidden}.kc .prog-fill{height:100%;border-radius:999px}.kc .prog-fill.ok{background:var(--ok)}.kc .prog-fill.wr{background:var(--wr)}.kc .prog-fill.dr{background:var(--dr)}.kc .prog-meta{display:flex;justify-content:space-between;margin-top:2px}.kc .prog-pct{font-size:10px;font-weight:800}.kc .prog-pct.dr{color:var(--dr)}.kc .prog-pct.wr{color:var(--wr)}.kc .prog-pct.ok{color:var(--ok)}.kc .prog-st{font-size:8px;font-weight:800;padding:1px 5px;border-radius:4px}.kc .prog-st.dr{background:var(--dr-bg);color:var(--dr-t)}.kc .prog-st.wr{background:var(--wr-bg);color:#7c3a06}.kc .prog-st.ok{background:var(--ok-bg);color:#065f42}
 /* ドリルダウン チャートグリッド */
 .charts-container{display:grid;gap:12px;margin-top:12px}
-.charts-container.layout-2plus1{grid-template-columns:1fr 1fr}
+.charts-container.layout-2plus1{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
 .charts-container.layout-2plus1 .chart3-panel{grid-column:1/-1}
-.charts-container.layout-2x2{grid-template-columns:1fr 1fr}
-.charts-container.layout-3{grid-template-columns:repeat(3,1fr)}
+.charts-container.layout-2x2{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.charts-container.layout-3{grid-template-columns:repeat(3,minmax(0,1fr))}
 .cpnl{background:var(--s);border:1px solid var(--ln);border-radius:var(--r);padding:16px;box-shadow:var(--sh)}.cpnl h4{font-size:13px;font-weight:800;margin:0 0 8px;color:var(--sub);min-width:0}
 .ft{text-align:center;font-size:11px;color:var(--mu);padding:20px 0;border-top:1px solid var(--ln);margin-top:20px}
 @media(max-width:768px){.tabs{display:flex;overflow:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}.tab{min-width:150px;flex:0 0 auto}.tab .big{font-size:22px}.sum{grid-template-columns:1fr}.bx-main .main-val{font-size:24px}.main{grid-template-columns:1fr}.chart{height:220px}.ri{grid-template-columns:24px 1fr auto}.bar,.stl{display:none}.drill-chart{height:200px}.drill-graphs{grid-template-columns:1fr}.role{display:none}.hdr .row{flex-direction:column;align-items:flex-start}
@@ -110,9 +110,10 @@
     <div class="dr-body">
       <div class="kpi-row" id="drillKpiCards"></div>
       <div id="drillComment" style="display:none;margin:10px 0 12px;padding:10px 14px;background:#f8fafc;border-radius:10px;font-size:13px;color:var(--sub)"></div>
-      <div id="drillChartsWrap" class="charts-container layout-2x2">
-        <div class="cpnl"><h4 id="drillLabel1">💰 月次粗利 推移</h4><div class="drill-chart" id="drillChartAdm"></div></div>
-        <div class="cpnl"><h4 id="drillLabel2">📊 達成率 推移</h4><div class="drill-chart" id="drillChartInp"></div></div>
+      <div id="drillChartsWrap" class="charts-container layout-2plus1">
+        <div class="cpnl" id="drillPanelGairai"><h4 id="drillLabel1">🏥 外来粗利 推移</h4><div class="drill-chart" id="drillChartGairai"></div></div>
+        <div class="cpnl" id="drillPanelNyuin"><h4 id="drillLabel2">🛏️ 入院粗利 推移</h4><div class="drill-chart" id="drillChartNyuin"></div></div>
+        <div class="cpnl chart3-panel" id="drillPanelAch"><h4 id="drillLabel3">📊 達成率 推移</h4><div class="drill-chart" id="drillChartAch"></div></div>
       </div>
     </div>
   </div>
@@ -1044,15 +1045,22 @@ function openProfitDrill(dept) {
   kpiRow.style.gridTemplateColumns = `repeat(${cards.length},1fr)`;
   document.getElementById('drillComment').style.display='none';
 
-  document.getElementById('drillLabel1').textContent = '💰 月次粗利 推移';
-  document.getElementById('drillLabel2').textContent = '📊 達成率 推移';
+  document.getElementById('drillLabel1').textContent = '🏥 外来粗利 推移';
+  document.getElementById('drillLabel2').textContent = '🛏️ 入院粗利 推移';
+  document.getElementById('drillLabel3').textContent = '📊 達成率 推移';
 
-  // 粗利棒グラフ
-  const traces1 = [{name:'粗利', x:bd.months, y:bd.values, type:'bar', marker:{color:'#0D9488'}, opacity:0.85}];
-  if (bd.target) traces1.push({name:'目標', x:[bd.months[0],bd.months[bd.months.length-1]], y:[bd.target,bd.target], type:'scatter', mode:'lines', line:{color:'#C0293B',width:2,dash:'dot'}});
-  const allY=[...bd.values,...(bd.target?[bd.target]:[])].filter(v=>v!=null);
-  const yMax=allY.length?Math.max(...allY)*1.15:10;
-  Plotly.newPlot('drillChartAdm', traces1, {font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},xaxis:{gridcolor:'#DCE1E9',tickangle:-45},yaxis:{range:[0,yMax],gridcolor:'#DCE1E9',title:{text:'百万円',font:{size:10}}},legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},hovermode:'x unified',margin:{l:55,r:15,t:8,b:65},height:_pH(320),plot_bgcolor:'#fff',paper_bgcolor:'#fff'},{responsive:true});
+  // ★Plotly はコンテナが display:none の状態で描画すると幅を取得できず
+  //   デフォルト幅で描画されてしまうため、先にパネルを開いてから描画する
+  currentDrill = dept;
+  const drillPanel = document.getElementById('drillPanel');
+  drillPanel.classList.add('open');
+
+  // 外来粗利（営業日補正目標ライン）
+  _renderProfitBreakdownChart('drillChartGairai', bd.months, bd.gairai_values, bd.gairai_targets,
+                              '#0EA5E9', '目標(営業日補正)');
+  // 入院粗利（暦日補正目標ライン）
+  _renderProfitBreakdownChart('drillChartNyuin', bd.months, bd.nyuin_values, bd.nyuin_targets,
+                              '#F59E0B', '目標(暦日補正)');
 
   // 達成率折れ線グラフ
   if (bd.achievements) {
@@ -1060,18 +1068,42 @@ function openProfitDrill(dept) {
       {name:'達成率', x:bd.months, y:bd.achievements, type:'scatter', mode:'lines+markers', line:{color:'#0D9488',width:2.5}, marker:{size:5}},
       {name:'100%', x:[bd.months[0],bd.months[bd.months.length-1]], y:[100,100], type:'scatter', mode:'lines', line:{color:'#C0293B',width:2,dash:'dot'}},
     ];
-    Plotly.newPlot('drillChartInp', achTraces, {font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},xaxis:{gridcolor:'#DCE1E9',tickangle:-45},yaxis:{gridcolor:'#DCE1E9',title:{text:'%',font:{size:10}}},legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},hovermode:'x unified',margin:{l:45,r:15,t:8,b:65},height:_pH(320),plot_bgcolor:'#fff',paper_bgcolor:'#fff'},{responsive:true});
+    Plotly.newPlot('drillChartAch', achTraces, {font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},xaxis:{gridcolor:'#DCE1E9',tickangle:-45},yaxis:{gridcolor:'#DCE1E9',title:{text:'%',font:{size:10}}},legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},hovermode:'x unified',margin:{l:45,r:15,t:8,b:65},height:_pH(320),plot_bgcolor:'#fff',paper_bgcolor:'#fff'},{responsive:true});
+  } else {
+    document.getElementById('drillChartAch').innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">達成率データなし</div>';
   }
 
-  currentDrill = dept;
-  document.getElementById('drillPanel').classList.add('open');
-  document.getElementById('drillPanel').scrollIntoView({behavior:'smooth',block:'nearest'});
+  drillPanel.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+// ── 外来/入院 粗利チャート（区分別の日数補正目標ライン付き） ──
+function _renderProfitBreakdownChart(elId, months, values, targets, barColor, targetName) {
+  const el = document.getElementById(elId);
+  if (!values || !values.some(v => v != null)) {
+    el.innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">内訳データなし</div>';
+    return;
+  }
+  const traces = [{name:'粗利', x:months, y:values, type:'bar', marker:{color:barColor}, opacity:0.85}];
+  if (targets && targets.some(v => v != null)) {
+    traces.push({name:targetName, x:months, y:targets, type:'scatter', mode:'lines+markers',
+                 line:{color:'#C0293B',width:2,dash:'dot',shape:'hv'}, marker:{size:5,color:'#C0293B'}});
+  }
+  const allY = [...values, ...(targets || [])].filter(v => v != null);
+  const yMax = allY.length ? Math.max(...allY) * 1.15 : 10;
+  Plotly.newPlot(elId, traces, {
+    font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
+    xaxis:{gridcolor:'#DCE1E9',tickangle:-45},
+    yaxis:{range:[0,yMax],gridcolor:'#DCE1E9',title:{text:'百万円',font:{size:10}}},
+    legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},
+    hovermode:'x unified',margin:{l:55,r:15,t:8,b:65},height:_pH(320),
+    plot_bgcolor:'#fff',paper_bgcolor:'#fff',
+  }, {responsive:true});
 }
 
 function closeDrill() {
   currentDrill = null;
   document.getElementById('drillPanel').classList.remove('open');
-  ['drillChartAdm','drillChartInp'].forEach(id => { try{Plotly.purge(id)}catch(e){} });
+  ['drillChartGairai','drillChartNyuin','drillChartAch'].forEach(id => { try{Plotly.purge(id)}catch(e){} });
 }
 </script>
 <script>

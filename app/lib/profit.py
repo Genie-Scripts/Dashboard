@@ -66,7 +66,8 @@ def build_profit_monthly(profit_data: pd.DataFrame,
           診療科名, 月, 粗利, 月次目標, 当月営業日数, 日次粗利, 日次目標,
           月次補正目標, 達成率, 前月比, 前月比率
           [内訳モードのみ追加]
-          外来粗利, 入院粗利, 外来目標, 入院目標, 当月暦日数
+          外来粗利, 入院粗利, 外来目標, 入院目標, 当月暦日数,
+          外来補正目標, 入院補正目標
     """
     tgt_map = profit_targets.set_index("診療科名")["月次目標"].to_dict()
     df = profit_data.copy()
@@ -130,6 +131,17 @@ def build_profit_monthly(profit_data: pd.DataFrame,
         )
         has_any_tgt = df["外来目標"].notna() | df["入院目標"].notna()
         df["月次補正目標"] = np.where(has_any_tgt, gairai_adj + nyuin_adj, np.nan)
+        # チャート用の区分別補正目標（外来は営業日、入院は暦日で補正）
+        df["外来補正目標"] = np.where(
+            df["外来目標"].notna() & (df["外来目標"] > 0) & (biz > 0),
+            df["外来目標"] * biz / STD_BIZ_DAYS_PER_MONTH,
+            np.nan,
+        )
+        df["入院補正目標"] = np.where(
+            df["入院目標"].notna() & (df["入院目標"] > 0) & (cal > 0),
+            df["入院目標"] * cal / STD_CAL_DAYS_PER_MONTH,
+            np.nan,
+        )
 
         df["達成率"] = np.where(
             df["月次補正目標"].notna() & (df["月次補正目標"] > 0),
@@ -418,8 +430,10 @@ def build_profit_chart_data(profit_monthly: pd.DataFrame) -> dict:
     Returns:
         {
           "global": {months,values,targets,targets_nominal,achievements,biz_days[,cal_days]},
-          "by_dept": {dept: {months,values,target,targets,targets_nominal,achievements,biz_days[,cal_days]}}
+          "by_dept": {dept: {months,values,target,targets,targets_nominal,achievements,biz_days
+                            [,cal_days,gairai_values,nyuin_values,gairai_targets,nyuin_targets]}}
         }
+        内訳モードでは by_dept[*] に外来/入院の月次値と日数補正済み目標配列が追加される。
     """
     def _fmt_month(m) -> str:
         return m.strftime("%Y-%m") if hasattr(m, "strftime") else str(m)[:7]
@@ -484,6 +498,14 @@ def build_profit_chart_data(profit_monthly: pd.DataFrame) -> dict:
         if has_breakdown:
             d["cal_days"] = [int(b) if pd.notna(b) else None
                               for b in grp["当月暦日数"]]
+            d["gairai_values"]  = [round(float(v) / 1000, 1) if pd.notna(v) else None
+                                    for v in grp["外来粗利"]]
+            d["nyuin_values"]   = [round(float(v) / 1000, 1) if pd.notna(v) else None
+                                    for v in grp["入院粗利"]]
+            d["gairai_targets"] = [round(float(v) / 1000, 1) if pd.notna(v) else None
+                                    for v in grp["外来補正目標"]]
+            d["nyuin_targets"]  = [round(float(v) / 1000, 1) if pd.notna(v) else None
+                                    for v in grp["入院補正目標"]]
         by_dept[dept] = d
 
     return {"global": global_data, "by_dept": by_dept}
