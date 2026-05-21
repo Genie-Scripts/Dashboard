@@ -222,11 +222,53 @@ function stShape(rate) { return rate==null?'—':rate<90?'▼':rate<100?'―':'�
 function stText(rate) { return rate==null?'—':rate<90?'未達':rate<100?'接近':'達成'; }
 
 // ── KPIカード HTML生成 (ドリルパネル用) ──
+// mode:
+//   undefined / 'target' : 目標+実績で達成率評価（既定）
+//   'rate-only'          : 目標を持たず、c.rate 自体が評価値（達成率カード等）
+//   'trend'              : 目標もrateも無く、c.actual の符号で増減評価（前月比等）
 function kpiCardHtml(c) {
+  const mode = c.mode || 'target';
+
+  if (mode === 'trend') {
+    const v = c.actual;
+    const hasVal = v != null && !isNaN(v);
+    let shape, txt, css;
+    if (!hasVal)    { shape = '—'; txt = 'データなし'; css = 'mu'; }
+    else if (v > 0) { shape = '▲'; txt = '増加';       css = 'ok'; }
+    else if (v < 0) { shape = '▼'; txt = '減少';       css = 'dr'; }
+    else            { shape = '―'; txt = '横ばい';     css = 'wr'; }
+    const valStr = hasVal ? (v > 0 ? '+' : '') + v : '—';
+    return `<div class="kc">
+      <h3>${c.icon} ${c.label}</h3>
+      ${c.period ? `<div class="period">${c.period}</div>` : ''}
+      <div class="val ${css==='dr'?'dr':''}">${valStr}<span class="unit">${c.unit||''}</span></div>
+      <div class="prog">
+        <div class="prog-meta" style="justify-content:flex-end">
+          <span class="prog-st ${css}">${shape} ${txt}</span>
+        </div>
+      </div>
+    </div>`;
+  }
+
   const sc = stCss(c.rate);
   const ss = stShape(c.rate);
   const st = stText(c.rate);
   const barW = Math.min((c.rate||0)/1.5, 100);
+
+  if (mode === 'rate-only') {
+    return `<div class="kc">
+      <h3>${c.icon} ${c.label}</h3>
+      ${c.period ? `<div class="period">${c.period}</div>` : ''}
+      <div class="val ${sc==='dr'?'dr':''}">${c.actual!=null?c.actual:'—'}<span class="unit">${c.unit||''}</span></div>
+      ${c.rate!=null ? `<div class="prog">
+        <div class="prog-bar"><div class="prog-fill ${sc}" style="width:${barW}%"></div></div>
+        <div class="prog-meta" style="justify-content:flex-end">
+          <span class="prog-st ${sc}">${ss} ${st}</span>
+        </div>
+      </div>` : `<div style="font-size:10px;color:var(--mu);margin-top:6px">目標未設定</div>`}
+    </div>`;
+  }
+
   const gap = c.target != null ? (c.actual - c.target) : null;
   const gapStr = gap != null ? (gap > 0 ? '+' : '') + Math.round(gap*10)/10 + (c.gapUnit||c.unit) : '—';
   return `<div class="kc">
@@ -1027,20 +1069,26 @@ function openProfitDrill(dept) {
   const cards = [
     kpiCardHtml({icon:'💰', label:'月次粗利', period:'今月', actual:rk.actual||0, unit:'百万円', gapUnit:'百万円', target:rk.target, rate:rk.rate})
   ];
+  const _paceRate = (act, tgt) => (act != null && tgt != null && tgt > 0)
+    ? Math.round(act / tgt * 1000) / 10 : null;
   if (hasBdDept) {
     cards.push(kpiCardHtml({icon:'🏥', label:'外来 日次ペース', period:bdSuffix,
                             actual:rk.gairai_daily_pace, unit:'万/営業日',
-                            target:rk.gairai_daily_target, rate:null}));
+                            target:rk.gairai_daily_target,
+                            rate:_paceRate(rk.gairai_daily_pace, rk.gairai_daily_target)}));
     cards.push(kpiCardHtml({icon:'🛏️', label:'入院 日次ペース', period:calSuffix,
                             actual:rk.nyuin_daily_pace, unit:'万/暦日',
-                            target:rk.nyuin_daily_target, rate:null}));
+                            target:rk.nyuin_daily_target,
+                            rate:_paceRate(rk.nyuin_daily_pace, rk.nyuin_daily_target)}));
   } else {
     cards.push(kpiCardHtml({icon:'🗓️', label:'日次ペース', period:bdSuffix,
                             actual:rk.daily_pace!=null?rk.daily_pace:null, unit:'万/営業日',
                             target:rk.daily_target, rate:rk.rate}));
   }
-  cards.push(kpiCardHtml({icon:'📊', label:achLabel, period:'今月', actual:rk.rate!=null?rk.rate+'%':null, unit:'', target:null, rate:rk.rate}));
-  cards.push(kpiCardHtml({icon:'📈', label:'前月比', period:'対前月', actual:rk.mom!=null?(rk.mom>0?'+':'')+rk.mom:null, unit:'百万円', target:null, rate:null}));
+  cards.push(kpiCardHtml({mode:'rate-only', icon:'📊', label:achLabel, period:'今月',
+                          actual:rk.rate!=null?rk.rate+'%':null, unit:'', rate:rk.rate}));
+  cards.push(kpiCardHtml({mode:'trend', icon:'📈', label:'前月比', period:'対前月',
+                          actual:rk.mom, unit:'百万円'}));
   kpiRow.innerHTML = cards.join('');
   kpiRow.style.gridTemplateColumns = `repeat(${cards.length},1fr)`;
   document.getElementById('drillComment').style.display='none';
