@@ -683,6 +683,7 @@ function renderDeptEstimateChart(est, bd) {
     {name:'30日推計合計', x:dates, y:total, type:'scatter', mode:'lines',
      line:{color:'#0A3671', width:2.2}, hovertemplate:'%{y:.1f}百万円<extra>合計</extra>'},
   ];
+  const yAll = total.filter(v => v != null && !isNaN(v));
 
   // 月次目標を水平線で表示（月次目標 = 30日基準の目安値）
   const tgt = bd && bd.target;
@@ -691,6 +692,7 @@ function renderDeptEstimateChart(est, bd) {
       y:[tgt, tgt], type:'scatter', mode:'lines',
       line:{color:'#C0293B', width:2, dash:'dot'},
       hovertemplate:'%{y:.1f}百万円<extra>月次目標</extra>'});
+    yAll.push(tgt);
   }
 
   // 月次実績ダイヤを参考表示
@@ -708,13 +710,21 @@ function renderDeptEstimateChart(est, bd) {
       traces.push({name:'月次実績', x:me, y:mv, type:'scatter', mode:'markers',
         marker:{color:'#C0293B', size:10, symbol:'diamond-open', line:{width:2.2}},
         hovertemplate:'%{y:.1f}百万円<extra>月次実績</extra>'});
+      mv.forEach(v => { if (v != null && !isNaN(v)) yAll.push(v); });
     }
   }
+
+  // Y軸: ゼロ起点ではなく min−5%〜max+5% で変化を見やすく
+  const yPad = 0.05;
+  const yMin = yAll.length ? Math.min(...yAll) : 0;
+  const yMax = yAll.length ? Math.max(...yAll) : 10;
+  const yLo = yMin - Math.abs(yMin) * yPad;
+  const yHi = yMax + Math.abs(yMax) * yPad;
 
   Plotly.newPlot('estimateChart', traces, {
     font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
     xaxis:{gridcolor:'#DCE1E9', type:'date'},
-    yaxis:{gridcolor:'#DCE1E9', title:{text:'30日推計（百万円）',font:{size:10}}, rangemode:'tozero'},
+    yaxis:{gridcolor:'#DCE1E9', title:{text:'30日推計（百万円）',font:{size:10}}, range:[yLo, yHi]},
     legend:{orientation:'h',x:0,y:-0.18,font:{size:10}},
     hovermode:'x unified',
     margin:{l:55,r:20,t:10,b:55}, height:_pH(320),
