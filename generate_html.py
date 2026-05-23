@@ -79,6 +79,7 @@ def load_and_preprocess(data_dir: str, base_date_str: Optional[str] = None,
 
     # ── 粗利（オプション） ──
     profit_monthly = pd.DataFrame()
+    profit_breakdown_raw = None
     if "profit_data" in data and len(data.get("profit_data", pd.DataFrame())) > 0:
         try:
             from app.lib.profit import build_profit_monthly
@@ -88,6 +89,7 @@ def load_and_preprocess(data_dir: str, base_date_str: Optional[str] = None,
                 data["profit_data"], data.get("profit_targets", pd.DataFrame()),
                 profit_breakdown=pb, profit_targets_breakdown=ptb,
             )
+            profit_breakdown_raw = pb
             mode = "内訳" if (pb is not None and ptb is not None) else "旧式"
             log(f"粗利({mode}): {len(profit_monthly):,} 行")
         except Exception as e:
@@ -108,6 +110,7 @@ def load_and_preprocess(data_dir: str, base_date_str: Optional[str] = None,
                 pd_raw, pt_raw,
                 profit_breakdown=pb_raw, profit_targets_breakdown=ptb_raw,
             )
+            profit_breakdown_raw = pb_raw
             mode = "内訳" if (pb_raw is not None and ptb_raw is not None) else "旧式"
             log(f"粗利({mode}・個別読込): {len(profit_monthly):,} 行")
         except Exception as e:
@@ -120,7 +123,7 @@ def load_and_preprocess(data_dir: str, base_date_str: Optional[str] = None,
         base_date = adm["日付"].max()
     log(f"基準日: {base_date.strftime('%Y-%m-%d')}")
 
-    return adm, surg, targets, surg_targets, profit_monthly, base_date
+    return adm, surg, targets, surg_targets, profit_monthly, base_date, profit_breakdown_raw
 
 
 def _build_jinja_env():
@@ -176,7 +179,7 @@ def generate(data_dir: str = DEFAULT_DATA_DIR,
     resolved_ga_id = (ga_id or GA_MEASUREMENT_ID or "").strip()
 
     # ── データ読込 ──
-    adm, surg, targets, surg_targets, profit_monthly, base_date = \
+    adm, surg, targets, surg_targets, profit_monthly, base_date, profit_breakdown_raw = \
         load_and_preprocess(data_dir, base_date_str, no_validate)
 
     env = _build_jinja_env()
@@ -228,7 +231,8 @@ def generate(data_dir: str = DEFAULT_DATA_DIR,
     # ════════════════════════════════════════
     log("detail.html 生成中...")
     detail_json = build_detail_json(
-        adm, surg, targets, surg_targets, profit_monthly, base_date, generated_at
+        adm, surg, targets, surg_targets, profit_monthly, base_date, generated_at,
+        profit_breakdown=profit_breakdown_raw,
     )
     detail_ctx = {
         "data_json": detail_json,

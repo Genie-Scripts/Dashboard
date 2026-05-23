@@ -105,6 +105,15 @@
     </div>
   </section>
 
+  <!-- 直近30日 粗利推計（profitタブ専用） -->
+  <section class="main" id="estimateSection" style="display:none;grid-template-columns:1fr">
+    <div class="pnl pnl-chart">
+      <h3 id="estimateTitle">📈 直近30日 推計粗利 推移（日次ローリング）</h3>
+      <div class="chart" id="estimateChart"></div>
+      <div id="estimateMeta" style="margin-top:8px;font-size:11px;color:var(--mu);line-height:1.5"></div>
+    </div>
+  </section>
+
   <div class="drill" id="drillPanel">
     <div class="dr-head" id="drillHead" onclick="closeDrill()">📋 <span id="drillName"></span> の詳細 <span style="color:var(--mu)">✕</span></div>
     <div class="dr-body">
@@ -435,6 +444,17 @@ function renderSummary() {
       {k:'年度累計月平均', v:pk.hospital_ytd_monthly_avg!==null?`${pk.hospital_ytd_monthly_avg}百万/月`:'—', unit:'百万/月',
        curr:pk.hospital_ytd_monthly_avg, prev:pk.prev_ytd_monthly_avg},
     ];
+    // 🔮 直近30日推計（参考カード）
+    if (hasEstimate && DATA.profit_estimate.latest) {
+      const el = DATA.profit_estimate.latest;
+      const em = DATA.profit_estimate.meta || {};
+      refs.push({
+        k:`🔮 直近30日推計 (${em.window_start||''}〜${em.window_end||''})`,
+        v:`${el.total!=null?el.total+'百万円':'—'}`, unit:'百万円',
+        curr:el.total,
+        prevLabel:`外来${el.gairai!=null?el.gairai:'—'}+入院${el.nyuin!=null?el.nyuin:'—'}`
+      });
+    }
   } else {
     main = {
       icon:'💉', label:'全身麻酔手術', periodNote:'直近7平日平均',
@@ -517,7 +537,7 @@ function renderChartControls() {
   const mkChk = (id,lbl,checked,fn) => `<label style="font-size:11px;font-weight:700;color:var(--sub);cursor:pointer;display:flex;align-items:center;gap:2px"><input type="checkbox" ${checked?'checked':''} onchange="${fn}"> ${lbl}</label>`;
 
   if (isProfit) {
-    const profitPeriodDefs = [{l:'直近3ヶ月',p:'12w'},{l:'直近6ヶ月',p:'24w'},{l:'直近12ヶ月',p:'365d'}];
+    const profitPeriodDefs = [{l:'直近3ヶ月',p:'12w'},{l:'直近6ヶ月',p:'24w'},{l:'直近12ヶ月',p:'365d'},{l:'全期間',p:'all'}];
     const profitPeriods = profitPeriodDefs.map(d =>
       `<span class="btn${d.p===currentPeriod?' active':''}" onclick="setPeriod('${d.p}',this)">${d.l}</span>`
     ).join('');
@@ -596,12 +616,100 @@ function toggleDayType(type, checked) {
 function renderContent() {
   renderChart();
   renderRanking();
+  renderEstimateSection();
+}
+
+const hasEstimate = !!(DATA.profit_estimate && DATA.profit_estimate.series && DATA.profit_estimate.series.dates);
+function renderEstimateSection() {
+  const sec = document.getElementById('estimateSection');
+  if (!sec) return;
+  if (currentTab !== 'profit' || !hasEstimate) { sec.style.display = 'none'; return; }
+  sec.style.display = 'grid';
+  renderEstimateChart();
+}
+
+function renderEstimateChart() {
+  const pe = DATA.profit_estimate;
+  if (!pe || !pe.series || !pe.series.dates) return;
+  const s = pe.series;
+  // 期間フィルタ（現在の currentPeriod に合わせる）
+  const cutoff = periodCutoff();
+  const idx = s.dates.findIndex(d => d >= cutoff);
+  const slice = (arr) => idx >= 0 ? arr.slice(idx) : arr;
+  const dates  = slice(s.dates);
+  const total  = slice(s.values_total);
+  const gairai = slice(s.values_gairai);
+  const nyuin  = slice(s.values_nyuin);
+
+  const traces = [
+    {name:'入院推計', x:dates, y:nyuin, type:'scatter', mode:'lines', stackgroup:'one',
+     line:{color:'#3A6EA5', width:0.5}, fillcolor:'rgba(58,110,165,0.45)', hovertemplate:'%{y:.1f}百万円<extra>入院</extra>'},
+    {name:'外来推計', x:dates, y:gairai, type:'scatter', mode:'lines', stackgroup:'one',
+     line:{color:'#0D9488', width:0.5}, fillcolor:'rgba(13,148,136,0.45)', hovertemplate:'%{y:.1f}百万円<extra>外来</extra>'},
+    {name:'30日推計合計', x:dates, y:total, type:'scatter', mode:'lines',
+     line:{color:'#0A3671', width:2.2}, hovertemplate:'%{y:.1f}百万円<extra>合計</extra>'},
+  ];
+
+  // 月次目標を水平線として表示（30日推計の目安）
+  const hospTgt = DATA.profit && DATA.profit.kpi ? DATA.profit.kpi.hospital_target : null;
+  if (hospTgt != null && dates.length > 0) {
+    traces.push({name:`月次目標 ${hospTgt}百万円`, x:[dates[0], dates[dates.length-1]],
+      y:[hospTgt, hospTgt], type:'scatter', mode:'lines',
+      line:{color:'#C0293B', width:2, dash:'dot'},
+      hovertemplate:'%{y:.1f}百万円<extra>月次目標</extra>'});
+  }
+
+  // 月次実績の参考表示: 全科月次粗利 を 30日 当量で薄くオーバーレイ
+  if (DATA.profit && DATA.profit.chart && DATA.profit.chart.global) {
+    const g = DATA.profit.chart.global;
+    const months = g.months || [];
+    // 月末日付に配置
+    const monthEnd = months.map(m => {
+      const d = new Date(m + '-01');
+      return new Date(d.getFullYear(), d.getMonth()+1, 0).toISOString().slice(0,10);
+    });
+    const vals = (g.values || []).slice();
+    const idxM = monthEnd.findIndex(d => d >= cutoff);
+    const me = idxM >= 0 ? monthEnd.slice(idxM) : monthEnd;
+    const mv = idxM >= 0 ? vals.slice(idxM) : vals;
+    if (me.length > 0) {
+      traces.push({name:'月次実績', x:me, y:mv, type:'scatter', mode:'markers',
+        marker:{color:'#C0293B', size:11, symbol:'diamond-open', line:{width:2.4}},
+        hovertemplate:'%{y:.1f}百万円<extra>月次実績</extra>'});
+    }
+  }
+
+  Plotly.newPlot('estimateChart', traces, {
+    font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
+    xaxis:{gridcolor:'#DCE1E9', type:'date'},
+    yaxis:{gridcolor:'#DCE1E9', title:{text:'30日推計（百万円）',font:{size:10}}, rangemode:'tozero'},
+    legend:{orientation:'h',x:0,y:-0.18,font:{size:10}},
+    hovermode:'x unified',
+    margin:{l:55,r:20,t:10,b:55}, height:_pH(340),
+    plot_bgcolor:'#fff', paper_bgcolor:'#fff',
+  },{responsive:true});
+
+  // メタ情報
+  const meta = pe.meta || {};
+  const latest = pe.latest || {};
+  const fq = pe.fit_quality || {};
+  const fqArr = Object.entries(fq).map(([d,v]) => ({d, g:v.gairai_r2, n:v.nyuin_r2}));
+  const avg = (xs) => { const a = xs.filter(x=>x!=null); return a.length ? (a.reduce((p,c)=>p+c,0)/a.length).toFixed(2) : '—'; };
+  const avg_g = avg(fqArr.map(x=>x.g));
+  const avg_n = avg(fqArr.map(x=>x.n));
+  const lo = fqArr.filter(x => (x.g!=null && x.g<0.4) || (x.n!=null && x.n<0.4)).map(x=>x.d);
+  document.getElementById('estimateMeta').innerHTML =
+    `🔮 直近30日推計（${meta.window_start}〜${meta.window_end}）: <b>${latest.total||'—'}百万円</b>（外来 ${latest.gairai||'—'}百万 + 入院 ${latest.nyuin||'—'}百万）
+     ／ モデル: 過去${meta.lookback_months}ヶ月 OLS（科別）, 外来 R² 平均 ${avg_g}・入院 R² 平均 ${avg_n}
+     ／ <span style="color:var(--dr)">適合弱（R²&lt;0.4）${lo.length}科: ${lo.slice(0,5).join('、')}${lo.length>5?'…':''}</span>
+     ／ ⚠️ 推計値は「過去12ヶ月の平均的な単価構造」の前提に基づきます。実績との大きな乖離は構造変化のサイン。`;
 }
 
 function periodCutoff() {
   const bd = DATA.meta.base_date;
   if (currentPeriod === '12w') return new Date(new Date(bd) - 12*7*86400000).toISOString().slice(0,10);
   if (currentPeriod === '24w') return new Date(new Date(bd) - 24*7*86400000).toISOString().slice(0,10);
+  if (currentPeriod === 'all') return '1900-01-01';
   return new Date(new Date(bd) - 365*86400000).toISOString().slice(0,10); // 365d
 }
 
@@ -746,7 +854,7 @@ function renderChart() {
       fillcolor:'rgba(245,158,11,0.10)',line:{width:0}});
   }
 
-  const pLabels = {'12w':'直近12週','24w':'直近24週','365d':'直近365日'};
+  const pLabels = {'12w':'直近12週','24w':'直近24週','365d':'直近365日','all':'全期間'};
   const dayLabel = (showWeekday&&showHoliday)?'':showWeekday?' 平日のみ':' 休日のみ';
   const layout = {
     font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
@@ -839,7 +947,7 @@ function renderOperationChart() {
       fillcolor:'rgba(245,158,11,0.10)',line:{width:0}});
   }
 
-  const pLabels = {'12w':'直近12週','24w':'直近24週','365d':'直近365日'};
+  const pLabels = {'12w':'直近12週','24w':'直近24週','365d':'直近365日','all':'全期間'};
   Plotly.newPlot('mainChart', traces, {
     font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
     xaxis:{gridcolor:'#DCE1E9',tickformat:'%m/%d',tickangle:-45},
@@ -940,6 +1048,7 @@ function toggleRankAll() {
 function profitMonthCount() {
   if (currentPeriod === '12w') return 3;
   if (currentPeriod === '24w') return 6;
+  if (currentPeriod === 'all') return 9999;
   return 12; // 365d
 }
 function renderProfitChart() {

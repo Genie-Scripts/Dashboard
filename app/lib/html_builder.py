@@ -35,6 +35,7 @@ from .charts import (
     build_surgery_year_compare_chart, build_ward_utilization_heatmap,
 )
 from .profit import build_profit_kpi, build_profit_chart_data
+from .profit_estimate import build_estimate_payload as build_profit_estimate_payload
 
 
 def _json_safe(obj):
@@ -293,7 +294,8 @@ def _build_ai_alerts(adm, surg, targets, surg_targets, base_date) -> list:
 # ═══════════════════════════════════════
 
 def build_detail_json(adm, surg, targets, surg_targets,
-                      profit_monthly, base_date, generated_at=None) -> str:
+                      profit_monthly, base_date, generated_at=None,
+                      profit_breakdown=None) -> str:
     """
     detail.html に埋め込む DATA JSON 文字列を生成。
     仕様書 付録D のスキーマに準拠。
@@ -621,6 +623,19 @@ def build_detail_json(adm, surg, targets, surg_targets,
         except Exception:
             pass
 
+    # ── profit_estimate: 直近30日 粗利推計（2式・手術入外分離） ──
+    profit_estimate_section = None
+    if profit_section is not None and profit_breakdown is not None and len(profit_breakdown) > 0:
+        try:
+            profit_estimate_section = build_profit_estimate_payload(
+                profit_breakdown=profit_breakdown,
+                adm=adm, surg=surg,
+                base_date=base_date,
+                rolling_days=30,
+            )
+        except Exception:
+            profit_estimate_section = None
+
     # ── assemble ──
     data = {
         "meta": {
@@ -717,5 +732,27 @@ def build_detail_json(adm, surg, targets, surg_targets,
                 }
             if dname in profit_chart_by_dept:
                 drill_entry["profit_chart"] = profit_chart_by_dept[dname]
+
+    # 直近30日推計を全科 + 診療科別に attach
+    if profit_estimate_section:
+        data["profit_estimate"] = {
+            "meta":        profit_estimate_section["meta"],
+            "latest":      profit_estimate_section["latest"].get("_hospital", {}),
+            "series":      profit_estimate_section["series"].get("_hospital", {}),
+            "fit_quality": profit_estimate_section["fit_quality"],
+        }
+        est_latest = profit_estimate_section["latest"]
+        est_series = profit_estimate_section["series"]
+        est_fit    = profit_estimate_section["fit_quality"]
+        for dname, drill_entry in data["drill"].items():
+            if drill_entry.get("ward_extra"):
+                continue
+            if dname in est_latest:
+                drill_entry["profit_estimate"] = {
+                    "latest":      est_latest[dname],
+                    "series":      est_series.get(dname, {}),
+                    "fit_quality": est_fit.get(dname, {}),
+                    "meta":        profit_estimate_section["meta"],
+                }
 
     return json.dumps(data, ensure_ascii=False, default=_json_safe)

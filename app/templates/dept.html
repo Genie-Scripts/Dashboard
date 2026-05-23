@@ -109,6 +109,13 @@
       <div class="cpnl chart3-panel"><h4 id="chartTitle3">💉 全麻手術 推移</h4><div class="chart" id="chart3"></div></div>
       <div class="cpnl" id="chart4panel" style="display:none"><h4 id="chartTitle4">💰 月次粗利 推移</h4><div class="chart" id="chart4"></div></div>
     </div>
+    <div id="estimatePanelWrap" style="display:none;margin-top:14px">
+      <div class="cpnl">
+        <h4 id="estimateTitle">📈 直近30日 推計粗利 推移（日次ローリング）</h4>
+        <div class="chart" id="estimateChart"></div>
+        <div id="estimateMeta" style="margin-top:8px;font-size:11px;color:var(--mu);line-height:1.5"></div>
+      </div>
+    </div>
   </div>
 
   <div class="ft">🏥 診療ダッシュボード 部門別 ｜ 生成 {{ generated_at }} ｜ 基準日 {{ base_date }}</div>
@@ -155,6 +162,7 @@ function periodCutoff() {
   const bd = DATA.meta.base_date;
   if (period === '12w') return new Date(new Date(bd) - 12*7*86400000).toISOString().slice(0,10);
   if (period === '24w') return new Date(new Date(bd) - 24*7*86400000).toISOString().slice(0,10);
+  if (period === 'all') return '1900-01-01';
   return new Date(new Date(bd) - 365*86400000).toISOString().slice(0,10);
 }
 
@@ -251,7 +259,9 @@ function showLanding() {
   document.getElementById('backLink').onclick = null;  // selectUnit で設定した preventDefault を解除
   document.getElementById('pageTitle').textContent = '📊 部門ダッシュボード';
   // Purge charts
-  ['chart1','chart2','chart3','chart4'].forEach(id => { try{Plotly.purge(id)}catch(e){} });
+  ['chart1','chart2','chart3','chart4','estimateChart'].forEach(id => { try{Plotly.purge(id)}catch(e){} });
+  const estWrap = document.getElementById('estimatePanelWrap');
+  if (estWrap) estWrap.style.display = 'none';
 }
 
 function selectUnit(name) {
@@ -367,6 +377,16 @@ function renderKpiCards(d) {
     ];
     if (showOp) cards.push({icon:'💉', label:opLabel, period:'直近7日累計', actual:d.operation.actual, unit:'件', target:d.operation.target, rate:d.operation.rate});
     if (d.profit) cards.push({icon:'💰', label:'粗利', period:'今月', actual:d.profit.actual, unit:'百万円', gapUnit:'百万円', target:d.profit.target, rate:d.profit.rate});
+    if (d.profit_estimate && d.profit_estimate.latest) {
+      const el = d.profit_estimate.latest;
+      const em = d.profit_estimate.meta || {};
+      const fq = d.profit_estimate.fit_quality || {};
+      const r2g = fq.gairai_r2 != null ? fq.gairai_r2 : '—';
+      const r2n = fq.nyuin_r2 != null ? fq.nyuin_r2 : '—';
+      cards.push({icon:'🔮', label:'直近30日 推計粗利', period:`${em.window_start||''}〜${em.window_end||''}`,
+                  actual:el.total, unit:'百万円',
+                  sub:`外来 ${el.gairai!=null?el.gairai:'—'}百万 + 入院 ${el.nyuin!=null?el.nyuin:'—'}百万 ／ R² 外来 ${r2g} ・入院 ${r2n}`});
+    }
     document.getElementById('kpiCards').innerHTML = cards.map(kpiCardHtml).join('');
     const cols = cards.length >= 4 ? 2 : Math.min(cards.length, 3);
     document.getElementById('kpiCards').style.gridTemplateColumns = `repeat(${cols},1fr)`;
@@ -394,7 +414,7 @@ function renderComment(d) {
 }
 
 function renderToolbar() {
-  const periodDefs = [{l:'直近12週',p:'12w'},{l:'直近24週',p:'24w'},{l:'直近365日',p:'365d'}];
+  const periodDefs = [{l:'直近12週',p:'12w'},{l:'直近24週',p:'24w'},{l:'直近365日',p:'365d'},{l:'全期間',p:'all'}];
   const periods = periodDefs.map(d =>
     `<span class="btn${d.p===period?' active':''}" onclick="setPeriod('${d.p}',this)">${d.l}</span>`
   ).join('');
@@ -435,7 +455,7 @@ function toggleLine(t, c) {
 // ══════════════════════════
 function renderCharts(d) {
   const isWard = !!d.ward_extra;
-  const pLabels = {'12w':'直近12週','24w':'直近24週','365d':'直近365日'};
+  const pLabels = {'12w':'直近12週','24w':'直近24週','365d':'直近365日','all':'全期間'};
   const dayLabel = (showWeekday&&showHoliday)?'':showWeekday?' 平日のみ':' 休日のみ';
   const suffix = `（${pLabels[period]}${dayLabel}）`;
   const admSuffix = admType==='planned'?' ／ 予定':admType==='emergency'?' ／ 緊急':'';
@@ -498,6 +518,14 @@ function renderCharts(d) {
       document.getElementById('chartTitle3').textContent = `— データなし`;
       document.getElementById('chart3').innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">対象データなし</div>';
     }
+  }
+
+  // 直近30日 推計粗利チャート（診療科のみ、推計データがあれば表示）
+  const estWrap = document.getElementById('estimatePanelWrap');
+  if (!isWard && d.profit_estimate) {
+    renderDeptEstimateChart(d.profit_estimate, d.profit_chart);
+  } else if (estWrap) {
+    estWrap.style.display = 'none';
   }
 }
 
@@ -590,30 +618,119 @@ function renderProfitDeptChart(elId, bd) {
     document.getElementById(elId).innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">粗利データなし</div>';
     return;
   }
-  const tgtArr = (bd.targets && bd.targets.length === bd.months.length) ? bd.targets : null;
-  const barColors = bd.months.map((_, i) => {
-    const val = bd.values[i];
+  // 期間フィルタを月初基準で適用（"2026-04" は 2026-04-01 とみなす）
+  const cutoff = periodCutoff();
+  const cutoffMonth = cutoff.slice(0,7);
+  const keep = bd.months.map(m => m >= cutoffMonth);
+  const fMonths = bd.months.filter((_, i) => keep[i]);
+  const fValues = bd.values.filter((_, i) => keep[i]);
+  const fTargets = (bd.targets && bd.targets.length === bd.months.length)
+    ? bd.targets.filter((_, i) => keep[i]) : null;
+  if (!fMonths.length) {
+    document.getElementById(elId).innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">粗利データなし（期間内）</div>';
+    return;
+  }
+
+  const tgtArr = fTargets;
+  const barColors = fMonths.map((_, i) => {
+    const val = fValues[i];
     const tgt = tgtArr ? tgtArr[i] : bd.target;
     if (tgt == null || !tgt) return '#94A3B8';
     const rate = val / tgt * 100;
     return rate >= 100 ? '#0e7a54' : rate >= 90 ? '#b45309' : '#c4314b';
   });
-  const traces = [{name:'粗利実績', x:bd.months, y:bd.values, type:'bar', marker:{color:barColors}, opacity:0.9}];
+  const traces = [{name:'粗利実績', x:fMonths, y:fValues, type:'bar',
+                   marker:{color:barColors}, opacity:0.9}];
   if (tgtArr) {
-    traces.push({name:'目標(営業日補正)', x:bd.months, y:tgtArr, type:'scatter', mode:'lines+markers', line:{color:'#C0293B',width:2,dash:'dot',shape:'hv'}, marker:{size:5,color:'#C0293B'}});
+    traces.push({name:'目標(営業日補正)', x:fMonths, y:tgtArr, type:'scatter', mode:'lines+markers',
+                 line:{color:'#C0293B',width:2,dash:'dot',shape:'hv'}, marker:{size:5,color:'#C0293B'}});
   } else if (bd.target) {
-    traces.push({name:'目標', x:[bd.months[0],bd.months[bd.months.length-1]], y:[bd.target,bd.target], type:'scatter', mode:'lines', line:{color:'#C0293B',width:2,dash:'dot'}});
+    traces.push({name:'目標', x:[fMonths[0], fMonths[fMonths.length-1]], y:[bd.target,bd.target],
+                 type:'scatter', mode:'lines', line:{color:'#C0293B',width:2,dash:'dot'}});
   }
-  const allY = [...bd.values, ...(tgtArr || (bd.target ? [bd.target] : []))].filter(v=>v!=null);
+  const allY = [...fValues, ...(tgtArr || (bd.target ? [bd.target] : []))].filter(v=>v!=null);
   const yMax = allY.length ? Math.max(...allY) * 1.15 : 10;
   Plotly.newPlot(elId, traces, {
     font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
-    xaxis:{gridcolor:'#DCE1E9',tickangle:-45},
+    xaxis:{gridcolor:'#DCE1E9', tickangle:-45},
     yaxis:{range:[0,yMax],gridcolor:'#DCE1E9',title:{text:'百万円',font:{size:10}}},
     legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},
     hovermode:'x unified',margin:{l:55,r:15,t:8,b:65},height:_pH(320),
     plot_bgcolor:'#fff',paper_bgcolor:'#fff',
   },{responsive:true});
+}
+
+function renderDeptEstimateChart(est, bd) {
+  const wrap = document.getElementById('estimatePanelWrap');
+  if (!est || !est.series || !est.series.dates) { wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+  const s = est.series;
+  const cutoff = periodCutoff();
+  const idx = s.dates.findIndex(d => d >= cutoff);
+  const slice = (arr) => idx >= 0 ? arr.slice(idx) : arr;
+  const dates  = slice(s.dates);
+  const total  = slice(s.values_total);
+  const gairai = slice(s.values_gairai);
+  const nyuin  = slice(s.values_nyuin);
+
+  const traces = [
+    {name:'入院推計', x:dates, y:nyuin, type:'scatter', mode:'lines', stackgroup:'one',
+     line:{color:'#3A6EA5', width:0.5}, fillcolor:'rgba(58,110,165,0.45)',
+     hovertemplate:'%{y:.1f}百万円<extra>入院</extra>'},
+    {name:'外来推計', x:dates, y:gairai, type:'scatter', mode:'lines', stackgroup:'one',
+     line:{color:'#0D9488', width:0.5}, fillcolor:'rgba(13,148,136,0.45)',
+     hovertemplate:'%{y:.1f}百万円<extra>外来</extra>'},
+    {name:'30日推計合計', x:dates, y:total, type:'scatter', mode:'lines',
+     line:{color:'#0A3671', width:2.2}, hovertemplate:'%{y:.1f}百万円<extra>合計</extra>'},
+  ];
+
+  // 月次目標を水平線で表示（月次目標 = 30日基準の目安値）
+  const tgt = bd && bd.target;
+  if (tgt && dates.length > 0) {
+    traces.push({name:`月次目標 ${tgt}百万円`, x:[dates[0], dates[dates.length-1]],
+      y:[tgt, tgt], type:'scatter', mode:'lines',
+      line:{color:'#C0293B', width:2, dash:'dot'},
+      hovertemplate:'%{y:.1f}百万円<extra>月次目標</extra>'});
+  }
+
+  // 月次実績ダイヤを参考表示
+  if (bd && bd.months && bd.values) {
+    const monthEndISO = (ms) => {
+      const d = new Date(ms + '-01');
+      return new Date(d.getFullYear(), d.getMonth()+1, 0).toISOString().slice(0,10);
+    };
+    const cutoffMonth = cutoff.slice(0,7);
+    const me = []; const mv = [];
+    bd.months.forEach((m, i) => {
+      if (m >= cutoffMonth) { me.push(monthEndISO(m)); mv.push(bd.values[i]); }
+    });
+    if (me.length > 0) {
+      traces.push({name:'月次実績', x:me, y:mv, type:'scatter', mode:'markers',
+        marker:{color:'#C0293B', size:10, symbol:'diamond-open', line:{width:2.2}},
+        hovertemplate:'%{y:.1f}百万円<extra>月次実績</extra>'});
+    }
+  }
+
+  Plotly.newPlot('estimateChart', traces, {
+    font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
+    xaxis:{gridcolor:'#DCE1E9', type:'date'},
+    yaxis:{gridcolor:'#DCE1E9', title:{text:'30日推計（百万円）',font:{size:10}}, rangemode:'tozero'},
+    legend:{orientation:'h',x:0,y:-0.18,font:{size:10}},
+    hovermode:'x unified',
+    margin:{l:55,r:20,t:10,b:55}, height:_pH(320),
+    plot_bgcolor:'#fff', paper_bgcolor:'#fff',
+  },{responsive:true});
+
+  const meta = est.meta || {};
+  const latest = est.latest || {};
+  const fq = est.fit_quality || {};
+  const r2g = fq.gairai_r2 != null ? fq.gairai_r2 : '—';
+  const r2n = fq.nyuin_r2 != null ? fq.nyuin_r2 : '—';
+  document.getElementById('estimateMeta').innerHTML =
+    `🔮 直近30日推計（${meta.window_start||''}〜${meta.window_end||''}）: <b>${latest.total!=null?latest.total:'—'}百万円</b>（外来 ${latest.gairai!=null?latest.gairai:'—'}百万 + 入院 ${latest.nyuin!=null?latest.nyuin:'—'}百万）`
+    + ` ／ モデル: 過去${meta.lookback_months||12}ヶ月 OLS（科別）, R² 外来 ${r2g}・入院 ${r2n}`
+    + (tgt ? ` ／ 月次目標 ${tgt}百万円` : '')
+    + ` ／ ⚠️ 過去12ヶ月の平均的な単価構造に基づく推計値。実績との大きな乖離は構造変化のサイン。`;
 }
 
 function renderFlowChart(elId, admTd, outTd) {
