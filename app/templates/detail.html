@@ -682,12 +682,12 @@ function renderEstimateChart() {
     }
   }
 
-  // Y軸: ゼロ起点ではなく min−5%〜max+5% で変化を見やすく
-  const yPad = 0.05;
-  const yMin = yAll.length ? Math.min(...yAll) : 0;
-  const yMax = yAll.length ? Math.max(...yAll) : 10;
-  const yLo = yMin - Math.abs(yMin) * yPad;
-  const yHi = yMax + Math.abs(yMax) * yPad;
+  // Y軸: 下限は入院推計の最小値 −10%、上限は全系列max +5%
+  const nyuinVals = nyuin.filter(v => v != null && !isNaN(v));
+  const yMinN = nyuinVals.length ? Math.min(...nyuinVals) : 0;
+  const yMax  = yAll.length ? Math.max(...yAll) : 10;
+  const yLo = yMinN - Math.abs(yMinN) * 0.10;
+  const yHi = yMax  + Math.abs(yMax)  * 0.05;
 
   Plotly.newPlot('estimateChart', traces, {
     font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
