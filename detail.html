@@ -546,7 +546,7 @@ function renderChartControls() {
     return;
   }
 
-  const periodDefs = [{l:'直近12週',p:'12w'},{l:'直近24週',p:'24w'},{l:'直近365日',p:'365d'}];
+  const periodDefs = [{l:'直近12週',p:'12w'},{l:'直近24週',p:'24w'},{l:'直近365日',p:'365d'},{l:'全期間',p:'all'}];
   const periods = periodDefs.map(d =>
     `<span class="btn${d.p===currentPeriod?' active':''}" onclick="setPeriod('${d.p}',this)">${d.l}</span>`
   ).join('');
