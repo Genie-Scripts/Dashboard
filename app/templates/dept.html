@@ -116,6 +116,20 @@
         <div id="estimateMeta" style="margin-top:8px;font-size:11px;color:var(--mu);line-height:1.5"></div>
       </div>
     </div>
+    <div id="opVsProfitWrap" style="display:none;margin-top:14px">
+      <div class="charts-container layout-2x2" style="grid-template-columns:1fr 1fr">
+        <div class="cpnl">
+          <h4>🔍 件数 vs 粗利 指数化 <span style="font-weight:500;color:var(--mu);font-size:11px">（過去12ヶ月平均 = 100）</span></h4>
+          <div class="chart" id="opIndexChart"></div>
+          <div id="opIndexMeta" style="margin-top:6px;font-size:11px;color:var(--mu);line-height:1.5"></div>
+        </div>
+        <div class="cpnl">
+          <h4>💎 月次単価 <span style="font-weight:500;color:var(--mu);font-size:11px">（粗利 ÷ 全麻件数）</span></h4>
+          <div class="chart" id="opUnitChart"></div>
+          <div id="opUnitMeta" style="margin-top:6px;font-size:11px;color:var(--mu);line-height:1.5"></div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="ft">🏥 診療ダッシュボード 部門別 ｜ 生成 {{ generated_at }} ｜ 基準日 {{ base_date }}</div>
@@ -527,6 +541,16 @@ function renderCharts(d) {
   } else if (estWrap) {
     estWrap.style.display = 'none';
   }
+
+  // 件数 vs 粗利 分離ビュー（診療科 × 全麻実施科 × 粗利データあり）
+  const opVsWrap = document.getElementById('opVsProfitWrap');
+  const hasOp = !isWard && d.operation && d.operation.actual !== null && d.trend && d.trend.operation;
+  const hasPC = !!d.profit_chart;
+  if (hasOp && hasPC) {
+    renderOpVsProfit(d.trend.operation, d.profit_chart);
+  } else if (opVsWrap) {
+    opVsWrap.style.display = 'none';
+  }
 }
 
 function renderOneChart(elId, td, targetVal) {
@@ -741,6 +765,120 @@ function renderDeptEstimateChart(est, bd) {
     + ` ／ モデル: 過去${meta.lookback_months||12}ヶ月 OLS（科別）, R² 外来 ${r2g}・入院 ${r2n}`
     + (tgt ? ` ／ 月次目標 ${tgt}百万円` : '')
     + ` ／ ⚠️ 過去12ヶ月の平均的な単価構造に基づく推計値。実績との大きな乖離は構造変化のサイン。`;
+}
+
+// ── 件数 vs 粗利 分離ビュー: 月次集計 → 指数化線 + 単価線 ──
+function aggregateOpsByMonth(opTd, months) {
+  // opTd: {dates, values, is_weekday?}  months: ['YYYY-MM', ...]
+  const map = {};
+  if (!opTd || !opTd.dates) return months.map(() => null);
+  opTd.dates.forEach((d, i) => {
+    const ym = (d || '').slice(0, 7);
+    if (!ym) return;
+    const v = opTd.values ? opTd.values[i] : null;
+    if (v == null) return;
+    map[ym] = (map[ym] || 0) + v;
+  });
+  return months.map(m => map[m] != null ? map[m] : null);
+}
+
+function renderOpVsProfit(opTd, pc) {
+  const wrap = document.getElementById('opVsProfitWrap');
+  if (!wrap) return;
+  if (!pc || !pc.months || !pc.values) { wrap.style.display = 'none'; return; }
+  const months = pc.months;
+  const profitVals = pc.values;
+  const opVals = aggregateOpsByMonth(opTd, months);
+
+  // 有効データ判定: 件数も粗利も少なくとも数ヶ月以上必要
+  const validIdx = months.map((_, i) => (profitVals[i] != null && opVals[i] != null && opVals[i] > 0));
+  const validCount = validIdx.filter(Boolean).length;
+  if (validCount < 3) { wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+
+  // 過去12ヶ月平均をベースに指数化（直近12ヶ月の有効値で計算）
+  const recent12 = months.length > 12 ? months.slice(-12) : months;
+  const baseStart = months.length - recent12.length;
+  let pSum=0, pN=0, oSum=0, oN=0;
+  for (let i = baseStart; i < months.length; i++) {
+    if (!validIdx[i]) continue;
+    pSum += profitVals[i]; pN++;
+    oSum += opVals[i];     oN++;
+  }
+  const pBase = pN > 0 ? pSum / pN : null;
+  const oBase = oN > 0 ? oSum / oN : null;
+
+  const idxProfit = months.map((_, i) => (pBase && profitVals[i] != null) ? profitVals[i] / pBase * 100 : null);
+  const idxOps    = months.map((_, i) => (oBase && opVals[i] != null)     ? opVals[i]     / oBase * 100 : null);
+  const unitVals  = months.map((_, i) => (validIdx[i]) ? Math.round(profitVals[i] / opVals[i] * 100) / 100 : null);
+
+  // ── 左: 指数化二重線 ──
+  const idxTraces = [
+    {name:'全麻件数 指数', x:months, y:idxOps,    type:'scatter', mode:'lines+markers',
+     line:{color:'#0D9488', width:2.4}, marker:{size:6},
+     hovertemplate:'%{y:.1f}<extra>件数</extra>'},
+    {name:'粗利 指数',     x:months, y:idxProfit, type:'scatter', mode:'lines+markers',
+     line:{color:'#3A6EA5', width:2.4}, marker:{size:6},
+     hovertemplate:'%{y:.1f}<extra>粗利</extra>'},
+    {name:'基準 100', x:months, y:months.map(()=>100), type:'scatter', mode:'lines',
+     line:{color:'#9CA3AF', width:1, dash:'dot'}, hoverinfo:'skip', showlegend:false},
+  ];
+  const idxYAll = [...idxProfit, ...idxOps].filter(v => v != null);
+  const idxLo = idxYAll.length ? Math.min(...idxYAll, 95) : 90;
+  const idxHi = idxYAll.length ? Math.max(...idxYAll, 105) : 110;
+  Plotly.newPlot('opIndexChart', idxTraces, {
+    font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
+    xaxis:{gridcolor:'#DCE1E9', tickangle:-45, type:'category'},
+    yaxis:{gridcolor:'#DCE1E9', title:{text:'指数（基準=100）', font:{size:10}},
+           range:[Math.floor(idxLo*0.98), Math.ceil(idxHi*1.02)]},
+    legend:{orientation:'h', x:0, y:-0.22, font:{size:10}},
+    hovermode:'x unified',
+    margin:{l:50,r:15,t:8,b:55}, height:_pH(280),
+    plot_bgcolor:'#fff', paper_bgcolor:'#fff',
+  },{responsive:true});
+
+  // ── 右: 月次単価線 ──
+  const unitTraces = [
+    {name:'単価（粗利÷件数）', x:months, y:unitVals, type:'scatter', mode:'lines+markers',
+     line:{color:'#9333EA', width:2.4}, marker:{size:6},
+     hovertemplate:'%{y:.2f}百万/件<extra></extra>'},
+  ];
+  const unitClean = unitVals.filter(v => v != null);
+  const unitAvg = unitClean.length ? unitClean.reduce((a,b)=>a+b,0) / unitClean.length : null;
+  if (unitAvg != null) {
+    unitTraces.push({name:`平均 ${unitAvg.toFixed(2)}`, x:months, y:months.map(()=>unitAvg),
+      type:'scatter', mode:'lines', line:{color:'#9CA3AF', width:1, dash:'dot'},
+      hoverinfo:'skip'});
+  }
+  const uLo = unitClean.length ? Math.min(...unitClean) : 0;
+  const uHi = unitClean.length ? Math.max(...unitClean) : 1;
+  const uPd = (uHi - uLo) * 0.15 || 0.5;
+  Plotly.newPlot('opUnitChart', unitTraces, {
+    font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
+    xaxis:{gridcolor:'#DCE1E9', tickangle:-45, type:'category'},
+    yaxis:{gridcolor:'#DCE1E9', title:{text:'百万円 / 件', font:{size:10}},
+           range:[Math.max(0, uLo - uPd), uHi + uPd]},
+    legend:{orientation:'h', x:0, y:-0.22, font:{size:10}},
+    hovermode:'x unified',
+    margin:{l:50,r:15,t:8,b:55}, height:_pH(280),
+    plot_bgcolor:'#fff', paper_bgcolor:'#fff',
+  },{responsive:true});
+
+  // メタ情報: 直近3M vs 前9M で件数・粗利・単価それぞれの変化を表示
+  const sliceRecent = (arr) => arr.slice(-3).filter(v => v != null);
+  const slicePrior  = (arr) => arr.slice(-12, -3).filter(v => v != null);
+  const meanOr = (xs) => xs.length ? xs.reduce((a,b)=>a+b,0) / xs.length : null;
+  const fmt = (v, d=1) => v != null ? v.toFixed(d) : '—';
+  const fmtPct = (r, p) => (r!=null && p!=null && p!==0) ? ((r-p)/p*100).toFixed(1)+'%' : '—';
+  const rO = meanOr(sliceRecent(opVals)),    pO = meanOr(slicePrior(opVals));
+  const rP = meanOr(sliceRecent(profitVals)),pP = meanOr(slicePrior(profitVals));
+  const rU = meanOr(sliceRecent(unitVals)),  pU = meanOr(slicePrior(unitVals));
+  const tag = (txt, cls) => `<span style="color:var(--${cls});font-weight:800">${txt}</span>`;
+  const colorOf = (r, p) => (r!=null && p!=null) ? (r>p?'ok':(r<p?'dr':'mu')) : 'mu';
+  document.getElementById('opIndexMeta').innerHTML =
+    `直近3M平均 件数 <b>${fmt(rO)}</b>件/月（前9M比 ${tag(fmtPct(rO,pO), colorOf(rO,pO))}） ／ 粗利 <b>${fmt(rP)}</b>百万（${tag(fmtPct(rP,pP), colorOf(rP,pP))}）`;
+  document.getElementById('opUnitMeta').innerHTML =
+    `直近3M平均 単価 <b>${fmt(rU, 2)}</b>百万/件（前9M比 ${tag(fmtPct(rU,pU), colorOf(rU,pU))}）`;
 }
 
 function renderFlowChart(elId, admTd, outTd) {

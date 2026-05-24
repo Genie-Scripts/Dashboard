@@ -56,6 +56,16 @@
 .charts-container.layout-2x2{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
 .charts-container.layout-3{grid-template-columns:repeat(3,minmax(0,1fr))}
 .cpnl{background:var(--s);border:1px solid var(--ln);border-radius:var(--r);padding:16px;box-shadow:var(--sh)}.cpnl h4{font-size:13px;font-weight:800;margin:0 0 8px;color:var(--sub);min-width:0}
+.contrib-list{display:flex;flex-direction:column;gap:6px}
+.contrib-row{display:grid;grid-template-columns:24px 1fr 90px 110px;gap:8px;align-items:center;padding:8px 10px;background:#fafbfc;border:1px solid var(--ln);border-radius:8px;font-size:12px;cursor:pointer;transition:background .15s}
+.contrib-row:hover{background:#f1f5f9}
+.contrib-row .crank{font-weight:800;color:var(--sub);text-align:center}
+.contrib-row .cname{font-weight:700;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.contrib-row .cdiff{font-weight:800;font-size:14px;text-align:right;font-variant-numeric:tabular-nums}
+.contrib-row .cdiff.dr{color:#c4314b}
+.contrib-row .cdiff.ok{color:#0e7a54}
+.contrib-row .cshare{text-align:right;color:var(--mu);font-size:11px;font-variant-numeric:tabular-nums}
+.contrib-empty{padding:14px;color:var(--mu);text-align:center;font-size:12px}
 .ft{text-align:center;font-size:11px;color:var(--mu);padding:20px 0;border-top:1px solid var(--ln);margin-top:20px}
 @media(max-width:768px){.tabs{display:flex;overflow:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}.tab{min-width:150px;flex:0 0 auto}.tab .big{font-size:22px}.sum{grid-template-columns:1fr}.bx-main .main-val{font-size:24px}.main{grid-template-columns:1fr}.chart{height:220px}.ri{grid-template-columns:24px 1fr auto}.bar,.stl{display:none}.drill-chart{height:200px}.drill-graphs{grid-template-columns:1fr}.role{display:none}.hdr .row{flex-direction:column;align-items:flex-start}
 /* ★モバイル: KPIカード2列化・チャート1列化・はみ出し防止 */
@@ -111,6 +121,18 @@
       <h3 id="estimateTitle">📈 直近30日 推計粗利 推移（日次ローリング）</h3>
       <div class="chart" id="estimateChart"></div>
       <div id="estimateMeta" style="margin-top:8px;font-size:11px;color:var(--mu);line-height:1.5"></div>
+    </div>
+  </section>
+
+  <!-- 科別 粗利寄与差分（profitタブ専用） -->
+  <section class="main" id="contributionSection" style="display:none;grid-template-columns:1fr 1fr">
+    <div class="pnl">
+      <h3>🔻 粗利を下げている科 TOP5 <span style="font-weight:500;color:var(--mu);font-size:11px">（直近3ヶ月平均 − その前9ヶ月平均）</span></h3>
+      <div id="contribDown" class="contrib-list"></div>
+    </div>
+    <div class="pnl">
+      <h3>🔺 粗利を上げている科 TOP5 <span style="font-weight:500;color:var(--mu);font-size:11px">（直近3ヶ月平均 − その前9ヶ月平均）</span></h3>
+      <div id="contribUp" class="contrib-list"></div>
     </div>
   </section>
 
@@ -622,10 +644,17 @@ function renderContent() {
 const hasEstimate = !!(DATA.profit_estimate && DATA.profit_estimate.series && DATA.profit_estimate.series.dates);
 function renderEstimateSection() {
   const sec = document.getElementById('estimateSection');
-  if (!sec) return;
-  if (currentTab !== 'profit' || !hasEstimate) { sec.style.display = 'none'; return; }
-  sec.style.display = 'grid';
-  renderEstimateChart();
+  const csec = document.getElementById('contributionSection');
+  if (currentTab !== 'profit') {
+    if (sec) sec.style.display = 'none';
+    if (csec) csec.style.display = 'none';
+    return;
+  }
+  if (sec) {
+    if (!hasEstimate) sec.style.display = 'none';
+    else { sec.style.display = 'grid'; renderEstimateChart(); }
+  }
+  renderContribution();
 }
 
 function renderEstimateChart() {
@@ -713,6 +742,57 @@ function renderEstimateChart() {
      ／ モデル: 過去${meta.lookback_months}ヶ月 OLS（科別）, 外来 R² 平均 ${avg_g}・入院 R² 平均 ${avg_n}
      ／ <span style="color:var(--dr)">適合弱（R²&lt;0.4）${lo.length}科: ${lo.slice(0,5).join('、')}${lo.length>5?'…':''}</span>
      ／ ⚠️ 推計値は「過去12ヶ月の平均的な単価構造」の前提に基づきます。実績との大きな乖離は構造変化のサイン。`;
+}
+
+// ── 科別 粗利寄与差分（直近3ヶ月平均 − その前9ヶ月平均） ──
+function computeContribution() {
+  const bd = DATA.profit && DATA.profit.chart && DATA.profit.chart.by_dept;
+  if (!bd) return [];
+  let latestTotal = 0;
+  const tmp = [];
+  Object.entries(bd).forEach(([name, ser]) => {
+    if (!ser || !ser.values) return;
+    const vals = ser.values;
+    if (vals.length < 6) return;
+    const recent = vals.slice(-3).filter(v => v != null);
+    const prior  = vals.slice(-12, -3).filter(v => v != null);
+    if (recent.length === 0 || prior.length === 0) return;
+    const r = recent.reduce((p,c)=>p+c,0) / recent.length;
+    const p = prior.reduce((p,c)=>p+c,0) / prior.length;
+    const last = vals[vals.length - 1];
+    if (last != null) latestTotal += last;
+    tmp.push({name, recent: r, prior: p, diff: r - p, pct: p ? (r-p)/p*100 : 0, latest: last});
+  });
+  tmp.forEach(x => { x.share = latestTotal ? x.latest / latestTotal * 100 : 0; });
+  return tmp;
+}
+
+function renderContribution() {
+  const sec = document.getElementById('contributionSection');
+  if (!sec) return;
+  const items = computeContribution();
+  if (!items.length) { sec.style.display = 'none'; return; }
+  sec.style.display = 'grid';
+
+  const down = items.filter(x => x.diff < 0).sort((a,b) => a.diff - b.diff).slice(0, 5);
+  const up   = items.filter(x => x.diff > 0).sort((a,b) => b.diff - a.diff).slice(0, 5);
+
+  const row = (x, i, cls) => {
+    const sign = x.diff >= 0 ? '+' : '';
+    const pctSign = x.pct >= 0 ? '+' : '';
+    const shareStr = x.latest != null ? `シェア ${x.share.toFixed(1)}%` : 'シェア —';
+    return `<div class="contrib-row" onclick="location.href='dept.html#'+encodeURIComponent('${x.name}')">
+      <div class="crank">${i+1}</div>
+      <div class="cname">${x.name}</div>
+      <div class="cdiff ${cls}">${sign}${x.diff.toFixed(1)}<span style="font-size:10px;font-weight:600;color:var(--mu);margin-left:4px">百万</span></div>
+      <div class="cshare">${shareStr}<br>${pctSign}${x.pct.toFixed(1)}%</div>
+    </div>`;
+  };
+
+  const dEl = document.getElementById('contribDown');
+  const uEl = document.getElementById('contribUp');
+  dEl.innerHTML = down.length ? down.map((x,i) => row(x, i, 'dr')).join('') : '<div class="contrib-empty">下げに寄与している科はありません</div>';
+  uEl.innerHTML = up.length   ? up.map((x,i)   => row(x, i, 'ok')).join('') : '<div class="contrib-empty">上げに寄与している科はありません</div>';
 }
 
 function periodCutoff() {
