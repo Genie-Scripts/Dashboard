@@ -463,7 +463,7 @@ def build_hybrid_payload(profit_breakdown: pd.DataFrame,
         }
     """
     from .profit_surgery import (
-        fit_hybrid_models, predict_monthly_profit_nnls,
+        fit_hybrid_models_auto, predict_monthly_profit_nnls,
         predict_daily_rolling_per_dept,
     )
     if profit_breakdown is None or len(profit_breakdown) == 0:
@@ -483,9 +483,9 @@ def build_hybrid_payload(profit_breakdown: pd.DataFrame,
         surg_k = surg[surg.get("入外区分") == kind] if "入外区分" in surg.columns else surg
         if len(prof_long) == 0 or len(surg_k) == 0:
             continue
-        models = fit_hybrid_models(prof_long, surg_k,
-                                     test_months=test_months,
-                                     min_count=min_count)
+        models = fit_hybrid_models_auto(prof_long, surg_k,
+                                          test_months=test_months,
+                                          min_count=min_count)
         fit_models[kind] = models
 
         for dept, rec in models.items():
@@ -521,16 +521,17 @@ def build_hybrid_payload(profit_breakdown: pd.DataFrame,
 
             dept_rec = out_by_dept.setdefault(dept, {"外来": None, "入院": None, "合計": {}})
             dept_rec[kind] = {
-                "model":          rec["model"],
-                "r2_out_nnls":    rec["r2_out_nnls"],
-                "r2_out_ols":     rec["r2_out_ols"],
-                "mape_nnls":      rec["mape_nnls"],
-                "mape_ols":       rec["mape_ols"],
-                "n_procedures":   rec.get("n_procedures"),
-                "last_month":     last_month,
-                "actual":         round(actual, 2) if actual is not None else None,
-                "ols_pred":       round(pred_ols, 2) if pred_ols is not None else None,
-                "hybrid_pred":    round(pred_hybrid, 2) if pred_hybrid is not None else None,
+                "model":           rec["model"],
+                "r2_out_nnls":     rec["r2_out_nnls"],
+                "r2_out_ols":      rec["r2_out_ols"],
+                "mape_nnls":       rec["mape_nnls"],
+                "mape_ols":        rec["mape_ols"],
+                "n_procedures":    rec.get("n_procedures"),
+                "lookback_months": rec.get("lookback_months"),
+                "last_month":      last_month,
+                "actual":          round(actual, 2) if actual is not None else None,
+                "ols_pred":        round(pred_ols, 2) if pred_ols is not None else None,
+                "hybrid_pred":     round(pred_hybrid, 2) if pred_hybrid is not None else None,
             }
 
     # last_month を先に確定（baseline 補完で last_month の actual を引くのに必要）

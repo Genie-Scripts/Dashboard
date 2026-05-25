@@ -160,7 +160,8 @@ def fit_hybrid_models(prof_monthly: pd.DataFrame,
                        test_months: int = 2,
                        min_count: int = 30,
                        ridge_lambda: float = 5.0,
-                       min_train_months: int = 6) -> Dict[str, Any]:
+                       min_train_months: int = 6,
+                       lookback_months: Optional[int] = None) -> Dict[str, Any]:
     """科ごとに NNLS と件数OLS を holdout 評価し、勝った方を採用。
 
     Args:
@@ -170,6 +171,9 @@ def fit_hybrid_models(prof_monthly: pd.DataFrame,
         min_count: 低頻度集約閾値
         ridge_lambda: NNLS Ridge 強度
         min_train_months: 学習に必要な最小月数
+        lookback_months: 指定された場合、最新月から N か月前以降のデータだけ
+            で学習する。レジームシフト科（脳神経外科など業務量急拡大科）の
+            予測精度改善に有効。None なら全期間使用。
 
     Returns:
         {科: {
@@ -183,6 +187,16 @@ def fit_hybrid_models(prof_monthly: pd.DataFrame,
             'train_months': [..], 'test_months': [..],
         }}
     """
+    # lookback_months 指定時は学習データを直近 N か月に絞る
+    if lookback_months is not None and len(prof_monthly) > 0:
+        latest = pd.to_datetime(prof_monthly["月"]).max()
+        cutoff = latest - pd.DateOffset(months=lookback_months)
+        prof_monthly = prof_monthly[
+            pd.to_datetime(prof_monthly["月"]) >= cutoff
+        ].copy()
+        if len(surg) > 0:
+            surg = surg[pd.to_datetime(surg["手術実施日"]) >= cutoff].copy()
+
     se = _extract_primary(surg)
     if len(se) == 0 or len(prof_monthly) == 0:
         return {}
@@ -276,6 +290,43 @@ def fit_hybrid_models(prof_monthly: pd.DataFrame,
         out[dept] = rec
 
     return out
+
+
+def fit_hybrid_models_auto(prof_monthly: pd.DataFrame,
+                            surg: pd.DataFrame,
+                            lookback_candidates=(None, 36, 24, 18, 12),
+                            **kwargs) -> Dict[str, Any]:
+    """各科で複数の lookback_months 候補で fit し、採用モデルの holdout
+    MAPE が最小になる lookback を科ごとに採用する。
+
+    Args:
+        lookback_candidates: 試す学習期間（か月）の候補。None=全期間。
+            候補順で同 MAPE のときは先に出てきた方を採用するので、
+            なるべく長い学習期間を優先したい場合は None を先頭に置く。
+        **kwargs: fit_hybrid_models に渡す引数 (test_months, min_count,
+            ridge_lambda, min_train_months)
+
+    Returns:
+        fit_hybrid_models と同じ形式の辞書。各 rec に `lookback_months`
+        キーが追加される（None=全期間使用）。
+    """
+    best: Dict[str, Any] = {}
+    for lb in lookback_candidates:
+        models = fit_hybrid_models(prof_monthly, surg,
+                                     lookback_months=lb, **kwargs)
+        for dept, rec in models.items():
+            mape = rec["mape_nnls"] if rec["model"] == "nnls" else rec["mape_ols"]
+            if mape is None:
+                continue
+            cur = best.get(dept)
+            if cur is None or mape < cur["_mape_chosen"]:
+                rec_copy = dict(rec)
+                rec_copy["lookback_months"] = lb
+                rec_copy["_mape_chosen"] = mape
+                best[dept] = rec_copy
+    for rec in best.values():
+        rec.pop("_mape_chosen", None)
+    return best
 
 
 def predict_monthly_profit_nnls(model_rec: Dict[str, Any],
