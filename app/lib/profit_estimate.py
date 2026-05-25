@@ -432,6 +432,89 @@ def _baseline_monthly(profit_breakdown: pd.DataFrame,
     return out
 
 
+def _hybrid_beats_ratio(rec: Dict[str, Any],
+                          prof_long: pd.DataFrame,
+                          surg_k: pd.DataFrame,
+                          adm_monthly: pd.DataFrame,
+                          dept: str,
+                          kind: str) -> bool:
+    """test_months で hybrid (NNLS/件数OLS) と ratio_fallback の MAPE を比較。
+
+    hybrid を維持: True（MAPE が同等以下）
+    demote 推奨:    False（ratio が勝つ）
+
+    比較不能な場合（adm 不足等）は True（hybrid 維持＝従来挙動）を返す。
+    """
+    from .profit_surgery import predict_monthly_profit_nnls
+
+    test_months = rec.get("test_months") or []
+    train_months = rec.get("train_months") or []
+    if not test_months or not train_months:
+        return True
+
+    p_s_full = prof_long[prof_long["科"] == dept]
+    if p_s_full.empty:
+        return True
+    p_s = p_s_full.set_index("月")["粗利_百万"]
+
+    a_dept = adm_monthly[adm_monthly["診療科名"] == dept]
+    if a_dept.empty:
+        return True
+    a_s = a_dept.set_index("月")
+    driver_col = "純在院延べ" if kind == "入院" else "営業日数"
+    if driver_col not in a_s.columns:
+        return True
+
+    # train_months ∩ (prof, adm) で ratio 単価を算出
+    train_ok = [m for m in train_months if m in p_s.index and m in a_s.index]
+    if len(train_ok) < 3:
+        return True
+    total_p = float(p_s.loc[train_ok].sum())
+    total_d = float(a_s.loc[train_ok, driver_col].sum())
+    if total_d <= 0:
+        return True
+    unit = total_p / total_d
+
+    # test_months 各月で hybrid 予測と ratio 予測を作り、actual と MAPE 比較
+    hyb_preds, ratio_preds, actuals = [], [], []
+    for m in test_months:
+        if m not in p_s.index or m not in a_s.index:
+            continue
+        actual = float(p_s.loc[m])
+        mstart = pd.Timestamp(m + "-01")
+        mend = mstart + pd.offsets.MonthEnd(0)
+        window = surg_k[(surg_k["手術実施日"] >= mstart) &
+                          (surg_k["手術実施日"] <= mend)]
+        if rec.get("model") == "nnls":
+            hp = predict_monthly_profit_nnls(rec, window, dept)
+        else:
+            if "麻酔種別" in window.columns:
+                ga = window[window["麻酔種別"].fillna("")
+                             .str.contains("全身麻酔", na=False)]
+                ga = ga[ga["実施診療科"] == dept]
+            else:
+                ga = window[window["実施診療科"] == dept]
+            cnt = float(len(ga))
+            biz = biz_days_in_month(mstart)
+            hp = float(max(0.0, rec.get("ols_count_coef", 0.0) * cnt
+                                  + rec.get("ols_biz_coef", 0.0) * biz))
+        rp = unit * float(a_s.loc[m, driver_col])
+        hyb_preds.append(hp)
+        ratio_preds.append(rp)
+        actuals.append(actual)
+
+    if not actuals:
+        return True
+
+    a_arr = np.array(actuals)
+    mask = a_arr > 0
+    if not mask.any():
+        return True
+    mape_h = float(np.mean(np.abs((a_arr[mask] - np.array(hyb_preds)[mask]) / a_arr[mask])))
+    mape_r = float(np.mean(np.abs((a_arr[mask] - np.array(ratio_preds)[mask]) / a_arr[mask])))
+    return mape_h <= mape_r
+
+
 def build_hybrid_payload(profit_breakdown: pd.DataFrame,
                           surg: pd.DataFrame,
                           base_date,
@@ -478,8 +561,14 @@ def build_hybrid_payload(profit_breakdown: pd.DataFrame,
 
     base_date = pd.Timestamp(base_date).normalize()
 
+    # adm 月次集計を kind ループ前に用意（weak hybrid demote 判定で使用）
+    adm_monthly_pre = (aggregate_monthly_admission(adm)
+                        if adm is not None and len(adm) > 0
+                        else pd.DataFrame())
+
     out_by_dept: Dict[str, Dict[str, Any]] = {}
     fit_models = {"外来": {}, "入院": {}}
+    demoted_log: Dict[str, list] = {"外来": [], "入院": []}
 
     for kind in ("外来", "入院"):
         prof_long = _profit_long_by_kind(profit_breakdown, kind)
@@ -489,6 +578,18 @@ def build_hybrid_payload(profit_breakdown: pd.DataFrame,
         models = fit_hybrid_models_auto(prof_long, surg_k,
                                           test_months=test_months,
                                           min_count=min_count)
+        # ── weak hybrid demote ──
+        # 各 dept で「NNLS/件数OLS の test_months MAPE」vs「ratio_fallback の同 MAPE」を
+        # 比較し、ratio が勝ったら fit_models から外して後段の fit_ratio_fallback に流す。
+        # 救急科のように手術データは存在するが粗利の主因が在院数の科を自動検出する。
+        if not adm_monthly_pre.empty:
+            demoted = []
+            for dept, rec in list(models.items()):
+                if not _hybrid_beats_ratio(rec, prof_long, surg_k, adm_monthly_pre, dept, kind):
+                    demoted.append(dept)
+            for dept in demoted:
+                del models[dept]
+            demoted_log[kind] = demoted
         fit_models[kind] = models
 
         for dept, rec in models.items():
@@ -581,13 +682,11 @@ def build_hybrid_payload(profit_breakdown: pd.DataFrame,
                 "baseline_monthly": round(base, 2),
             }
 
-    # ── 比推定フォールバック（hybrid 不在科のみ） ──
+    # ── 比推定フォールバック（hybrid 不在科 + demoted 科） ──
     # 入院: 単価 = Σ_6m 粗利 / Σ_6m 純在院延べ  → 日次は 単価 × 在院数
     # 外来: 単価 = Σ_6m 粗利 / Σ_6m 営業日数    → 日次は 単価 × 営業日
     # base hybrid のある科には何もしない（残差層は廃止）。
-    adm_monthly = (aggregate_monthly_admission(adm)
-                    if adm is not None and len(adm) > 0
-                    else pd.DataFrame())
+    adm_monthly = adm_monthly_pre
     fallback_layers: Dict[str, Dict[str, Dict[str, Any]]] = {"外来": {}, "入院": {}}
     if not adm_monthly.empty:
         for kind in ("外来", "入院"):
