@@ -65,6 +65,10 @@
 
 .ft{text-align:center;font-size:11px;color:var(--mu);padding:20px 0;border-top:1px solid var(--ln);margin-top:12px}
 
+.hybrid-details summary::-webkit-details-marker{display:none}
+.hybrid-details summary::marker{content:""}
+.hybrid-details[open] .hybrid-caret{transform:rotate(90deg)}
+
 @media(max-width:768px){.kpi-row{grid-template-columns:repeat(2,1fr) !important}.charts-grid{grid-template-columns:1fr}.cpnl .chart{height:200px}.cpnl{overflow:hidden}.grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}.ward-extra{grid-template-columns:1fr 1fr 1fr}.hdr .row{flex-direction:column;align-items:flex-start}.dept-sel{width:100%}.w{overflow-x:hidden}.tb{gap:6px}.grp{flex-wrap:wrap}
 /* ★モバイル: ヘッダー自動非表示 */
 .hdr{transition:transform .3s ease}.hdr.hdr-hidden{transform:translateY(-100%)}
@@ -132,9 +136,16 @@
     </div>
     <div id="hybridDeptWrap" style="display:none;margin-top:14px">
       <div class="cpnl">
-        <h4>🧪 ハイブリッド粗利推計 <span style="font-weight:500;color:var(--mu);font-size:11px">（術式NNLS + 件数OLS、holdout で採用モデル選択）</span></h4>
-        <div id="hybridDeptCards" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px"></div>
-        <div id="hybridDeptMeta" style="font-size:11px;color:var(--mu);line-height:1.6"></div>
+        <details class="hybrid-details">
+          <summary style="cursor:pointer;list-style:none;user-select:none;display:flex;align-items:center;gap:6px">
+            <span class="hybrid-caret" style="font-size:10px;color:var(--mu);transition:transform .15s;display:inline-block">▶</span>
+            <h4 style="margin:0;display:inline">🧪 ハイブリッド粗利推計 <span style="font-weight:500;color:var(--mu);font-size:11px">（術式NNLS + 件数OLS、holdout で採用モデル選択）</span></h4>
+          </summary>
+          <div style="margin-top:10px">
+            <div id="hybridDeptCards" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px"></div>
+            <div id="hybridDeptMeta" style="font-size:11px;color:var(--mu);line-height:1.6"></div>
+          </div>
+        </details>
       </div>
     </div>
   </div>

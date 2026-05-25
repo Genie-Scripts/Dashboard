@@ -87,6 +87,9 @@
 .hybrid-table .err-good{color:#0e7a54;font-weight:800}
 .hybrid-table .err-bad{color:#c4314b;font-weight:800}
 .hybrid-table .err-mid{color:#b45309;font-weight:800}
+.hybrid-details summary::-webkit-details-marker{display:none}
+.hybrid-details summary::marker{content:""}
+.hybrid-details[open] .hybrid-caret{transform:rotate(90deg)}
 .ft{text-align:center;font-size:11px;color:var(--mu);padding:20px 0;border-top:1px solid var(--ln);margin-top:20px}
 @media(max-width:768px){.tabs{display:flex;overflow:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}.tab{min-width:150px;flex:0 0 auto}.tab .big{font-size:22px}.sum{grid-template-columns:1fr}.bx-main .main-val{font-size:24px}.main{grid-template-columns:1fr}.chart{height:220px}.ri{grid-template-columns:24px 1fr auto}.bar,.stl{display:none}.drill-chart{height:200px}.drill-graphs{grid-template-columns:1fr}.role{display:none}.hdr .row{flex-direction:column;align-items:flex-start}
 /* ★モバイル: KPIカード2列化・チャート1列化・はみ出し防止 */
@@ -160,12 +163,19 @@
   <!-- ハイブリッド粗利推計（profitタブ専用） -->
   <section class="main" id="hybridSection" style="display:none;grid-template-columns:1fr">
     <div class="pnl">
-      <h3>🧪 ハイブリッド粗利推計 <span style="font-weight:500;color:var(--mu);font-size:11px">（術式NNLS + 件数OLS、科ごとに holdout で採用）</span></h3>
-      <div id="hybridHospital" style="display:flex;gap:14px;flex-wrap:wrap;align-items:stretch;margin-bottom:14px"></div>
-      <div style="overflow-x:auto">
-        <table class="hybrid-table" id="hybridDeptTable"></table>
-      </div>
-      <div id="hybridMeta" style="margin-top:8px;font-size:11px;color:var(--mu);line-height:1.5"></div>
+      <details class="hybrid-details">
+        <summary style="cursor:pointer;list-style:none;user-select:none;display:flex;align-items:center;gap:6px">
+          <span class="hybrid-caret" style="font-size:10px;color:var(--mu);transition:transform .15s;display:inline-block">▶</span>
+          <h3 style="margin:0;display:inline">🧪 ハイブリッド粗利推計 <span style="font-weight:500;color:var(--mu);font-size:11px">（術式NNLS + 件数OLS、科ごとに holdout で採用）</span></h3>
+        </summary>
+        <div style="margin-top:12px">
+          <div id="hybridHospital" style="display:flex;gap:14px;flex-wrap:wrap;align-items:stretch;margin-bottom:14px"></div>
+          <div style="overflow-x:auto">
+            <table class="hybrid-table" id="hybridDeptTable"></table>
+          </div>
+          <div id="hybridMeta" style="margin-top:8px;font-size:11px;color:var(--mu);line-height:1.5"></div>
+        </div>
+      </details>
     </div>
   </section>
 
