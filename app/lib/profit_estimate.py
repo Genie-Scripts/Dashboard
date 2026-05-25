@@ -409,6 +409,29 @@ def _profit_long_by_kind(profit_breakdown: pd.DataFrame, kind: str) -> pd.DataFr
     return sub[["科", "月", "粗利_百万"]]
 
 
+def _baseline_monthly(profit_breakdown: pd.DataFrame,
+                       kind: str,
+                       lookback_months: int = 6) -> Dict[str, float]:
+    """科ごとの (kind: '外来'|'入院') 粗利 直近 N か月平均（百万円/月）を返す。
+
+    手術件数がほぼ0で件数/術式モデルが学習できない科（例: 歯科口腔外科の
+    外来粗利）について、合計値・日次ローリングに実績ベースの代替値を
+    供給するために使う。
+    """
+    sub = profit_breakdown[profit_breakdown["区分"] == kind].copy()
+    if sub.empty:
+        return {}
+    sub["月"] = pd.to_datetime(sub["月"])
+    sub = sub.sort_values("月")
+    out: Dict[str, float] = {}
+    for dept, g in sub.groupby("診療科名"):
+        recent = g.tail(lookback_months)
+        if recent.empty:
+            continue
+        out[dept] = float(recent["粗利"].mean()) / 1000.0
+    return out
+
+
 def build_hybrid_payload(profit_breakdown: pd.DataFrame,
                           surg: pd.DataFrame,
                           base_date,
@@ -510,10 +533,53 @@ def build_hybrid_payload(profit_breakdown: pd.DataFrame,
                 "hybrid_pred":    round(pred_hybrid, 2) if pred_hybrid is not None else None,
             }
 
+    # last_month を先に確定（baseline 補完で last_month の actual を引くのに必要）
+    last_month_g = None
+    for rec in out_by_dept.values():
+        for k in ("外来", "入院"):
+            if rec.get(k) and rec[k].get("last_month"):
+                last_month_g = rec[k]["last_month"]
+
+    # ── 外来/入院 baseline 補完 ──
+    # 手術データが乏しく件数/術式モデルが学習できなかった (区分, 科) について、
+    # profit_breakdown から直近6か月平均を baseline として埋める。
+    # これにより合計値・日次ローリングから外来/入院粗利が脱落するのを防ぐ。
+    baseline_g = _baseline_monthly(profit_breakdown, "外来")
+    baseline_n = _baseline_monthly(profit_breakdown, "入院")
+    pb_all_depts = set(profit_breakdown["診療科名"].dropna().unique())
+    for dept in pb_all_depts:
+        dept_rec = out_by_dept.setdefault(dept, {"外来": None, "入院": None, "合計": {}})
+        for kind, bmap in (("外来", baseline_g), ("入院", baseline_n)):
+            if dept_rec.get(kind) is not None:
+                continue
+            if dept not in bmap:
+                continue
+            actual = None
+            if last_month_g:
+                mts = pd.Timestamp(last_month_g + "-01")
+                sub = profit_breakdown[
+                    (profit_breakdown["診療科名"] == dept)
+                    & (profit_breakdown["区分"] == kind)
+                    & (pd.to_datetime(profit_breakdown["月"]) == mts)
+                ]
+                if not sub.empty:
+                    actual = float(sub["粗利"].iloc[0]) / 1000.0
+            base = bmap[dept]
+            dept_rec[kind] = {
+                "model":            "baseline",
+                "r2_out_nnls":      None, "r2_out_ols": None,
+                "mape_nnls":        None, "mape_ols":   None,
+                "n_procedures":     0,
+                "last_month":       last_month_g,
+                "actual":           round(actual, 2) if actual is not None else None,
+                "ols_pred":         round(base, 2),
+                "hybrid_pred":      round(base, 2),
+                "baseline_monthly": round(base, 2),
+            }
+
     # 合計（外来+入院）の集約と病院全体
     hosp_actual = hosp_ols = hosp_hybrid = 0.0
     hosp_has_any = False
-    last_month_g = None
     for dept, rec in out_by_dept.items():
         a = (rec["外来"]["actual"] if rec["外来"] else 0) or 0
         a += (rec["入院"]["actual"] if rec["入院"] else 0) or 0
@@ -531,9 +597,6 @@ def build_hybrid_payload(profit_breakdown: pd.DataFrame,
         if a > 0:
             hosp_actual += a; hosp_ols += o; hosp_hybrid += h
             hosp_has_any = True
-        for k in ("外来", "入院"):
-            if rec[k] and rec[k].get("last_month"):
-                last_month_g = rec[k]["last_month"]
 
     hospital_total = None
     if hosp_has_any and hosp_actual > 0:
@@ -551,6 +614,7 @@ def build_hybrid_payload(profit_breakdown: pd.DataFrame,
     series_by_dept, hospital_series, series_meta = _build_hybrid_daily_series(
         fit_models, surg, base_date, rolling_days,
         history_days if history_days is not None else 365,
+        baseline_g=baseline_g, baseline_n=baseline_n,
     )
 
     return {
@@ -573,8 +637,15 @@ def _build_hybrid_daily_series(fit_models: Dict[str, Dict[str, Any]],
                                  surg: pd.DataFrame,
                                  base_date: pd.Timestamp,
                                  rolling_days: int,
-                                 history_days: Optional[int]):
-    """日次ローリング 30日 ハイブリッド推計の系列を構築。"""
+                                 history_days: Optional[int],
+                                 baseline_g: Optional[Dict[str, float]] = None,
+                                 baseline_n: Optional[Dict[str, float]] = None):
+    """日次ローリング 30日 ハイブリッド推計の系列を構築。
+
+    baseline_g / baseline_n: 件数/術式モデルが学習できない科の
+    外来/入院粗利 月平均（百万円/月）。30日窓相当の一定値として日次系列に
+    乗せる（rolling_days=30 のとき1か月平均がそのまま 30日累計の代替値）。
+    """
     from .profit_surgery import predict_daily_rolling_per_dept
 
     if surg is None or len(surg) == 0:
@@ -600,26 +671,38 @@ def _build_hybrid_daily_series(fit_models: Dict[str, Dict[str, Any]],
         s_gairai = surg_safe.iloc[0:0]
         s_nyuin  = surg_safe
 
-    # 全対象科の集合
-    all_depts = set(fit_models.get("外来", {}).keys()) | set(fit_models.get("入院", {}).keys())
+    baseline_g = baseline_g or {}
+    baseline_n = baseline_n or {}
+
+    # 全対象科の集合（モデル化できた科 ∪ baseline がある科）
+    all_depts = (set(fit_models.get("外来", {}).keys())
+                 | set(fit_models.get("入院", {}).keys())
+                 | set(baseline_g.keys()) | set(baseline_n.keys()))
 
     hosp_g_hy = pd.Series(0.0, index=dates)
     hosp_n_hy = pd.Series(0.0, index=dates)
     hosp_g_ols = pd.Series(0.0, index=dates)
     hosp_n_ols = pd.Series(0.0, index=dates)
 
+    def _baseline_series(value: Optional[float]) -> pd.Series:
+        return pd.Series(float(value) if value else 0.0, index=dates)
+
     series_by_dept: Dict[str, Dict[str, Any]] = {}
     for dept in sorted(all_depts):
         g_model = fit_models.get("外来", {}).get(dept)
         n_model = fit_models.get("入院", {}).get(dept)
-        g_hy = predict_daily_rolling_per_dept(g_model, s_gairai, dept, dates, rolling_days) \
-                    if g_model else pd.Series(0.0, index=dates)
-        n_hy = predict_daily_rolling_per_dept(n_model, s_nyuin,  dept, dates, rolling_days) \
-                    if n_model else pd.Series(0.0, index=dates)
-        g_ols = predict_daily_rolling_per_dept(g_model, s_gairai, dept, dates, rolling_days, force_kind="ols") \
-                    if g_model else pd.Series(0.0, index=dates)
-        n_ols = predict_daily_rolling_per_dept(n_model, s_nyuin,  dept, dates, rolling_days, force_kind="ols") \
-                    if n_model else pd.Series(0.0, index=dates)
+        if g_model:
+            g_hy  = predict_daily_rolling_per_dept(g_model, s_gairai, dept, dates, rolling_days)
+            g_ols = predict_daily_rolling_per_dept(g_model, s_gairai, dept, dates, rolling_days, force_kind="ols")
+        else:
+            g_hy  = _baseline_series(baseline_g.get(dept))
+            g_ols = _baseline_series(baseline_g.get(dept))
+        if n_model:
+            n_hy  = predict_daily_rolling_per_dept(n_model, s_nyuin,  dept, dates, rolling_days)
+            n_ols = predict_daily_rolling_per_dept(n_model, s_nyuin,  dept, dates, rolling_days, force_kind="ols")
+        else:
+            n_hy  = _baseline_series(baseline_n.get(dept))
+            n_ols = _baseline_series(baseline_n.get(dept))
         hosp_g_hy = hosp_g_hy.add(g_hy, fill_value=0)
         hosp_n_hy = hosp_n_hy.add(n_hy, fill_value=0)
         hosp_g_ols = hosp_g_ols.add(g_ols, fill_value=0)
