@@ -66,6 +66,27 @@
 .contrib-row .cdiff.ok{color:#0e7a54}
 .contrib-row .cshare{text-align:right;color:var(--mu);font-size:11px;font-variant-numeric:tabular-nums}
 .contrib-empty{padding:14px;color:var(--mu);text-align:center;font-size:12px}
+.hyb-card{flex:1;min-width:180px;background:#fafbfc;border:1px solid var(--ln);border-radius:10px;padding:12px 14px}
+.hyb-card .lbl{font-size:11px;color:var(--mu);font-weight:700}
+.hyb-card .val{font-size:22px;font-weight:900;line-height:1.2;margin-top:2px;font-variant-numeric:tabular-nums}
+.hyb-card .sub{font-size:11px;margin-top:3px}
+.hyb-card.actual .val{color:var(--tx)}
+.hyb-card.ols .val{color:#5A6A82}
+.hyb-card.hybrid .val{color:#0A3671}
+.hyb-card .err{font-weight:800;font-variant-numeric:tabular-nums}
+.hyb-card .err.good{color:#0e7a54}
+.hyb-card .err.bad{color:#c4314b}
+.hyb-card .err.mid{color:#b45309}
+.hybrid-table{width:100%;border-collapse:collapse;font-size:11px}
+.hybrid-table th,.hybrid-table td{padding:6px 8px;border-bottom:1px solid var(--ln);text-align:right;font-variant-numeric:tabular-nums}
+.hybrid-table th{background:#f1f5f9;font-weight:800;color:var(--sub);position:sticky;top:0}
+.hybrid-table td:first-child,.hybrid-table th:first-child{text-align:left;font-weight:700}
+.hybrid-table tr:hover td{background:#f8fafc;cursor:pointer}
+.hybrid-table .badge-nnls{display:inline-block;padding:1px 6px;border-radius:6px;background:#dbeafe;color:#1e3a8a;font-weight:800;font-size:10px}
+.hybrid-table .badge-ols{display:inline-block;padding:1px 6px;border-radius:6px;background:#f3f4f6;color:#374151;font-weight:800;font-size:10px}
+.hybrid-table .err-good{color:#0e7a54;font-weight:800}
+.hybrid-table .err-bad{color:#c4314b;font-weight:800}
+.hybrid-table .err-mid{color:#b45309;font-weight:800}
 .ft{text-align:center;font-size:11px;color:var(--mu);padding:20px 0;border-top:1px solid var(--ln);margin-top:20px}
 @media(max-width:768px){.tabs{display:flex;overflow:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}.tab{min-width:150px;flex:0 0 auto}.tab .big{font-size:22px}.sum{grid-template-columns:1fr}.bx-main .main-val{font-size:24px}.main{grid-template-columns:1fr}.chart{height:220px}.ri{grid-template-columns:24px 1fr auto}.bar,.stl{display:none}.drill-chart{height:200px}.drill-graphs{grid-template-columns:1fr}.role{display:none}.hdr .row{flex-direction:column;align-items:flex-start}
 /* ★モバイル: KPIカード2列化・チャート1列化・はみ出し防止 */
@@ -133,6 +154,18 @@
     <div class="pnl">
       <h3>🔺 粗利を上げている科 TOP5 <span style="font-weight:500;color:var(--mu);font-size:11px">（直近3ヶ月平均 − その前9ヶ月平均）</span></h3>
       <div id="contribUp" class="contrib-list"></div>
+    </div>
+  </section>
+
+  <!-- ハイブリッド粗利推計（profitタブ専用） -->
+  <section class="main" id="hybridSection" style="display:none;grid-template-columns:1fr">
+    <div class="pnl">
+      <h3>🧪 ハイブリッド粗利推計 <span style="font-weight:500;color:var(--mu);font-size:11px">（術式NNLS + 件数OLS、科ごとに holdout で採用）</span></h3>
+      <div id="hybridHospital" style="display:flex;gap:14px;flex-wrap:wrap;align-items:stretch;margin-bottom:14px"></div>
+      <div style="overflow-x:auto">
+        <table class="hybrid-table" id="hybridDeptTable"></table>
+      </div>
+      <div id="hybridMeta" style="margin-top:8px;font-size:11px;color:var(--mu);line-height:1.5"></div>
     </div>
   </section>
 
@@ -645,9 +678,11 @@ const hasEstimate = !!(DATA.profit_estimate && DATA.profit_estimate.series && DA
 function renderEstimateSection() {
   const sec = document.getElementById('estimateSection');
   const csec = document.getElementById('contributionSection');
+  const hsec = document.getElementById('hybridSection');
   if (currentTab !== 'profit') {
     if (sec) sec.style.display = 'none';
     if (csec) csec.style.display = 'none';
+    if (hsec) hsec.style.display = 'none';
     return;
   }
   if (sec) {
@@ -655,6 +690,7 @@ function renderEstimateSection() {
     else { sec.style.display = 'grid'; renderEstimateChart(); }
   }
   renderContribution();
+  renderHybridSection();
 }
 
 function renderEstimateChart() {
@@ -793,6 +829,90 @@ function renderContribution() {
   const uEl = document.getElementById('contribUp');
   dEl.innerHTML = down.length ? down.map((x,i) => row(x, i, 'dr')).join('') : '<div class="contrib-empty">下げに寄与している科はありません</div>';
   uEl.innerHTML = up.length   ? up.map((x,i)   => row(x, i, 'ok')).join('') : '<div class="contrib-empty">上げに寄与している科はありません</div>';
+}
+
+// ── ハイブリッド粗利推計セクション ──
+function renderHybridSection() {
+  const sec = document.getElementById('hybridSection');
+  if (!sec) return;
+  const hy = DATA.profit_hybrid;
+  if (!hy || !hy.hospital_total) { sec.style.display = 'none'; return; }
+  sec.style.display = 'grid';
+
+  // 病院全体カード
+  const ht = hy.hospital_total;
+  const errCls = (e) => {
+    if (e == null) return 'mid';
+    const a = Math.abs(e);
+    if (a < 3) return 'good';
+    if (a < 10) return 'mid';
+    return 'bad';
+  };
+  document.getElementById('hybridHospital').innerHTML = `
+    <div class="hyb-card actual">
+      <div class="lbl">${ht.last_month} 実績</div>
+      <div class="val">${ht.actual} <span style="font-size:12px;font-weight:600">百万</span></div>
+      <div class="sub" style="color:var(--mu)">学習対象16科の合計</div>
+    </div>
+    <div class="hyb-card ols">
+      <div class="lbl">件数OLS 推計</div>
+      <div class="val">${ht.ols_pred}</div>
+      <div class="sub">誤差 <span class="err ${errCls(ht.ols_err_pct)}">${ht.ols_err_pct>=0?'+':''}${ht.ols_err_pct}%</span></div>
+    </div>
+    <div class="hyb-card hybrid">
+      <div class="lbl">🧪 ハイブリッド推計</div>
+      <div class="val">${ht.hybrid_pred}</div>
+      <div class="sub">誤差 <span class="err ${errCls(ht.hybrid_err_pct)}">${ht.hybrid_err_pct>=0?'+':''}${ht.hybrid_err_pct}%</span></div>
+    </div>`;
+
+  // 科別テーブル
+  const rows = [];
+  const depts = Object.entries(DATA.drill || {})
+    .filter(([_, d]) => d && d.profit_hybrid)
+    .map(([name, d]) => ({name, h: d.profit_hybrid}));
+
+  const fmt = (v, d=1) => v == null ? '—' : v.toFixed(d);
+  const cls = (e) => {
+    if (e == null) return '';
+    const a = Math.abs(e);
+    if (a < 3) return 'err-good';
+    if (a < 10) return 'err-mid';
+    return 'err-bad';
+  };
+  const badge = (m) => m === 'nnls' ? '<span class="badge-nnls">術式</span>' : '<span class="badge-ols">件数</span>';
+
+  rows.push(`<thead><tr>
+    <th>科</th>
+    <th>外来モデル</th><th>R²(NNLS/OLS)</th>
+    <th>入院モデル</th><th>R²(NNLS/OLS)</th>
+    <th>合計 実績</th><th>OLS推計</th><th>誤差%</th>
+    <th>ハイブリッド</th><th>誤差%</th>
+  </tr></thead><tbody>`);
+
+  // 合計実績の大きい順
+  depts.sort((a,b) => (b.h['合計']?.actual||0) - (a.h['合計']?.actual||0));
+
+  for (const {name, h} of depts) {
+    const g = h['外来'] || {}, n = h['入院'] || {}, t = h['合計'] || {};
+    rows.push(`<tr onclick="location.href='dept.html#'+encodeURIComponent('${name}')">
+      <td>${name}</td>
+      <td>${g.model ? badge(g.model) : '—'}</td>
+      <td>${fmt(g.r2_out_nnls,2)} / ${fmt(g.r2_out_ols,2)}</td>
+      <td>${n.model ? badge(n.model) : '—'}</td>
+      <td>${fmt(n.r2_out_nnls,2)} / ${fmt(n.r2_out_ols,2)}</td>
+      <td>${fmt(t.actual)}</td>
+      <td>${fmt(t.ols_pred)}</td>
+      <td class="${cls(t.ols_err_pct)}">${t.ols_err_pct!=null ? (t.ols_err_pct>=0?'+':'')+t.ols_err_pct+'%' : '—'}</td>
+      <td>${fmt(t.hybrid_pred)}</td>
+      <td class="${cls(t.hybrid_err_pct)}">${t.hybrid_err_pct!=null ? (t.hybrid_err_pct>=0?'+':'')+t.hybrid_err_pct+'%' : '—'}</td>
+    </tr>`);
+  }
+  rows.push('</tbody>');
+  document.getElementById('hybridDeptTable').innerHTML = rows.join('');
+
+  const meta = hy.meta || {};
+  document.getElementById('hybridMeta').innerHTML =
+    `📊 ${meta.n_depts_modeled}科を学習 ／ holdout ${meta.test_months}ヶ月で評価 ／ 低頻度集約 年${meta.min_count}件未満 ／ ⚠️ 推計は学習期間の単価構造に基づきます。実績と大きく乖離する科は構造変化のサイン。`;
 }
 
 function periodCutoff() {

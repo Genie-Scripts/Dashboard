@@ -130,6 +130,13 @@
         </div>
       </div>
     </div>
+    <div id="hybridDeptWrap" style="display:none;margin-top:14px">
+      <div class="cpnl">
+        <h4>🧪 ハイブリッド粗利推計 <span style="font-weight:500;color:var(--mu);font-size:11px">（術式NNLS + 件数OLS、holdout で採用モデル選択）</span></h4>
+        <div id="hybridDeptCards" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px"></div>
+        <div id="hybridDeptMeta" style="font-size:11px;color:var(--mu);line-height:1.6"></div>
+      </div>
+    </div>
   </div>
 
   <div class="ft">🏥 診療ダッシュボード 部門別 ｜ 生成 {{ generated_at }} ｜ 基準日 {{ base_date }}</div>
@@ -551,6 +558,62 @@ function renderCharts(d) {
   } else if (opVsWrap) {
     opVsWrap.style.display = 'none';
   }
+
+  // ハイブリッド粗利推計（診療科のみ・術式モデル学習対象科のみ）
+  const hyWrap = document.getElementById('hybridDeptWrap');
+  if (!isWard && d.profit_hybrid) {
+    renderHybridDept(d.profit_hybrid);
+  } else if (hyWrap) {
+    hyWrap.style.display = 'none';
+  }
+}
+
+function renderHybridDept(h) {
+  const wrap = document.getElementById('hybridDeptWrap');
+  if (!wrap || !h) return;
+  wrap.style.display = '';
+  const t = h['合計'] || {};
+  const g = h['外来'] || null;
+  const n = h['入院'] || null;
+  const fmt = (v, d=1) => v == null ? '—' : (typeof v === 'number' ? v.toFixed(d) : v);
+  const errCls = (e) => { if (e == null) return 'mid'; const a = Math.abs(e); return a < 3 ? 'good' : (a < 10 ? 'mid' : 'bad'); };
+  const errColor = (cls) => cls === 'good' ? 'var(--ok)' : (cls === 'mid' ? 'var(--wr)' : 'var(--dr)');
+  const badge = (m) => m === 'nnls'
+    ? '<span style="display:inline-block;padding:1px 7px;border-radius:6px;background:#dbeafe;color:#1e3a8a;font-weight:800;font-size:10px">術式NNLS</span>'
+    : '<span style="display:inline-block;padding:1px 7px;border-radius:6px;background:#f3f4f6;color:#374151;font-weight:800;font-size:10px">件数OLS</span>';
+
+  const cardCss = 'flex:1;min-width:170px;background:#fafbfc;border:1px solid var(--ln);border-radius:10px;padding:12px 14px';
+  const cards = [];
+  if (t.actual != null) {
+    const eo = t.ols_err_pct, eh = t.hybrid_err_pct;
+    const eoc = errCls(eo), ehc = errCls(eh);
+    cards.push(`<div style="${cardCss}">
+      <div style="font-size:11px;color:var(--mu);font-weight:700">${h['外来']?.last_month || ''} 実績</div>
+      <div style="font-size:22px;font-weight:900;line-height:1.2;margin-top:2px;font-variant-numeric:tabular-nums">${fmt(t.actual)} <span style="font-size:12px;font-weight:600">百万</span></div>
+      <div style="font-size:10px;color:var(--mu);margin-top:3px">外来+入院 合計</div>
+    </div>`);
+    cards.push(`<div style="${cardCss}">
+      <div style="font-size:11px;color:var(--mu);font-weight:700">件数OLS 推計</div>
+      <div style="font-size:22px;font-weight:900;line-height:1.2;margin-top:2px;color:#5A6A82;font-variant-numeric:tabular-nums">${fmt(t.ols_pred)}</div>
+      <div style="font-size:11px;margin-top:3px">誤差 <span style="color:${errColor(eoc)};font-weight:800;font-variant-numeric:tabular-nums">${eo!=null?(eo>=0?'+':'')+eo+'%':'—'}</span></div>
+    </div>`);
+    cards.push(`<div style="${cardCss}">
+      <div style="font-size:11px;color:var(--mu);font-weight:700">🧪 ハイブリッド推計</div>
+      <div style="font-size:22px;font-weight:900;line-height:1.2;margin-top:2px;color:#0A3671;font-variant-numeric:tabular-nums">${fmt(t.hybrid_pred)}</div>
+      <div style="font-size:11px;margin-top:3px">誤差 <span style="color:${errColor(ehc)};font-weight:800;font-variant-numeric:tabular-nums">${eh!=null?(eh>=0?'+':'')+eh+'%':'—'}</span></div>
+    </div>`);
+  }
+  document.getElementById('hybridDeptCards').innerHTML = cards.join('');
+
+  const detail = (label, x) => x ? `
+    <div style="margin-top:4px"><b>${label}</b> 採用 ${badge(x.model)}
+    <span style="color:var(--mu);margin-left:8px">R²(out): NNLS ${fmt(x.r2_out_nnls,2)} / OLS ${fmt(x.r2_out_ols,2)}</span>
+    <span style="color:var(--mu);margin-left:8px">MAPE: NNLS ${fmt(x.mape_nnls,1)}% / OLS ${fmt(x.mape_ols,1)}%</span>
+    <span style="color:var(--mu);margin-left:8px">術式 ${x.n_procedures || 0}種</span>
+    </div>` : '';
+  document.getElementById('hybridDeptMeta').innerHTML =
+    detail('外来', g) + detail('入院', n) +
+    `<div style="margin-top:6px;color:var(--mu)">⚠️ 過去2ヶ月を holdout 検証し、out-of-sample R² が高い方を採用。誤差3%未満 = 緑、10%未満 = 黄、それ以上 = 赤。</div>`;
 }
 
 function renderOneChart(elId, td, targetVal) {
