@@ -130,8 +130,12 @@ def _read_surgery_file(path: Path) -> pd.DataFrame:
     if path.suffix.lower() in (".xlsx", ".xls"):
         df = pd.read_excel(path, engine="openpyxl")
     else:
-        df = pd.read_csv(path, encoding="cp932", engine="python",
-                          on_bad_lines="skip")
+        try:
+            df = pd.read_csv(path, encoding="utf-8-sig", engine="python",
+                              on_bad_lines="skip")
+        except (UnicodeDecodeError, UnicodeError):
+            df = pd.read_csv(path, encoding="cp932", engine="python",
+                              on_bad_lines="skip")
     df = _normalize_columns(df)
     df["手術実施日"] = pd.to_datetime(df["手術実施日"], errors="coerce")
     df = df.dropna(subset=["手術実施日"])
