@@ -639,7 +639,7 @@ def build_detail_json(adm, surg, targets, surg_targets,
         except Exception:
             profit_estimate_section = None
 
-    # ── profit_hybrid: 術式NNLS + 件数OLS のハイブリッド月次推計 ──
+    # ── profit_hybrid: 術式NNLS + 件数OLS + admission 加算層のハイブリッド月次推計 ──
     profit_hybrid_section = None
     if profit_breakdown is not None and len(profit_breakdown) > 0 and surg is not None:
         try:
@@ -647,6 +647,7 @@ def build_detail_json(adm, surg, targets, surg_targets,
                 profit_breakdown=profit_breakdown,
                 surg=surg,
                 base_date=base_date,
+                adm=adm,
             )
         except Exception:
             profit_hybrid_section = None

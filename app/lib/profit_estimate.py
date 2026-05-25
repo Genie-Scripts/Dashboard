@@ -435,6 +435,7 @@ def _baseline_monthly(profit_breakdown: pd.DataFrame,
 def build_hybrid_payload(profit_breakdown: pd.DataFrame,
                           surg: pd.DataFrame,
                           base_date,
+                          adm: Optional[pd.DataFrame] = None,
                           test_months: int = 2,
                           min_count: int = 30,
                           rolling_days: int = 30,
@@ -465,6 +466,8 @@ def build_hybrid_payload(profit_breakdown: pd.DataFrame,
     from .profit_surgery import (
         fit_hybrid_models_auto, predict_monthly_profit_nnls,
         predict_daily_rolling_per_dept,
+        aggregate_monthly_admission, fit_admission_layer,
+        evaluate_admission_layer_month,
     )
     if profit_breakdown is None or len(profit_breakdown) == 0:
         return None
@@ -578,6 +581,52 @@ def build_hybrid_payload(profit_breakdown: pd.DataFrame,
                 "baseline_monthly": round(base, 2),
             }
 
+    # ── admission 層（案1: 加算分解） ──
+    # 入院: 残差 (actual - hybrid) を 新入院・純在院延べ・切片 で説明
+    # 外来: 残差 (actual - hybrid) を 営業日数・切片 で説明
+    # hybrid が無い (baseline 経路の) 科は primary モードで actual を直接フィットし、
+    # baseline 定数を layer 予測で置換する。
+    adm_monthly = (aggregate_monthly_admission(adm)
+                    if adm is not None and len(adm) > 0
+                    else pd.DataFrame())
+    admission_layers: Dict[str, Dict[str, Dict[str, Any]]] = {"外来": {}, "入院": {}}
+    if not adm_monthly.empty:
+        for kind in ("外来", "入院"):
+            prof_long_k = _profit_long_by_kind(profit_breakdown, kind)
+            if len(prof_long_k) == 0:
+                continue
+            admission_layers[kind] = fit_admission_layer(
+                prof_long_k, fit_models.get(kind), adm_monthly, kind
+            )
+        # 月次 hybrid_pred に layer 寄与を加算（KPI と日次系列の整合性を保つ）
+        for dept, rec in out_by_dept.items():
+            for kind in ("外来", "入院"):
+                entry = rec.get(kind)
+                if not entry:
+                    continue
+                layer = admission_layers.get(kind, {}).get(dept)
+                if not layer:
+                    continue
+                lm = entry.get("last_month")
+                if not lm:
+                    continue
+                layer_val = evaluate_admission_layer_month(layer, adm_monthly, dept, lm)
+                mode = layer.get("mode")
+                if mode == "primary":
+                    new_pred = max(0.0, layer_val)
+                    entry["hybrid_pred"] = round(new_pred, 2)
+                    entry["model"] = "admission_primary"
+                else:
+                    base = entry.get("hybrid_pred") or 0.0
+                    entry["hybrid_pred"] = round(max(0.0, base + layer_val), 2)
+                entry["admission_layer"] = {
+                    "mode":     mode,
+                    "r2":       layer.get("r2"),
+                    "coef":     layer.get("coef"),
+                    "features": layer.get("features"),
+                    "layer_val": round(layer_val, 2),
+                }
+
     # 合計（外来+入院）の集約と病院全体
     hosp_actual = hosp_ols = hosp_hybrid = 0.0
     hosp_has_any = False
@@ -616,6 +665,7 @@ def build_hybrid_payload(profit_breakdown: pd.DataFrame,
         fit_models, surg, base_date, rolling_days,
         history_days if history_days is not None else 365,
         baseline_g=baseline_g, baseline_n=baseline_n,
+        adm=adm, admission_layers=admission_layers,
     )
 
     return {
@@ -640,14 +690,23 @@ def _build_hybrid_daily_series(fit_models: Dict[str, Dict[str, Any]],
                                  rolling_days: int,
                                  history_days: Optional[int],
                                  baseline_g: Optional[Dict[str, float]] = None,
-                                 baseline_n: Optional[Dict[str, float]] = None):
+                                 baseline_n: Optional[Dict[str, float]] = None,
+                                 adm: Optional[pd.DataFrame] = None,
+                                 admission_layers: Optional[Dict[str, Dict[str, Any]]] = None):
     """日次ローリング 30日 ハイブリッド推計の系列を構築。
 
     baseline_g / baseline_n: 件数/術式モデルが学習できない科の
-    外来/入院粗利 月平均（百万円/月）。30日窓相当の一定値として日次系列に
-    乗せる（rolling_days=30 のとき1か月平均がそのまま 30日累計の代替値）。
+    外来/入院粗利 月平均（百万円/月）。admission_layers で補えない場合の最終
+    フォールバック（一定値）として使用。
+
+    adm + admission_layers が与えられた場合は、案1（加算分解）に従って
+      入院: 既存 hybrid + (a·新入院_30d + b·純在院延べ_30d + c)
+      外来: 既存 hybrid + (α·営業日_30d + γ)
+    を 30日ローリングで予測。primary モードの科は layer 予測が baseline 定数を置換。
     """
-    from .profit_surgery import predict_daily_rolling_per_dept
+    from .profit_surgery import (
+        predict_daily_rolling_per_dept, predict_admission_layer_daily,
+    )
 
     if surg is None or len(surg) == 0:
         return {}, None, {"window_start": None, "window_end": None}
@@ -674,11 +733,23 @@ def _build_hybrid_daily_series(fit_models: Dict[str, Dict[str, Any]],
 
     baseline_g = baseline_g or {}
     baseline_n = baseline_n or {}
+    admission_layers = admission_layers or {}
+    layer_g_map = admission_layers.get("外来", {}) or {}
+    layer_n_map = admission_layers.get("入院", {}) or {}
 
-    # 全対象科の集合（モデル化できた科 ∪ baseline がある科）
+    # admission 層の日次ドライバー（adm 提供時のみ計算）
+    by_dept_drv: Dict[str, Dict[str, pd.Series]] = {}
+    biz_roll: Optional[pd.Series] = None
+    if adm is not None and len(adm) > 0 and (layer_g_map or layer_n_map):
+        pre = _daily_rolling_drivers(adm, surg, dates, rolling_days)
+        by_dept_drv = pre.get("by_dept", {})
+        biz_roll = pre.get("biz_roll")
+
+    # 全対象科の集合（モデル化できた科 ∪ baseline がある科 ∪ admission 層がある科）
     all_depts = (set(fit_models.get("外来", {}).keys())
                  | set(fit_models.get("入院", {}).keys())
-                 | set(baseline_g.keys()) | set(baseline_n.keys()))
+                 | set(baseline_g.keys()) | set(baseline_n.keys())
+                 | set(layer_g_map.keys()) | set(layer_n_map.keys()))
 
     hosp_g_hy = pd.Series(0.0, index=dates)
     hosp_n_hy = pd.Series(0.0, index=dates)
@@ -688,22 +759,44 @@ def _build_hybrid_daily_series(fit_models: Dict[str, Dict[str, Any]],
     def _baseline_series(value: Optional[float]) -> pd.Series:
         return pd.Series(float(value) if value else 0.0, index=dates)
 
+    def _apply_layer(base_series: pd.Series,
+                      layer_rec: Optional[Dict[str, Any]],
+                      fallback_series: pd.Series,
+                      dept: str) -> pd.Series:
+        """admission 層を加算/置換。primary は base を置換、residual は加算。"""
+        if not layer_rec:
+            return base_series
+        layer = predict_admission_layer_daily(
+            layer_rec, dept, by_dept_drv, biz_roll, dates
+        )
+        mode = layer_rec.get("mode")
+        if mode == "primary":
+            # baseline 定数を layer 予測で置換
+            return layer.clip(lower=0)
+        # residual: 既存 hybrid + layer（切片が負でも合算後 clip で吸収）
+        return (base_series + layer).clip(lower=0)
+
     series_by_dept: Dict[str, Dict[str, Any]] = {}
     for dept in sorted(all_depts):
         g_model = fit_models.get("外来", {}).get(dept)
         n_model = fit_models.get("入院", {}).get(dept)
+        g_fallback = _baseline_series(baseline_g.get(dept))
+        n_fallback = _baseline_series(baseline_n.get(dept))
         if g_model:
             g_hy  = predict_daily_rolling_per_dept(g_model, s_gairai, dept, dates, rolling_days)
             g_ols = predict_daily_rolling_per_dept(g_model, s_gairai, dept, dates, rolling_days, force_kind="ols")
         else:
-            g_hy  = _baseline_series(baseline_g.get(dept))
-            g_ols = _baseline_series(baseline_g.get(dept))
+            g_hy  = g_fallback
+            g_ols = g_fallback
         if n_model:
             n_hy  = predict_daily_rolling_per_dept(n_model, s_nyuin,  dept, dates, rolling_days)
             n_ols = predict_daily_rolling_per_dept(n_model, s_nyuin,  dept, dates, rolling_days, force_kind="ols")
         else:
-            n_hy  = _baseline_series(baseline_n.get(dept))
-            n_ols = _baseline_series(baseline_n.get(dept))
+            n_hy  = n_fallback
+            n_ols = n_fallback
+        # admission 層を hybrid 線に適用（OLS 線は比較用として変更しない）
+        g_hy = _apply_layer(g_hy, layer_g_map.get(dept), g_fallback, dept)
+        n_hy = _apply_layer(n_hy, layer_n_map.get(dept), n_fallback, dept)
         hosp_g_hy = hosp_g_hy.add(g_hy, fill_value=0)
         hosp_n_hy = hosp_n_hy.add(n_hy, fill_value=0)
         hosp_g_ols = hosp_g_ols.add(g_ols, fill_value=0)

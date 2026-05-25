@@ -272,6 +272,11 @@ def fit_hybrid_models(prof_monthly: pd.DataFrame,
             return -np.inf if x is None else x
         chosen = "nnls" if _key(r2_nnls) >= _key(r2_ols) else "ols"
 
+        # 残差層フィット用に採用モデルの train 予測値を保持
+        yp_tr_nnls = Xb_tr @ beta
+        yp_tr_ols  = ols_count_coef * x_tr + ols_biz_coef * biz_tr
+        train_pred = yp_tr_nnls if chosen == "nnls" else yp_tr_ols
+
         rec = {
             "model": chosen,
             "r2_out_nnls": round(r2_nnls, 3) if r2_nnls is not None else None,
@@ -286,6 +291,7 @@ def fit_hybrid_models(prof_monthly: pd.DataFrame,
             "coef":          [float(b) for b in beta],
             "ols_count_coef": ols_count_coef,
             "ols_biz_coef":   ols_biz_coef,
+            "train_pred":     [float(v) for v in train_pred],
         }
         out[dept] = rec
 
@@ -444,3 +450,185 @@ def predict_daily_rolling_per_dept(model_rec: Dict[str, Any],
 
     pred = (roll_counts.values @ coef[:-2]) + coef[-2] * time_roll.values + coef[-1]
     return pd.Series(np.maximum(0.0, pred), index=dates)
+
+
+# ════════════════════════════════════════════════════
+# admission 層（案1: 加算分解）
+#   入院粗利_推計 = (NNLS or 件数OLS) + (a·新入院 + b·純在院延べ + c)
+#   外来粗利_推計 = (件数OLS)         + (α·営業日数  + γ)
+#
+#   - hybrid モデルがある科: 残差 (actual - hybrid_pred) を駆動変数で説明
+#   - hybrid が学習できなかった科: actual そのものを駆動変数で説明（primary）
+#   - 駆動変数の係数は非負クリップ（多重共線性で「在院多→粗利減」を排除）
+#   - 切片は signed（hybrid 過大予測の補正用に負値を許容）
+# ════════════════════════════════════════════════════
+
+def aggregate_monthly_admission(adm: pd.DataFrame) -> pd.DataFrame:
+    """(診療科名, 月: 'YYYY-MM') ごとの 新入院・純在院延べ・営業日数 月次集計。"""
+    if adm is None or len(adm) == 0:
+        return pd.DataFrame(columns=["診療科名", "月", "新入院", "純在院延べ", "営業日数"])
+    a = adm.copy()
+    a["月"] = pd.to_datetime(a["日付"]).dt.strftime("%Y-%m")
+    m = (a.groupby(["診療科名", "月"], as_index=False)
+          .agg(新入院=("新入院患者数", "sum"),
+               在院延べ=("在院患者数", "sum")))
+    m["純在院延べ"] = (m["在院延べ"] - m["新入院"]).clip(lower=0)
+    m["営業日数"] = m["月"].apply(
+        lambda s: biz_days_in_month(pd.Timestamp(s + "-01"))
+    ).astype(int)
+    return m[["診療科名", "月", "新入院", "純在院延べ", "営業日数"]]
+
+
+def fit_admission_layer(prof_long: pd.DataFrame,
+                          fit_models_kind: Optional[Dict[str, Dict[str, Any]]],
+                          adm_monthly: pd.DataFrame,
+                          kind: str,
+                          lookback_months: int = 12,
+                          min_months: int = 4) -> Dict[str, Dict[str, Any]]:
+    """admission 層を OLS で学習。
+
+    Args:
+        prof_long: columns = ['科', '月', '粗利_百万']
+        fit_models_kind: 既存ハイブリッドの kind 別モデル辞書（None なら全 dept を primary 扱い）
+        adm_monthly: aggregate_monthly_admission の出力
+        kind: '入院' | '外来'
+
+    Returns:
+        {dept: {
+            'features': [...], 'coef': [...],
+            'mode': 'residual' | 'primary',
+            'n': int, 'r2': float|None, 'kind': str,
+        }}
+    """
+    if adm_monthly is None or len(adm_monthly) == 0:
+        return {}
+    if prof_long is None or len(prof_long) == 0:
+        return {}
+
+    fit_models_kind = fit_models_kind or {}
+    out: Dict[str, Dict[str, Any]] = {}
+
+    for dept in sorted(prof_long["科"].dropna().unique()):
+        p = prof_long[prof_long["科"] == dept]
+        a = adm_monthly[adm_monthly["診療科名"] == dept]
+        if p.empty or a.empty:
+            continue
+
+        rec = fit_models_kind.get(dept)
+        if rec and rec.get("train_months"):
+            months = list(rec["train_months"])
+        else:
+            months = sorted(p["月"].unique())[-lookback_months:]
+
+        p_set = set(p["月"].astype(str).values)
+        a_set = set(a["月"].astype(str).values)
+        months = [m for m in months if m in p_set and m in a_set]
+        if len(months) < min_months:
+            continue
+
+        p_s = p.set_index("月")["粗利_百万"]
+        a_s = a.set_index("月")
+        y = p_s.loc[months].values.astype(float)
+
+        if rec and "train_pred" in rec:
+            tp_map = dict(zip(rec.get("train_months", []), rec.get("train_pred", [])))
+            base = np.array([float(tp_map.get(m, 0.0)) for m in months])
+            mode = "residual"
+        else:
+            base = np.zeros(len(months))
+            mode = "primary"
+        target = y - base
+
+        if kind == "入院":
+            X = np.column_stack([
+                a_s.loc[months, "新入院"].values.astype(float),
+                a_s.loc[months, "純在院延べ"].values.astype(float),
+                np.ones(len(months)),
+            ])
+            features = ["新入院", "純在院延べ", "intercept"]
+        else:  # 外来
+            X = np.column_stack([
+                a_s.loc[months, "営業日数"].values.astype(float),
+                np.ones(len(months)),
+            ])
+            features = ["営業日数", "intercept"]
+
+        if X.shape[0] < X.shape[1]:
+            continue
+
+        coef, *_ = np.linalg.lstsq(X, target, rcond=None)
+        # 駆動変数係数は非負クリップ（負係数の解釈不能を排除）
+        n_driv = len(features) - 1
+        coef[:n_driv] = np.maximum(0.0, coef[:n_driv])
+        # primary モードでは切片も非負（actual を直接フィットしているので負切片は不自然）
+        if mode == "primary":
+            coef[-1] = max(0.0, float(coef[-1]))
+
+        yp = X @ coef
+        ss_res = float(np.sum((target - yp) ** 2))
+        ss_tot = float(np.sum((target - target.mean()) ** 2))
+        r2 = (1.0 - ss_res / ss_tot) if ss_tot > 0 else None
+
+        out[dept] = {
+            "features": features,
+            "coef":     [float(c) for c in coef],
+            "mode":     mode,
+            "n":        len(months),
+            "r2":       round(r2, 3) if r2 is not None else None,
+            "kind":     kind,
+        }
+    return out
+
+
+def evaluate_admission_layer_month(layer_rec: Optional[Dict[str, Any]],
+                                     adm_monthly: pd.DataFrame,
+                                     dept: str,
+                                     month: str) -> float:
+    """指定月の admission 層予測値（百万円）。layer/データ無しは 0。"""
+    if not layer_rec or adm_monthly is None or len(adm_monthly) == 0:
+        return 0.0
+    row = adm_monthly[(adm_monthly["診療科名"] == dept)
+                        & (adm_monthly["月"].astype(str) == month)]
+    if row.empty:
+        return 0.0
+    feats = layer_rec.get("features", [])
+    coef = layer_rec.get("coef", [])
+    if len(feats) != len(coef):
+        return 0.0
+    val = 0.0
+    for f, c in zip(feats, coef):
+        if f == "intercept":
+            val += float(c)
+        elif f in row.columns:
+            val += float(c) * float(row[f].iloc[0])
+    return val
+
+
+def predict_admission_layer_daily(layer_rec: Optional[Dict[str, Any]],
+                                    dept: str,
+                                    by_dept_drivers: Optional[Dict[str, Dict[str, pd.Series]]],
+                                    biz_roll: Optional[pd.Series],
+                                    dates: pd.DatetimeIndex) -> pd.Series:
+    """admission 層の日次ローリング予測（百万円, 切片は signed のまま）。"""
+    zero = pd.Series(0.0, index=dates)
+    if layer_rec is None:
+        return zero
+    feats = layer_rec.get("features", [])
+    coef = layer_rec.get("coef", [])
+    if len(feats) != len(coef):
+        return zero
+    drv = (by_dept_drivers or {}).get(dept, {}) or {}
+    val = pd.Series(0.0, index=dates)
+    for f, c in zip(feats, coef):
+        if c == 0:
+            continue
+        if f == "新入院":
+            val = val.add(float(c) * drv.get("new_roll", zero), fill_value=0)
+        elif f == "純在院延べ":
+            val = val.add(float(c) * drv.get("pure_bed_roll", zero), fill_value=0)
+        elif f == "営業日数":
+            br = biz_roll if biz_roll is not None else zero
+            val = val.add(float(c) * br, fill_value=0)
+        elif f == "intercept":
+            val = val + float(c)
+    return val
