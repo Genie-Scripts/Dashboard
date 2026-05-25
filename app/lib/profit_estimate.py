@@ -486,8 +486,10 @@ def build_hybrid_payload(profit_breakdown: pd.DataFrame,
                 else:
                     ga_cnt = window[window["実施診療科"] == dept]
                 cnt = float(len(ga_cnt))
-                if "ols_slope" in rec:
-                    pred_ols = float(max(0.0, rec["ols_slope"] * cnt + rec["ols_intercept"]))
+                if "ols_count_coef" in rec:
+                    biz = biz_days_in_month(mstart)
+                    pred_ols = float(max(0.0, rec["ols_count_coef"] * cnt
+                                                + rec["ols_biz_coef"] * biz))
                 # ハイブリッド予測（採用モデル）
                 if rec["model"] == "nnls":
                     pred_hybrid = predict_monthly_profit_nnls(rec, window, dept)

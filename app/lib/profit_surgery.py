@@ -31,6 +31,8 @@ import numpy as np
 import pandas as pd
 from typing import Dict, Any, List, Optional
 
+from .config import biz_days_in_month, is_operational_day
+
 
 # ────────────────────────────────────────────────────
 # 内部: NNLS (Lawson-Hanson, scipy 非依存)
@@ -176,7 +178,8 @@ def fit_hybrid_models(prof_monthly: pd.DataFrame,
             'mape_nnls': float|None,  'mape_ols': float|None,
             'features': [術式キー_集約, ...],  # NNLS の場合
             'coef': [β_j, γ_time, α_intercept],  # NNLS の場合
-            'ols_slope': float, 'ols_intercept': float,  # OLS の場合
+            'ols_count_coef': float,                    # 件数1件あたり粗利
+            'ols_biz_coef':   float,                    # 営業日1日あたり粗利
             'train_months': [..], 'test_months': [..],
         }}
     """
@@ -224,18 +227,29 @@ def fit_hybrid_models(prof_monthly: pd.DataFrame,
         r2_nnls = _r2_out(y_te, yp_te_nnls, y_tr.mean())
         mape_nnls = _mape(y_te, yp_te_nnls)
 
-        # 件数 OLS（切片あり、件数のみ）
+        # 件数 OLS（営業日按分: y/biz = a·x/biz + b → y = a·件数 + b·営業日）
+        # 切片を「営業日あたり粗利」b に置き換えることで、GWや短い月の営業日数
+        # 縮小をそのまま予測値に反映させる。係数は NNLS で非負制約をかけ、
+        # データのノイズで b が負になり「営業日が多いほど粗利が下がる」と
+        # 誤解されるのを防ぐ（件数支配的科では b=0 に縮退し旧モデル相当に）。
         ga = ga_count_by_dm.xs(dept, level=0, drop_level=False) if dept in ga_count_by_dm.index.get_level_values(0) else None
         if ga is not None and not ga.empty:
-            ga = ga.droplevel(0)  # 月だけ残す
+            ga = ga.droplevel(0)
         else:
             ga = pd.Series(dtype=float)
         x_tr = ga.reindex(tr_idx).fillna(0).values.astype(float)
         x_te = ga.reindex(te_idx).fillna(0).values.astype(float)
-        A_tr = np.vstack([x_tr, np.ones_like(x_tr)]).T
-        A_te = np.vstack([x_te, np.ones_like(x_te)]).T
-        ols_coef, *_ = np.linalg.lstsq(A_tr, y_tr, rcond=None)
-        yp_te_ols = A_te @ ols_coef
+        biz_tr = np.array([biz_days_in_month(pd.Timestamp(m + "-01"))
+                           for m in tr_idx], dtype=float)
+        biz_te = np.array([biz_days_in_month(pd.Timestamp(m + "-01"))
+                           for m in te_idx], dtype=float)
+        y_norm_tr = y_tr / biz_tr
+        x_norm_tr = x_tr / biz_tr
+        A_norm_tr = np.vstack([x_norm_tr, np.ones_like(x_norm_tr)]).T
+        ols_coef = _nnls(A_norm_tr, y_norm_tr)
+        ols_count_coef = float(ols_coef[0])
+        ols_biz_coef   = float(ols_coef[1])
+        yp_te_ols = ols_count_coef * x_te + ols_biz_coef * biz_te
         r2_ols = _r2_out(y_te, yp_te_ols, y_tr.mean())
         mape_ols = _mape(y_te, yp_te_ols)
 
@@ -256,8 +270,8 @@ def fit_hybrid_models(prof_monthly: pd.DataFrame,
             # 比較用に両モデルの係数を常に保存
             "features":      list(pv.columns) + ["手術時間_h", "切片"],
             "coef":          [float(b) for b in beta],
-            "ols_slope":     float(ols_coef[0]),
-            "ols_intercept": float(ols_coef[1]),
+            "ols_count_coef": ols_count_coef,
+            "ols_biz_coef":   ols_biz_coef,
         }
         out[dept] = rec
 
@@ -330,7 +344,8 @@ def predict_daily_rolling_per_dept(model_rec: Dict[str, Any],
     kind = force_kind if force_kind else model_rec["model"]
 
     if kind == "ols":
-        # 全麻件数を日次集計 → rolling sum → slope*x + intercept
+        # 件数累計と営業日数累計の双方を rolling sum で取り、
+        # pred = a·件数_roll + b·営業日_roll  で予測
         if "麻酔種別" in surg_kind.columns:
             ga = surg_kind[surg_kind["麻酔種別"].fillna("")
                               .str.contains("全身麻酔", na=False)]
@@ -338,12 +353,18 @@ def predict_daily_rolling_per_dept(model_rec: Dict[str, Any],
             ga = surg_kind
         ga = ga[ga["実施診療科"] == dept]
         if len(ga) == 0:
-            base = float(model_rec.get("ols_intercept", 0.0))
-            return pd.Series(max(0.0, base), index=dates)
-        daily = (ga.assign(_d=pd.to_datetime(ga["手術実施日"]).dt.normalize())
-                    .groupby("_d").size().reindex(dates, fill_value=0))
-        roll = daily.rolling(rolling_days, min_periods=1).sum()
-        pred = roll.values * model_rec["ols_slope"] + model_rec["ols_intercept"]
+            roll_count = pd.Series(0.0, index=dates)
+        else:
+            daily = (ga.assign(_d=pd.to_datetime(ga["手術実施日"]).dt.normalize())
+                        .groupby("_d").size().reindex(dates, fill_value=0))
+            roll_count = daily.rolling(rolling_days, min_periods=1).sum()
+        biz_flag = pd.Series(
+            [1 if is_operational_day(d) else 0 for d in dates], index=dates
+        )
+        biz_roll = biz_flag.rolling(rolling_days, min_periods=1).sum()
+        a = float(model_rec.get("ols_count_coef", 0.0))
+        b = float(model_rec.get("ols_biz_coef", 0.0))
+        pred = a * roll_count.values + b * biz_roll.values
         return pd.Series(np.maximum(0.0, pred), index=dates)
 
     # NNLS
