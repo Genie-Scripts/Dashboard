@@ -770,17 +770,22 @@ def build_detail_json(adm, surg, targets, surg_targets,
                     "meta":        profit_estimate_section["meta"],
                 }
 
-    # ハイブリッド月次推計を全科 + 診療科別に attach
+    # ハイブリッド月次推計 + 日次系列を全科 + 診療科別に attach
     if profit_hybrid_section:
         data["profit_hybrid"] = {
-            "meta":           profit_hybrid_section["meta"],
-            "hospital_total": profit_hybrid_section.get("hospital_total"),
+            "meta":            profit_hybrid_section["meta"],
+            "hospital_total":  profit_hybrid_section.get("hospital_total"),
+            "hospital_series": profit_hybrid_section.get("hospital_series"),
         }
         hy_by_dept = profit_hybrid_section.get("by_dept", {})
+        hy_series_by_dept = profit_hybrid_section.get("series_by_dept", {})
         for dname, drill_entry in data["drill"].items():
             if drill_entry.get("ward_extra"):
                 continue
             if dname in hy_by_dept:
-                drill_entry["profit_hybrid"] = hy_by_dept[dname]
+                rec = dict(hy_by_dept[dname])
+                if dname in hy_series_by_dept:
+                    rec["series"] = hy_series_by_dept[dname]
+                drill_entry["profit_hybrid"] = rec
 
     return json.dumps(data, ensure_ascii=False, default=_json_safe)

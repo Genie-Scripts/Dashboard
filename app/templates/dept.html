@@ -544,7 +544,7 @@ function renderCharts(d) {
   // 直近30日 推計粗利チャート（診療科のみ、推計データがあれば表示）
   const estWrap = document.getElementById('estimatePanelWrap');
   if (!isWard && d.profit_estimate) {
-    renderDeptEstimateChart(d.profit_estimate, d.profit_chart);
+    renderDeptEstimateChart(d.profit_estimate, d.profit_chart, d.profit_hybrid);
   } else if (estWrap) {
     estWrap.style.display = 'none';
   }
@@ -747,7 +747,7 @@ function renderProfitDeptChart(elId, bd) {
   },{responsive:true});
 }
 
-function renderDeptEstimateChart(est, bd) {
+function renderDeptEstimateChart(est, bd, hy) {
   const wrap = document.getElementById('estimatePanelWrap');
   if (!est || !est.series || !est.series.dates) { wrap.style.display = 'none'; return; }
   wrap.style.display = '';
@@ -767,10 +767,22 @@ function renderDeptEstimateChart(est, bd) {
     {name:'外来推計', x:dates, y:gairai, type:'scatter', mode:'lines', stackgroup:'one',
      line:{color:'#0D9488', width:0.5}, fillcolor:'rgba(13,148,136,0.45)',
      hovertemplate:'%{y:.1f}百万円<extra>外来</extra>'},
-    {name:'30日推計合計', x:dates, y:total, type:'scatter', mode:'lines',
-     line:{color:'#0A3671', width:2.2}, hovertemplate:'%{y:.1f}百万円<extra>合計</extra>'},
+    {name:'件数OLS 推計合計', x:dates, y:total, type:'scatter', mode:'lines',
+     line:{color:'#0A3671', width:2.2}, hovertemplate:'%{y:.1f}百万円<extra>OLS合計</extra>'},
   ];
   const yAll = total.filter(v => v != null && !isNaN(v));
+
+  // ハイブリッド推計合計（術式NNLS+件数OLS）
+  if (hy && hy.series && hy.series.dates) {
+    const hs = hy.series;
+    const idxH = hs.dates.findIndex(d => d >= cutoff);
+    const sliceH = (arr) => idxH >= 0 ? arr.slice(idxH) : arr;
+    const hyDates = sliceH(hs.dates);
+    const hyTotal = sliceH(hs.values_total);
+    traces.push({name:'🧪 ハイブリッド推計合計', x:hyDates, y:hyTotal, type:'scatter', mode:'lines',
+      line:{color:'#9333EA', width:2.8}, hovertemplate:'%{y:.1f}百万円<extra>ハイブリッド合計</extra>'});
+    hyTotal.forEach(v => { if (v != null && !isNaN(v)) yAll.push(v); });
+  }
 
   // 月次目標を水平線で表示（月次目標 = 30日基準の目安値）
   const tgt = bd && bd.target;

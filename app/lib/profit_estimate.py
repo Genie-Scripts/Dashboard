@@ -413,7 +413,9 @@ def build_hybrid_payload(profit_breakdown: pd.DataFrame,
                           surg: pd.DataFrame,
                           base_date,
                           test_months: int = 2,
-                          min_count: int = 30) -> Optional[dict]:
+                          min_count: int = 30,
+                          rolling_days: int = 30,
+                          history_days: Optional[int] = None) -> Optional[dict]:
     """ハイブリッド推計を構築。
 
     外来/入院それぞれで profit_surgery.fit_hybrid_models を呼び、
@@ -437,7 +439,10 @@ def build_hybrid_payload(profit_breakdown: pd.DataFrame,
           "meta": {test_months, min_count, generated_at, base_date},
         }
     """
-    from .profit_surgery import fit_hybrid_models, predict_monthly_profit_nnls
+    from .profit_surgery import (
+        fit_hybrid_models, predict_monthly_profit_nnls,
+        predict_daily_rolling_per_dept,
+    )
     if profit_breakdown is None or len(profit_breakdown) == 0:
         return None
     if surg is None or len(surg) == 0:
@@ -539,13 +544,121 @@ def build_hybrid_payload(profit_breakdown: pd.DataFrame,
             "hybrid_err_pct":  round((hosp_hybrid - hosp_actual) / hosp_actual * 100, 1),
         }
 
+    # ── 日次ローリング 30日 ハイブリッド推計 ──
+    # 出力サイズ抑制のため、history_days 未指定なら 365 日に制限
+    series_by_dept, hospital_series, series_meta = _build_hybrid_daily_series(
+        fit_models, surg, base_date, rolling_days,
+        history_days if history_days is not None else 365,
+    )
+
     return {
         "by_dept":         out_by_dept,
         "hospital_total":  hospital_total,
+        "series_by_dept":  series_by_dept,
+        "hospital_series": hospital_series,
         "meta": {
             "test_months":     test_months,
             "min_count":       min_count,
+            "rolling_days":    rolling_days,
             "base_date":       base_date.strftime("%Y-%m-%d"),
             "n_depts_modeled": len(out_by_dept),
+            **series_meta,
         },
     }
+
+
+def _build_hybrid_daily_series(fit_models: Dict[str, Dict[str, Any]],
+                                 surg: pd.DataFrame,
+                                 base_date: pd.Timestamp,
+                                 rolling_days: int,
+                                 history_days: Optional[int]):
+    """日次ローリング 30日 ハイブリッド推計の系列を構築。"""
+    from .profit_surgery import predict_daily_rolling_per_dept
+
+    if surg is None or len(surg) == 0:
+        return {}, None, {"window_start": None, "window_end": None}
+
+    s_dates = pd.to_datetime(surg["手術実施日"])
+    earliest = s_dates.min().normalize() if len(s_dates) else base_date
+    full_days = int((base_date - earliest).days) + 1
+    if history_days is None or history_days > full_days:
+        history_days = max(full_days, rolling_days)
+    history_start = base_date - pd.Timedelta(days=history_days - 1)
+    dates = pd.date_range(history_start, base_date, freq="D")
+    cutoff = dates[rolling_days - 1] if len(dates) >= rolling_days else dates[-1]
+
+    # 入外でフィルタした surg を予め用意（NaN 排除）
+    surg_safe = surg.dropna(subset=["実施診療科"]).copy()
+    surg_safe["実施診療科"] = surg_safe["実施診療科"].astype(str).str.strip()
+    if "入外区分" in surg_safe.columns:
+        surg_safe["入外区分"] = surg_safe["入外区分"].astype(str).str.strip()
+        s_gairai = surg_safe[surg_safe["入外区分"] == "外来"]
+        s_nyuin  = surg_safe[surg_safe["入外区分"] == "入院"]
+    else:
+        s_gairai = surg_safe.iloc[0:0]
+        s_nyuin  = surg_safe
+
+    # 全対象科の集合
+    all_depts = set(fit_models.get("外来", {}).keys()) | set(fit_models.get("入院", {}).keys())
+
+    hosp_g_hy = pd.Series(0.0, index=dates)
+    hosp_n_hy = pd.Series(0.0, index=dates)
+    hosp_g_ols = pd.Series(0.0, index=dates)
+    hosp_n_ols = pd.Series(0.0, index=dates)
+
+    series_by_dept: Dict[str, Dict[str, Any]] = {}
+    for dept in sorted(all_depts):
+        g_model = fit_models.get("外来", {}).get(dept)
+        n_model = fit_models.get("入院", {}).get(dept)
+        g_hy = predict_daily_rolling_per_dept(g_model, s_gairai, dept, dates, rolling_days) \
+                    if g_model else pd.Series(0.0, index=dates)
+        n_hy = predict_daily_rolling_per_dept(n_model, s_nyuin,  dept, dates, rolling_days) \
+                    if n_model else pd.Series(0.0, index=dates)
+        g_ols = predict_daily_rolling_per_dept(g_model, s_gairai, dept, dates, rolling_days, force_kind="ols") \
+                    if g_model else pd.Series(0.0, index=dates)
+        n_ols = predict_daily_rolling_per_dept(n_model, s_nyuin,  dept, dates, rolling_days, force_kind="ols") \
+                    if n_model else pd.Series(0.0, index=dates)
+        hosp_g_hy = hosp_g_hy.add(g_hy, fill_value=0)
+        hosp_n_hy = hosp_n_hy.add(n_hy, fill_value=0)
+        hosp_g_ols = hosp_g_ols.add(g_ols, fill_value=0)
+        hosp_n_ols = hosp_n_ols.add(n_ols, fill_value=0)
+        mask = g_hy.index >= cutoff
+        # 科レベルは hybrid のみ（ファイルサイズ抑制）
+        series_by_dept[dept] = {
+            "dates":         [d.strftime("%Y-%m-%d") for d in dates],
+            "values_total":  [round((gv + nv), 2) if m else None
+                                for gv, nv, m in zip(g_hy, n_hy, mask)],
+            "values_gairai": [round(v, 2) if m else None
+                                for v, m in zip(g_hy, mask)],
+            "values_nyuin":  [round(v, 2) if m else None
+                                for v, m in zip(n_hy, mask)],
+        }
+
+    mask = hosp_g_hy.index >= cutoff
+    hospital_series = {
+        "dates":             [d.strftime("%Y-%m-%d") for d in dates],
+        "values_total":      [round((gv + nv), 2) if m else None
+                                for gv, nv, m in zip(hosp_g_hy, hosp_n_hy, mask)],
+        "values_gairai":     [round(v, 2) if m else None
+                                for v, m in zip(hosp_g_hy, mask)],
+        "values_nyuin":      [round(v, 2) if m else None
+                                for v, m in zip(hosp_n_hy, mask)],
+        "ols_total":         [round((gv + nv), 2) if m else None
+                                for gv, nv, m in zip(hosp_g_ols, hosp_n_ols, mask)],
+        "ols_gairai":        [round(v, 2) if m else None
+                                for v, m in zip(hosp_g_ols, mask)],
+        "ols_nyuin":         [round(v, 2) if m else None
+                                for v, m in zip(hosp_n_ols, mask)],
+    }
+
+    series_meta = {
+        "window_start": (base_date - pd.Timedelta(days=rolling_days - 1)).strftime("%Y-%m-%d"),
+        "window_end":   base_date.strftime("%Y-%m-%d"),
+        "latest_hybrid_total":  round(float(hosp_g_hy.iloc[-1] + hosp_n_hy.iloc[-1]), 2),
+        "latest_hybrid_gairai": round(float(hosp_g_hy.iloc[-1]), 2),
+        "latest_hybrid_nyuin":  round(float(hosp_n_hy.iloc[-1]), 2),
+        "latest_ols_total":     round(float(hosp_g_ols.iloc[-1] + hosp_n_ols.iloc[-1]), 2),
+        "latest_ols_gairai":    round(float(hosp_g_ols.iloc[-1]), 2),
+        "latest_ols_nyuin":     round(float(hosp_n_ols.iloc[-1]), 2),
+    }
+    return series_by_dept, hospital_series, series_meta

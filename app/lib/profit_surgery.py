@@ -253,13 +253,12 @@ def fit_hybrid_models(prof_monthly: pd.DataFrame,
             "train_months": tr_idx,
             "test_months": te_idx,
             "n_procedures": int(pv.shape[1]),
+            # 比較用に両モデルの係数を常に保存
+            "features":      list(pv.columns) + ["手術時間_h", "切片"],
+            "coef":          [float(b) for b in beta],
+            "ols_slope":     float(ols_coef[0]),
+            "ols_intercept": float(ols_coef[1]),
         }
-        if chosen == "nnls":
-            rec["features"] = list(pv.columns) + ["手術時間_h", "切片"]
-            rec["coef"] = [float(b) for b in beta]
-        else:
-            rec["ols_slope"] = float(ols_coef[0])
-            rec["ols_intercept"] = float(ols_coef[1])
         out[dept] = rec
 
     return out
@@ -268,13 +267,7 @@ def fit_hybrid_models(prof_monthly: pd.DataFrame,
 def predict_monthly_profit_nnls(model_rec: Dict[str, Any],
                                   surg_window: pd.DataFrame,
                                   dept: str) -> float:
-    """学習済み NNLS モデルで「指定された手術ウィンドウ」の粗利を推計。
-
-    Args:
-        model_rec: fit_hybrid_models の戻り値 (dept のレコード)
-        surg_window: 推計対象期間の手術データ
-        dept: 診療科名
-    """
+    """学習済み NNLS モデルで「指定された手術ウィンドウ」の粗利を推計。"""
     if model_rec.get("model") != "nnls":
         return 0.0
     se = _extract_primary(surg_window)
@@ -283,9 +276,7 @@ def predict_monthly_profit_nnls(model_rec: Dict[str, Any],
         return float(model_rec["coef"][-1])  # 切片のみ
     feats = model_rec["features"]
     coef = np.array(model_rec["coef"])
-    proc_feats = feats[:-2]  # 末尾2つは手術時間と切片
-    # 学習時の集約規則: train で min_count 未満は「dept|入外|その他」
-    # 推計時は未知の術式キーは「その他」に振り分け
+    proc_feats = feats[:-2]
     known = set(proc_feats)
     def to_feat(k):
         if k in known:
@@ -303,3 +294,81 @@ def predict_monthly_profit_nnls(model_rec: Dict[str, Any],
     x = np.array([counts[f] for f in proc_feats] + [time_sum, 1.0])
     pred = float(np.maximum(0.0, np.dot(x, coef)))
     return pred
+
+
+# ────────────────────────────────────────────────────
+# 公開API: 日次ローリング推計
+# ────────────────────────────────────────────────────
+
+def _to_other_feat(k: str, known: set) -> Optional[str]:
+    if k in known:
+        return k
+    parts = k.split("|", 2)
+    if len(parts) < 3:
+        return None
+    d, io_, _ = parts
+    other = f"{d}|{io_}|その他"
+    return other if other in known else None
+
+
+def predict_daily_rolling_per_dept(model_rec: Dict[str, Any],
+                                     surg_kind: pd.DataFrame,
+                                     dept: str,
+                                     dates: pd.DatetimeIndex,
+                                     rolling_days: int = 30,
+                                     force_kind: Optional[str] = None) -> pd.Series:
+    """1科×1区分（外来/入院）の日次ローリング推計を返す。
+
+    Args:
+        force_kind: "nnls" | "ols" を指定すると、採用モデルを上書きして
+                    指定モデルで予測する（比較用）。None なら model_rec['model'] を使う。
+    """
+    zero = pd.Series(0.0, index=dates)
+    if model_rec is None or len(surg_kind) == 0:
+        return zero
+
+    kind = force_kind if force_kind else model_rec["model"]
+
+    if kind == "ols":
+        # 全麻件数を日次集計 → rolling sum → slope*x + intercept
+        if "麻酔種別" in surg_kind.columns:
+            ga = surg_kind[surg_kind["麻酔種別"].fillna("")
+                              .str.contains("全身麻酔", na=False)]
+        else:
+            ga = surg_kind
+        ga = ga[ga["実施診療科"] == dept]
+        if len(ga) == 0:
+            base = float(model_rec.get("ols_intercept", 0.0))
+            return pd.Series(max(0.0, base), index=dates)
+        daily = (ga.assign(_d=pd.to_datetime(ga["手術実施日"]).dt.normalize())
+                    .groupby("_d").size().reindex(dates, fill_value=0))
+        roll = daily.rolling(rolling_days, min_periods=1).sum()
+        pred = roll.values * model_rec["ols_slope"] + model_rec["ols_intercept"]
+        return pd.Series(np.maximum(0.0, pred), index=dates)
+
+    # NNLS
+    se = _extract_primary(surg_kind)
+    sd = se[se["実施診療科"] == dept].copy()
+    if len(sd) == 0:
+        return pd.Series(max(0.0, float(model_rec["coef"][-1])), index=dates)
+    feats = model_rec["features"]
+    coef = np.array(model_rec["coef"])
+    proc_feats = feats[:-2]
+    known = set(proc_feats)
+    sd["_feat"] = sd["術式キー"].apply(lambda k: _to_other_feat(k, known))
+    sd = sd[sd["_feat"].notna()]
+    sd["_d"] = pd.to_datetime(sd["手術実施日"]).dt.normalize()
+
+    # 術式件数 日次ピボット → ローリング合計
+    pv = (sd.pivot_table(index="_d", columns="_feat",
+                           values="主術式", aggfunc="count", fill_value=0)
+            .reindex(columns=proc_feats, fill_value=0)
+            .reindex(dates, fill_value=0))
+    roll_counts = pv.rolling(rolling_days, min_periods=1).sum()
+
+    # 手術時間 日次合計 → ローリング合計
+    time_daily = sd.groupby("_d")["手術時間_h"].sum().reindex(dates, fill_value=0)
+    time_roll = time_daily.rolling(rolling_days, min_periods=1).sum()
+
+    pred = (roll_counts.values @ coef[:-2]) + coef[-2] * time_roll.values + coef[-1]
+    return pd.Series(np.maximum(0.0, pred), index=dates)
