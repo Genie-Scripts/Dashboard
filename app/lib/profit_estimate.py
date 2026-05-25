@@ -394,3 +394,158 @@ def build_estimate_payload(profit_breakdown: pd.DataFrame,
             "depts_modeled":    sorted(estimators.keys()),
         },
     }
+
+
+# ════════════════════════════════════════════════════
+# ハイブリッド推計（術式NNLS + 件数OLS を holdout で科ごとに採用）
+# ════════════════════════════════════════════════════
+
+def _profit_long_by_kind(profit_breakdown: pd.DataFrame, kind: str) -> pd.DataFrame:
+    """profit_breakdown を (科, 月, 粗利_百万) のロング形式に。kind: '外来' | '入院'."""
+    sub = profit_breakdown[profit_breakdown["区分"] == kind].copy()
+    sub["月"] = pd.to_datetime(sub["月"]).dt.strftime("%Y-%m")
+    sub = sub.rename(columns={"診療科名": "科"})
+    sub["粗利_百万"] = sub["粗利"] / 1000.0
+    return sub[["科", "月", "粗利_百万"]]
+
+
+def build_hybrid_payload(profit_breakdown: pd.DataFrame,
+                          surg: pd.DataFrame,
+                          base_date,
+                          test_months: int = 2,
+                          min_count: int = 30) -> Optional[dict]:
+    """ハイブリッド推計を構築。
+
+    外来/入院それぞれで profit_surgery.fit_hybrid_models を呼び、
+    科ごとに NNLS と件数OLS の holdout 評価結果と最終予測を返す。
+
+    Returns:
+        {
+          "by_dept": {
+            dept: {
+              "外来": {model, r2_out_nnls, r2_out_ols, mape_nnls, mape_ols,
+                      latest_month_actual, latest_month_pred, ...},
+              "入院": {同上},
+              "合計": {latest_actual, latest_ols_pred, latest_hybrid_pred,
+                      ols_err_pct, hybrid_err_pct},
+            }
+          },
+          "hospital_total": {
+            latest_month, actual, ols_pred, hybrid_pred,
+            ols_err_pct, hybrid_err_pct,
+          },
+          "meta": {test_months, min_count, generated_at, base_date},
+        }
+    """
+    from .profit_surgery import fit_hybrid_models, predict_monthly_profit_nnls
+    if profit_breakdown is None or len(profit_breakdown) == 0:
+        return None
+    if surg is None or len(surg) == 0:
+        return None
+    if "区分" not in profit_breakdown.columns:
+        return None
+
+    base_date = pd.Timestamp(base_date).normalize()
+
+    out_by_dept: Dict[str, Dict[str, Any]] = {}
+    fit_models = {"外来": {}, "入院": {}}
+
+    for kind in ("外来", "入院"):
+        prof_long = _profit_long_by_kind(profit_breakdown, kind)
+        surg_k = surg[surg.get("入外区分") == kind] if "入外区分" in surg.columns else surg
+        if len(prof_long) == 0 or len(surg_k) == 0:
+            continue
+        models = fit_hybrid_models(prof_long, surg_k,
+                                     test_months=test_months,
+                                     min_count=min_count)
+        fit_models[kind] = models
+
+        for dept, rec in models.items():
+            # 直近 test 月の最初の月で予測再現（モデル検証用）
+            last_month = rec["test_months"][-1] if rec["test_months"] else None
+            actual = pred_hybrid = pred_ols = None
+            if last_month:
+                a = prof_long[(prof_long["科"] == dept) & (prof_long["月"] == last_month)]
+                if len(a) > 0:
+                    actual = float(a["粗利_百万"].iloc[0])
+                # 月境界で術式データをスライス
+                mstart = pd.Timestamp(last_month + "-01")
+                mend = mstart + pd.offsets.MonthEnd(0)
+                window = surg_k[(surg_k["手術実施日"] >= mstart) &
+                                  (surg_k["手術実施日"] <= mend)]
+                # OLS 予測
+                if "麻酔種別" in window.columns:
+                    ga_cnt = window[window["麻酔種別"].fillna("")
+                                      .str.contains("全身麻酔", na=False)]
+                    ga_cnt = ga_cnt[ga_cnt["実施診療科"] == dept]
+                else:
+                    ga_cnt = window[window["実施診療科"] == dept]
+                cnt = float(len(ga_cnt))
+                if "ols_slope" in rec:
+                    pred_ols = float(max(0.0, rec["ols_slope"] * cnt + rec["ols_intercept"]))
+                # ハイブリッド予測（採用モデル）
+                if rec["model"] == "nnls":
+                    pred_hybrid = predict_monthly_profit_nnls(rec, window, dept)
+                else:
+                    pred_hybrid = pred_ols if pred_ols is not None else 0.0
+
+            dept_rec = out_by_dept.setdefault(dept, {"外来": None, "入院": None, "合計": {}})
+            dept_rec[kind] = {
+                "model":          rec["model"],
+                "r2_out_nnls":    rec["r2_out_nnls"],
+                "r2_out_ols":     rec["r2_out_ols"],
+                "mape_nnls":      rec["mape_nnls"],
+                "mape_ols":       rec["mape_ols"],
+                "n_procedures":   rec.get("n_procedures"),
+                "last_month":     last_month,
+                "actual":         round(actual, 2) if actual is not None else None,
+                "ols_pred":       round(pred_ols, 2) if pred_ols is not None else None,
+                "hybrid_pred":    round(pred_hybrid, 2) if pred_hybrid is not None else None,
+            }
+
+    # 合計（外来+入院）の集約と病院全体
+    hosp_actual = hosp_ols = hosp_hybrid = 0.0
+    hosp_has_any = False
+    last_month_g = None
+    for dept, rec in out_by_dept.items():
+        a = (rec["外来"]["actual"] if rec["外来"] else 0) or 0
+        a += (rec["入院"]["actual"] if rec["入院"] else 0) or 0
+        o = (rec["外来"]["ols_pred"] if rec["外来"] else 0) or 0
+        o += (rec["入院"]["ols_pred"] if rec["入院"] else 0) or 0
+        h = (rec["外来"]["hybrid_pred"] if rec["外来"] else 0) or 0
+        h += (rec["入院"]["hybrid_pred"] if rec["入院"] else 0) or 0
+        rec["合計"] = {
+            "actual":       round(a, 2),
+            "ols_pred":     round(o, 2),
+            "hybrid_pred":  round(h, 2),
+            "ols_err_pct":     round((o - a) / a * 100, 1) if a > 0 else None,
+            "hybrid_err_pct":  round((h - a) / a * 100, 1) if a > 0 else None,
+        }
+        if a > 0:
+            hosp_actual += a; hosp_ols += o; hosp_hybrid += h
+            hosp_has_any = True
+        for k in ("外来", "入院"):
+            if rec[k] and rec[k].get("last_month"):
+                last_month_g = rec[k]["last_month"]
+
+    hospital_total = None
+    if hosp_has_any and hosp_actual > 0:
+        hospital_total = {
+            "last_month":      last_month_g,
+            "actual":          round(hosp_actual, 2),
+            "ols_pred":        round(hosp_ols, 2),
+            "hybrid_pred":     round(hosp_hybrid, 2),
+            "ols_err_pct":     round((hosp_ols - hosp_actual) / hosp_actual * 100, 1),
+            "hybrid_err_pct":  round((hosp_hybrid - hosp_actual) / hosp_actual * 100, 1),
+        }
+
+    return {
+        "by_dept":         out_by_dept,
+        "hospital_total":  hospital_total,
+        "meta": {
+            "test_months":     test_months,
+            "min_count":       min_count,
+            "base_date":       base_date.strftime("%Y-%m-%d"),
+            "n_depts_modeled": len(out_by_dept),
+        },
+    }

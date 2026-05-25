@@ -35,7 +35,10 @@ from .charts import (
     build_surgery_year_compare_chart, build_ward_utilization_heatmap,
 )
 from .profit import build_profit_kpi, build_profit_chart_data
-from .profit_estimate import build_estimate_payload as build_profit_estimate_payload
+from .profit_estimate import (
+    build_estimate_payload as build_profit_estimate_payload,
+    build_hybrid_payload as build_profit_hybrid_payload,
+)
 
 
 def _json_safe(obj):
@@ -636,6 +639,18 @@ def build_detail_json(adm, surg, targets, surg_targets,
         except Exception:
             profit_estimate_section = None
 
+    # ── profit_hybrid: 術式NNLS + 件数OLS のハイブリッド月次推計 ──
+    profit_hybrid_section = None
+    if profit_breakdown is not None and len(profit_breakdown) > 0 and surg is not None:
+        try:
+            profit_hybrid_section = build_profit_hybrid_payload(
+                profit_breakdown=profit_breakdown,
+                surg=surg,
+                base_date=base_date,
+            )
+        except Exception:
+            profit_hybrid_section = None
+
     # ── assemble ──
     data = {
         "meta": {
@@ -754,5 +769,18 @@ def build_detail_json(adm, surg, targets, surg_targets,
                     "fit_quality": est_fit.get(dname, {}),
                     "meta":        profit_estimate_section["meta"],
                 }
+
+    # ハイブリッド月次推計を全科 + 診療科別に attach
+    if profit_hybrid_section:
+        data["profit_hybrid"] = {
+            "meta":           profit_hybrid_section["meta"],
+            "hospital_total": profit_hybrid_section.get("hospital_total"),
+        }
+        hy_by_dept = profit_hybrid_section.get("by_dept", {})
+        for dname, drill_entry in data["drill"].items():
+            if drill_entry.get("ward_extra"):
+                continue
+            if dname in hy_by_dept:
+                drill_entry["profit_hybrid"] = hy_by_dept[dname]
 
     return json.dumps(data, ensure_ascii=False, default=_json_safe)
