@@ -113,6 +113,13 @@
       <div class="cpnl chart3-panel"><h4 id="chartTitle3">💉 全麻手術 推移</h4><div class="chart" id="chart3"></div></div>
       <div class="cpnl" id="chart4panel" style="display:none"><h4 id="chartTitle4">💰 月次粗利 推移</h4><div class="chart" id="chart4"></div></div>
     </div>
+    <div id="estimatePanelWrap" style="display:none;margin-top:14px">
+      <div class="cpnl">
+        <h4 id="estimateTitle">📈 月末粗利 見込み 推移（直近30日ペース × 当月営業日数）</h4>
+        <div class="chart" id="estimateChart"></div>
+        <div id="estimateMeta" style="margin-top:8px;font-size:11px;color:var(--mu);line-height:1.5"></div>
+      </div>
+    </div>
     <div id="opVsProfitWrap" style="display:none;margin-top:14px">
       <div class="charts-container layout-2x2" style="grid-template-columns:1fr 1fr">
         <div class="cpnl">
@@ -284,7 +291,9 @@ function showLanding() {
   document.getElementById('backLink').onclick = null;  // selectUnit で設定した preventDefault を解除
   document.getElementById('pageTitle').textContent = '📊 部門ダッシュボード';
   // Purge charts
-  ['chart1','chart2','chart3','chart4'].forEach(id => { try{Plotly.purge(id)}catch(e){} });
+  ['chart1','chart2','chart3','chart4','estimateChart'].forEach(id => { try{Plotly.purge(id)}catch(e){} });
+  const estWrap = document.getElementById('estimatePanelWrap');
+  if (estWrap) estWrap.style.display = 'none';
 }
 
 function selectUnit(name) {
@@ -531,6 +540,14 @@ function renderCharts(d) {
       document.getElementById('chartTitle3').textContent = `— データなし`;
       document.getElementById('chart3').innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">対象データなし</div>';
     }
+  }
+
+  // 直近30日 推計粗利チャート（診療科のみ、ハイブリッド推計データがあれば表示）
+  const estWrap = document.getElementById('estimatePanelWrap');
+  if (!isWard && d.profit_hybrid && d.profit_hybrid.series) {
+    renderDeptEstimateChart(d.profit_chart, d.profit_hybrid);
+  } else if (estWrap) {
+    estWrap.style.display = 'none';
   }
 
   // 件数 vs 粗利 分離ビュー（診療科 × 全麻実施科 × 粗利データあり）
