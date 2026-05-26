@@ -91,6 +91,35 @@
 .hybrid-details summary::marker{content:""}
 .hybrid-details[open] .hybrid-caret{transform:rotate(90deg)}
 .ft{text-align:center;font-size:11px;color:var(--mu);padding:20px 0;border-top:1px solid var(--ln);margin-top:20px}
+/* 当月予測カード */
+.mp-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.mp-tile{padding:11px 13px;border-radius:12px;border:1px solid var(--ln);background:var(--bg);display:flex;flex-direction:column;gap:6px;min-width:0}
+.mp-tile.ok{background:var(--ok-bg);border-color:#86efac}
+.mp-tile.wr{background:var(--wr-bg);border-color:#fcd34d}
+.mp-tile.dr{background:var(--dr-bg);border-color:#fca5a5}
+.mp-head{display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:12px;font-weight:800;color:var(--sub);min-width:0}
+.mp-head .mp-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mp-st{font-size:9px;font-weight:900;padding:2px 6px;border-radius:5px;background:var(--s);white-space:nowrap;flex-shrink:0}
+.mp-st.ok{background:var(--ok-bg);color:#065f42}
+.mp-st.wr{background:var(--wr-bg);color:#7c3a06}
+.mp-st.dr{background:var(--dr-bg);color:var(--dr-t)}
+.mp-st.mu{color:var(--mu)}
+.mp-big{font-size:24px;font-weight:900;line-height:1.1;color:var(--ink)}
+.mp-big.dr{color:var(--dr)}
+.mp-big .mp-unit{font-size:11px;font-weight:500;color:var(--sub);margin-left:3px}
+.mp-actual{font-size:10px;color:var(--mu);font-weight:600}
+.mp-tile .prog-bar{height:5px;background:rgba(0,0,0,.06);border-radius:999px;overflow:hidden}
+.mp-tile .prog-fill{height:100%;border-radius:999px;transition:width .3s}
+.mp-tile .prog-fill.ok{background:var(--ok)}
+.mp-tile .prog-fill.wr{background:var(--wr)}
+.mp-tile .prog-fill.dr{background:var(--dr)}
+.mp-tile .prog-fill.mu{background:var(--mu)}
+.mp-foot{display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--sub);font-weight:700}
+.mp-foot .mp-rate{font-weight:900}
+.mp-foot .mp-rate.ok{color:var(--ok)}
+.mp-foot .mp-rate.wr{color:var(--wr)}
+.mp-foot .mp-rate.dr{color:var(--dr)}
+@media(max-width:768px){.mp-grid{grid-template-columns:repeat(2,1fr);gap:8px}.mp-big{font-size:20px}}
 @media(max-width:768px){.tabs{display:flex;overflow:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}.tab{min-width:150px;flex:0 0 auto}.tab .big{font-size:22px}.sum{grid-template-columns:1fr}.bx-main .main-val{font-size:24px}.main{grid-template-columns:1fr}.chart{height:220px}.ri{grid-template-columns:24px 1fr auto}.bar,.stl{display:none}.drill-chart{height:200px}.drill-graphs{grid-template-columns:1fr}.role{display:none}.hdr .row{flex-direction:column;align-items:flex-start}
 /* ★モバイル: KPIカード2列化・チャート1列化・はみ出し防止 */
 .kpi-row{grid-template-columns:repeat(2,1fr) !important;gap:8px}
@@ -129,6 +158,14 @@
   <div class="sum" id="summaryBar"></div>
   <div class="global-bar" id="globalBar"></div>
 
+  <!-- 当月予測 (4 KPI: 粗利・在院日平均・新入院・全身麻酔) -->
+  <section id="monthProjectionSection" style="margin-top:12px;display:none">
+    <div class="pnl" style="background:var(--s);border:1px solid var(--ln);border-radius:var(--r);padding:14px 16px;box-shadow:var(--sh)">
+      <h3 style="margin:0 0 10px;font-size:14px;font-weight:800">📅 当月予測 <span id="monthProjectionMeta" style="font-weight:500;color:var(--mu);font-size:11px"></span></h3>
+      <div id="monthProjectionTiles" class="mp-grid"></div>
+    </div>
+  </section>
+
   <section class="main">
     <div class="pnl pnl-chart"><div class="pnl-ctrl" id="chartControls"></div><h3 id="chartTitle">📊 推移グラフ</h3><div class="chart" id="mainChart"></div></div>
     <div class="pnl pnl-rank"><div class="pnl-ctrl" id="rankControls"></div>
@@ -136,15 +173,6 @@
       <div class="rk" id="rankList"></div>
       <div id="rankToggle" class="rank-toggle" style="display:none" onclick="toggleRankAll()">もっと見る &#9662;</div>
       <div class="legend"><span><span class="ld" style="background:#0e7a54"></span>▲ 達成</span><span><span class="ld" style="background:#b45309"></span>― 接近</span><span><span class="ld" style="background:#c4314b"></span>▼ 未達</span></div>
-    </div>
-  </section>
-
-  <!-- 直近30日 粗利推計（profitタブ専用） -->
-  <section class="main" id="estimateSection" style="display:none;grid-template-columns:1fr">
-    <div class="pnl pnl-chart">
-      <h3 id="estimateTitle">📈 月末粗利 見込み 推移（直近30日ペース × 当月営業日数）</h3>
-      <div class="chart" id="estimateChart"></div>
-      <div id="estimateMeta" style="margin-top:8px;font-size:11px;color:var(--mu);line-height:1.5"></div>
     </div>
   </section>
 
@@ -293,7 +321,43 @@ function presetNurse(e) {
   currentTab='inpatient'; currentAxis='ward'; currentPeriod='12w';
   renderTabs(); renderAll();
 }
-function renderAll() { renderSummary(); renderToolbar(); renderContent(); closeDrill(); }
+function renderAll() { renderMonthProjection(); renderSummary(); renderToolbar(); renderContent(); closeDrill(); }
+
+function renderMonthProjection() {
+  const sec = document.getElementById('monthProjectionSection');
+  const mp = DATA.month_projection;
+  if (!mp || !sec) { if (sec) sec.style.display = 'none'; return; }
+  sec.style.display = '';
+  const meta = mp.meta || {};
+  const metaEl = document.getElementById('monthProjectionMeta');
+  if (metaEl) {
+    metaEl.textContent = `(${meta.month || ''} 経過 ${meta.cal_days_elapsed||'—'}/${meta.cal_days_total||'—'}日 ／ 営業 ${meta.biz_days_elapsed||'—'}/${meta.biz_days_total||'—'}日)`;
+  }
+  const order = ['profit', 'inpatient', 'admission', 'operation'];
+  const fmt = v => (v==null) ? '—' : (typeof v === 'number' ? v.toLocaleString('ja-JP') : v);
+  const html = order.map(key => {
+    const k = mp[key];
+    if (!k) return '';
+    const css = k.status_css || 'mu';
+    const rate = k.rate;
+    const barPct = rate==null ? 0 : Math.max(0, Math.min(rate, 100));
+    const rateStr = rate==null ? '—' : `${rate}%`;
+    return `<div class="mp-tile ${css}">
+      <div class="mp-head">
+        <span class="mp-label">${k.icon ? (k.icon + ' ') : ''}${k.label||''}</span>
+        <span class="mp-st ${css}">${k.status_shape||''} ${k.status_text||''}</span>
+      </div>
+      <div class="mp-big">${fmt(k.projection)}<span class="mp-unit">${k.unit||''}</span></div>
+      <div class="mp-actual">${k.actual==null ? '月末見込み' : `実績(MTD) ${fmt(k.actual)} ${k.actual_unit||''}`}</div>
+      <div class="prog-bar"><div class="prog-fill ${css}" style="width:${barPct}%"></div></div>
+      <div class="mp-foot">
+        <span class="mp-rate ${css}">${rateStr}</span>
+        <span>目標 ${fmt(k.target)} ${k.unit||''}</span>
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('monthProjectionTiles').innerHTML = html;
+}
 
 // ── ステータスヘルパー (ドリルパネル用) ──
 function stCss(rate) { return rate==null?'mu':rate<90?'dr':rate<100?'wr':'ok'; }
@@ -514,17 +578,6 @@ function renderSummary() {
       {k:'年度累計月平均', v:pk.hospital_ytd_monthly_avg!==null?`${pk.hospital_ytd_monthly_avg}百万/月`:'—', unit:'百万/月',
        curr:pk.hospital_ytd_monthly_avg, prev:pk.prev_ytd_monthly_avg},
     ];
-    // 🔮 直近30日推計（参考カード）
-    if (hasEstimate && DATA.profit_estimate.latest) {
-      const el = DATA.profit_estimate.latest;
-      const em = DATA.profit_estimate.meta || {};
-      refs.push({
-        k:`🔮 直近30日推計 (${em.window_start||''}〜${em.window_end||''})`,
-        v:`${el.total!=null?el.total+'百万円':'—'}`, unit:'百万円',
-        curr:el.total,
-        prevLabel:`外来${el.gairai!=null?el.gairai:'—'}+入院${el.nyuin!=null?el.nyuin:'—'}`
-      });
-    }
   } else {
     main = {
       icon:'💉', label:'全身麻酔手術', periodNote:'直近7平日平均',

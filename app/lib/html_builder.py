@@ -39,6 +39,7 @@ from .profit_estimate import (
     build_estimate_payload as build_profit_estimate_payload,
     build_hybrid_payload as build_profit_hybrid_payload,
 )
+from .month_projection import build_month_projection_payload
 
 
 def _json_safe(obj):
@@ -788,5 +789,19 @@ def build_detail_json(adm, surg, targets, surg_targets,
                 if dname in hy_series_by_dept:
                     rec["series"] = hy_series_by_dept[dname]
                 drill_entry["profit_hybrid"] = rec
+
+    # 当月予測 (headline 直下の 4 KPI カード)
+    try:
+        hybrid_meta = profit_hybrid_section.get("meta") if profit_hybrid_section else None
+        hybrid_hospital_series = profit_hybrid_section.get("hospital_series") if profit_hybrid_section else None
+        data["month_projection"] = build_month_projection_payload(
+            adm=adm, surg=surg,
+            profit_monthly=profit_monthly,
+            profit_hybrid_meta=hybrid_meta,
+            profit_hybrid_hospital_series=hybrid_hospital_series,
+            base_date=base_date,
+        )
+    except Exception:
+        data["month_projection"] = None
 
     return json.dumps(data, ensure_ascii=False, default=_json_safe)
