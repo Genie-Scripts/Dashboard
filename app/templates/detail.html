@@ -684,7 +684,10 @@ function renderContent() {
   renderEstimateSection();
 }
 
-const hasEstimate = !!(DATA.profit_estimate && DATA.profit_estimate.series && DATA.profit_estimate.series.dates);
+const hasEstimate = !!(
+  (DATA.profit_hybrid && DATA.profit_hybrid.hospital_series && DATA.profit_hybrid.hospital_series.dates)
+  || (DATA.profit_estimate && DATA.profit_estimate.series && DATA.profit_estimate.series.dates)
+);
 function renderEstimateSection() {
   const sec = document.getElementById('estimateSection');
   const csec = document.getElementById('contributionSection');
@@ -704,39 +707,26 @@ function renderEstimateSection() {
 }
 
 function renderEstimateChart() {
-  const pe = DATA.profit_estimate;
-  if (!pe || !pe.series || !pe.series.dates) return;
-  const s = pe.series;
+  const hs = DATA.profit_hybrid && DATA.profit_hybrid.hospital_series;
+  if (!hs || !hs.dates) return;
   // 期間フィルタ（現在の currentPeriod に合わせる）
   const cutoff = periodCutoff();
-  const idx = s.dates.findIndex(d => d >= cutoff);
+  const idx = hs.dates.findIndex(d => d >= cutoff);
   const slice = (arr) => idx >= 0 ? arr.slice(idx) : arr;
-  const dates  = slice(s.dates);
-  const total  = slice(s.values_total);
-  const gairai = slice(s.values_gairai);
-  const nyuin  = slice(s.values_nyuin);
+  const dates  = slice(hs.dates);
+  const total  = slice(hs.values_total);
+  const gairai = slice(hs.values_gairai);
+  const nyuin  = slice(hs.values_nyuin);
 
   const traces = [
-    {name:'入院推計', x:dates, y:nyuin, type:'scatter', mode:'lines', stackgroup:'one',
+    {name:'入院（ハイブリッド）', x:dates, y:nyuin, type:'scatter', mode:'lines', stackgroup:'one',
      line:{color:'#3A6EA5', width:0.5}, fillcolor:'rgba(58,110,165,0.45)', hovertemplate:'%{y:.1f}百万円<extra>入院</extra>'},
-    {name:'外来推計', x:dates, y:gairai, type:'scatter', mode:'lines', stackgroup:'one',
+    {name:'外来（ハイブリッド）', x:dates, y:gairai, type:'scatter', mode:'lines', stackgroup:'one',
      line:{color:'#0D9488', width:0.5}, fillcolor:'rgba(13,148,136,0.45)', hovertemplate:'%{y:.1f}百万円<extra>外来</extra>'},
-    {name:'件数OLS 推計合計', x:dates, y:total, type:'scatter', mode:'lines',
-     line:{color:'#0A3671', width:2.2}, hovertemplate:'%{y:.1f}百万円<extra>OLS合計</extra>'},
+    {name:'🧪 ハイブリッド推計合計', x:dates, y:total, type:'scatter', mode:'lines',
+     line:{color:'#9333EA', width:2.8}, hovertemplate:'%{y:.1f}百万円<extra>ハイブリッド合計</extra>'},
   ];
   const yAll = total.filter(v => v != null && !isNaN(v));
-
-  // ハイブリッド推計（術式NNLS+件数OLS 採用モデル）合計を太い紫線で重ねる
-  const hy = DATA.profit_hybrid && DATA.profit_hybrid.hospital_series;
-  if (hy && hy.dates && hy.values_total) {
-    const idxH = hy.dates.findIndex(d => d >= cutoff);
-    const sliceH = (arr) => idxH >= 0 ? arr.slice(idxH) : arr;
-    const hyDates = sliceH(hy.dates);
-    const hyTotal = sliceH(hy.values_total);
-    traces.push({name:'🧪 ハイブリッド推計合計', x:hyDates, y:hyTotal, type:'scatter', mode:'lines',
-      line:{color:'#9333EA', width:2.8}, hovertemplate:'%{y:.1f}百万円<extra>ハイブリッド合計</extra>'});
-    hyTotal.forEach(v => { if (v != null && !isNaN(v)) yAll.push(v); });
-  }
 
   // 月次目標を水平線として表示（30日推計の目安）
   const hospTgt = DATA.profit && DATA.profit.kpi ? DATA.profit.kpi.hospital_target : null;
@@ -787,24 +777,15 @@ function renderEstimateChart() {
   },{responsive:true});
 
   // メタ情報
-  const meta = pe.meta || {};
-  const latest = pe.latest || {};
-  const fq = pe.fit_quality || {};
-  const fqArr = Object.entries(fq).map(([d,v]) => ({d, g:v.gairai_r2, n:v.nyuin_r2}));
-  const avg = (xs) => { const a = xs.filter(x=>x!=null); return a.length ? (a.reduce((p,c)=>p+c,0)/a.length).toFixed(2) : '—'; };
-  const avg_g = avg(fqArr.map(x=>x.g));
-  const avg_n = avg(fqArr.map(x=>x.n));
-  const lo = fqArr.filter(x => (x.g!=null && x.g<0.4) || (x.n!=null && x.n<0.4)).map(x=>x.d);
   const hyMeta = (DATA.profit_hybrid && DATA.profit_hybrid.meta) || {};
-  const hyLine = (hyMeta.latest_hybrid_total != null)
-    ? ` ／ 🧪 <b>ハイブリッド: ${hyMeta.latest_hybrid_total}百万円</b>（外来 ${hyMeta.latest_hybrid_gairai}+入院 ${hyMeta.latest_hybrid_nyuin} ／ 学習対象 ${hyMeta.n_depts_modeled}科のみ）`
-    : '';
+  const latestT = hyMeta.latest_hybrid_total;
+  const latestG = hyMeta.latest_hybrid_gairai;
+  const latestN = hyMeta.latest_hybrid_nyuin;
   document.getElementById('estimateMeta').innerHTML =
-    `🔮 直近30日推計（${meta.window_start}〜${meta.window_end}）: <b>${latest.total||'—'}百万円</b>（外来 ${latest.gairai||'—'}百万 + 入院 ${latest.nyuin||'—'}百万）`
-    + hyLine
-    + ` ／ モデル: 過去${meta.lookback_months}ヶ月 OLS（科別）, 外来 R² 平均 ${avg_g}・入院 R² 平均 ${avg_n}`
-    + ` ／ <span style="color:var(--dr)">適合弱（R²&lt;0.4）${lo.length}科: ${lo.slice(0,5).join('、')}${lo.length>5?'…':''}</span>`
-    + ` ／ ⚠️ 推計値は「過去12ヶ月の平均的な単価構造」の前提に基づきます。実績との大きな乖離は構造変化のサイン。`;
+    `🧪 直近30日 ハイブリッド推計（${hyMeta.window_start||''}〜${hyMeta.window_end||''}）: <b>${latestT!=null?latestT:'—'}百万円</b>（外来 ${latestG!=null?latestG:'—'}百万 + 入院 ${latestN!=null?latestN:'—'}百万）`
+    + ` ／ モデル: 術式NNLS + 件数OLS（holdout 採用） + 比推定フォールバック ／ 学習対象 ${hyMeta.n_depts_modeled||'—'}科`
+    + (hospTgt != null ? ` ／ 月次目標 ${hospTgt}百万円` : '')
+    + ` ／ ⚠️ 実績との大きな乖離は構造変化のサイン。`;
 }
 
 // ── 科別 粗利寄与差分（直近3ヶ月平均 − その前9ヶ月平均） ──
