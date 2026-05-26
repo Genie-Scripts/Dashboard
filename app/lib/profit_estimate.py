@@ -831,6 +831,10 @@ def _build_hybrid_daily_series(fit_models: Dict[str, Dict[str, Any]],
     fb_g_map = fallback_layers.get("外来", {}) or {}
     fb_n_map = fallback_layers.get("入院", {}) or {}
 
+    # 月末見込み変換のため biz_roll（30日窓内営業日数の日次系列）を常時用意
+    biz_flag = pd.Series([1 if is_operational_day(d) else 0 for d in dates], index=dates)
+    biz_roll_self = biz_flag.rolling(rolling_days, min_periods=1).sum()
+
     # 比推定 fallback の日次ドライバー（adm 提供時のみ計算）
     by_dept_drv: Dict[str, Dict[str, pd.Series]] = {}
     biz_roll: Optional[pd.Series] = None
@@ -838,6 +842,13 @@ def _build_hybrid_daily_series(fit_models: Dict[str, Dict[str, Any]],
         pre = _daily_rolling_drivers(adm, surg, dates, rolling_days)
         by_dept_drv = pre.get("by_dept", {})
         biz_roll = pre.get("biz_roll")
+    if biz_roll is None:
+        biz_roll = biz_roll_self
+
+    # 各日が属する月の営業日数
+    month_biz = pd.Series([biz_days_in_month(d.replace(day=1)) for d in dates], index=dates).astype(float)
+    # 見込み変換係数: 当月営業日数 / 30日窓内営業日数
+    factor = month_biz.divide(biz_roll.replace(0, np.nan)).fillna(0.0)
 
     # 全対象科の集合（モデル化できた科 ∪ baseline がある科 ∪ fallback がある科）
     all_depts = (set(fit_models.get("外来", {}).keys())
@@ -884,6 +895,9 @@ def _build_hybrid_daily_series(fit_models: Dict[str, Dict[str, Any]],
         hosp_g_ols = hosp_g_ols.add(g_ols, fill_value=0)
         hosp_n_ols = hosp_n_ols.add(n_ols, fill_value=0)
         mask = g_hy.index >= cutoff
+        # 月末見込み変換: 直近30日値 × (当月営業日数 / 30日窓内営業日数)
+        g_hy_proj = g_hy * factor
+        n_hy_proj = n_hy * factor
         # 科レベルは hybrid のみ（ファイルサイズ抑制）
         series_by_dept[dept] = {
             "dates":         [d.strftime("%Y-%m-%d") for d in dates],
@@ -893,9 +907,18 @@ def _build_hybrid_daily_series(fit_models: Dict[str, Dict[str, Any]],
                                 for v, m in zip(g_hy, mask)],
             "values_nyuin":  [round(v, 2) if m else None
                                 for v, m in zip(n_hy, mask)],
+            "values_projection_total":  [round((gv + nv), 2) if m else None
+                                for gv, nv, m in zip(g_hy_proj, n_hy_proj, mask)],
+            "values_projection_gairai": [round(v, 2) if m else None
+                                for v, m in zip(g_hy_proj, mask)],
+            "values_projection_nyuin":  [round(v, 2) if m else None
+                                for v, m in zip(n_hy_proj, mask)],
         }
 
     mask = hosp_g_hy.index >= cutoff
+    # 月末見込み変換（病院全体）
+    hosp_g_hy_proj = hosp_g_hy * factor
+    hosp_n_hy_proj = hosp_n_hy * factor
     hospital_series = {
         "dates":             [d.strftime("%Y-%m-%d") for d in dates],
         "values_total":      [round((gv + nv), 2) if m else None
@@ -910,8 +933,19 @@ def _build_hybrid_daily_series(fit_models: Dict[str, Dict[str, Any]],
                                 for v, m in zip(hosp_g_ols, mask)],
         "ols_nyuin":         [round(v, 2) if m else None
                                 for v, m in zip(hosp_n_ols, mask)],
+        "values_projection_total":  [round((gv + nv), 2) if m else None
+                                for gv, nv, m in zip(hosp_g_hy_proj, hosp_n_hy_proj, mask)],
+        "values_projection_gairai": [round(v, 2) if m else None
+                                for v, m in zip(hosp_g_hy_proj, mask)],
+        "values_projection_nyuin":  [round(v, 2) if m else None
+                                for v, m in zip(hosp_n_hy_proj, mask)],
+        "month_biz_days_series":    [int(v) for v in month_biz.tolist()],
+        "window_biz_days_series":   [int(v) for v in biz_roll.tolist()],
     }
 
+    base_month_biz   = int(month_biz.iloc[-1])
+    base_window_biz  = int(biz_roll.iloc[-1])
+    base_factor      = (base_month_biz / base_window_biz) if base_window_biz > 0 else 0.0
     series_meta = {
         "window_start": (base_date - pd.Timedelta(days=rolling_days - 1)).strftime("%Y-%m-%d"),
         "window_end":   base_date.strftime("%Y-%m-%d"),
@@ -921,5 +955,11 @@ def _build_hybrid_daily_series(fit_models: Dict[str, Dict[str, Any]],
         "latest_ols_total":     round(float(hosp_g_ols.iloc[-1] + hosp_n_ols.iloc[-1]), 2),
         "latest_ols_gairai":    round(float(hosp_g_ols.iloc[-1]), 2),
         "latest_ols_nyuin":     round(float(hosp_n_ols.iloc[-1]), 2),
+        "current_month_biz_days":   base_month_biz,
+        "window_biz_days":          base_window_biz,
+        "projection_factor":        round(base_factor, 4),
+        "latest_projection_total":  round(float(hosp_g_hy_proj.iloc[-1] + hosp_n_hy_proj.iloc[-1]), 2),
+        "latest_projection_gairai": round(float(hosp_g_hy_proj.iloc[-1]), 2),
+        "latest_projection_nyuin":  round(float(hosp_n_hy_proj.iloc[-1]), 2),
     }
     return series_by_dept, hospital_series, series_meta

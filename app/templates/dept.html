@@ -115,7 +115,7 @@
     </div>
     <div id="estimatePanelWrap" style="display:none;margin-top:14px">
       <div class="cpnl">
-        <h4 id="estimateTitle">📈 直近30日 推計粗利 推移（日次ローリング）</h4>
+        <h4 id="estimateTitle">📈 月末粗利 見込み 推移（直近30日ペース × 当月営業日数）</h4>
         <div class="chart" id="estimateChart"></div>
         <div id="estimateMeta" style="margin-top:8px;font-size:11px;color:var(--mu);line-height:1.5"></div>
       </div>
@@ -767,19 +767,20 @@ function renderDeptEstimateChart(bd, hy) {
   const idx = s.dates.findIndex(d => d >= cutoff);
   const slice = (arr) => idx >= 0 ? arr.slice(idx) : arr;
   const dates  = slice(s.dates);
-  const total  = slice(s.values_total);
-  const gairai = slice(s.values_gairai);
-  const nyuin  = slice(s.values_nyuin);
+  // 月末見込み変換後の系列を優先（旧 values_total は後方互換のため温存）
+  const total  = slice(s.values_projection_total  || s.values_total);
+  const gairai = slice(s.values_projection_gairai || s.values_gairai);
+  const nyuin  = slice(s.values_projection_nyuin  || s.values_nyuin);
 
   const traces = [
-    {name:'入院（ハイブリッド）', x:dates, y:nyuin, type:'scatter', mode:'lines', stackgroup:'one',
+    {name:'入院（月末見込み）', x:dates, y:nyuin, type:'scatter', mode:'lines', stackgroup:'one',
      line:{color:'#3A6EA5', width:0.5}, fillcolor:'rgba(58,110,165,0.45)',
-     hovertemplate:'%{y:.1f}百万円<extra>入院</extra>'},
-    {name:'外来（ハイブリッド）', x:dates, y:gairai, type:'scatter', mode:'lines', stackgroup:'one',
+     hovertemplate:'%{y:.1f}百万円<extra>入院見込み</extra>'},
+    {name:'外来（月末見込み）', x:dates, y:gairai, type:'scatter', mode:'lines', stackgroup:'one',
      line:{color:'#0D9488', width:0.5}, fillcolor:'rgba(13,148,136,0.45)',
-     hovertemplate:'%{y:.1f}百万円<extra>外来</extra>'},
-    {name:'🧪 ハイブリッド推計合計', x:dates, y:total, type:'scatter', mode:'lines',
-     line:{color:'#9333EA', width:2.8}, hovertemplate:'%{y:.1f}百万円<extra>ハイブリッド合計</extra>'},
+     hovertemplate:'%{y:.1f}百万円<extra>外来見込み</extra>'},
+    {name:'🧪 月末粗利 見込み合計', x:dates, y:total, type:'scatter', mode:'lines',
+     line:{color:'#9333EA', width:2.8}, hovertemplate:'%{y:.1f}百万円<extra>月末見込み合計</extra>'},
   ];
   const yAll = total.filter(v => v != null && !isNaN(v));
 
@@ -822,28 +823,36 @@ function renderDeptEstimateChart(bd, hy) {
   Plotly.newPlot('estimateChart', traces, {
     font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
     xaxis:{gridcolor:'#DCE1E9', type:'date'},
-    yaxis:{gridcolor:'#DCE1E9', title:{text:'30日推計（百万円）',font:{size:10}}, range:[yLo, yHi]},
+    yaxis:{gridcolor:'#DCE1E9', title:{text:'月末粗利 見込み（百万円）',font:{size:10}}, range:[yLo, yHi]},
     legend:{orientation:'h',x:0,y:-0.18,font:{size:10}},
     hovermode:'x unified',
     margin:{l:55,r:20,t:10,b:55}, height:_pH(320),
     plot_bgcolor:'#fff', paper_bgcolor:'#fff',
   },{responsive:true});
 
-  // 最新値は系列末尾の非 null 値から取得
+  // 最新値は系列末尾の非 null 値から取得（projection 換算後）
   const lastNonNull = (arr) => { for (let i=arr.length-1; i>=0; i--) if (arr[i]!=null) return arr[i]; return null; };
   const latestT = lastNonNull(total);
   const latestG = lastNonNull(gairai);
   const latestN = lastNonNull(nyuin);
-  const rollD = (DATA.profit_hybrid && DATA.profit_hybrid.meta && DATA.profit_hybrid.meta.rolling_days) || 30;
+  const hyMeta = (DATA.profit_hybrid && DATA.profit_hybrid.meta) || {};
+  const cmBiz = hyMeta.current_month_biz_days;
   const wEnd   = dates.length ? dates[dates.length-1] : '';
-  const wStart = s.dates.length ? s.dates[Math.max(0, s.dates.length - rollD)] : '';
+  const baseMonth = (wEnd || '').slice(0, 7);
   const monAcc = hy['合計'] && hy['合計'].hybrid_err_pct != null ? hy['合計'].hybrid_err_pct : null;
   const accStr = monAcc != null ? `誤差 ${monAcc>=0?'+':''}${monAcc}%` : '—';
+  // 目標との差
+  const tgtDiff = (latestT != null && tgt != null) ? (latestT - tgt) : null;
+  const tgtPct  = (latestT != null && tgt) ? (latestT / tgt * 100) : null;
+  const diffStr = (tgtDiff != null)
+    ? `差 ${tgtDiff>=0?'+':''}${tgtDiff.toFixed(1)}百万円 (${tgtPct.toFixed(1)}%)`
+    : '—';
   document.getElementById('estimateMeta').innerHTML =
-    `🧪 直近30日 ハイブリッド推計（${wStart}〜${wEnd}）: <b>${latestT!=null?latestT:'—'}百万円</b>（外来 ${latestG!=null?latestG:'—'}百万 + 入院 ${latestN!=null?latestN:'—'}百万）`
-    + ` ／ モデル: 術式NNLS + 件数OLS（holdout 採用） + 比推定フォールバック ／ 直近月実績との ${accStr}`
-    + (tgt ? ` ／ 月次目標 ${tgt}百万円` : '')
-    + ` ／ ⚠️ 実績との大きな乖離は構造変化のサイン。`;
+    `📍 <b>${baseMonth} 月末見込み（営業${cmBiz||'—'}日）: ${latestT!=null?latestT:'—'}百万円</b>`
+    + `（外来 ${latestG!=null?latestG:'—'}百万 + 入院 ${latestN!=null?latestN:'—'}百万）`
+    + (tgt ? ` ／ 月次目標 ${tgt}百万円 → ${diffStr}` : '')
+    + ` ／ 直近月実績との ${accStr}`
+    + ` ／ ⚠️ 月跨ぎの段差は営業日数差を反映。`;
 }
 
 // ── 件数 vs 粗利 分離ビュー: 月次集計 → 指数化線 + 単価線 ──

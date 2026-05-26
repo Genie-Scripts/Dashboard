@@ -142,7 +142,7 @@
   <!-- 直近30日 粗利推計（profitタブ専用） -->
   <section class="main" id="estimateSection" style="display:none;grid-template-columns:1fr">
     <div class="pnl pnl-chart">
-      <h3 id="estimateTitle">📈 直近30日 推計粗利 推移（日次ローリング）</h3>
+      <h3 id="estimateTitle">📈 月末粗利 見込み 推移（直近30日ペース × 当月営業日数）</h3>
       <div class="chart" id="estimateChart"></div>
       <div id="estimateMeta" style="margin-top:8px;font-size:11px;color:var(--mu);line-height:1.5"></div>
     </div>
@@ -241,8 +241,13 @@ function renderTabs() {
     const pk = DATA.profit.kpi;
     const pSt = pk.hospital_achievement >= 100 ? {css:'ok',shape:'▲',text:'達成'} : pk.hospital_achievement >= 90 ? {css:'wr',shape:'―',text:'接近'} : {css:'dr',shape:'▼',text:'未達'};
     const bdLabel = pk.current_biz_days != null ? ` (営業${pk.current_biz_days}日)` : '';
+    const hyMeta = (DATA.profit_hybrid && DATA.profit_hybrid.meta) || {};
+    const projT = hyMeta.latest_projection_total;
+    const projLabel = (projT != null)
+      ? `<br>📍 月末見込み ${projT}百万円`
+      : '';
     tabs.push({id:'profit', icon:'💰', name:'粗利',
-      big:`${pk.hospital_total}百万円`, per:`${pk.base_month} 全科合計${bdLabel}`,
+      big:`${pk.hospital_total}百万円`, per:`${pk.base_month} 全科合計${bdLabel}${projLabel}`,
       st:pSt});
   }
   document.getElementById('kpiTabs').innerHTML = tabs.map(t =>
@@ -714,17 +719,18 @@ function renderEstimateChart() {
   const idx = hs.dates.findIndex(d => d >= cutoff);
   const slice = (arr) => idx >= 0 ? arr.slice(idx) : arr;
   const dates  = slice(hs.dates);
-  const total  = slice(hs.values_total);
-  const gairai = slice(hs.values_gairai);
-  const nyuin  = slice(hs.values_nyuin);
+  // 月末見込み変換後の系列を優先（旧 values_total は後方互換のため温存）
+  const total  = slice(hs.values_projection_total  || hs.values_total);
+  const gairai = slice(hs.values_projection_gairai || hs.values_gairai);
+  const nyuin  = slice(hs.values_projection_nyuin  || hs.values_nyuin);
 
   const traces = [
-    {name:'入院（ハイブリッド）', x:dates, y:nyuin, type:'scatter', mode:'lines', stackgroup:'one',
-     line:{color:'#3A6EA5', width:0.5}, fillcolor:'rgba(58,110,165,0.45)', hovertemplate:'%{y:.1f}百万円<extra>入院</extra>'},
-    {name:'外来（ハイブリッド）', x:dates, y:gairai, type:'scatter', mode:'lines', stackgroup:'one',
-     line:{color:'#0D9488', width:0.5}, fillcolor:'rgba(13,148,136,0.45)', hovertemplate:'%{y:.1f}百万円<extra>外来</extra>'},
-    {name:'🧪 ハイブリッド推計合計', x:dates, y:total, type:'scatter', mode:'lines',
-     line:{color:'#9333EA', width:2.8}, hovertemplate:'%{y:.1f}百万円<extra>ハイブリッド合計</extra>'},
+    {name:'入院（月末見込み）', x:dates, y:nyuin, type:'scatter', mode:'lines', stackgroup:'one',
+     line:{color:'#3A6EA5', width:0.5}, fillcolor:'rgba(58,110,165,0.45)', hovertemplate:'%{y:.1f}百万円<extra>入院見込み</extra>'},
+    {name:'外来（月末見込み）', x:dates, y:gairai, type:'scatter', mode:'lines', stackgroup:'one',
+     line:{color:'#0D9488', width:0.5}, fillcolor:'rgba(13,148,136,0.45)', hovertemplate:'%{y:.1f}百万円<extra>外来見込み</extra>'},
+    {name:'🧪 月末粗利 見込み合計', x:dates, y:total, type:'scatter', mode:'lines',
+     line:{color:'#9333EA', width:2.8}, hovertemplate:'%{y:.1f}百万円<extra>月末見込み合計</extra>'},
   ];
   const yAll = total.filter(v => v != null && !isNaN(v));
 
@@ -769,7 +775,7 @@ function renderEstimateChart() {
   Plotly.newPlot('estimateChart', traces, {
     font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
     xaxis:{gridcolor:'#DCE1E9', type:'date'},
-    yaxis:{gridcolor:'#DCE1E9', title:{text:'30日推計（百万円）',font:{size:10}}, range:[yLo, yHi]},
+    yaxis:{gridcolor:'#DCE1E9', title:{text:'月末粗利 見込み（百万円）',font:{size:10}}, range:[yLo, yHi]},
     legend:{orientation:'h',x:0,y:-0.18,font:{size:10}},
     hovermode:'x unified',
     margin:{l:55,r:20,t:10,b:55}, height:_pH(340),
@@ -778,14 +784,28 @@ function renderEstimateChart() {
 
   // メタ情報
   const hyMeta = (DATA.profit_hybrid && DATA.profit_hybrid.meta) || {};
-  const latestT = hyMeta.latest_hybrid_total;
-  const latestG = hyMeta.latest_hybrid_gairai;
-  const latestN = hyMeta.latest_hybrid_nyuin;
+  const projT = hyMeta.latest_projection_total;
+  const projG = hyMeta.latest_projection_gairai;
+  const projN = hyMeta.latest_projection_nyuin;
+  const cmBiz = hyMeta.current_month_biz_days;
+  const winBiz = hyMeta.window_biz_days;
+  const baseMonth = (hyMeta.window_end || '').slice(0, 7);
+  // 1営業日あたりペース（百万円/営業日）= 直近30日推計 / 30日窓営業日数
+  const dailyPace = (hyMeta.latest_hybrid_total != null && winBiz)
+    ? (hyMeta.latest_hybrid_total / winBiz) : null;
+  // 目標との差
+  const tgtDiff = (projT != null && hospTgt != null) ? (projT - hospTgt) : null;
+  const tgtPct  = (projT != null && hospTgt) ? (projT / hospTgt * 100) : null;
+  const diffStr = (tgtDiff != null)
+    ? `差 ${tgtDiff>=0?'+':''}${tgtDiff.toFixed(1)}百万円 (${tgtPct.toFixed(1)}%)`
+    : '—';
   document.getElementById('estimateMeta').innerHTML =
-    `🧪 直近30日 ハイブリッド推計（${hyMeta.window_start||''}〜${hyMeta.window_end||''}）: <b>${latestT!=null?latestT:'—'}百万円</b>（外来 ${latestG!=null?latestG:'—'}百万 + 入院 ${latestN!=null?latestN:'—'}百万）`
-    + ` ／ モデル: 術式NNLS + 件数OLS（holdout 採用） + 比推定フォールバック ／ 学習対象 ${hyMeta.n_depts_modeled||'—'}科`
-    + (hospTgt != null ? ` ／ 月次目標 ${hospTgt}百万円` : '')
-    + ` ／ ⚠️ 実績との大きな乖離は構造変化のサイン。`;
+    `📍 <b>${baseMonth} 月末見込み（営業${cmBiz||'—'}日）: ${projT!=null?projT:'—'}百万円</b>`
+    + `（外来 ${projG!=null?projG:'—'}百万 + 入院 ${projN!=null?projN:'—'}百万）`
+    + (hospTgt != null ? ` ／ 月次目標 ${hospTgt}百万円 → ${diffStr}` : '')
+    + (dailyPace != null ? ` ／ 直近ペース ${dailyPace.toFixed(2)}百万円/営業日` : '')
+    + ` ／ 学習対象 ${hyMeta.n_depts_modeled||'—'}科`
+    + ` ／ ⚠️ 月跨ぎの段差は営業日数差（短い月は同ペースでも月末見込みが下がる）。`;
 }
 
 // ── 科別 粗利寄与差分（直近3ヶ月平均 − その前9ヶ月平均） ──
