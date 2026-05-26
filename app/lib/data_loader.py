@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Optional
 import pandas as pd
 
-from .config import DEFAULT_DATA_DIR, DATA_FOLDERS
+from .config import DEFAULT_DATA_DIR, DATA_FOLDERS, DEPT_MERGE
 
 
 # ────────────────────────────────────────────────────
@@ -363,6 +363,7 @@ def _melt_profit_grid(df: pd.DataFrame) -> pd.DataFrame:
     melted.columns = ["診療科名", "月", "粗利"]
     melted["月"]   = _coerce_month_col(melted["月"])
     melted["粗利"] = pd.to_numeric(melted["粗利"], errors="coerce")
+    melted["診療科名"] = melted["診療科名"].map(lambda x: DEPT_MERGE.get(x, x))
     return melted.dropna(subset=["月"])
 
 
@@ -404,6 +405,7 @@ def load_profit_data(data_dir: str = DEFAULT_DATA_DIR) -> pd.DataFrame:
 
     first_sheet = next(iter(sheets.values()))
     return (_melt_profit_grid(first_sheet)
+            .groupby(["診療科名", "月"], as_index=False)["粗利"].sum()
             .sort_values(["診療科名", "月"])
             .reset_index(drop=True))
 
@@ -429,7 +431,9 @@ def load_profit_breakdown(data_dir: str = DEFAULT_DATA_DIR) -> Optional[pd.DataF
 
     gairai = _melt_profit_grid(sheets[PROFIT_SHEET_GAIRAI]).assign(区分="外来")
     nyuin  = _melt_profit_grid(sheets[PROFIT_SHEET_NYUIN]).assign(区分="入院")
+    # DEPT_MERGE 適用で同一キーの重複が出る可能性があるため集計
     return (pd.concat([gairai, nyuin], ignore_index=True)
+              .groupby(["診療科名", "月", "区分"], as_index=False)["粗利"].sum()
               .sort_values(["診療科名", "月", "区分"])
               .reset_index(drop=True))
 
