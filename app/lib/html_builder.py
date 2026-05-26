@@ -804,4 +804,34 @@ def build_detail_json(adm, surg, targets, surg_targets,
     except Exception:
         data["month_projection"] = None
 
+    # 当月予測 (診療科ごと, dept.html dashView 用)
+    hy_series_by_dept = (profit_hybrid_section.get("series_by_dept", {})
+                         if profit_hybrid_section else {})
+    nadm_dept_tgt = targets.get("new_admission", {}).get("dept", {})
+    inp_dept_tgt = targets.get("inpatient", {}).get("dept", {})
+    for dname, drill_entry in data["drill"].items():
+        if drill_entry.get("ward_extra"):
+            continue
+        dept_proj_total = None
+        ser = hy_series_by_dept.get(dname)
+        if ser and ser.get("values_projection_total"):
+            tail = [v for v in ser["values_projection_total"] if v is not None]
+            if tail:
+                dept_proj_total = tail[-1]
+        try:
+            drill_entry["month_projection"] = build_month_projection_payload(
+                adm=adm, surg=surg,
+                profit_monthly=profit_monthly,
+                profit_hybrid_meta=None,
+                profit_hybrid_hospital_series=None,
+                base_date=base_date,
+                dept=dname,
+                dept_inpatient_target=inp_dept_tgt.get(dname),
+                dept_admission_weekly=nadm_dept_tgt.get(dname),
+                dept_operation_weekly=surg_targets.get(dname),
+                dept_profit_projection_total=dept_proj_total,
+            )
+        except Exception:
+            drill_entry["month_projection"] = None
+
     return json.dumps(data, ensure_ascii=False, default=_json_safe)
