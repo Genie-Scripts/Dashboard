@@ -86,6 +86,16 @@ build-date:
 		--output-dir $(OUTPUT_DIR) \
 		--base-date  $(DATE)
 
+## 医業収支 推計レポート生成（ローカル閲覧専用）
+## 出力: output/pl_projection.html（portal からはリンクしない）
+.PHONY: pl
+pl:
+	@echo "$(CYAN)📊 医業収支 推計レポート生成中...$(RESET)"
+	$(PYTHON) -m scripts.build_pl_projection \
+		--data-dir $(DATA_DIR) \
+		--output   $(OUTPUT_DIR)/output/pl_projection.html
+	@echo "$(GREEN)✅ 完了: $(OUTPUT_DIR)/output/pl_projection.html$(RESET)"
+
 # ============================================================
 # ローカル確認
 # ============================================================

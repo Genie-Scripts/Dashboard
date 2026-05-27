@@ -76,7 +76,18 @@ if ! python generate_html.py --data-dir data --sort-by achievement >> "$LOG" 2>&
 fi
 echo "✅ ビルド完了" >> "$LOG"
 
+# ── 1b. 医業収支 推計レポート（ローカル閲覧専用・git には載せない）──
+echo "📊 医業収支 推計レポート生成中..." >> "$LOG"
+if python -m scripts.build_pl_projection \
+      --data-dir data \
+      --output   output/pl_projection.html >> "$LOG" 2>&1; then
+  echo "✅ pl_projection.html 生成完了" >> "$LOG"
+else
+  echo "⚠️  pl_projection.html 生成に失敗（デプロイは継続）" >> "$LOG"
+fi
+
 # ── 2. ソースコード + 生成HTML をステージ ──
+# 注: output/pl_projection.html は公開しない方針のため git add しない
 # さきほど設定した .gitignore により .venv や data/ は自動で除外されます
 git add .gitignore generate_html.py portal.html detail.html dept.html \
         app/templates/ app/lib/ 2>/dev/null || true
