@@ -26,7 +26,43 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
+from .config import biz_days_in_month, calendar_days_in_month
 from .pl_history import load_pl_history, clean_pl
+
+
+# ──────────────────────────────────────────
+# 介入変数（外れ値月の除外マスク）
+# ──────────────────────────────────────────
+# {費目: [(YYYY-MM, 理由), ...]} 形式。学習データから除外する。
+# Phase 0 分析で特定: 2025/06 経費スパイク (618M、通常 100-150M)、
+# 2025/06 設備関係費 (256M、通常 170-200M)、2025/03 経費 (226M)、
+# 2025/03 医療消耗器具備品費 (53M、通常 3-9M) は one-off と判断。
+COST_INTERVENTIONS = {
+    "経費": [
+        ("2025-06", "618M one-off 修繕系（通常 100-150M）"),
+        ("2025-03", "226M スパイク（通常 90-145M）"),
+    ],
+    "設備関係費": [
+        ("2025-06", "256M 上振れ（通常 170-200M）"),
+    ],
+    "医療消耗器具備品費": [
+        ("2025-03", "53M スパイク（通常 3-9M）"),
+    ],
+}
+
+
+def _intervention_mask(months: pd.Series, col: str) -> pd.Series:
+    """指定列の介入月リストを True に立てた boolean Series を返す."""
+    bad_yms = {ym for ym, _ in COST_INTERVENTIONS.get(col, [])}
+    if not bad_yms:
+        return pd.Series(False, index=months.index)
+    return months.dt.strftime("%Y-%m").isin(bad_yms)
+
+
+def _filter_interventions(df: pd.DataFrame, col: str) -> pd.DataFrame:
+    """介入月を除外した DataFrame を返す."""
+    mask = _intervention_mask(df["月"], col)
+    return df[~mask]
 
 
 # ──────────────────────────────────────────
@@ -89,100 +125,163 @@ def compute_delta_series(pl_clean: pd.DataFrame,
 # ──────────────────────────────────────────
 
 def predict_payroll(pl_clean: pd.DataFrame, target: pd.Timestamp) -> dict:
-    """給与費予測: 当年度4月実績 + 過去年度の月別オフセット中央値.
+    """給与費予測（2段階）:
 
-    target が4月の場合は直近12か月の伸びから推定（前年度同月+ベースアップ）.
+    - 4月（年度始）: 過去年度4月の CAGR で外挿（病床/診療機能変更によるレベルシフトを捕捉）
+    - その他の月: 直近6か月 robust median + 過去同月オフセット
+
+    backtest 8mo で MAE 20.8M千円, bias -0.1M（4月は CAGR で +20M 過大、他月は中立）.
     """
-    fy = _fiscal_year(target)
-    fy_idx = _fy_month_idx(target)
+    df = pl_clean[pl_clean["月"] < target].copy()
+    df = _filter_interventions(df, "給与費")
 
-    pl = pl_clean.copy()
-    pl["年度"] = pl["月"].apply(_fiscal_year)
-    pl["FY月"] = pl["月"].apply(_fy_month_idx)
-
-    # 過去年度（target より前の年度）の同 FY月 オフセット = 同年度4月との差分
-    past = pl[pl["年度"] < fy]
-    offsets = []
-    for y in past["年度"].unique():
-        sub = past[past["年度"] == y]
-        apr = sub[sub["FY月"] == 1]["給与費"]
-        m = sub[sub["FY月"] == fy_idx]["給与費"]
-        if len(apr) and len(m):
-            offsets.append(m.iloc[0] - apr.iloc[0])
-    offset = float(np.median(offsets)) if offsets else 0.0
-
-    base = pl[(pl["年度"] == fy) & (pl["FY月"] == 1)]["給与費"]
-    if len(base):
-        pred = float(base.iloc[0]) + offset
-        method = f"FY{fy} 4月実績 + offset(月{target.month})"
-    else:
-        # 4月実績がまだない（=当年度4月が target 自身）の場合
-        # 過去2年4月の平均成長率を直近4月実績に乗せる
-        apr_series = pl[pl["FY月"] == 1].sort_values("月")
+    if target.month == 4:
+        # 年度始は過去年度4月の CAGR で外挿
+        apr_series = df[df["月"].dt.month == 4].sort_values("月")
         if len(apr_series) >= 2:
+            n = len(apr_series) - 1
             growth = (apr_series["給与費"].iloc[-1]
-                      / apr_series["給与費"].iloc[0]) ** (1 / (len(apr_series) - 1))
+                      / apr_series["給与費"].iloc[0]) ** (1 / n)
             pred = float(apr_series["給与費"].iloc[-1]) * growth
-            if fy_idx != 1:
-                pred += offset
-            method = f"4月CAGR={growth:.4f} 外挿"
-        else:
-            pred = float(pl["給与費"].tail(12).median())
-            method = "fallback 直近12mo median"
-    return {"value": pred, "method": method}
+            return {
+                "value": pred,
+                "base": float(apr_series["給与費"].iloc[-1]),
+                "offset": 0.0,
+                "method": f"4月CAGR={growth:.4f} 外挿（年度始）",
+            }
+        # フォールバック: 過去4月の中央値
+        if len(apr_series) >= 1:
+            return {"value": float(apr_series["給与費"].median()),
+                    "base": float(apr_series["給与費"].median()),
+                    "offset": 0.0,
+                    "method": "過去4月 median"}
+
+    # 5-3月: 直近6か月 robust median + 過去同月オフセット
+    base = float(_mad_filter(df.tail(6)["給与費"]).median())
+    same_month = _mad_filter(df[df["月"].dt.month == target.month]["給与費"])
+    if len(same_month) >= 1:
+        all_filt = _mad_filter(df["給与費"])
+        offset = float(same_month.median()) - float(all_filt.median())
+    else:
+        offset = 0.0
+    return {
+        "value": base + offset,
+        "base": base,
+        "offset": offset,
+        "method": f"直近6mo median + 同月offset({offset:+,.0f})",
+    }
 
 
 def _predict_cost_with_offset(series_by_month: pd.DataFrame,
                                 col: str,
                                 target: pd.Timestamp,
                                 window: int = 12,
-                                outlier_k: float = 2.5) -> dict:
-    """直近 window か月の robust median + 同月オフセット.
+                                outlier_k: float = 2.5,
+                                day_basis: Optional[str] = None,
+                                use_trend: bool = False) -> dict:
+    """直近 window か月 robust median + 同月オフセット (+ optional 線形トレンド).
 
-    オフセット = (過去同月 robust median) − (全期間 robust median)
+    use_trend=True の場合、全期間で OLS により slope を推定し、
+    target 時点までの累積トレンドを base に加算する。
+    委託費 (R²=0.80) や設備関係費 (R²=0.60) など線形成長が強い費目で有効。
     """
     df = series_by_month.copy()
     df = df[df["月"] < target]
-    recent = _mad_filter(df.tail(window)[col], k=outlier_k)
-    base = float(recent.median()) if len(recent) else float(df[col].median())
+    df = _filter_interventions(df, col)
 
-    same_month = df[df["月"].dt.month == target.month][col]
+    if day_basis == "cal":
+        denom = df["月"].apply(calendar_days_in_month).astype(float)
+        target_days = float(calendar_days_in_month(target))
+    elif day_basis == "biz":
+        denom = df["月"].apply(biz_days_in_month).astype(float)
+        target_days = float(biz_days_in_month(target))
+    else:
+        denom = pd.Series(1.0, index=df.index)
+        target_days = 1.0
+
+    df = df.copy()
+    key = col + "_per_day"
+    df[key] = df[col].astype(float) / denom
+
+    # 線形トレンド（OLS）
+    trend_adjust_per_day = 0.0
+    slope = 0.0
+    if use_trend and len(df) >= 6:
+        idx = np.arange(len(df))
+        slope, intercept = np.polyfit(idx, df[key].values, 1)
+        # トレンド除去後の系列で base / seasonal を計算
+        df[key + "_detrend"] = df[key] - (slope * idx + intercept)
+        recent = _mad_filter(df.tail(window)[key + "_detrend"], k=outlier_k)
+        base_per_day = float(recent.median()) if len(recent) else 0.0
+        # target index = 最終学習月の次（複数月後でも対応）
+        months_diff = ((target.to_period("M") - df["月"].iloc[-1].to_period("M")).n)
+        target_idx = len(df) - 1 + months_diff
+        trend_adjust_per_day = slope * target_idx + intercept
+        base_for_seasonal = key + "_detrend"
+    else:
+        recent = _mad_filter(df.tail(window)[key], k=outlier_k)
+        base_per_day = (float(recent.median()) if len(recent)
+                        else float(df[key].median()))
+        base_for_seasonal = key
+
+    # 季節性（同月オフセット）
+    same_month = df[df["月"].dt.month == target.month][base_for_seasonal]
     same_month = _mad_filter(same_month, k=outlier_k)
     if len(same_month) >= 1:
-        all_filt = _mad_filter(df[col], k=outlier_k)
-        offset = float(same_month.median()) - float(all_filt.median())
+        all_filt = _mad_filter(df[base_for_seasonal], k=outlier_k)
+        offset_per_day = float(same_month.median()) - float(all_filt.median())
     else:
-        offset = 0.0
-    return {"value": base + offset, "base": base, "offset": offset}
+        offset_per_day = 0.0
+
+    total_per_day = base_per_day + offset_per_day + trend_adjust_per_day
+    value = total_per_day * target_days
+    return {
+        "value": value,
+        "base": base_per_day * target_days,
+        "offset": offset_per_day * target_days,
+        "trend": trend_adjust_per_day * target_days,
+        "day_basis": day_basis,
+        "target_days": target_days,
+        "slope_per_day": slope,
+    }
 
 
 def predict_consign(pl_clean: pd.DataFrame, target: pd.Timestamp) -> dict:
-    """委託費: 直近12か月 robust median."""
-    df = pl_clean[pl_clean["月"] < target].copy()
-    recent = _mad_filter(df.tail(12)["委託費"])
-    val = float(recent.median()) if len(recent) else float(df["委託費"].median())
-    return {"value": val, "method": "直近12mo robust median"}
+    """委託費: 暦日正規化での直近12mo median + 同月オフセット."""
+    r = _predict_cost_with_offset(pl_clean, "委託費", target,
+                                    day_basis="cal", use_trend=False)
+    return {"value": r["value"],
+            "method": f"暦日{int(r['target_days'])}日換算"}
 
 
 def predict_facility(pl_clean: pd.DataFrame, target: pd.Timestamp) -> dict:
-    """設備関係費: 直近12mo median + 同月オフセット."""
-    r = _predict_cost_with_offset(pl_clean, "設備関係費", target)
-    return {"value": r["value"],
-            "method": f"base={r['base']:,.0f} + offset={r['offset']:+,.0f}"}
+    """設備関係費: 直近6か月の robust median (同月オフセットなし).
+
+    リース更新等でレベルが変動するため、過去同月よりも直近6か月の方が
+    現在のレベルを正確に反映する。同月オフセットを足すと
+    過去の低レベル月を引きずって系統的に過小予測になる（MAE 20→7M）。
+    """
+    df = pl_clean[pl_clean["月"] < target].copy()
+    df = _filter_interventions(df, "設備関係費")
+    recent = _mad_filter(df.tail(6)["設備関係費"])
+    val = float(recent.median()) if len(recent) else float(df["設備関係費"].median())
+    return {"value": val, "method": f"直近6mo robust median"}
 
 
 def predict_misc(pl_clean: pd.DataFrame, target: pd.Timestamp) -> dict:
-    """経費: 直近12mo median + 同月オフセット（外れ値除外）."""
-    r = _predict_cost_with_offset(pl_clean, "経費", target)
+    """経費: 暦日正規化（光熱費等が日数比例、トレンド R²=0.001 なし）."""
+    r = _predict_cost_with_offset(pl_clean, "経費", target,
+                                    day_basis="cal", use_trend=False)
     return {"value": r["value"],
-            "method": f"base={r['base']:,.0f} + offset={r['offset']:+,.0f}"}
+            "method": f"暦日{int(r['target_days'])}日換算"}
 
 
 def predict_delta(delta_series: pd.DataFrame, target: pd.Timestamp) -> dict:
-    """δ: 直近12mo median + 同月オフセット."""
-    r = _predict_cost_with_offset(delta_series, "δ", target)
+    """δ: 営業日正規化（収益駆動なので営業日比例が自然）."""
+    r = _predict_cost_with_offset(delta_series, "δ", target,
+                                    day_basis="biz", use_trend=False)
     return {"value": r["value"],
-            "method": f"base={r['base']:,.0f} + offset={r['offset']:+,.0f}"}
+            "method": f"営業日{int(r['target_days'])}日換算"}
 
 
 # ──────────────────────────────────────────
@@ -240,6 +339,103 @@ def project_monthly_balance(pl_clean: pd.DataFrame,
         "設備関係費": facility,
         "経費": misc,
     }
+
+
+def prediction_intervals(pl_clean: pd.DataFrame,
+                          delta_series: pd.DataFrame,
+                          g_monthly: pd.DataFrame,
+                          target: pd.Timestamp,
+                          projection: dict,
+                          n_holdout: int = 8,
+                          n_bootstrap: int = 5000,
+                          rng_seed: int = 42) -> dict:
+    """Bootstrap で医業収支の予測区間を算出.
+
+    バックテストで得た医業収支の予測誤差を経験分布として N 回リサンプル。
+    費目間の相関を保ったまま分布を推定できる（独立加算より現実的）。
+    G の推計誤差（MAPE 1.75%）は別途加算する。
+    """
+    import numpy as np
+    rng = np.random.default_rng(rng_seed)
+
+    available_bt = max(0, len(delta_series) - 12)
+    if available_bt < 4:
+        return {"available": False}
+    bt = backtest(pl_clean, delta_series, g_monthly,
+                   n_holdout=min(n_holdout, available_bt))
+    if len(bt) < 4:
+        return {"available": False}
+
+    # 医業収支誤差を直接 bootstrap（費目間相関を保存）
+    balance_errs = bt["誤差"].values
+
+    # G の推計誤差（MAPE 1.75% を std として注入）
+    g_std = 0.0175 * projection["G"]["value"]
+    g_err_samples = rng.normal(0, g_std, n_bootstrap)
+
+    # 医業収支誤差 + G誤差 を合成
+    cost_samples = rng.choice(balance_errs, n_bootstrap, replace=True)
+    samples = cost_samples + g_err_samples
+
+    proj = projection["予測医業収支"]
+    q80_lo, q80_hi = np.quantile(samples, [0.10, 0.90])
+    q95_lo, q95_hi = np.quantile(samples, [0.025, 0.975])
+
+    return {
+        "available": True,
+        "n_samples": int(n_bootstrap),
+        "n_holdout_bt": int(len(bt)),
+        "sigma": float(samples.std()),
+        "pi80_lo": float(proj - q80_hi),
+        "pi80_hi": float(proj - q80_lo),
+        "pi95_lo": float(proj - q95_hi),
+        "pi95_hi": float(proj - q95_lo),
+        "bias": float(samples.mean()),
+        "cost_bt_mae": float(np.abs(balance_errs).mean()),
+        "g_std": float(g_std),
+    }
+
+
+def append_residual_log(csv_path: str,
+                          projection: dict,
+                          pl_clean: pd.DataFrame,
+                          generated_at: pd.Timestamp) -> None:
+    """予測の残差ログを CSV に追記.
+
+    実行時点で確報されている過去月について 予測vs実績 を記録。
+    既に同じ (target_month, run_date) があれば上書き。
+    """
+    from pathlib import Path
+    target = projection["月"]
+    actuals = pl_clean[pl_clean["月"] == target]
+    actual_balance = (float(actuals["医業収支"].iloc[0])
+                       if len(actuals) > 0 else None)
+    row = {
+        "run_date": generated_at.strftime("%Y-%m-%d %H:%M"),
+        "target_month": target.strftime("%Y-%m"),
+        "予測医業収支": round(projection["予測医業収支"], 0),
+        "実績医業収支": round(actual_balance, 0) if actual_balance is not None else None,
+        "誤差": (round(projection["予測医業収支"] - actual_balance, 0)
+                if actual_balance is not None else None),
+        "予測R_minus_M": round(projection["予測R_minus_M"], 0),
+        "G_proj": round(projection["G"]["value"], 0),
+        "δ_proj": round(projection["δ"]["value"], 0),
+        "給与費_proj": round(projection["給与費"]["value"], 0),
+        "委託費_proj": round(projection["委託費"]["value"], 0),
+        "設備関係費_proj": round(projection["設備関係費"]["value"], 0),
+        "経費_proj": round(projection["経費"]["value"], 0),
+    }
+    p = Path(csv_path)
+    if p.exists():
+        existing = pd.read_csv(p)
+        # 同じ run_date + target_month の行は除外（重複防止）
+        existing = existing[~((existing["run_date"] == row["run_date"]) &
+                              (existing["target_month"] == row["target_month"]))]
+        df = pd.concat([existing, pd.DataFrame([row])], ignore_index=True)
+    else:
+        df = pd.DataFrame([row])
+    p.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(p, index=False)
 
 
 def backtest(pl_clean: pd.DataFrame,
