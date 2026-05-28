@@ -1362,15 +1362,24 @@ function renderProfitChart() {
     targets: raw.targets.slice(-n),
   };
 
+  // 当月予測（月末見込み）— 実績の最終月より後ろの月のみ予測扱い
+  const mp = DATA.month_projection;
+  const projMonth = mp && mp.meta && mp.meta.month;
+  const projTile  = mp && mp.profit;
+  const projVal   = projTile && projTile.projection != null ? projTile.projection : null;
+  const projTgt   = projTile && projTile.target     != null ? projTile.target     : null;
+  const lastActual = g.months[g.months.length-1] || '';
+  const hasProj = projMonth && projVal != null && projMonth > lastActual;
+
   // 月ごとに達成率を計算して色分け
-  const barColors = g.months.map((_, i) => {
-    const val = g.values[i], tgt = g.targets[i];
-    if (tgt == null || tgt === 0) return '#94A3B8';  // 目標なし: グレー
+  const achColor = (val, tgt) => {
+    if (tgt == null || tgt === 0) return '#94A3B8';
     const rate = val / tgt * 100;
-    if (rate >= 100) return '#0e7a54';   // 達成: 緑
-    if (rate >= 90)  return '#b45309';   // 接近: 黄
-    return '#c4314b';                    // 未達: 赤
-  });
+    if (rate >= 100) return '#0e7a54';
+    if (rate >= 90)  return '#b45309';
+    return '#c4314b';
+  };
+  const barColors = g.months.map((_, i) => achColor(g.values[i], g.targets[i]));
 
   // 凡例用ダミートレース（色分け説明）
   const legendDummies = [
@@ -1382,17 +1391,48 @@ function renderProfitChart() {
   const traces = [
     {name:'粗利実績', x:g.months, y:g.values, type:'bar',
      marker:{color:barColors}, opacity:0.9, showlegend:false},
-    {name:'月次目標(営業日換算)', x:g.months, y:g.targets, type:'scatter', mode:'lines+markers',
-     line:{color:'#C0293B',width:2,dash:'dot'}, marker:{size:5,color:'#C0293B'}},
-    ...legendDummies,
   ];
 
+  if (hasProj) {
+    const pColor = achColor(projVal, projTgt);
+    traces.push({
+      name:'当月予測(月末見込み)', x:[projMonth], y:[projVal], type:'bar',
+      marker:{color:pColor, pattern:{shape:'/', size:6, solidity:0.35},
+              line:{color:pColor, width:1.5}},
+      opacity:0.7, showlegend:true,
+      hovertemplate:'%{y:.1f}百万円<extra>当月予測（月末見込み）</extra>',
+    });
+  }
+
+  {
+    const tx = [...g.months], ty = [...g.targets];
+    if (hasProj && projTgt != null) { tx.push(projMonth); ty.push(projTgt); }
+    traces.push({
+      name:'月次目標(営業日換算)', x:tx, y:ty, type:'scatter', mode:'lines+markers',
+      line:{color:'#C0293B',width:2,dash:'dot'}, marker:{size:5,color:'#C0293B'},
+    });
+  }
+  traces.push(...legendDummies);
+
+  // Y軸: 期間最小値基準のレンジ（ゼロ起点ではなく変化量を可視化）
   const allY = [...g.values, ...g.targets.filter(v=>v!=null)];
-  const yMax = Math.max(...allY) * 1.15 || 10;
+  if (hasProj) {
+    allY.push(projVal);
+    if (projTgt != null) allY.push(projTgt);
+  }
+  const yVals = allY.filter(v => v != null && !isNaN(v));
+  let yLo = 0, yHi = 10;
+  if (yVals.length) {
+    const mn = Math.min(...yVals), mx = Math.max(...yVals);
+    const span = Math.max(mx - mn, Math.abs(mx) * 0.08);
+    yLo = Math.max(0, mn - span * 0.25);
+    yHi = mx + span * 0.12;
+  }
+
   Plotly.newPlot('mainChart', traces, {
     font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
     xaxis:{gridcolor:'#DCE1E9',tickangle:-45},
-    yaxis:{range:[0,yMax],gridcolor:'#DCE1E9',title:{text:'百万円',font:{size:10}}},
+    yaxis:{range:[yLo,yHi],gridcolor:'#DCE1E9',title:{text:'百万円',font:{size:10}}},
     legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},
     barmode:'group', hovermode:'x unified',
     margin:{l:55,r:20,t:10,b:65},height:_pH(340),

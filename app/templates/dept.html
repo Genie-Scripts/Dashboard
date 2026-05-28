@@ -601,7 +601,7 @@ function renderCharts(d) {
       document.getElementById('chartTitle3').textContent = `💉 全麻手術 推移${suffix}`;
       document.getElementById('chartTitle4').textContent = `💰 月次粗利 推移`;
       renderSurgeryChart('chart3', d.trend?.operation, d.operation.target);
-      renderProfitDeptChart('chart4', d.profit_chart);
+      renderProfitDeptChart('chart4', d.profit_chart, d.month_projection);
     } else if (isSurgeryDept) {
       // 2+1: 全麻（全幅）
       container.className = 'charts-container layout-2plus1';
@@ -613,7 +613,7 @@ function renderCharts(d) {
       container.className = 'charts-container layout-2plus1';
       chart4panel.style.display = 'none';
       document.getElementById('chartTitle3').textContent = `💰 月次粗利 推移`;
-      renderProfitDeptChart('chart3', d.profit_chart);
+      renderProfitDeptChart('chart3', d.profit_chart, d.month_projection);
     } else {
       container.className = 'charts-container layout-2plus1';
       chart4panel.style.display = 'none';
@@ -781,7 +781,7 @@ function renderSurgeryChart(elId, td, weeklyTarget) {
   },{responsive:true});
 }
 
-function renderProfitDeptChart(elId, bd) {
+function renderProfitDeptChart(elId, bd, mp) {
   if (!bd || !bd.months || !bd.months.length) {
     document.getElementById(elId).innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">粗利データなし</div>';
     return;
@@ -799,29 +799,69 @@ function renderProfitDeptChart(elId, bd) {
     return;
   }
 
+  // 当月予測（月末見込み）— 実績の最終月より後の月のみ予測扱い
+  const projMonth = mp && mp.meta && mp.meta.month;
+  const projTile  = mp && mp.profit;
+  const projVal   = projTile && projTile.projection != null ? projTile.projection : null;
+  const projTgt   = projTile && projTile.target     != null ? projTile.target     : null;
+  const lastActual = fMonths[fMonths.length-1] || '';
+  const hasProj = projMonth && projVal != null
+                  && projMonth > lastActual
+                  && projMonth >= cutoffMonth;
+
   const tgtArr = fTargets;
-  const barColors = fMonths.map((_, i) => {
-    const val = fValues[i];
-    const tgt = tgtArr ? tgtArr[i] : bd.target;
+  const achColor = (val, tgt) => {
     if (tgt == null || !tgt) return '#94A3B8';
-    const rate = val / tgt * 100;
-    return rate >= 100 ? '#0e7a54' : rate >= 90 ? '#b45309' : '#c4314b';
-  });
+    const r = val / tgt * 100;
+    return r >= 100 ? '#0e7a54' : r >= 90 ? '#b45309' : '#c4314b';
+  };
+  const barColors = fMonths.map((_, i) => achColor(fValues[i], tgtArr ? tgtArr[i] : bd.target));
   const traces = [{name:'粗利実績', x:fMonths, y:fValues, type:'bar',
                    marker:{color:barColors}, opacity:0.9}];
+
+  if (hasProj) {
+    const pColor = achColor(projVal, projTgt != null ? projTgt : bd.target);
+    traces.push({
+      name:'当月予測(月末見込み)', x:[projMonth], y:[projVal], type:'bar',
+      marker:{color:pColor, pattern:{shape:'/', size:6, solidity:0.35},
+              line:{color:pColor, width:1.5}},
+      opacity:0.7,
+      hovertemplate:'%{y:.1f}百万円<extra>当月予測（月末見込み）</extra>',
+    });
+  }
+
   if (tgtArr) {
-    traces.push({name:'目標(営業日補正)', x:fMonths, y:tgtArr, type:'scatter', mode:'lines+markers',
+    const tx = [...fMonths], ty = [...tgtArr];
+    if (hasProj && projTgt != null) { tx.push(projMonth); ty.push(projTgt); }
+    traces.push({name:'目標(営業日補正)', x:tx, y:ty, type:'scatter', mode:'lines+markers',
                  line:{color:'#C0293B',width:2,dash:'dot',shape:'hv'}, marker:{size:5,color:'#C0293B'}});
   } else if (bd.target) {
-    traces.push({name:'目標', x:[fMonths[0], fMonths[fMonths.length-1]], y:[bd.target,bd.target],
+    const xEnd = hasProj ? projMonth : fMonths[fMonths.length-1];
+    traces.push({name:'目標', x:[fMonths[0], xEnd], y:[bd.target,bd.target],
                  type:'scatter', mode:'lines', line:{color:'#C0293B',width:2,dash:'dot'}});
   }
-  const allY = [...fValues, ...(tgtArr || (bd.target ? [bd.target] : []))].filter(v=>v!=null);
-  const yMax = allY.length ? Math.max(...allY) * 1.15 : 10;
+
+  // Y軸: 期間最小値基準のレンジ（ゼロ起点ではなく変化量を可視化）
+  const yAll = [...fValues];
+  if (tgtArr) yAll.push(...tgtArr.filter(v=>v!=null));
+  else if (bd.target) yAll.push(bd.target);
+  if (hasProj) {
+    yAll.push(projVal);
+    if (projTgt != null) yAll.push(projTgt);
+  }
+  const yVals = yAll.filter(v => v != null && !isNaN(v));
+  let yLo = 0, yHi = 10;
+  if (yVals.length) {
+    const mn = Math.min(...yVals), mx = Math.max(...yVals);
+    const span = Math.max(mx - mn, Math.abs(mx) * 0.08);
+    yLo = Math.max(0, mn - span * 0.25);
+    yHi = mx + span * 0.12;
+  }
+
   Plotly.newPlot(elId, traces, {
     font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
     xaxis:{gridcolor:'#DCE1E9', tickangle:-45},
-    yaxis:{range:[0,yMax],gridcolor:'#DCE1E9',title:{text:'百万円',font:{size:10}}},
+    yaxis:{range:[yLo,yHi],gridcolor:'#DCE1E9',title:{text:'百万円',font:{size:10}}},
     legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},
     hovermode:'x unified',margin:{l:55,r:15,t:8,b:65},height:_pH(320),
     plot_bgcolor:'#fff',paper_bgcolor:'#fff',
