@@ -60,16 +60,14 @@ def fetch_profit_projection(adm: pd.DataFrame,
     )
     if not payload:
         raise RuntimeError("粗利推計ペイロードが空でした")
-    meta = payload.get("hospital_total") or {}
-    series_meta = payload.get("series_meta") or {}
-    # latest_projection_total は百万円
-    proj_mil = (series_meta.get("latest_projection_total")
-                if series_meta else None)
+    series_meta = payload.get("meta") or {}
+    # latest_projection_total は百万円（当月末見込み = 直近30日推計 × 当月営業日/窓内営業日）
+    proj_mil = series_meta.get("latest_projection_total")
     if proj_mil is None:
-        # フォールバック: hospital_total から
-        proj_mil = meta.get("hybrid_pred")
-    if proj_mil is None:
-        raise RuntimeError("latest_projection_total が取得できませんでした")
+        raise RuntimeError(
+            "meta.latest_projection_total が取得できませんでした "
+            "(hospital_total.hybrid_pred は前月バックテスト値なので G の代用にしない)"
+        )
     return float(proj_mil) * 1000.0, {  # 千円
         "latest_projection_total_million": float(proj_mil),
         "base_date": base_date.strftime("%Y-%m-%d"),
