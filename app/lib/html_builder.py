@@ -38,6 +38,8 @@ from .profit import build_profit_kpi, build_profit_chart_data
 from .profit_estimate import (
     build_estimate_payload as build_profit_estimate_payload,
     build_hybrid_payload as build_profit_hybrid_payload,
+    apply_recency_calibration,
+    last_complete_driver_date,
 )
 from .month_projection import build_month_projection_payload
 
@@ -627,6 +629,11 @@ def build_detail_json(adm, surg, targets, surg_targets,
         except Exception:
             pass
 
+    # 粗利推計は全ドライバー(adm/surg)が揃う最終日で行う（片方が欠けた最終日での
+    # 過小推計を避け、PLレポートの G と同一日に揃える）。在院/新入院など他KPIは
+    # base_date（adm最終）のまま。
+    profit_base_date = last_complete_driver_date(adm, surg) or base_date
+
     # ── profit_estimate: 直近30日 粗利推計（2式・手術入外分離） ──
     profit_estimate_section = None
     if profit_section is not None and profit_breakdown is not None and len(profit_breakdown) > 0:
@@ -634,7 +641,7 @@ def build_detail_json(adm, surg, targets, surg_targets,
             profit_estimate_section = build_profit_estimate_payload(
                 profit_breakdown=profit_breakdown,
                 adm=adm, surg=surg,
-                base_date=base_date,
+                base_date=profit_base_date,
                 rolling_days=30,
             )
         except Exception:
@@ -647,7 +654,7 @@ def build_detail_json(adm, surg, targets, surg_targets,
             profit_hybrid_section = build_profit_hybrid_payload(
                 profit_breakdown=profit_breakdown,
                 surg=surg,
-                base_date=base_date,
+                base_date=profit_base_date,
                 adm=adm,
             )
         except Exception:
@@ -794,12 +801,23 @@ def build_detail_json(adm, surg, targets, surg_targets,
     try:
         hybrid_meta = profit_hybrid_section.get("meta") if profit_hybrid_section else None
         hybrid_hospital_series = profit_hybrid_section.get("hospital_series") if profit_hybrid_section else None
+        # 粗利の月末見込みは PLレポートと同じ G（MTDブレンド × recency補正）に統一。
+        # 補正は profit_estimate.apply_recency_calibration を共用し同一キャッシュを参照。
+        g_override = None
+        if hybrid_meta and profit_breakdown is not None and surg is not None:
+            try:
+                g_override = apply_recency_calibration(
+                    hybrid_meta, profit_breakdown, surg, adm, profit_base_date,
+                )["g_million"]
+            except Exception:
+                g_override = None  # 失敗時はブレンド/旧projに自然フォールバック
         data["month_projection"] = build_month_projection_payload(
             adm=adm, surg=surg,
             profit_monthly=profit_monthly,
             profit_hybrid_meta=hybrid_meta,
             profit_hybrid_hospital_series=hybrid_hospital_series,
             base_date=base_date,
+            profit_hybrid_g_override=g_override,
         )
     except Exception:
         data["month_projection"] = None

@@ -26,11 +26,24 @@ profit_estimate.py — 直近30日 粗利推計（2式・手術入外分離）
 """
 from __future__ import annotations
 
+import json
 import numpy as np
 import pandas as pd
+from pathlib import Path
 from typing import Optional, Dict, Any
 
 from .config import biz_days_in_month, is_operational_day
+
+
+# MTD ブレンドのアンカー営業日数。月内経過営業日が anchor に達すると
+# 月末見込み G を MTD 外挿に全振りする（w = min(1, 経過営業日/anchor)）。
+# バックテスト（scripts/backtest_profit_projection.py）で anchor=8 を採用。
+MTD_BLEND_ANCHOR = 8
+
+# recency バイアス補正キャッシュの既定パス（PLレポートとダッシュボードで共用）。
+# 月別 {actual, proj, ratio, metric} を蓄積し、初回のみ過去12か月を再計算する。
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_CALIB_CACHE_PATH = _REPO_ROOT / "output" / "g_calib_cache.json"
 
 
 # ────────────────────────────────────────────────────
@@ -39,6 +52,21 @@ from .config import biz_days_in_month, is_operational_day
 
 def _month_floor(d) -> pd.Timestamp:
     return pd.Timestamp(d).normalize().replace(day=1)
+
+
+def last_complete_driver_date(adm: Optional[pd.DataFrame],
+                              surg: Optional[pd.DataFrame]) -> Optional[pd.Timestamp]:
+    """adm・surg の両方にデータが揃う最終日 = min(adm最終, surg最終)。
+
+    粗利推計の base_date にこの日を使うと、片方のドライバーが欠けた最終日での
+    過小推計を避けられ、PLレポートとダッシュボードの G が同一日に揃う。
+    """
+    dates = []
+    if adm is not None and len(adm) > 0:
+        dates.append(pd.Timestamp(adm["日付"].max()).normalize())
+    if surg is not None and len(surg) > 0:
+        dates.append(pd.Timestamp(surg["手術実施日"].max()).normalize())
+    return min(dates) if dates else None
 
 
 def _surg_split_masks(surg: pd.DataFrame):
@@ -800,6 +828,7 @@ def _build_hybrid_daily_series(fit_models: Dict[str, Dict[str, Any]],
     """
     from .profit_surgery import (
         predict_daily_rolling_per_dept, predict_ratio_fallback_daily,
+        predict_monthend_mtd_per_dept,
     )
 
     if surg is None or len(surg) == 0:
@@ -850,6 +879,9 @@ def _build_hybrid_daily_series(fit_models: Dict[str, Dict[str, Any]],
     # 見込み変換係数: 当月営業日数 / 30日窓内営業日数
     factor = month_biz.divide(biz_roll.replace(0, np.nan)).fillna(0.0)
 
+    # MTD（月末見込み外挿）用: 月初〜当日の経過営業日数（当日含む）
+    biz_elapsed = biz_flag.groupby(dates.to_period("M")).cumsum()
+
     # 全対象科の集合（モデル化できた科 ∪ baseline がある科 ∪ fallback がある科）
     all_depts = (set(fit_models.get("外来", {}).keys())
                  | set(fit_models.get("入院", {}).keys())
@@ -860,6 +892,9 @@ def _build_hybrid_daily_series(fit_models: Dict[str, Dict[str, Any]],
     hosp_n_hy = pd.Series(0.0, index=dates)
     hosp_g_ols = pd.Series(0.0, index=dates)
     hosp_n_ols = pd.Series(0.0, index=dates)
+    # MTD 月末見込み（手術モデル科は MTD 外挿、それ以外は現行 projection を踏襲）
+    hosp_g_mtd = pd.Series(0.0, index=dates)
+    hosp_n_mtd = pd.Series(0.0, index=dates)
 
     def _baseline_series(value: Optional[float]) -> pd.Series:
         return pd.Series(float(value) if value else 0.0, index=dates)
@@ -898,6 +933,16 @@ def _build_hybrid_daily_series(fit_models: Dict[str, Dict[str, Any]],
         # 月末見込み変換: 直近30日値 × (当月営業日数 / 30日窓内営業日数)
         g_hy_proj = g_hy * factor
         n_hy_proj = n_hy * factor
+        # MTD 月末見込み: 手術モデル科は月内累計ドライバーから外挿、
+        # フォールバック/baseline 科は現行 projection を踏襲（MTD 効果を手術科で隔離）
+        g_mtd = (predict_monthend_mtd_per_dept(g_model, s_gairai, dept, dates,
+                                               month_biz, biz_elapsed)
+                 if g_model else g_hy_proj)
+        n_mtd = (predict_monthend_mtd_per_dept(n_model, s_nyuin, dept, dates,
+                                               month_biz, biz_elapsed)
+                 if n_model else n_hy_proj)
+        hosp_g_mtd = hosp_g_mtd.add(g_mtd, fill_value=0)
+        hosp_n_mtd = hosp_n_mtd.add(n_mtd, fill_value=0)
         # 科レベルは hybrid のみ（ファイルサイズ抑制）
         series_by_dept[dept] = {
             "dates":         [d.strftime("%Y-%m-%d") for d in dates],
@@ -939,13 +984,30 @@ def _build_hybrid_daily_series(fit_models: Dict[str, Dict[str, Any]],
                                 for v, m in zip(hosp_g_hy_proj, mask)],
         "values_projection_nyuin":  [round(v, 2) if m else None
                                 for v, m in zip(hosp_n_hy_proj, mask)],
+        # MTD 外挿の月末見込み（未ブレンド）。ブレンド比は呼び出し側で探索可能
+        "values_mtd_total":  [round((gv + nv), 2) if m else None
+                                for gv, nv, m in zip(hosp_g_mtd, hosp_n_mtd, mask)],
+        "values_mtd_gairai": [round(v, 2) if m else None
+                                for v, m in zip(hosp_g_mtd, mask)],
+        "values_mtd_nyuin":  [round(v, 2) if m else None
+                                for v, m in zip(hosp_n_mtd, mask)],
         "month_biz_days_series":    [int(v) for v in month_biz.tolist()],
         "window_biz_days_series":   [int(v) for v in biz_roll.tolist()],
+        "biz_elapsed_series":       [int(v) for v in biz_elapsed.tolist()],
     }
 
     base_month_biz   = int(month_biz.iloc[-1])
     base_window_biz  = int(biz_roll.iloc[-1])
     base_factor      = (base_month_biz / base_window_biz) if base_window_biz > 0 else 0.0
+
+    # MTD ブレンド月末見込み（base_date 時点）: w = min(1, 経過営業日 / anchor)
+    base_biz_elapsed = int(biz_elapsed.iloc[-1])
+    w = min(1.0, base_biz_elapsed / float(MTD_BLEND_ANCHOR)) if base_biz_elapsed else 0.0
+    lp_g = float(hosp_g_hy_proj.iloc[-1]); lp_n = float(hosp_n_hy_proj.iloc[-1])
+    lm_g = float(hosp_g_mtd.iloc[-1]);     lm_n = float(hosp_n_mtd.iloc[-1])
+    blend_g = w * lm_g + (1 - w) * lp_g
+    blend_n = w * lm_n + (1 - w) * lp_n
+
     series_meta = {
         "window_start": (base_date - pd.Timedelta(days=rolling_days - 1)).strftime("%Y-%m-%d"),
         "window_end":   base_date.strftime("%Y-%m-%d"),
@@ -958,8 +1020,226 @@ def _build_hybrid_daily_series(fit_models: Dict[str, Dict[str, Any]],
         "current_month_biz_days":   base_month_biz,
         "window_biz_days":          base_window_biz,
         "projection_factor":        round(base_factor, 4),
-        "latest_projection_total":  round(float(hosp_g_hy_proj.iloc[-1] + hosp_n_hy_proj.iloc[-1]), 2),
-        "latest_projection_gairai": round(float(hosp_g_hy_proj.iloc[-1]), 2),
-        "latest_projection_nyuin":  round(float(hosp_n_hy_proj.iloc[-1]), 2),
+        "latest_projection_total":  round(lp_g + lp_n, 2),
+        "latest_projection_gairai": round(lp_g, 2),
+        "latest_projection_nyuin":  round(lp_n, 2),
+        # MTD 月末外挿（未ブレンド）
+        "latest_mtd_total":  round(lm_g + lm_n, 2),
+        "latest_mtd_gairai": round(lm_g, 2),
+        "latest_mtd_nyuin":  round(lm_n, 2),
+        # MTD ブレンド（= 本番 G に使う推計。早期は proj 寄り・月内が進むと MTD 寄り）
+        "mtd_blend_anchor":  MTD_BLEND_ANCHOR,
+        "mtd_blend_weight":  round(w, 4),
+        "base_biz_elapsed":  base_biz_elapsed,
+        "latest_mtdblend_total":  round(blend_g + blend_n, 2),
+        "latest_mtdblend_gairai": round(blend_g, 2),
+        "latest_mtdblend_nyuin":  round(blend_n, 2),
     }
     return series_by_dept, hospital_series, series_meta
+
+
+# ════════════════════════════════════════════════════
+# 月末見込み G の recency バイアス補正（k12_shrink50）
+#
+#   バックテスト（scripts/backtest_profit_projection.py）で、月末見込みには
+#   系統的な負バイアス（−1〜−3%, 主因は年度跨ぎ4月レベルシフト）が確認された。
+#   直近 k closed-month の「実績 / 月末見込み」比の median を 1 へ向けて
+#   shrink した係数を G に乗じて補正する。
+#
+#   - 全力補正は係数ノイズが分散を増やすため shrink=0.5 が最良（実測）
+#   - leakage-free: 各前月 p の月末見込みは pb<p で再現（build_hybrid_payload）
+#   - clip で暴走防止（既定 ±10%）
+# ════════════════════════════════════════════════════
+
+def monthend_projection_total(profit_breakdown: pd.DataFrame,
+                               surg: pd.DataFrame,
+                               adm: Optional[pd.DataFrame],
+                               month_start,
+                               min_history: int = 6,
+                               metric: str = "latest_mtdblend_total") -> Optional[float]:
+    """指定月 month_start の「月末見込み総額（百万円）」を leakage-free に再現。
+
+    pb は month_start 未満に切詰めてフィット、adm/surg は月末以下に切詰め。
+    フィット用の過去月が min_history 未満なら None。
+
+    metric: meta から取り出すキー。既定は本番 G と同じ MTD ブレンド月末見込み。
+            過去月末では経過営業日 = 当月営業日数 ≥ anchor のため w=1（= 純 MTD）。
+    """
+    month_start = _month_floor(month_start)
+    pb = profit_breakdown.copy()
+    pb["月"] = pd.to_datetime(pb["月"]).apply(_month_floor)
+    pb_train = pb[pb["月"] < month_start]
+    if pb_train["月"].nunique() < min_history:
+        return None
+
+    month_end = month_start + pd.offsets.MonthEnd(0)
+    base_date = month_end
+    if surg is not None and len(surg) > 0:
+        base_date = min(base_date, pd.Timestamp(surg["手術実施日"].max()).normalize())
+    if adm is not None and len(adm) > 0:
+        base_date = min(base_date, pd.Timestamp(adm["日付"].max()).normalize())
+    if base_date < month_start:
+        return None
+
+    surg_bt = surg[pd.to_datetime(surg["手術実施日"]) <= base_date] if surg is not None else surg
+    adm_bt = (adm[pd.to_datetime(adm["日付"]) <= base_date]
+              if adm is not None and len(adm) > 0 else adm)
+
+    payload = build_hybrid_payload(
+        profit_breakdown=pb_train, surg=surg_bt, base_date=base_date, adm=adm_bt,
+    )
+    if not payload:
+        return None
+    meta = payload.get("meta") or {}
+    proj = meta.get(metric)
+    if proj is None:
+        proj = meta.get("latest_projection_total")  # 後方互換フォールバック
+    return float(proj) if proj is not None else None
+
+
+def _month_actual_total(pb_floored: pd.DataFrame, month_start: pd.Timestamp) -> Optional[float]:
+    sub = pb_floored[pb_floored["月"] == month_start]
+    if sub.empty:
+        return None
+    return float(sub["粗利"].sum()) / 1000.0
+
+
+def compute_projection_calibration(profit_breakdown: pd.DataFrame,
+                                   surg: pd.DataFrame,
+                                   adm: Optional[pd.DataFrame],
+                                   target_month,
+                                   known_ratios: Optional[Dict[str, Any]] = None,
+                                   k: int = 12,
+                                   shrink: float = 0.5,
+                                   min_history: int = 6,
+                                   clip: tuple = (0.9, 1.1),
+                                   metric: str = "latest_mtdblend_total") -> Dict[str, Any]:
+    """target_month の G に乗じる recency バイアス補正係数を返す（既定 k12_shrink50）。
+
+    Args:
+        known_ratios: {YYYY-MM: {actual, proj, ratio, metric}} のキャッシュ。actual と
+                      metric が一致すれば月末見込み再計算をスキップする。
+        metric:       校正の基準にする月末見込みキー。本番 G（MTDブレンド）と揃える。
+    Returns:
+        {factor, raw_median, n_months, k, shrink, metric,
+         detail: {YYYY-MM: {actual, proj, ratio, metric}}}
+        detail は今回使用した全前月分。呼び出し側でキャッシュへ永続化してよい。
+    """
+    target_month = _month_floor(target_month)
+    pb = profit_breakdown.copy()
+    pb["月"] = pd.to_datetime(pb["月"]).apply(_month_floor)
+    known = dict(known_ratios or {})
+
+    ratios: Dict[str, float] = {}
+    detail: Dict[str, Any] = {}
+    for j in range(1, k + 1):
+        p = _month_floor(target_month - pd.DateOffset(months=j))
+        key = p.strftime("%Y-%m")
+        actual = _month_actual_total(pb, p)
+        if actual is None or actual <= 0:
+            continue  # 未確定（本番でも見えない）月はスキップ
+        cached = known.get(key)
+        if (cached and cached.get("proj")
+                and cached.get("metric") == metric
+                and abs(float(cached.get("actual", 0.0)) - actual) < 1e-6):
+            proj = float(cached["proj"])
+        else:
+            proj = monthend_projection_total(profit_breakdown, surg, adm, p,
+                                             min_history, metric=metric)
+            if proj is None or proj <= 0:
+                continue
+        r = actual / proj
+        ratios[key] = r
+        detail[key] = {"actual": round(actual, 2), "proj": round(proj, 2),
+                       "ratio": round(r, 4), "metric": metric}
+
+    if ratios:
+        raw = float(np.median(list(ratios.values())))
+        factor = 1.0 + (raw - 1.0) * shrink
+        factor = float(min(max(factor, clip[0]), clip[1]))
+    else:
+        raw = None
+        factor = 1.0
+
+    return {
+        "factor": round(factor, 4),
+        "raw_median": round(raw, 4) if raw is not None else None,
+        "n_months": len(ratios),
+        "k": k,
+        "shrink": shrink,
+        "metric": metric,
+        "detail": detail,
+    }
+
+
+# ────────────────────────────────────────────────────
+# 補正キャッシュ I/O と高レベル API（PLレポート・ダッシュボード共用）
+# ────────────────────────────────────────────────────
+
+def load_calib_cache(path=None) -> dict:
+    path = Path(path) if path else DEFAULT_CALIB_CACHE_PATH
+    if path.exists():
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+    return {}
+
+
+def save_calib_cache(data: dict, path=None) -> None:
+    path = Path(path) if path else DEFAULT_CALIB_CACHE_PATH
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def apply_recency_calibration(meta: Dict[str, Any],
+                              profit_breakdown: pd.DataFrame,
+                              surg: pd.DataFrame,
+                              adm: Optional[pd.DataFrame],
+                              base_date,
+                              cache_path=None,
+                              calibrate: bool = True) -> Dict[str, Any]:
+    """既に算出済みの hybrid payload `meta` から、本番 G（百万円）を確定する。
+
+    G = MTDブレンド月末見込み（latest_mtdblend_total）× recency補正係数。
+    PLレポートとダッシュボードはこの関数を共用し、同一キャッシュを参照することで
+    必ず同じ G を表示する。
+
+    Returns:
+        {g_million, g_metric, raw_projection_million, blend_million,
+         mtd_blend_weight, calibration_factor, calibration_n_months,
+         calibration_raw_median}
+    """
+    base_date = pd.Timestamp(base_date).normalize()
+    g_metric = "latest_mtdblend_total"
+    proj_mil = meta.get(g_metric)
+    if proj_mil is None:  # 後方互換
+        proj_mil = meta.get("latest_projection_total")
+        g_metric = "latest_projection_total"
+    if proj_mil is None:
+        raise RuntimeError(
+            "meta に latest_mtdblend_total / latest_projection_total が無く G を確定できません "
+            "(hospital_total.hybrid_pred は前月バックテスト値なので代用不可)"
+        )
+
+    factor, n_cal, raw_median = 1.0, 0, None
+    if calibrate:
+        cache = load_calib_cache(cache_path)
+        cal = compute_projection_calibration(
+            profit_breakdown, surg, adm, base_date.replace(day=1),
+            known_ratios=cache, metric=g_metric,
+        )
+        factor, n_cal, raw_median = cal["factor"], cal["n_months"], cal["raw_median"]
+        cache.update(cal["detail"])
+        save_calib_cache(cache, cache_path)
+
+    return {
+        "g_million": round(float(proj_mil) * factor, 2),
+        "g_metric": g_metric,
+        "raw_projection_million": meta.get("latest_projection_total"),
+        "blend_million": float(proj_mil),
+        "mtd_blend_weight": meta.get("mtd_blend_weight"),
+        "calibration_factor": factor,
+        "calibration_n_months": n_cal,
+        "calibration_raw_median": raw_median,
+    }

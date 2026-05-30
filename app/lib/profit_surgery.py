@@ -452,6 +452,79 @@ def predict_daily_rolling_per_dept(model_rec: Dict[str, Any],
     return pd.Series(np.maximum(0.0, pred), index=dates)
 
 
+def predict_monthend_mtd_per_dept(model_rec: Dict[str, Any],
+                                    surg_kind: pd.DataFrame,
+                                    dept: str,
+                                    dates: pd.DatetimeIndex,
+                                    month_biz: pd.Series,
+                                    biz_elapsed: pd.Series,
+                                    force_kind: Optional[str] = None) -> pd.Series:
+    """1科×1区分の「月末見込み（MTD外挿）」を返す（百万円）。
+
+    直近30日トレーリング窓ではなく、当月1日〜当日の累計ドライバーを使い、
+    営業日ベースの完了率 (month_biz / biz_elapsed) で full-month へ外挿する。
+    前月の汚染が入らない。
+
+    Args:
+        month_biz:   各日が属する月の当月営業日数（full-month, 既知の暦定数）
+        biz_elapsed: 月初〜当日の経過営業日数（当日含む）
+
+    NNLS の切片（手術外の月次定数粗利）はスケールせず1回だけ加算する。
+    OLS の営業日項は b·当月営業日数 で厳密に置く。
+    """
+    zero = pd.Series(0.0, index=dates)
+    if model_rec is None or len(surg_kind) == 0:
+        return zero
+    kind = force_kind if force_kind else model_rec["model"]
+    month_key = dates.to_period("M")
+    mb = month_biz.reindex(dates).astype(float)
+    be = biz_elapsed.reindex(dates).astype(float)
+    completion = (mb / be.replace(0, np.nan)).fillna(0.0).values   # >=1
+
+    if kind == "ols":
+        if "麻酔種別" in surg_kind.columns:
+            ga = surg_kind[surg_kind["麻酔種別"].fillna("")
+                              .str.contains("全身麻酔", na=False)]
+        else:
+            ga = surg_kind
+        ga = ga[ga["実施診療科"] == dept]
+        if len(ga) == 0:
+            count_mtd = pd.Series(0.0, index=dates)
+        else:
+            daily = (ga.assign(_d=pd.to_datetime(ga["手術実施日"]).dt.normalize())
+                        .groupby("_d").size().reindex(dates, fill_value=0))
+            count_mtd = daily.groupby(month_key).cumsum()
+        a = float(model_rec.get("ols_count_coef", 0.0))
+        b = float(model_rec.get("ols_biz_coef", 0.0))
+        # 件数は完了率で外挿、営業日項は当月営業日数で厳密
+        pred = a * (count_mtd.values * completion) + b * mb.values
+        return pd.Series(np.maximum(0.0, pred), index=dates)
+
+    # NNLS
+    se = _extract_primary(surg_kind)
+    sd = se[se["実施診療科"] == dept].copy()
+    intercept = float(model_rec["coef"][-1])
+    if len(sd) == 0:
+        return pd.Series(max(0.0, intercept), index=dates)
+    feats = model_rec["features"]
+    coef = np.array(model_rec["coef"])
+    proc_feats = feats[:-2]
+    known = set(proc_feats)
+    sd["_feat"] = sd["術式キー"].apply(lambda k: _to_other_feat(k, known))
+    sd = sd[sd["_feat"].notna()]
+    sd["_d"] = pd.to_datetime(sd["手術実施日"]).dt.normalize()
+    pv = (sd.pivot_table(index="_d", columns="_feat",
+                           values="主術式", aggfunc="count", fill_value=0)
+            .reindex(columns=proc_feats, fill_value=0)
+            .reindex(dates, fill_value=0))
+    counts_mtd = pv.groupby(month_key).cumsum()
+    time_daily = sd.groupby("_d")["手術時間_h"].sum().reindex(dates, fill_value=0)
+    time_mtd = time_daily.groupby(month_key).cumsum()
+    driver_part = (counts_mtd.values @ coef[:-2]) + coef[-2] * time_mtd.values
+    pred = driver_part * completion + intercept   # 切片はスケールせず1回だけ
+    return pd.Series(np.maximum(0.0, pred), index=dates)
+
+
 # ════════════════════════════════════════════════════
 # フォールバック比推定（手術データ不足で hybrid を組めない科向け）
 #

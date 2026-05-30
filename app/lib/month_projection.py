@@ -5,7 +5,9 @@ month_projection.py — 当月予測 (4 KPI) ペイロード
 detail.html headline 直下の「📅 当月予測」カードに供給される。
 
 予測式:
-  - 粗利     : profit_estimate.meta.latest_projection_total を流用 (月末見込み)
+  - 粗利     : PLレポートと同じ G（MTDブレンド月末見込み × recency補正）。
+               病院全体は profit_hybrid_g_override（補正済み, 百万円）を流用し、
+               未指定時は meta.latest_mtdblend_total（補正なし）にフォールバック。
   - 在院日平均: (MTD person-days + 残暦日 × 直近30日 在院日平均) / 当月暦日数
   - 新入院   : MTD + 残暦日 × (直近30日 新入院 / 30)
   - 全身麻酔 : MTD + 残営業平日 × (直近28日 全麻 / 直近28日 営業平日数)
@@ -77,6 +79,7 @@ def build_month_projection_payload(
     dept_admission_weekly: Optional[float] = None,
     dept_operation_weekly: Optional[float] = None,
     dept_profit_projection_total: Optional[float] = None,
+    profit_hybrid_g_override: Optional[float] = None,
 ) -> dict:
     """当月予測ペイロードを生成。
 
@@ -153,7 +156,9 @@ def build_month_projection_payload(
                if ga_target and ga_target > 0 else None)
 
     # ── 粗利 ──
-    # 月末予測は profit_hybrid.meta.latest_projection_total (= 月末見込み 百万円) を流用。
+    # 病院全体の月末予測は PLレポートと同じ G（MTDブレンド × recency補正）を使う。
+    #   profit_hybrid_g_override が来ればそれ（補正済み）、無ければ
+    #   meta.latest_mtdblend_total（補正なし）→ latest_projection_total の順でフォールバック。
     # 目標は profit_monthly 最新月の per-dept 目標から当月の biz/cal で補正して再計算。
     # MTD実績は profit_data が月単位確定値のみなので、当月の途中段階では取得不能 → None で表示せず。
     profit_mtd = None
@@ -163,8 +168,11 @@ def build_month_projection_payload(
     if dept is not None:
         if dept_profit_projection_total is not None:
             profit_proj = round(float(dept_profit_projection_total), 1)
+    elif profit_hybrid_g_override is not None:
+        profit_proj = round(float(profit_hybrid_g_override), 1)
     elif profit_hybrid_meta:
-        proj = profit_hybrid_meta.get("latest_projection_total")
+        proj = (profit_hybrid_meta.get("latest_mtdblend_total")
+                or profit_hybrid_meta.get("latest_projection_total"))
         if proj is not None:
             profit_proj = round(float(proj), 1)
     _ = profit_hybrid_hospital_series  # 将来 daily run-rate 推定が必要になった場合の参照点

@@ -40,18 +40,26 @@ from app.lib.pl_projection import (  # noqa: E402
     prediction_intervals,
     append_residual_log,
 )
-from app.lib.profit_estimate import build_hybrid_payload  # noqa: E402
+from app.lib.profit_estimate import (  # noqa: E402
+    build_hybrid_payload, apply_recency_calibration, last_complete_driver_date,
+)
 
 
 # ──────────────────────────────────────────
-# G_proj 取得（粗利推計 latest_projection_total）
+# G_proj 取得（粗利推計 MTDブレンド月末見込み + recency バイアス補正）
 # ──────────────────────────────────────────
 
 def fetch_profit_projection(adm: pd.DataFrame,
                               surg: pd.DataFrame,
                               profit_breakdown: pd.DataFrame,
-                              base_date: pd.Timestamp) -> tuple[float, dict]:
-    """build_hybrid_payload を呼び、当月末予測 G を百万円→千円に換算して返す。"""
+                              base_date: pd.Timestamp,
+                              calibrate: bool = True) -> tuple[float, dict]:
+    """build_hybrid_payload を呼び、当月末予測 G を百万円→千円に換算して返す。
+
+    G = MTDブレンド月末見込み × recency補正(k12_shrink50)。確定ロジックは
+    profit_estimate.apply_recency_calibration に集約し、ダッシュボードと共用・
+    同一キャッシュ参照で必ず同じ G になるようにしている。
+    """
     payload = build_hybrid_payload(
         profit_breakdown=profit_breakdown,
         surg=surg,
@@ -61,15 +69,17 @@ def fetch_profit_projection(adm: pd.DataFrame,
     if not payload:
         raise RuntimeError("粗利推計ペイロードが空でした")
     series_meta = payload.get("meta") or {}
-    # latest_projection_total は百万円（当月末見込み = 直近30日推計 × 当月営業日/窓内営業日）
-    proj_mil = series_meta.get("latest_projection_total")
-    if proj_mil is None:
-        raise RuntimeError(
-            "meta.latest_projection_total が取得できませんでした "
-            "(hospital_total.hybrid_pred は前月バックテスト値なので G の代用にしない)"
-        )
-    return float(proj_mil) * 1000.0, {  # 千円
-        "latest_projection_total_million": float(proj_mil),
+    g = apply_recency_calibration(series_meta, profit_breakdown, surg, adm,
+                                  base_date, calibrate=calibrate)
+    return g["g_million"] * 1000.0, {  # 千円
+        "g_metric": g["g_metric"],
+        "latest_projection_total_million": g["blend_million"],
+        "mtd_blend_weight": g["mtd_blend_weight"],
+        "raw_projection_million": g["raw_projection_million"],
+        "calibrated_million": g["g_million"],
+        "calibration_factor": g["calibration_factor"],
+        "calibration_n_months": g["calibration_n_months"],
+        "calibration_raw_median": g["calibration_raw_median"],
         "base_date": base_date.strftime("%Y-%m-%d"),
     }
 
@@ -445,10 +455,20 @@ def main():
     if args.base_date:
         base_date = pd.Timestamp(args.base_date)
     else:
-        base_date = pd.Timestamp(max(adm["日付"].max(), surg["手術実施日"].max()))
+        # G は全ドライバーが揃う最終日で推計（adm/surg のどちらかが欠けた日を避ける）。
+        # ダッシュボードと同一日になり G が一致する。
+        base_date = last_complete_driver_date(adm, surg)
     print(f"  基準日: {base_date.strftime('%Y-%m-%d')}")
     g_proj, g_meta = fetch_profit_projection(adm, surg, profit_breakdown, base_date)
-    print(f"  G_proj: {g_proj:,.0f} 千円 ({g_proj/1000:.0f} 百万円)")
+    _raw = g_meta.get("raw_projection_million")
+    _blend = g_meta["latest_projection_total_million"]   # MTDブレンド月末見込み
+    _w = g_meta.get("mtd_blend_weight")
+    _fac = g_meta["calibration_factor"]
+    print(f"  直近30日 projection: {_raw:.0f} 百万円" if _raw is not None else "")
+    print(f"  MTDブレンド (w={_w}, anchor8): {_blend:.0f} 百万円 [{g_meta['g_metric']}]")
+    print(f"  recency補正 ×{_fac} (k12_shrink50, n={g_meta['calibration_n_months']}, "
+          f"raw_median={g_meta['calibration_raw_median']})")
+    print(f"  G_proj(最終): {g_proj:,.0f} 千円 ({g_proj/1000:.0f} 百万円)")
 
     target_month = base_date.normalize().replace(day=1)
     print(f"[4/5] {target_month.strftime('%Y-%m')} 医業収支予測...")
@@ -474,7 +494,9 @@ def main():
     html = render_html(pl, delta, projection, bt, pi, residual_log, {
         "generated_at": datetime.now().strftime("%Y/%m/%d %H:%M"),
         "base_date": base_date.strftime("%Y-%m-%d"),
-        "g_source": "粗利推計 latest_projection_total",
+        "g_source": (f"粗利推計 MTDブレンド月末見込み(w={g_meta.get('mtd_blend_weight')}, anchor8)"
+                     f" ×{g_meta['calibration_factor']}"
+                     f"（recency補正 k12_shrink50, n={g_meta['calibration_n_months']}）"),
     })
     out_path.write_text(html, encoding="utf-8")
     print(f"  → {out_path.resolve()}")

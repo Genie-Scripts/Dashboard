@@ -27,3 +27,10 @@ spec/
 # 医業収支 推計レポート（ローカル閲覧専用・公開しない）
 output/pl_projection.html
 output/pl_residuals.csv
+
+# 粗利推計 recency 補正キャッシュ（データ由来・自動再生成）
+output/g_calib_cache.json
+
+# 月末見込み G バックテスト成果物（ローカル分析用・自動再生成）
+output/profit_projection_backtest.json
+output/profit_projection_backtest_daily.csv
