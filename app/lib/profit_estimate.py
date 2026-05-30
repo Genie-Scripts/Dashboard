@@ -1243,3 +1243,62 @@ def apply_recency_calibration(meta: Dict[str, Any],
         "calibration_n_months": n_cal,
         "calibration_raw_median": raw_median,
     }
+
+
+def blend_and_calibrate_series(hospital_series: Dict[str, Any],
+                               factor: float,
+                               anchor: int = MTD_BLEND_ANCHOR) -> Dict[str, Any]:
+    """チャート表示用「最終 月末見込み」系列を生成（= per-day MTDブレンド × 補正係数）。
+
+    末端が KPI / PLレポートの G と一致するので、折れ線・KPI・棒が揃う。
+    補正はスカラー倍なので段差（月末見込み方式）の形状は保たれる。
+
+    Returns:
+        {"series": {values_final_total/gairai/nyuin}, "latest": {latest_final_*}}
+        MTD 系列が無い payload では values_projection_* に補正のみ適用してフォールバック。
+    """
+    proj_t = hospital_series.get("values_projection_total") or []
+    proj_g = hospital_series.get("values_projection_gairai") or []
+    proj_n = hospital_series.get("values_projection_nyuin") or []
+    mtd_t  = hospital_series.get("values_mtd_total")
+    mtd_g  = hospital_series.get("values_mtd_gairai")
+    mtd_n  = hospital_series.get("values_mtd_nyuin")
+    be     = hospital_series.get("biz_elapsed_series") or []
+    n = len(proj_t)
+    has_mtd = bool(mtd_t) and len(mtd_t) == n and len(be) == n
+
+    def _blend(pv, mv, i):
+        if pv is None:
+            return None
+        if not has_mtd or mv is None:
+            return round(pv * factor, 2)
+        w = min(1.0, be[i] / float(anchor)) if be[i] else 0.0
+        return round((w * mv + (1 - w) * pv) * factor, 2)
+
+    fin_g, fin_n, fin_t = [], [], []
+    for i in range(n):
+        g = _blend(proj_g[i] if i < len(proj_g) else None,
+                   mtd_g[i] if has_mtd and i < len(mtd_g) else None, i)
+        nn = _blend(proj_n[i] if i < len(proj_n) else None,
+                    mtd_n[i] if has_mtd and i < len(mtd_n) else None, i)
+        fin_g.append(g)
+        fin_n.append(nn)
+        fin_t.append(round(g + nn, 2) if (g is not None and nn is not None) else None)
+
+    def _last(a):
+        v = [x for x in a if x is not None]
+        return v[-1] if v else None
+
+    return {
+        "series": {
+            "values_final_total":  fin_t,
+            "values_final_gairai": fin_g,
+            "values_final_nyuin":  fin_n,
+        },
+        "latest": {
+            "latest_final_total":  _last(fin_t),
+            "latest_final_gairai": _last(fin_g),
+            "latest_final_nyuin":  _last(fin_n),
+            "calibration_factor":  round(float(factor), 4),
+        },
+    }

@@ -279,7 +279,7 @@ function renderTabs() {
     const pSt = pk.hospital_achievement >= 100 ? {css:'ok',shape:'▲',text:'達成'} : pk.hospital_achievement >= 90 ? {css:'wr',shape:'―',text:'接近'} : {css:'dr',shape:'▼',text:'未達'};
     const bdLabel = pk.current_biz_days != null ? ` (営業${pk.current_biz_days}日)` : '';
     const hyMeta = (DATA.profit_hybrid && DATA.profit_hybrid.meta) || {};
-    const projT = hyMeta.latest_projection_total;
+    const projT = hyMeta.latest_final_total != null ? hyMeta.latest_final_total : hyMeta.latest_projection_total;
     const projLabel = (projT != null)
       ? `<br>📍 月末見込み ${projT}百万円`
       : '';
@@ -781,10 +781,11 @@ function renderEstimateChart() {
   const idx = hs.dates.findIndex(d => d >= cutoff);
   const slice = (arr) => idx >= 0 ? arr.slice(idx) : arr;
   const dates  = slice(hs.dates);
-  // 月末見込み変換後の系列を優先（旧 values_total は後方互換のため温存）
-  const total  = slice(hs.values_projection_total  || hs.values_total);
-  const gairai = slice(hs.values_projection_gairai || hs.values_gairai);
-  const nyuin  = slice(hs.values_projection_nyuin  || hs.values_nyuin);
+  // 最終月末見込み(values_final_*: MTDブレンド×補正, KPIと一致)を最優先。
+  // 無ければ projection → 旧 values_total の順でフォールバック。
+  const total  = slice(hs.values_final_total  || hs.values_projection_total  || hs.values_total);
+  const gairai = slice(hs.values_final_gairai || hs.values_projection_gairai || hs.values_gairai);
+  const nyuin  = slice(hs.values_final_nyuin  || hs.values_projection_nyuin  || hs.values_nyuin);
 
   const traces = [
     {name:'入院（月末見込み）', x:dates, y:nyuin, type:'scatter', mode:'lines', stackgroup:'one',
@@ -846,9 +847,10 @@ function renderEstimateChart() {
 
   // メタ情報
   const hyMeta = (DATA.profit_hybrid && DATA.profit_hybrid.meta) || {};
-  const projT = hyMeta.latest_projection_total;
-  const projG = hyMeta.latest_projection_gairai;
-  const projN = hyMeta.latest_projection_nyuin;
+  // KPI と同じ最終月末見込み(latest_final_*)を優先表示。無ければ projection。
+  const projT = hyMeta.latest_final_total  != null ? hyMeta.latest_final_total  : hyMeta.latest_projection_total;
+  const projG = hyMeta.latest_final_gairai != null ? hyMeta.latest_final_gairai : hyMeta.latest_projection_gairai;
+  const projN = hyMeta.latest_final_nyuin  != null ? hyMeta.latest_final_nyuin  : hyMeta.latest_projection_nyuin;
   const cmBiz = hyMeta.current_month_biz_days;
   const winBiz = hyMeta.window_biz_days;
   const baseMonth = (hyMeta.window_end || '').slice(0, 7);
