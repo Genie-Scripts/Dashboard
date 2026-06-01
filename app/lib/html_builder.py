@@ -676,6 +676,17 @@ def build_detail_json(adm, surg, targets, surg_targets,
             )
             profit_hybrid_section["hospital_series"].update(fin["series"])
             profit_hybrid_section["meta"].update(fin["latest"])
+            # 科別: 病院係数を流用して values_blend_* → values_final_* に変換。
+            # 同一スカラー係数なので Σ科別 final = 病院 final の整合が保たれる。
+            # blend は最終 JSON から削除（pop）しサイズ最小化（+3配列/科のみ）。
+            cf = cal["calibration_factor"]
+            for ser in profit_hybrid_section.get("series_by_dept", {}).values():
+                for suf in ("total", "gairai", "nyuin"):
+                    bl = ser.pop(f"values_blend_{suf}", None)
+                    if bl is not None:
+                        ser[f"values_final_{suf}"] = [
+                            round(v * cf, 2) if v is not None else None for v in bl
+                        ]
         except Exception:
             profit_g_calibrated = None
 
@@ -842,8 +853,13 @@ def build_detail_json(adm, surg, targets, surg_targets,
             continue
         dept_proj_total = None
         ser = hy_series_by_dept.get(dname)
-        if ser and ser.get("values_projection_total"):
-            tail = [v for v in ser["values_projection_total"] if v is not None]
+        # 病院 G と同方式（MTDブレンド×補正）の values_final_total を優先。
+        # 無ければ後方互換で values_projection_total。
+        proj_key = ("values_final_total"
+                    if (ser and ser.get("values_final_total"))
+                    else "values_projection_total")
+        if ser and ser.get(proj_key):
+            tail = [v for v in ser[proj_key] if v is not None]
             if tail:
                 dept_proj_total = tail[-1]
         try:

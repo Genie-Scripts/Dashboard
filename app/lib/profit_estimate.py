@@ -896,6 +896,11 @@ def _build_hybrid_daily_series(fit_models: Dict[str, Dict[str, Any]],
     hosp_g_mtd = pd.Series(0.0, index=dates)
     hosp_n_mtd = pd.Series(0.0, index=dates)
 
+    # 日次 MTD ブレンド重み w = min(1, 経過営業日 / anchor)（科に依存しない＝1回算出）。
+    # 病院全体の blend_and_calibrate_series と同一の重み式。科別 values_blend_* は
+    # この w で proj と MTD を混ぜた未補正系列。補正係数は html_builder で病院係数を流用。
+    w_day = (biz_elapsed / float(MTD_BLEND_ANCHOR)).clip(upper=1.0)
+
     def _baseline_series(value: Optional[float]) -> pd.Series:
         return pd.Series(float(value) if value else 0.0, index=dates)
 
@@ -943,7 +948,12 @@ def _build_hybrid_daily_series(fit_models: Dict[str, Dict[str, Any]],
                  if n_model else n_hy_proj)
         hosp_g_mtd = hosp_g_mtd.add(g_mtd, fill_value=0)
         hosp_n_mtd = hosp_n_mtd.add(n_mtd, fill_value=0)
-        # 科レベルは hybrid のみ（ファイルサイズ抑制）
+        # 日次 MTD ブレンド（未補正）: w·MTD + (1−w)·proj。病院全体の G と同方式。
+        # 補正係数（病院係数）は html_builder で values_final_* に変換する際に乗じる。
+        g_blend = w_day * g_mtd + (1.0 - w_day) * g_hy_proj
+        n_blend = w_day * n_mtd + (1.0 - w_day) * n_hy_proj
+        # 科レベルは hybrid のみ（ファイルサイズ抑制）。values_blend_* は html_builder で
+        # 病院係数を乗じて values_final_* に変換後、削除される（最終 JSON には残さない）。
         series_by_dept[dept] = {
             "dates":         [d.strftime("%Y-%m-%d") for d in dates],
             "values_total":  [round((gv + nv), 2) if m else None
@@ -958,6 +968,12 @@ def _build_hybrid_daily_series(fit_models: Dict[str, Dict[str, Any]],
                                 for v, m in zip(g_hy_proj, mask)],
             "values_projection_nyuin":  [round(v, 2) if m else None
                                 for v, m in zip(n_hy_proj, mask)],
+            "values_blend_total":  [round((gv + nv), 2) if m else None
+                                for gv, nv, m in zip(g_blend, n_blend, mask)],
+            "values_blend_gairai": [round(v, 2) if m else None
+                                for v, m in zip(g_blend, mask)],
+            "values_blend_nyuin":  [round(v, 2) if m else None
+                                for v, m in zip(n_blend, mask)],
         }
 
     mask = hosp_g_hy.index >= cutoff

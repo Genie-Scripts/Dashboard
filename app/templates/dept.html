@@ -877,10 +877,11 @@ function renderDeptEstimateChart(bd, hy) {
   const idx = s.dates.findIndex(d => d >= cutoff);
   const slice = (arr) => idx >= 0 ? arr.slice(idx) : arr;
   const dates  = slice(s.dates);
-  // 月末見込み変換後の系列を優先（旧 values_total は後方互換のため温存）
-  const total  = slice(s.values_projection_total  || s.values_total);
-  const gairai = slice(s.values_projection_gairai || s.values_gairai);
-  const nyuin  = slice(s.values_projection_nyuin  || s.values_nyuin);
+  // 病院 G と同方式（MTDブレンド×補正）の values_final_* を最優先。
+  // 無ければ values_projection_*、さらに旧 values_total に後方互換フォールバック。
+  const total  = slice(s.values_final_total  || s.values_projection_total  || s.values_total);
+  const gairai = slice(s.values_final_gairai || s.values_projection_gairai || s.values_gairai);
+  const nyuin  = slice(s.values_final_nyuin  || s.values_projection_nyuin  || s.values_nyuin);
 
   const traces = [
     {name:'入院（月末見込み）', x:dates, y:nyuin, type:'scatter', mode:'lines', stackgroup:'one',
