@@ -72,7 +72,7 @@ def check_files(data_dir: str, result: Optional[ValidationResult] = None) -> Val
         )
         return result
 
-    optional_keys = {"profit_data", "profit_target"}
+    optional_keys = {"profit_data", "profit_target", "outpatient_data"}
     labels = {
         "patient_data":   "入院データ",
         "patient_target": "在院・新入院目標",
@@ -80,6 +80,7 @@ def check_files(data_dir: str, result: Optional[ValidationResult] = None) -> Val
         "op_target":      "手術目標",
         "profit_data":    "粗利データ（省略可）",
         "profit_target":  "粗利目標（省略可）",
+        "outpatient_data": "外来件数データ（省略可・隣リポ集計を既定参照）",
     }
 
     info = inspect_data_dir(data_dir)
