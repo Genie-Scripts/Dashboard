@@ -85,6 +85,39 @@ def fetch_profit_projection(adm: pd.DataFrame,
     }
 
 
+def build_one_projection(pl: pd.DataFrame,
+                          delta: pd.DataFrame,
+                          g_monthly: pd.DataFrame,
+                          adm: pd.DataFrame,
+                          surg: pd.DataFrame,
+                          profit_breakdown: pd.DataFrame,
+                          target_month: pd.Timestamp,
+                          base_date: pd.Timestamp,
+                          label: str) -> dict:
+    """1か月分の G推計・医業収支予測・予測区間をまとめた entry を返す。
+
+    粗利確報が未入力の月を複数（前月＝月末見込み + 当月＝進行中）出すため、
+    既存の単月ロジックをそのまま月ごとにループ呼びする薄いラッパー。
+    """
+    g_proj, g_meta = fetch_profit_projection(adm, surg, profit_breakdown, base_date)
+    projection = project_monthly_balance(pl, delta, g_monthly,
+                                          target_month, g_override=g_proj)
+    pi = prediction_intervals(pl, delta, g_monthly, target_month, projection)
+    g_source = (f"粗利推計 MTDブレンド月末見込み(w={g_meta.get('mtd_blend_weight')}, anchor8)"
+                f" ×{g_meta['calibration_factor']}"
+                f"（recency補正 k12_shrink50, n={g_meta['calibration_n_months']}）")
+    return {
+        "target_month": target_month,
+        "base_date": base_date,
+        "projection": projection,
+        "pi": pi,
+        "g_meta": g_meta,
+        "g_source": g_source,
+        "label": label,
+        "g_proj": g_proj,
+    }
+
+
 # ──────────────────────────────────────────
 # HTML 生成
 # ──────────────────────────────────────────
@@ -105,13 +138,16 @@ def _color_balance(v: float) -> str:
 
 def render_html(pl_clean: pd.DataFrame,
                 delta_series: pd.DataFrame,
-                projection: dict,
+                entries: list,
                 bt: pd.DataFrame,
-                pi: dict,
                 residual_log_path: Path,
                 meta: dict,
                 monitor: dict) -> str:
-    """シンプル独立 HTML（ローカル閲覧専用）"""
+    """シンプル独立 HTML（ローカル閲覧専用）。
+
+    entries: build_one_projection() の戻り値リスト（時系列順）。粗利確報が
+    未入力のとき前月＋当月が並ぶ。確報入力で対象が1件に収束する。
+    """
     months_iso = [d.strftime("%Y-%m") for d in pl_clean["月"].tolist()]
 
     # 推移グラフデータ（25か月）
@@ -127,33 +163,91 @@ def render_html(pl_clean: pd.DataFrame,
                                     on="月", how="left")
     series["δ"] = delta_aligned["δ"].fillna(0).round(0).tolist()
 
-    # 予測値
-    proj_month = projection["月"].strftime("%Y-%m")
-    proj_balance = projection["予測医業収支"]
-    proj_revenue = projection["予測R_minus_M"]
+    # ── 予測対象月ごとのサマリ＋内訳（粗利未確定の月が複数並ぶ） ──
+    def _entry_summary_html(entry: dict) -> str:
+        proj = entry["projection"]
+        pi = entry["pi"]
+        proj_month = proj["月"].strftime("%Y-%m")
+        proj_balance = proj["予測医業収支"]
+        proj_revenue = proj["予測R_minus_M"]
+        parts = {k: proj[k] for k in
+                 ("G", "δ", "給与費", "委託費", "設備関係費", "経費")}
 
-    # 予測区間
-    if pi.get("available"):
-        pi_text = (f"<div class='sub'>"
-                   f"σ = ±{pi['sigma']/1000:,.0f}百万円 / "
-                   f"80% PI [{pi['pi80_lo']/1000:+,.0f}, {pi['pi80_hi']/1000:+,.0f}] / "
-                   f"95% PI [{pi['pi95_lo']/1000:+,.0f}, {pi['pi95_hi']/1000:+,.0f}] 百万円"
-                   f"</div>")
-        pi80_lo = pi["pi80_lo"]
-        pi80_hi = pi["pi80_hi"]
-        pi95_lo = pi["pi95_lo"]
-        pi95_hi = pi["pi95_hi"]
-    else:
-        pi_text = "<div class='sub'>予測区間: バックテスト不足</div>"
-        pi80_lo = pi80_hi = pi95_lo = pi95_hi = None
-    parts = {
-        "G": projection["G"],
-        "δ": projection["δ"],
-        "給与費": projection["給与費"],
-        "委託費": projection["委託費"],
-        "設備関係費": projection["設備関係費"],
-        "経費": projection["経費"],
-    }
+        if pi.get("available"):
+            pi_text = (f"<div class='sub'>"
+                       f"σ = ±{pi['sigma']/1000:,.0f}百万円 / "
+                       f"80% PI [{pi['pi80_lo']/1000:+,.0f}, {pi['pi80_hi']/1000:+,.0f}] / "
+                       f"95% PI [{pi['pi95_lo']/1000:+,.0f}, {pi['pi95_hi']/1000:+,.0f}] 百万円"
+                       f"</div>")
+        else:
+            pi_text = "<div class='sub'>予測区間: バックテスト不足</div>"
+
+        parts_rows = []
+        for plabel, info in [
+            ("粗利 G (推計)", parts["G"]),
+            ("δ (材料収支差)", parts["δ"]),
+            ("R−M 予測 = G + δ", {"value": proj_revenue, "source": ""}),
+            ("− 給与費", parts["給与費"]),
+            ("− 委託費", parts["委託費"]),
+            ("− 設備関係費", parts["設備関係費"]),
+            ("− 経費", parts["経費"]),
+        ]:
+            v = info["value"]
+            method = info.get("method") or info.get("source") or ""
+            parts_rows.append(
+                f"<tr><td>{plabel}</td><td style='text-align:right'>{v:+,.0f}</td>"
+                f"<td style='color:#888;font-size:0.85em'>{method}</td></tr>"
+            )
+        parts_rows.append(
+            f"<tr style='border-top:2px solid #333;font-weight:700'>"
+            f"<td>医業収支 予測</td>"
+            f"<td style='text-align:right;color:{_color_balance(proj_balance)}'>"
+            f"{proj_balance:+,.0f} 千円</td><td></td></tr>"
+        )
+
+        return f"""
+<h2>📅 {proj_month} 予測サマリ <span class="sub">{entry['label']}</span></h2>
+<div class="metric-grid">
+  <div class="metric">
+    <div class="label">医業収益 予測 (R−M = G + δ)</div>
+    <div class="value">{_fmt_yen(proj_revenue, "百万円")}</div>
+  </div>
+  <div class="metric">
+    <div class="label">給与費 予測</div>
+    <div class="value">{_fmt_yen(parts["給与費"]["value"], "百万円")}</div>
+  </div>
+  <div class="metric">
+    <div class="label">委託費＋設備＋経費 予測</div>
+    <div class="value">{_fmt_yen(parts["委託費"]["value"] + parts["設備関係費"]["value"] + parts["経費"]["value"], "百万円")}</div>
+  </div>
+  <div class="metric">
+    <div class="label">医業収支 予測</div>
+    <div class="value" style="color:{_color_balance(proj_balance)}">
+      {proj_balance/1000:+,.0f} 百万円
+    </div>
+    {pi_text}
+  </div>
+</div>
+<div class="card">
+<table>
+<thead><tr><th>項目</th><th>値</th><th>算出方法</th></tr></thead>
+<tbody>
+{chr(10).join(parts_rows)}
+</tbody>
+</table>
+<p class="sub" style="margin-top:8px">G ({entry['g_source']}) は粗利推計 latest_projection_total から取得。
+δ は (R−M) − G の構造的差分（DPC包括分等の購入差）。</p>
+</div>
+"""
+
+    summary_sections = "\n".join(_entry_summary_html(e) for e in entries)
+    proj_points = [{"month": e["projection"]["月"].strftime("%Y-%m"),
+                    "balance": float(e["projection"]["予測医業収支"])}
+                   for e in entries]
+    multi_note = ("" if len(entries) <= 1 else
+                  "<br><b>※ 粗利確報が未入力のため、確定前の月を複数併記しています</b>"
+                  "（前月＝月末時点のフル月見込み／当月＝進行中の早期見込み）。"
+                  "粗利が確定入力されると、その月は自動的に実績へ切り替わり単月表示に戻ります。")
 
     # バックテスト精度
     if len(bt) > 0:
@@ -220,12 +314,7 @@ def render_html(pl_clean: pd.DataFrame,
     chart_data = {
         "months": months_iso,
         "series": series,
-        "projection_month": proj_month,
-        "projection_balance": float(proj_balance),
-        "pi80_lo": pi80_lo,
-        "pi80_hi": pi80_hi,
-        "pi95_lo": pi95_lo,
-        "pi95_hi": pi95_hi,
+        "projections": proj_points,
         "bt_months": bt_months,
         "bt_actual": bt_actual,
         "bt_pred": bt_pred,
@@ -255,30 +344,6 @@ def render_html(pl_clean: pd.DataFrame,
         for _, r in rows_recent.iterrows()
     )
 
-    # 予測内訳テーブル
-    parts_rows = []
-    for label, info in [
-        ("粗利 G (推計)", parts["G"]),
-        ("δ (材料収支差)", parts["δ"]),
-        ("R−M 予測 = G + δ", {"value": proj_revenue, "source": ""}),
-        ("− 給与費", parts["給与費"]),
-        ("− 委託費", parts["委託費"]),
-        ("− 設備関係費", parts["設備関係費"]),
-        ("− 経費", parts["経費"]),
-    ]:
-        v = info["value"]
-        method = info.get("method") or info.get("source") or ""
-        parts_rows.append(
-            f"<tr><td>{label}</td><td style='text-align:right'>{v:+,.0f}</td>"
-            f"<td style='color:#888;font-size:0.85em'>{method}</td></tr>"
-        )
-    parts_rows.append(
-        f"<tr style='border-top:2px solid #333;font-weight:700'>"
-        f"<td>医業収支 予測</td>"
-        f"<td style='text-align:right;color:{_color_balance(proj_balance)}'>"
-        f"{proj_balance:+,.0f} 千円</td><td></td></tr>"
-    )
-
     # バックテストテーブル
     bt_rows = "\n".join(
         f"<tr><td>{m}</td>"
@@ -291,7 +356,6 @@ def render_html(pl_clean: pd.DataFrame,
 
     gen = meta.get("generated_at", datetime.now().strftime("%Y/%m/%d %H:%M"))
     base_date = meta.get("base_date", "")
-    g_source = meta.get("g_source", "")
 
     return f"""<!DOCTYPE html>
 <html lang="ja">
@@ -329,43 +393,10 @@ canvas {{max-height:340px}}
 <div class="note">
 本レポートは <code>data/PL.xlsx</code>（月次確報）と粗利推計を組み合わせた
 医業収支の月末予測です。費目モデルの誤差により絶対値は±25-50百万円程度の振れを想定。
-方向性把握（黒字／赤字／前月比）が主目的です。
+方向性把握（黒字／赤字／前月比）が主目的です。{multi_note}
 </div>
 
-<h2>📅 当月予測サマリ ({proj_month})</h2>
-<div class="metric-grid">
-  <div class="metric">
-    <div class="label">医業収益 予測 (R−M = G + δ)</div>
-    <div class="value">{_fmt_yen(proj_revenue, "百万円")}</div>
-  </div>
-  <div class="metric">
-    <div class="label">給与費 予測</div>
-    <div class="value">{_fmt_yen(parts["給与費"]["value"], "百万円")}</div>
-  </div>
-  <div class="metric">
-    <div class="label">委託費＋設備＋経費 予測</div>
-    <div class="value">{_fmt_yen(parts["委託費"]["value"] + parts["設備関係費"]["value"] + parts["経費"]["value"], "百万円")}</div>
-  </div>
-  <div class="metric">
-    <div class="label">医業収支 予測</div>
-    <div class="value" style="color:{_color_balance(proj_balance)}">
-      {proj_balance/1000:+,.0f} 百万円
-    </div>
-    {pi_text}
-  </div>
-</div>
-
-<h2>予測内訳（千円）</h2>
-<div class="card">
-<table>
-<thead><tr><th>項目</th><th>値</th><th>算出方法</th></tr></thead>
-<tbody>
-{chr(10).join(parts_rows)}
-</tbody>
-</table>
-<p class="sub" style="margin-top:8px">G ({g_source}) は粗利推計 latest_projection_total から取得。
-δ は (R−M) − G の構造的差分（DPC包括分等の購入差）。</p>
-</div>
+{summary_sections}
 
 <h2>材料費モニタリング <span class="sub">(薬剤パススルー除去・インフレ早期検知)</span></h2>
 <div class="card">
@@ -495,17 +526,17 @@ new Chart(document.getElementById('deltaChart'), {{
 new Chart(document.getElementById('balanceChart'), {{
   type: 'bar',
   data: {{
-    labels: [...data.months, data.projection_month],
+    labels: [...data.months, ...data.projections.map(p=>p.month)],
     datasets: [
       {{
         label:'医業収支 実績',
-        data: [...data.series['医業収支'], null],
+        data: [...data.series['医業収支'], ...data.projections.map(_=>null)],
         backgroundColor: data.series['医業収支'].map(v=>v>=0?'#0a8a3a':'#c13a3a'),
       }},
       {{
         label:'医業収支 予測',
-        data: [...data.series['医業収支'].map(_=>null), data.projection_balance],
-        backgroundColor: data.projection_balance>=0?'#0a8a3a99':'#c13a3a99',
+        data: [...data.series['医業収支'].map(_=>null), ...data.projections.map(p=>p.balance)],
+        backgroundColor: data.projections.map(p=>p.balance>=0?'#0a8a3a99':'#c13a3a99'),
         borderColor: '#333',
         borderWidth: 1,
       }},
@@ -555,58 +586,73 @@ def main():
     print(f"  δ rows: {len(delta)} | δ率中央値: "
           f"{delta['δ率'].median():.2f}%")
 
-    print("[3/5] 当月 G 推計（粗利推計から）...")
+    print("[3/5] 予測対象月の決定 + 当月/未確定前月 G 推計...")
     if args.base_date:
+        # 明示指定時は従来どおり単月（その月のみ）。デバッグ・再現用。
         base_date = pd.Timestamp(args.base_date)
+        driver_month = base_date.normalize().replace(day=1)
+        target_months = [driver_month]
     else:
         # G は全ドライバーが揃う最終日で推計（adm/surg のどちらかが欠けた日を避ける）。
         # ダッシュボードと同一日になり G が一致する。
         base_date = last_complete_driver_date(adm, surg)
-    print(f"  基準日: {base_date.strftime('%Y-%m-%d')}")
-    g_proj, g_meta = fetch_profit_projection(adm, surg, profit_breakdown, base_date)
-    _raw = g_meta.get("raw_projection_million")
-    _blend = g_meta["latest_projection_total_million"]   # MTDブレンド月末見込み
-    _w = g_meta.get("mtd_blend_weight")
-    _fac = g_meta["calibration_factor"]
-    print(f"  直近30日 projection: {_raw:.0f} 百万円" if _raw is not None else "")
-    print(f"  MTDブレンド (w={_w}, anchor8): {_blend:.0f} 百万円 [{g_meta['g_metric']}]")
-    print(f"  recency補正 ×{_fac} (k12_shrink50, n={g_meta['calibration_n_months']}, "
-          f"raw_median={g_meta['calibration_raw_median']})")
-    print(f"  G_proj(最終): {g_proj:,.0f} 千円 ({g_proj/1000:.0f} 百万円)")
+        driver_month = base_date.normalize().replace(day=1)
+        # 確定済み粗利の最終月（g_monthly = profit_breakdown 集約）の翌月〜ドライバー月を
+        # すべて予測対象に。粗利確報が未入力の月（例: 確報待ちの前月）を併記し、
+        # 粗利が確定入力されると対象から外れて自動的に当月単月へ収束する。
+        last_g_month = g_monthly["月"].max()
+        target_months = pd.date_range(last_g_month + pd.offsets.MonthBegin(1),
+                                      driver_month, freq="MS").tolist()
+        if not target_months:
+            target_months = [driver_month]
+        target_months = target_months[-3:]  # データ遅延暴走防止（直近3か月上限）
+    print(f"  基準日(ドライバー最終): {base_date.strftime('%Y-%m-%d')} / "
+          f"予測対象: {', '.join(m.strftime('%Y-%m') for m in target_months)}")
 
-    target_month = base_date.normalize().replace(day=1)
-    print(f"[4/5] {target_month.strftime('%Y-%m')} 医業収支予測...")
-    projection = project_monthly_balance(pl, delta, g_monthly,
-                                          target_month, g_override=g_proj)
-    print(f"  予測医業収支: {projection['予測医業収支']/1000:+,.0f} 百万円")
+    entries = []
+    for m in target_months:
+        month_end = m + pd.offsets.MonthEnd(0)
+        base_date_m = min(base_date, month_end)
+        is_complete = base_date_m >= month_end
+        label = ("月末時点・粗利確報待ちの推計（暫定値）" if is_complete
+                 else f"進行中・基準日 {base_date_m.strftime('%Y-%m-%d')}")
+        entry = build_one_projection(pl, delta, g_monthly, adm, surg,
+                                      profit_breakdown, m, base_date_m, label)
+        entries.append(entry)
+        gm = entry["g_meta"]
+        print(f"  [{m.strftime('%Y-%m')}] base={base_date_m.strftime('%Y-%m-%d')} "
+              f"w={gm.get('mtd_blend_weight')} ×{gm['calibration_factor']} "
+              f"G={entry['g_proj']/1000:,.0f}百万 "
+              f"収支={entry['projection']['予測医業収支']/1000:+,.0f}百万")
 
-    print("[5/5] バックテスト + 予測区間 + HTML 出力...")
+    print("[4/5] バックテスト + 材料費モニタリング...")
     bt = backtest(pl, delta, g_monthly, n_holdout=8)
-    pi = prediction_intervals(pl, delta, g_monthly, target_month, projection)
     monitor = material_cost_monitoring(pl, g_monthly)
     _mst = monitor["status"]
     print(f"  材料費モニタ [{_mst[0]}]: 構造δトレンド "
           f"{monitor['trends']['δ_構造']['slope_per_month']:+.1f}百万/月 "
           f"(R²={monitor['trends']['δ_構造']['r2']}) / 非薬剤材料 "
           f"{monitor['trends']['非薬剤材料']['annual']:+.0f}百万/年")
-    if pi.get("available"):
-        print(f"  予測区間 σ=±{pi['sigma']/1000:,.0f}百万円  "
-              f"80% PI: [{pi['pi80_lo']/1000:+,.0f}, {pi['pi80_hi']/1000:+,.0f}]")
+    for e in entries:
+        pi = e["pi"]
+        if pi.get("available"):
+            print(f"  [{e['target_month'].strftime('%Y-%m')}] 予測区間 "
+                  f"σ=±{pi['sigma']/1000:,.0f}百万円  "
+                  f"80% PI: [{pi['pi80_lo']/1000:+,.0f}, {pi['pi80_hi']/1000:+,.0f}]")
 
-    # 残差ログ追記（過去月の予測実施時のみ意味あり。当月予測ではほぼ no-op）
+    print("[5/5] 残差ログ + HTML 出力...")
+    # 残差ログ追記（過去月の予測実施時のみ意味あり。当月/前月予測ではほぼ no-op）
     out_path = Path(args.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     residual_log = out_path.parent / "pl_residuals.csv"
-    append_residual_log(str(residual_log), projection, pl,
-                          pd.Timestamp(datetime.now()))
+    now_ts = pd.Timestamp(datetime.now())
+    for e in entries:
+        append_residual_log(str(residual_log), e["projection"], pl, now_ts)
     print(f"  残差ログ: {residual_log}")
 
-    html = render_html(pl, delta, projection, bt, pi, residual_log, {
+    html = render_html(pl, delta, entries, bt, residual_log, {
         "generated_at": datetime.now().strftime("%Y/%m/%d %H:%M"),
         "base_date": base_date.strftime("%Y-%m-%d"),
-        "g_source": (f"粗利推計 MTDブレンド月末見込み(w={g_meta.get('mtd_blend_weight')}, anchor8)"
-                     f" ×{g_meta['calibration_factor']}"
-                     f"（recency補正 k12_shrink50, n={g_meta['calibration_n_months']}）"),
     }, monitor)
     out_path.write_text(html, encoding="utf-8")
     print(f"  → {out_path.resolve()}")
