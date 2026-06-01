@@ -18,7 +18,7 @@ from .config import (
     TARGET_INPATIENT_WEEKDAY, TARGET_INPATIENT_HOLIDAY,
     TARGET_INPATIENT_ALLDAY, TARGET_ADMISSION_WEEKLY, TARGET_GA_DAILY,
     KPI_ICONS, AXIS_ICONS, status_display, status_label,
-    SURGERY_DISPLAY_DEPTS, NADM_DISPLAY_DEPTS,
+    SURGERY_DISPLAY_DEPTS, NADM_DISPLAY_DEPTS, PROFIT_ONLY_DISPLAY_DEPTS,
 )
 from .metrics import (
     build_kpi_summary, build_dept_ranking, build_ward_ranking,
@@ -393,7 +393,11 @@ def build_detail_json(adm, surg, targets, surg_targets,
     r7_planned_ward  = (_w7[_w7["病棟_表示"]].groupby("病棟コード")["入院患者数"].sum().astype(int).to_dict())
     r7_emg_ward      = (_w7[_w7["病棟_表示"]].groupby("病棟コード")["緊急入院患者数"].sum().astype(int).to_dict())
 
-    for dept in NADM_DISPLAY_DEPTS | SURGERY_DISPLAY_DEPTS:
+    # PROFIT_ONLY 科（放射線治療科・メンタルケア科）は入院/手術の患者データに
+    # 出ないが粗利はあるため drill に含める。入院/手術 KPI は target/actual が
+    # 無く None/0 になり、フロントは「—」表示・手術行非表示で吸収する。粗利は
+    # 後段の profit / profit_hybrid attach で既存経路どおり付与される。
+    for dept in NADM_DISPLAY_DEPTS | SURGERY_DISPLAY_DEPTS | PROFIT_ONLY_DISPLAY_DEPTS:
         is_surgery_dept = dept in SURGERY_DISPLAY_DEPTS
         adm_actual = r7_nadm["by_dept"].get(dept, 0)
         adm_target = nadm_tgt.get(dept)

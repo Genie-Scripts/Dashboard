@@ -63,6 +63,14 @@ SURGERY_DISPLAY_DEPTS = {
     "心臓血管外科", "乳腺外科", "形成外科", "脳神経外科",
 }
 
+# 粗利のみ存在し、入院・手術の患者データに出ない科。
+# dept.html に「粗利ページのみ」を表示するための表示集合。
+# NADM/SURGERY_DISPLAY_DEPTS には入れない（alerts/triage の新入院・手術
+# 判定に巻き込むと、患者データの無い科で誤判定/空処理になるため）。
+PROFIT_ONLY_DISPLAY_DEPTS = {
+    "放射線治療科", "メンタルケア科",
+}
+
 # 手術室稼働対象（正規化後の名称）
 OR_ROOMS_ACTIVE = {f"OP-{i}" for i in range(1, 11)} | {"OP-12"}
 
