@@ -120,6 +120,69 @@ def compute_delta_series(pl_clean: pd.DataFrame,
     return df.sort_values("月").reset_index(drop=True)
 
 
+def _ols_slope(y: np.ndarray) -> tuple:
+    """月次系列の線形トレンド (slope/月, R²)。点数 < 6 なら (0, None)。"""
+    y = np.asarray(y, dtype=float)
+    if len(y) < 6:
+        return 0.0, None
+    x = np.arange(len(y))
+    s, b = np.polyfit(x, y, 1)
+    resid = y - (s * x + b)
+    ss_tot = float(np.sum((y - y.mean()) ** 2))
+    r2 = (1.0 - float(np.sum(resid ** 2)) / ss_tot) if ss_tot > 0 else None
+    return float(s), (round(r2, 2) if r2 is not None else None)
+
+
+def material_cost_monitoring(pl_clean: pd.DataFrame,
+                              g_monthly: pd.DataFrame) -> dict:
+    """材料費モニタリング: 薬剤パススルーを除いた『構造δ』と非薬剤材料の推移・トレンド。
+
+    δ = (R − M) − G は、材料費(PL=購入額ベース)と粗利の薬剤控除(点数=償還ベース)の
+    計上タイミング差で月次の振れが大きい（医薬品費 vs δ の相関 ≈ −0.55）。高額薬剤を
+    購入した月は M だけ先に膨らみ δ が一時的に悪化するが、これは翌月以降に反転する
+    パススルー。医薬品費の中央値乖離を控除した『構造δ』で薬剤購入ノイズを除去し、
+    原油・ナフサ等による非薬剤材料(診療材料費+医療消耗器具備品費)の構造的悪化を
+    早期検知する観測指標。推計式(predict_delta は生δの中央値)は変更しない。
+
+    Returns:
+        {rows: DataFrame[月,医薬品費,非薬剤材料,δ,δ_構造], trends:{col:{slope_per_month,annual,r2}},
+         median_drug, status}
+    """
+    m = pl_clean.merge(g_monthly, on="月", how="inner").sort_values("月").copy()
+    m["R_minus_M"] = m["医業収益"] - m["材料費"]
+    m["δ"] = m["R_minus_M"] - m["G"]
+    m["非薬剤材料"] = m["診療材料費"] + m["医療消耗器具備品費"]
+    med_drug = float(m["医薬品費"].median())
+    # 構造δ: 医薬品費が中央値より高い月はその分 δ を押し下げているので戻す
+    m["δ_構造"] = m["δ"] + m["医薬品費"] - med_drug
+
+    trends = {}
+    for col in ["医薬品費", "非薬剤材料", "δ", "δ_構造"]:
+        # 傾きは百万円ベースで保持（slope_per_month=百万/月, annual=百万/年）
+        s, r2 = _ols_slope(m[col].values / 1000.0)
+        trends[col] = {"slope_per_month": round(s, 1),
+                       "annual": round(s * 12, 0), "r2": r2}
+
+    # ステータス判定: 構造δ が持続的に悪化（負トレンド × 説明力あり）なら警告
+    st = trends["δ_構造"]
+    slope, r2 = st["slope_per_month"], st["r2"]
+    if r2 is not None and r2 >= 0.30 and slope <= -3.0:
+        status = ("warn", "構造δに持続的悪化の兆候。点数改定遅れ等で非薬剤材料の"
+                          "回収不足が出ている可能性。δのトレンド導入を検討。")
+    elif slope < -1.0:
+        status = ("watch", "構造δがやや悪化方向（弱い）。非薬剤材料インフレを継続監視。")
+    else:
+        status = ("ok", "構造δは横ばい〜改善。材料コスト増は償還側で相殺されており、"
+                        "インフレは医業収支に未顕在。現行の生δ中央値で問題なし。")
+
+    return {
+        "rows": m[["月", "医薬品費", "非薬剤材料", "δ", "δ_構造"]].reset_index(drop=True),
+        "trends": trends,
+        "median_drug": med_drug,
+        "status": status,
+    }
+
+
 # ──────────────────────────────────────────
 # 費目別予測モデル
 # ──────────────────────────────────────────
@@ -156,8 +219,14 @@ def predict_payroll(pl_clean: pd.DataFrame, target: pd.Timestamp) -> dict:
                     "offset": 0.0,
                     "method": "過去4月 median"}
 
-    # 5-3月: 直近6か月 robust median + 過去同月オフセット
-    base = float(_mad_filter(df.tail(6)["給与費"]).median())
+    # 5-3月: 当年度（最新4月改定以降）の直近6か月 robust median + 過去同月オフセット
+    #   直近窓が4月の給与改定境界を跨ぐと旧改定水準の月が混入し、新年度序盤を
+    #   過小予測する（例: 5月は直近6か月のうち5か月が旧年度の低水準）。当年度
+    #   （同一改定年度）の月だけに窓を絞り、4月で確定した改定後レベルを継承する。
+    #   年度が進めば窓は当年度月で埋まり従来挙動に収束（8moバックテストでMAE不変）。
+    cur_fy = df[df["月"].apply(_fiscal_year) == _fiscal_year(target)]
+    window = cur_fy if not cur_fy.empty else df
+    base = float(_mad_filter(window.tail(6)["給与費"]).median())
     same_month = _mad_filter(df[df["月"].dt.month == target.month]["給与費"])
     if len(same_month) >= 1:
         all_filt = _mad_filter(df["給与費"])
@@ -168,7 +237,7 @@ def predict_payroll(pl_clean: pd.DataFrame, target: pd.Timestamp) -> dict:
         "value": base + offset,
         "base": base,
         "offset": offset,
-        "method": f"直近6mo median + 同月offset({offset:+,.0f})",
+        "method": f"当年度{len(window)}mo median + 同月offset({offset:+,.0f})",
     }
 
 
@@ -247,11 +316,17 @@ def _predict_cost_with_offset(series_by_month: pd.DataFrame,
 
 
 def predict_consign(pl_clean: pd.DataFrame, target: pd.Timestamp) -> dict:
-    """委託費: 暦日正規化での直近12mo median + 同月オフセット."""
+    """委託費: 暦日正規化 + 線形トレンド（契約・価格改定は4月固定でないため recency 重視）.
+
+    委託費は緩やかな漸増（slope>0, R²≈0.80）があり、12mo median だけだと過去の
+    安い月に引きずられ系統的に過小予測する（直近実績166-176に対し162）。OLS
+    トレンドで現水準まで持ち上げる。改定時期が4月とは限らないため給与費のような
+    年度アンカーは当てない。
+    """
     r = _predict_cost_with_offset(pl_clean, "委託費", target,
-                                    day_basis="cal", use_trend=False)
+                                    day_basis="cal", use_trend=True)
     return {"value": r["value"],
-            "method": f"暦日{int(r['target_days'])}日換算"}
+            "method": f"暦日{int(r['target_days'])}日換算+trend"}
 
 
 def predict_facility(pl_clean: pd.DataFrame, target: pd.Timestamp) -> dict:

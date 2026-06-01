@@ -39,6 +39,7 @@ from app.lib.pl_projection import (  # noqa: E402
     backtest,
     prediction_intervals,
     append_residual_log,
+    material_cost_monitoring,
 )
 from app.lib.profit_estimate import (  # noqa: E402
     build_hybrid_payload, apply_recency_calibration, last_complete_driver_date,
@@ -108,7 +109,8 @@ def render_html(pl_clean: pd.DataFrame,
                 bt: pd.DataFrame,
                 pi: dict,
                 residual_log_path: Path,
-                meta: dict) -> str:
+                meta: dict,
+                monitor: dict) -> str:
     """シンプル独立 HTML（ローカル閲覧専用）"""
     months_iso = [d.strftime("%Y-%m") for d in pl_clean["月"].tolist()]
 
@@ -175,6 +177,45 @@ def render_html(pl_clean: pd.DataFrame,
         except Exception:
             res_rows = []
 
+    # ── 材料費モニタリング（薬剤パススルー除去・インフレ早期検知） ──
+    mrows = monitor["rows"]
+    mon_months = [d.strftime("%Y-%m") for d in mrows["月"].tolist()]
+    mt = monitor["trends"]
+    st_kind, st_msg = monitor["status"]
+    st_color = {"ok": "#0a8a3a", "watch": "#a55b00", "warn": "#c13a3a"}[st_kind]
+    st_label = {"ok": "✓ 良好", "watch": "△ 監視", "warn": "⚠ 警告"}[st_kind]
+
+    def _trend_row(label, key, good_up=True):
+        t = mt[key]
+        ann = t["annual"]  # 既に百万円/年
+        r2 = t["r2"]
+        # 良し悪しの色: good_up=True は上昇が良い（収益系）、構造δは上昇=改善
+        arrow = "↗" if t["slope_per_month"] > 0 else ("↘" if t["slope_per_month"] < 0 else "→")
+        return (f"<tr><td>{label}</td>"
+                f"<td style='text-align:right'>{t['slope_per_month']:+,.1f}</td>"
+                f"<td style='text-align:right'>{ann:+,.0f}</td>"
+                f"<td style='text-align:right'>{arrow}</td>"
+                f"<td style='text-align:right;color:#888'>"
+                f"{('—' if r2 is None else f'{r2:.2f}')}</td></tr>")
+
+    monitor_trend_rows = (
+        _trend_row("構造δ（薬剤購入除去後）", "δ_構造")
+        + _trend_row("非薬剤材料（診療材料+消耗品）", "非薬剤材料")
+        + _trend_row("医薬品費（パススルー）", "医薬品費")
+        + _trend_row("δ 実績（生）", "δ")
+    )
+    mon_recent = mrows.tail(12).copy()
+    mon_recent["月_s"] = mon_recent["月"].dt.strftime("%Y-%m")
+    monitor_table_rows = "\n".join(
+        f"<tr><td>{r['月_s']}</td>"
+        f"<td>{r['医薬品費']/1000:,.0f}</td>"
+        f"<td>{r['非薬剤材料']/1000:,.0f}</td>"
+        f"<td style='color:{_color_balance(r['δ'])}'>{r['δ']/1000:+,.0f}</td>"
+        f"<td style='color:{_color_balance(r['δ_構造'])};font-weight:600'>"
+        f"{r['δ_構造']/1000:+,.0f}</td></tr>"
+        for _, r in mon_recent.iterrows()
+    )
+
     # チャート用 JSON
     chart_data = {
         "months": months_iso,
@@ -188,10 +229,17 @@ def render_html(pl_clean: pd.DataFrame,
         "bt_months": bt_months,
         "bt_actual": bt_actual,
         "bt_pred": bt_pred,
+        "mon_months": mon_months,
+        "mon_delta": mrows["δ"].round(0).tolist(),
+        "mon_delta_struct": mrows["δ_構造"].round(0).tolist(),
+        "mon_nondrug": mrows["非薬剤材料"].round(0).tolist(),
     }
 
     rows_recent = pl_clean.tail(6).copy()
     rows_recent["月_str"] = rows_recent["月"].dt.strftime("%Y-%m")
+    # 構造収支 = 医業収支 + (医薬品費 − 薬剤中央値)。高額薬剤の購入計上タイミングを均し、
+    # 月間比較を直感に合わせる（薬剤は粗利Gで控除済み＝本来パススルー）。
+    _med_drug = monitor["median_drug"]
     table_rows = "\n".join(
         f"<tr><td>{r['月_str']}</td>"
         f"<td>{r['医業収益']:,.0f}</td>"
@@ -201,7 +249,9 @@ def render_html(pl_clean: pd.DataFrame,
         f"<td>{r['設備関係費']:,.0f}</td>"
         f"<td>{r['経費']:,.0f}</td>"
         f"<td style='color:{_color_balance(r['医業収支'])};font-weight:600'>"
-        f"{r['医業収支']:+,.0f}</td></tr>"
+        f"{r['医業収支']:+,.0f}</td>"
+        f"<td style='color:{_color_balance(r['医業収支'] + r['医薬品費'] - _med_drug)}'>"
+        f"{r['医業収支'] + r['医薬品費'] - _med_drug:+,.0f}</td></tr>"
         for _, r in rows_recent.iterrows()
     )
 
@@ -317,15 +367,44 @@ canvas {{max-height:340px}}
 δ は (R−M) − G の構造的差分（DPC包括分等の購入差）。</p>
 </div>
 
+<h2>材料費モニタリング <span class="sub">(薬剤パススルー除去・インフレ早期検知)</span></h2>
+<div class="card">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+    <span style="background:{st_color};color:#fff;padding:3px 10px;border-radius:6px;
+                 font-weight:700;font-size:0.9em">{st_label}</span>
+    <span style="color:#444">{st_msg}</span>
+  </div>
+  <p class="sub">高額薬剤（医薬品費）は粗利 G から控除済みで本来パススルーだが、材料費(購入額)と
+  償還(点数)の計上ズレで δ に一時的に漏れる（例: 2026-04 は医薬品費スパイクで δ −260、
+  薬剤購入を戻した<b>構造δは −94</b>）。構造δと非薬剤材料のトレンドで、原油・ナフサ等による
+  <b>材料インフレが医業収支に効き始める前兆</b>を監視する。推計式（δは生の中央値）は不変。</p>
+  <table style="margin-top:6px">
+    <thead><tr><th>系列</th><th>月次傾き(百万/月)</th><th>年率(百万)</th><th></th><th>R²</th></tr></thead>
+    <tbody>{monitor_trend_rows}</tbody>
+  </table>
+  <p class="sub" style="margin-top:6px">※ 構造δは「上昇=改善」。R²が低い間はトレンド未確立（生δのノイズは薬剤購入が支配）。
+  構造δが <b>傾き ≤ −3 かつ R² ≥ 0.30</b> になったら δ にトレンド導入を検討。</p>
+  <canvas id="deltaChart" style="margin-top:10px"></canvas>
+  <table style="margin-top:12px">
+    <thead><tr><th>月</th><th>医薬品費</th><th>非薬剤材料</th><th>δ実績</th><th>構造δ</th></tr></thead>
+    <tbody>{monitor_table_rows}</tbody>
+  </table>
+</div>
+
 <h2>過去6か月の PL 実績（千円）</h2>
 <div class="card">
 <table>
 <thead><tr><th>月</th><th>医業収益</th><th>材料費</th><th>給与費</th>
-<th>委託費</th><th>設備関係費</th><th>経費</th><th>医業収支</th></tr></thead>
+<th>委託費</th><th>設備関係費</th><th>経費</th><th>医業収支</th>
+<th>構造収支</th></tr></thead>
 <tbody>
 {table_rows}
 </tbody>
 </table>
+<p class="sub" style="margin-top:8px">構造収支 = 医業収支 + (医薬品費 − 薬剤中央値 {monitor["median_drug"]/1000:,.0f}百万)。
+高額薬剤の購入計上タイミングを均した収支。薬剤は粗利 G から控除済み＝本来パススルーのため、
+薬剤購入が嵩んだ月（例 2026-04）の医業収支が一時的に沈む見かけを補正し、月間比較を直感に合わせる。
+薬剤と収支は実は無相関（r=+0.10）で、構造収支は薬剤購入の偶発を除いた基調を示す。</p>
 </div>
 
 <h2>費目推移（25か月）</h2>
@@ -385,6 +464,31 @@ new Chart(document.getElementById('trendChart'), {{
     responsive:true,
     plugins:{{legend:{{position:'bottom'}}}},
     scales:{{y:{{ticks:{{callback:v=>(v/1000).toFixed(0)+'M'}}}}}}
+  }}
+}});
+
+new Chart(document.getElementById('deltaChart'), {{
+  type: 'line',
+  data: {{
+    labels: data.mon_months,
+    datasets: [
+      {{label:'δ 実績（生）', data:data.mon_delta, borderColor:'#c13a3a',
+        backgroundColor:'#c13a3a10', borderDash:[4,3], tension:0.2, yAxisID:'y'}},
+      {{label:'構造δ（薬剤購入除去後）', data:data.mon_delta_struct, borderColor:'#1f77b4',
+        backgroundColor:'#1f77b410', borderWidth:2, tension:0.2, yAxisID:'y'}},
+      {{label:'非薬剤材料（右軸）', data:data.mon_nondrug, borderColor:'#9467bd',
+        backgroundColor:'#9467bd10', tension:0.2, yAxisID:'y1'}},
+    ]
+  }},
+  options: {{
+    responsive:true,
+    plugins:{{legend:{{position:'bottom'}}}},
+    scales:{{
+      y:{{position:'left',title:{{display:true,text:'δ (百万)'}},
+          ticks:{{callback:v=>(v/1000).toFixed(0)}}}},
+      y1:{{position:'right',title:{{display:true,text:'非薬剤材料 (百万)'}},
+           grid:{{drawOnChartArea:false}},ticks:{{callback:v=>(v/1000).toFixed(0)}}}},
+    }}
   }}
 }});
 
@@ -479,6 +583,12 @@ def main():
     print("[5/5] バックテスト + 予測区間 + HTML 出力...")
     bt = backtest(pl, delta, g_monthly, n_holdout=8)
     pi = prediction_intervals(pl, delta, g_monthly, target_month, projection)
+    monitor = material_cost_monitoring(pl, g_monthly)
+    _mst = monitor["status"]
+    print(f"  材料費モニタ [{_mst[0]}]: 構造δトレンド "
+          f"{monitor['trends']['δ_構造']['slope_per_month']:+.1f}百万/月 "
+          f"(R²={monitor['trends']['δ_構造']['r2']}) / 非薬剤材料 "
+          f"{monitor['trends']['非薬剤材料']['annual']:+.0f}百万/年")
     if pi.get("available"):
         print(f"  予測区間 σ=±{pi['sigma']/1000:,.0f}百万円  "
               f"80% PI: [{pi['pi80_lo']/1000:+,.0f}, {pi['pi80_hi']/1000:+,.0f}]")
@@ -497,7 +607,7 @@ def main():
         "g_source": (f"粗利推計 MTDブレンド月末見込み(w={g_meta.get('mtd_blend_weight')}, anchor8)"
                      f" ×{g_meta['calibration_factor']}"
                      f"（recency補正 k12_shrink50, n={g_meta['calibration_n_months']}）"),
-    })
+    }, monitor)
     out_path.write_text(html, encoding="utf-8")
     print(f"  → {out_path.resolve()}")
     print("\n完了。ブラウザで HTML を開いて確認してください。")
