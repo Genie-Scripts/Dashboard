@@ -229,9 +229,37 @@ DATA_FOLDERS = {
     "op_target":      "op_target",
     "profit_data":    "profit_data",
     "profit_target":  "profit_target",
+    # 外来件数（粗利推計の特徴量）。将来の日次フィード用 base+追記フォルダ。
+    # 現状は隣リポ Outpatient-Dashboard の集計CSVを既定ソースにする（下記参照）。
+    "outpatient_data": "outpatient_data",
 }
 
 MERGE_STRATEGY = "newer_wins"
+
+# ──────────────────────────────
+# 外来データ連携（粗利推計の特徴量用 / 表示統合はしない）
+# ──────────────────────────────
+import os as _os
+
+# 外来集計CSV (data/aggregated/YYYY-MM/02_dept_monthly.csv) のルート。
+# 別運用の隣リポ Outpatient-Dashboard を既定参照（集計CSVはgit管理済み・非個人情報）。
+# 環境変数 OUTPATIENT_AGG_DIR で上書き可。
+OUTPATIENT_AGG_DIR = _os.environ.get(
+    "OUTPATIENT_AGG_DIR",
+    _os.path.expanduser("~/dev/ai-apps/Outpatient-Dashboard/data/aggregated"),
+)
+
+# 外来側の診療科名 → 粗利側の診療科名 への畳み込み。
+# DEPT_MERGE（感染症/内科→総合内科）に加え、粗利データが括弧付きで内包している
+# 科を外来側でも同じ親科に寄せる:
+#   - 粗利「呼吸器内科（アレ含む）」→「呼吸器内科」なので 外来 アレルギー科 を呼吸器内科へ
+#   - 粗利「腎内科（糖尿含む）」→「腎内科」なので 外来 糖尿病内分泌内科 を腎内科へ
+# これにより外来件数の合算範囲を粗利の科定義に一致させる。
+OUTPATIENT_DEPT_MERGE = {
+    **DEPT_MERGE,
+    "アレルギー科": "呼吸器内科",
+    "糖尿病内分泌内科": "腎内科",
+}
 
 # ──────────────────────────────
 # グラフ用デザイントークン  ★v2.1 更新

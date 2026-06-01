@@ -34,3 +34,7 @@ output/g_calib_cache.json
 # 月末見込み G バックテスト成果物（ローカル分析用・自動再生成）
 output/profit_projection_backtest.json
 output/profit_projection_backtest_daily.csv
+
+# 外来件数×外来粗利 バックテスト成果物（ローカル分析用・自動再生成）
+output/outpatient_profit_backtest.json
+output/outpatient_profit_backtest_monthly.csv
