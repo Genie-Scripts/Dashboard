@@ -31,7 +31,7 @@ from app.lib.data_loader import (  # noqa: E402
     load_profit_breakdown,
 )
 from app.lib.preprocess import preprocess_admission, preprocess_surgery  # noqa: E402
-from app.lib.pl_history import load_pl_history, clean_pl, quality_flags  # noqa: E402
+from app.lib.pl_history import load_pl_confirmed, clean_pl, quality_flags  # noqa: E402
 from app.lib.pl_projection import (  # noqa: E402
     aggregate_profit_monthly,
     compute_delta_series,
@@ -391,7 +391,7 @@ canvas {{max-height:340px}}
 <p class="sub">生成: {gen} | 基準日: {base_date}</p>
 
 <div class="note">
-本レポートは <code>data/PL.xlsx</code>（月次確報）と粗利推計を組み合わせた
+本レポートは <code>data/PL_確定.xlsx</code>（年度別確報, FY2023〜）と粗利推計を組み合わせた
 医業収支の月末予測です。費目モデルの誤差により絶対値は±25-50百万円程度の振れを想定。
 方向性把握（黒字／赤字／前月比）が主目的です。{multi_note}
 </div>
@@ -565,8 +565,8 @@ def main():
                     help="YYYY-MM-DD（既定: データ最終日）")
     args = ap.parse_args()
 
-    print("[1/5] PL.xlsx 読込中...")
-    pl_raw = load_pl_history(args.data_dir)
+    print("[1/5] PL_確定.xlsx 読込中...")
+    pl_raw = load_pl_confirmed(args.data_dir)
     flags = quality_flags(pl_raw)
     bad = flags[flags["異常フラグ"]]
     if len(bad) > 0:
@@ -626,7 +626,7 @@ def main():
               f"収支={entry['projection']['予測医業収支']/1000:+,.0f}百万")
 
     print("[4/5] バックテスト + 材料費モニタリング...")
-    bt = backtest(pl, delta, g_monthly, n_holdout=8)
+    bt = backtest(pl, delta, g_monthly, n_holdout=24)
     monitor = material_cost_monitoring(pl, g_monthly)
     _mst = monitor["status"]
     print(f"  材料費モニタ [{_mst[0]}]: 構造δトレンド "

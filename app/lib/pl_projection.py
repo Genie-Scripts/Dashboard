@@ -27,7 +27,7 @@ import numpy as np
 import pandas as pd
 
 from .config import biz_days_in_month, calendar_days_in_month
-from .pl_history import load_pl_history, clean_pl
+from .pl_history import load_pl_history, load_pl_confirmed, clean_pl
 
 
 # ──────────────────────────────────────────
@@ -523,6 +523,11 @@ def backtest(pl_clean: pd.DataFrame,
     """
     months = delta_series["月"].sort_values().tolist()
     test_months = months[-n_holdout:]
+    # 一過性月（COST_INTERVENTIONS）は実績が one-off で歪むため、学習だけでなく
+    # テスト集合からも除外する（予測不能な月を精度指標に含めない）。
+    one_off = {ym for v in COST_INTERVENTIONS.values() for ym, _ in v}
+    test_months = [tm for tm in test_months
+                   if tm.strftime("%Y-%m") not in one_off]
 
     rows = []
     for tm in test_months:
@@ -564,7 +569,7 @@ def load_and_project(data_dir: str = "data",
                       g_override: Optional[float] = None) -> dict:
     """データを読み込み、指定月の医業収支予測を返す（公開API）。"""
     from .data_loader import load_profit_breakdown
-    pl = load_pl_history(data_dir)
+    pl = load_pl_confirmed(data_dir)
     pl_c = clean_pl(pl)
     pb = load_profit_breakdown(data_dir)
     g = aggregate_profit_monthly(pb)
