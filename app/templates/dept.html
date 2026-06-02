@@ -139,6 +139,7 @@
     <section id="monthProjectionSection" style="margin-bottom:12px;display:none">
       <div class="cpnl" style="padding:14px 16px">
         <h4 style="margin:0 0 10px;font-size:13px;font-weight:800">📅 当月予測 <span id="monthProjectionMeta" style="font-weight:500;color:var(--mu);font-size:11px"></span></h4>
+        <div id="monthProjectionPrev" style="display:none;margin:0 0 10px;padding:7px 11px;background:#FBF6E9;border:1px dashed #D8B86A;border-radius:7px;font-size:11.5px;color:#6B5A1E;line-height:1.5"></div>
         <div id="monthProjectionTiles" class="mp-grid"></div>
       </div>
     </section>
@@ -411,6 +412,23 @@ function renderMonthProjection(d) {
   tilesEl.innerHTML = tiles;
   const n = tiles ? (tiles.match(/class="mp-tile/g) || []).length : 0;
   tilesEl.style.gridTemplateColumns = `repeat(${Math.max(1, Math.min(n, 4))},1fr)`;
+
+  // 前月(確報待ち)の粗利 月末見込みを併記。粗利確報が入力されると profit_projections
+  // から provisional が消え、この行も自動的に非表示になる。
+  const prevEl = document.getElementById('monthProjectionPrev');
+  if (prevEl) {
+    const pps = (d && d.profit_projections)
+      ? d.profit_projections.filter(p => p.provisional && p.projection != null) : [];
+    if (pps.length) {
+      prevEl.innerHTML = pps.map(p => {
+        const rate = p.rate != null ? `（達成率 ${p.rate}%）` : '';
+        return `📌 <b>${p.month}</b> 粗利 月末見込み（確報待ち・暫定）: <b>${fmt(p.projection)}</b>百万円${rate}`;
+      }).join('<br>');
+      prevEl.style.display = '';
+    } else {
+      prevEl.style.display = 'none';
+    }
+  }
 }
 
 function kpiCardHtml(c) {
@@ -601,7 +619,7 @@ function renderCharts(d) {
       document.getElementById('chartTitle3').textContent = `💉 全麻手術 推移${suffix}`;
       document.getElementById('chartTitle4').textContent = `💰 月次粗利 推移`;
       renderSurgeryChart('chart3', d.trend?.operation, d.operation.target);
-      renderProfitDeptChart('chart4', d.profit_chart, d.month_projection);
+      renderProfitDeptChart('chart4', d.profit_chart, d.month_projection, d.profit_projections);
     } else if (isSurgeryDept) {
       // 2+1: 全麻（全幅）
       container.className = 'charts-container layout-2plus1';
@@ -613,7 +631,7 @@ function renderCharts(d) {
       container.className = 'charts-container layout-2plus1';
       chart4panel.style.display = 'none';
       document.getElementById('chartTitle3').textContent = `💰 月次粗利 推移`;
-      renderProfitDeptChart('chart3', d.profit_chart, d.month_projection);
+      renderProfitDeptChart('chart3', d.profit_chart, d.month_projection, d.profit_projections);
     } else {
       container.className = 'charts-container layout-2plus1';
       chart4panel.style.display = 'none';
@@ -781,7 +799,7 @@ function renderSurgeryChart(elId, td, weeklyTarget) {
   },{responsive:true});
 }
 
-function renderProfitDeptChart(elId, bd, mp) {
+function renderProfitDeptChart(elId, bd, mp, projections) {
   if (!bd || !bd.months || !bd.months.length) {
     document.getElementById(elId).innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">粗利データなし</div>';
     return;
@@ -799,15 +817,20 @@ function renderProfitDeptChart(elId, bd, mp) {
     return;
   }
 
-  // 当月予測（月末見込み）— 実績の最終月より後の月のみ予測扱い
-  const projMonth = mp && mp.meta && mp.meta.month;
-  const projTile  = mp && mp.profit;
-  const projVal   = projTile && projTile.projection != null ? projTile.projection : null;
-  const projTgt   = projTile && projTile.target     != null ? projTile.target     : null;
+  // 見込み（月末見込み）— 実績の最終月より後の月。粗利確報が未入力の前月(確報待ち)＋当月。
+  // profit_projections を優先し、無ければ従来の単一 month_projection からフォールバック。
   const lastActual = fMonths[fMonths.length-1] || '';
-  const hasProj = projMonth && projVal != null
-                  && projMonth > lastActual
-                  && projMonth >= cutoffMonth;
+  let projList = Array.isArray(projections) ? projections.slice() : null;
+  if (!projList) {
+    const pm = mp && mp.meta && mp.meta.month;
+    const pt = mp && mp.profit;
+    projList = (pm && pt && pt.projection != null)
+      ? [{month:pm, projection:pt.projection, target:pt.target, provisional:false}] : [];
+  }
+  projList = projList.filter(p => p && p.projection != null
+                                  && p.month > lastActual && p.month >= cutoffMonth);
+  const provList = projList.filter(p => p.provisional);   // 前月(確報待ち・暫定)
+  const curList  = projList.filter(p => !p.provisional);  // 当月(進行中)
 
   const tgtArr = fTargets;
   const achColor = (val, tgt) => {
@@ -819,12 +842,24 @@ function renderProfitDeptChart(elId, bd, mp) {
   const traces = [{name:'粗利実績', x:fMonths, y:fValues, type:'bar',
                    marker:{color:barColors}, opacity:0.9}];
 
-  if (hasProj) {
-    const pColor = achColor(projVal, projTgt != null ? projTgt : bd.target);
+  // 前月見込み（確報待ち・暫定: 淡いグレー＋ドットパターンで実績/当月と差別化）
+  // X軸カテゴリはトレース出現順なので、当月(6月)より先に前月(5月)を push して
+  // 「…4月 → 5月 → 6月」の時系列順に並べる。
+  if (provList.length) {
     traces.push({
-      name:'当月予測(月末見込み)', x:[projMonth], y:[projVal], type:'bar',
-      marker:{color:pColor, pattern:{shape:'/', size:6, solidity:0.35},
-              line:{color:pColor, width:1.5}},
+      name:'前月見込み(確報待ち)', x:provList.map(p=>p.month), y:provList.map(p=>p.projection), type:'bar',
+      marker:{color:'rgba(148,163,184,0.45)', pattern:{shape:'.', size:5, solidity:0.5},
+              line:{color:'#94A3B8', width:1.5}},
+      opacity:0.9,
+      hovertemplate:'%{y:.1f}百万円<extra>前月見込み（確報待ち・暫定）</extra>',
+    });
+  }
+  // 当月見込み（達成率色 + 斜線）
+  if (curList.length) {
+    const cc = curList.map(p => achColor(p.projection, p.target != null ? p.target : bd.target));
+    traces.push({
+      name:'当月予測(月末見込み)', x:curList.map(p=>p.month), y:curList.map(p=>p.projection), type:'bar',
+      marker:{color:cc, pattern:{shape:'/', size:6, solidity:0.35}, line:{color:cc, width:1.5}},
       opacity:0.7,
       hovertemplate:'%{y:.1f}百万円<extra>当月予測（月末見込み）</extra>',
     });
@@ -832,11 +867,11 @@ function renderProfitDeptChart(elId, bd, mp) {
 
   if (tgtArr) {
     const tx = [...fMonths], ty = [...tgtArr];
-    if (hasProj && projTgt != null) { tx.push(projMonth); ty.push(projTgt); }
+    projList.forEach(p => { if (p.target != null) { tx.push(p.month); ty.push(p.target); } });
     traces.push({name:'目標(営業日補正)', x:tx, y:ty, type:'scatter', mode:'lines+markers',
                  line:{color:'#C0293B',width:2,dash:'dot',shape:'hv'}, marker:{size:5,color:'#C0293B'}});
   } else if (bd.target) {
-    const xEnd = hasProj ? projMonth : fMonths[fMonths.length-1];
+    const xEnd = projList.length ? projList[projList.length-1].month : fMonths[fMonths.length-1];
     traces.push({name:'目標', x:[fMonths[0], xEnd], y:[bd.target,bd.target],
                  type:'scatter', mode:'lines', line:{color:'#C0293B',width:2,dash:'dot'}});
   }
@@ -845,10 +880,7 @@ function renderProfitDeptChart(elId, bd, mp) {
   const yAll = [...fValues];
   if (tgtArr) yAll.push(...tgtArr.filter(v=>v!=null));
   else if (bd.target) yAll.push(bd.target);
-  if (hasProj) {
-    yAll.push(projVal);
-    if (projTgt != null) yAll.push(projTgt);
-  }
+  projList.forEach(p => { yAll.push(p.projection); if (p.target != null) yAll.push(p.target); });
   const yVals = yAll.filter(v => v != null && !isNaN(v));
   let yLo = 0, yHi = 10;
   if (yVals.length) {

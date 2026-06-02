@@ -66,6 +66,38 @@ def _count_biz_days(start: pd.Timestamp, end: pd.Timestamp) -> int:
     return sum(1 for d in pd.date_range(start, end, freq="D") if is_operational_day(d))
 
 
+def profit_target_for_month(profit_monthly: Optional[pd.DataFrame],
+                            month_start: pd.Timestamp,
+                            dept: Optional[str] = None) -> Optional[float]:
+    """指定月の粗利目標（百万円）。
+
+    profit_monthly 最新月の per-dept 目標（外来/入院 or 月次目標）を、当該月の
+    営業日/暦日で日数補正して再計算する。build_month_projection_payload と
+    html_builder の前月（確報待ち）見込み目標で共用し、目標式を一元化する。
+    """
+    if profit_monthly is None or len(profit_monthly) == 0:
+        return None
+    pm = (profit_monthly[profit_monthly["診療科名"] == dept]
+          if dept is not None else profit_monthly)
+    if len(pm) == 0:
+        return None
+    latest_rows = pm[pm["月"] == pm["月"].max()]
+    if len(latest_rows) == 0:
+        return None
+    biz_days_total = biz_days_in_month(month_start)
+    cal_days_total = calendar_days_in_month(month_start)
+    has_bd = ("外来目標" in latest_rows.columns and "入院目標" in latest_rows.columns)
+    if has_bd:
+        g = float(latest_rows["外来目標"].fillna(0).sum())
+        n = float(latest_rows["入院目標"].fillna(0).sum())
+        tgt_sennen = (g * biz_days_total / STD_BIZ_DAYS_PER_MONTH
+                      + n * cal_days_total / STD_CAL_DAYS_PER_MONTH)
+    else:
+        total_tgt = float(latest_rows["月次目標"].fillna(0).sum())
+        tgt_sennen = total_tgt * biz_days_total / STD_BIZ_DAYS_PER_MONTH
+    return round(tgt_sennen / 1000.0, 1) if tgt_sennen > 0 else None
+
+
 def build_month_projection_payload(
     adm: pd.DataFrame,
     surg: pd.DataFrame,
@@ -176,25 +208,7 @@ def build_month_projection_payload(
         if proj is not None:
             profit_proj = round(float(proj), 1)
     _ = profit_hybrid_hospital_series  # 将来 daily run-rate 推定が必要になった場合の参照点
-    if profit_monthly is not None and len(profit_monthly) > 0:
-        pm = (profit_monthly[profit_monthly["診療科名"] == dept]
-              if dept is not None else profit_monthly)
-        if len(pm) > 0:
-            latest_month = pm["月"].max()
-            latest_rows = pm[pm["月"] == latest_month]
-            if len(latest_rows) > 0:
-                has_bd = ("外来目標" in latest_rows.columns
-                          and "入院目標" in latest_rows.columns)
-                if has_bd:
-                    g = float(latest_rows["外来目標"].fillna(0).sum())
-                    n = float(latest_rows["入院目標"].fillna(0).sum())
-                    tgt_sennen = (g * biz_days_total / STD_BIZ_DAYS_PER_MONTH
-                                  + n * cal_days_total / STD_CAL_DAYS_PER_MONTH)
-                else:
-                    total_tgt = float(latest_rows["月次目標"].fillna(0).sum())
-                    tgt_sennen = total_tgt * biz_days_total / STD_BIZ_DAYS_PER_MONTH
-                if tgt_sennen > 0:
-                    profit_target = round(tgt_sennen / 1000.0, 1)
+    profit_target = profit_target_for_month(profit_monthly, month_start, dept)
     if profit_proj is not None and profit_target and profit_target > 0:
         profit_rate = round(profit_proj / profit_target * 100, 1)
 

@@ -162,6 +162,7 @@
   <section id="monthProjectionSection" style="margin-top:12px;display:none">
     <div class="pnl" style="background:var(--s);border:1px solid var(--ln);border-radius:var(--r);padding:14px 16px;box-shadow:var(--sh)">
       <h3 style="margin:0 0 10px;font-size:14px;font-weight:800">📅 当月予測 <span id="monthProjectionMeta" style="font-weight:500;color:var(--mu);font-size:11px"></span></h3>
+      <div id="monthProjectionPrev" style="display:none;margin:0 0 10px;padding:7px 11px;background:#FBF6E9;border:1px dashed #D8B86A;border-radius:7px;font-size:11.5px;color:#6B5A1E;line-height:1.5"></div>
       <div id="monthProjectionTiles" class="mp-grid"></div>
     </div>
   </section>
@@ -366,6 +367,22 @@ function renderMonthProjection() {
     </div>`;
   }).join('');
   document.getElementById('monthProjectionTiles').innerHTML = html;
+
+  // 前月(確報待ち)の粗利 月末見込みを併記。粗利確報が入力されると profit_projections
+  // から provisional が消え、この行も自動的に非表示になる。
+  const prevEl = document.getElementById('monthProjectionPrev');
+  if (prevEl) {
+    const pps = (DATA.profit_projections || []).filter(p => p.provisional && p.projection != null);
+    if (pps.length) {
+      prevEl.innerHTML = pps.map(p => {
+        const rate = p.rate != null ? `（達成率 ${p.rate}%）` : '';
+        return `📌 <b>${p.month}</b> 粗利 月末見込み（確報待ち・暫定）: <b>${fmt(p.projection)}</b>百万円${rate}`;
+      }).join('<br>');
+      prevEl.style.display = '';
+    } else {
+      prevEl.style.display = 'none';
+    }
+  }
 }
 
 // ── ステータスヘルパー (ドリルパネル用) ──
@@ -1364,14 +1381,20 @@ function renderProfitChart() {
     targets: raw.targets.slice(-n),
   };
 
-  // 当月予測（月末見込み）— 実績の最終月より後ろの月のみ予測扱い
+  // 見込み（月末見込み）— 実績の最終月より後の月。確報待ちの前月(暫定)＋当月。
+  // profit_projections を優先し、無ければ従来の単一 month_projection からフォールバック。
   const mp = DATA.month_projection;
-  const projMonth = mp && mp.meta && mp.meta.month;
-  const projTile  = mp && mp.profit;
-  const projVal   = projTile && projTile.projection != null ? projTile.projection : null;
-  const projTgt   = projTile && projTile.target     != null ? projTile.target     : null;
   const lastActual = g.months[g.months.length-1] || '';
-  const hasProj = projMonth && projVal != null && projMonth > lastActual;
+  let projList = Array.isArray(DATA.profit_projections) ? DATA.profit_projections.slice() : null;
+  if (!projList) {
+    const pm = mp && mp.meta && mp.meta.month;
+    const pt = mp && mp.profit;
+    projList = (pm && pt && pt.projection != null)
+      ? [{month:pm, projection:pt.projection, target:pt.target, provisional:false}] : [];
+  }
+  projList = projList.filter(p => p && p.projection != null && p.month > lastActual);
+  const provList = projList.filter(p => p.provisional);   // 前月(確報待ち・暫定)
+  const curList  = projList.filter(p => !p.provisional);  // 当月(進行中)
 
   // 月ごとに達成率を計算して色分け
   const achColor = (val, tgt) => {
@@ -1395,12 +1418,21 @@ function renderProfitChart() {
      marker:{color:barColors}, opacity:0.9, showlegend:false},
   ];
 
-  if (hasProj) {
-    const pColor = achColor(projVal, projTgt);
+  // X軸カテゴリはトレース出現順。当月(6月)より先に前月(5月)を push して時系列順に並べる。
+  if (provList.length) {
     traces.push({
-      name:'当月予測(月末見込み)', x:[projMonth], y:[projVal], type:'bar',
-      marker:{color:pColor, pattern:{shape:'/', size:6, solidity:0.35},
-              line:{color:pColor, width:1.5}},
+      name:'前月見込み(確報待ち)', x:provList.map(p=>p.month), y:provList.map(p=>p.projection), type:'bar',
+      marker:{color:'rgba(148,163,184,0.45)', pattern:{shape:'.', size:5, solidity:0.5},
+              line:{color:'#94A3B8', width:1.5}},
+      opacity:0.9, showlegend:true,
+      hovertemplate:'%{y:.1f}百万円<extra>前月見込み（確報待ち・暫定）</extra>',
+    });
+  }
+  if (curList.length) {
+    const cc = curList.map(p => achColor(p.projection, p.target));
+    traces.push({
+      name:'当月予測(月末見込み)', x:curList.map(p=>p.month), y:curList.map(p=>p.projection), type:'bar',
+      marker:{color:cc, pattern:{shape:'/', size:6, solidity:0.35}, line:{color:cc, width:1.5}},
       opacity:0.7, showlegend:true,
       hovertemplate:'%{y:.1f}百万円<extra>当月予測（月末見込み）</extra>',
     });
@@ -1408,7 +1440,7 @@ function renderProfitChart() {
 
   {
     const tx = [...g.months], ty = [...g.targets];
-    if (hasProj && projTgt != null) { tx.push(projMonth); ty.push(projTgt); }
+    projList.forEach(p => { if (p.target != null) { tx.push(p.month); ty.push(p.target); } });
     traces.push({
       name:'月次目標(営業日換算)', x:tx, y:ty, type:'scatter', mode:'lines+markers',
       line:{color:'#C0293B',width:2,dash:'dot'}, marker:{size:5,color:'#C0293B'},
@@ -1418,10 +1450,7 @@ function renderProfitChart() {
 
   // Y軸: 期間最小値基準のレンジ（ゼロ起点ではなく変化量を可視化）
   const allY = [...g.values, ...g.targets.filter(v=>v!=null)];
-  if (hasProj) {
-    allY.push(projVal);
-    if (projTgt != null) allY.push(projTgt);
-  }
+  projList.forEach(p => { allY.push(p.projection); if (p.target != null) allY.push(p.target); });
   const yVals = allY.filter(v => v != null && !isNaN(v));
   let yLo = 0, yHi = 10;
   if (yVals.length) {

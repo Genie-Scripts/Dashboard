@@ -42,7 +42,7 @@ from .profit_estimate import (
     blend_and_calibrate_series,
     last_complete_driver_date,
 )
-from .month_projection import build_month_projection_payload
+from .month_projection import build_month_projection_payload, profit_target_for_month
 
 
 def _json_safe(obj):
@@ -58,6 +58,64 @@ def _json_safe(obj):
     if pd.isna(obj):
         return None
     return str(obj)
+
+
+def _series_value_at(series, date_str: str):
+    """日次系列 values_final_total から date_str 以下の直近非None値を返す。
+
+    系列(dates)は昇順前提。各見込み月の「月末見込み」を、当月(6月)基準で既に
+    計算済みの日次 values_final_total から min(base_date, 月末) 日の値として取り出す。
+    """
+    if not series:
+        return None
+    dates = series.get("dates") or []
+    vals = series.get("values_final_total") or []
+    if not dates or len(vals) != len(dates):
+        return None
+    best = None
+    for d, v in zip(dates, vals):
+        if d <= date_str and v is not None:
+            best = v
+    return best
+
+
+def _build_profit_projections(series, profit_monthly, pending_months,
+                              profit_base_date, driver_month, dept=None):
+    """粗利の見込み対象月（確報待ちの前月＋当月）の {month,projection,target,rate,provisional}
+    リストを返す。値は既存の日次 values_final_total から抽出（第2 payload を増やさない）。"""
+    out = []
+    for m in pending_months:
+        month_end = m + pd.offsets.MonthEnd(0)
+        date_m = min(pd.Timestamp(profit_base_date), month_end)
+        val = _series_value_at(series, date_m.strftime("%Y-%m-%d"))
+        if val is None:
+            continue
+        tgt = profit_target_for_month(profit_monthly, m, dept)
+        rate = round(float(val) / tgt * 100, 1) if (tgt and tgt > 0) else None
+        out.append({
+            "month": m.strftime("%Y-%m"),
+            "projection": round(float(val), 1),
+            "target": tgt,
+            "rate": rate,
+            "provisional": bool(m < driver_month),
+        })
+    return out or None
+
+
+def _profit_pending_months(profit_monthly, profit_base_date):
+    """見込み対象月リスト = 確定粗利の最終月の翌月 〜 ドライバー月（直近3か月上限）。
+
+    粗利が確報入力されると対象から外れ、当月単月へ自動収束する（pl_projection と同ルール）。
+    """
+    driver_month = pd.Timestamp(profit_base_date).normalize().replace(day=1)
+    if profit_monthly is None or len(profit_monthly) == 0:
+        return [driver_month], driver_month
+    last_g_month = profit_monthly["月"].max()
+    pend = pd.date_range(last_g_month + pd.offsets.MonthBegin(1),
+                         driver_month, freq="MS").tolist()
+    if not pend:
+        pend = [driver_month]
+    return pend[-3:], driver_month
 
 
 def _add_adm_breakdown(td: dict, planned_s: pd.DataFrame, emg_s: pd.DataFrame) -> dict:
@@ -847,6 +905,20 @@ def build_detail_json(adm, surg, targets, surg_targets,
     except Exception:
         data["month_projection"] = None
 
+    # 粗利見込みバー/カード用: 確報待ちの前月(5月)＋当月(6月)の月末見込みリスト。
+    # 値は当月基準で既に算出済みの日次 values_final_total から抽出（第2 payload 不要）。
+    profit_pending, profit_driver_month = _profit_pending_months(
+        profit_monthly, profit_base_date)
+    data["profit_projections"] = None
+    if profit_hybrid_section:
+        try:
+            data["profit_projections"] = _build_profit_projections(
+                profit_hybrid_section.get("hospital_series"), profit_monthly,
+                profit_pending, profit_base_date, profit_driver_month,
+            )
+        except Exception:
+            data["profit_projections"] = None
+
     # 当月予測 (診療科ごと, dept.html dashView 用)
     hy_series_by_dept = (profit_hybrid_section.get("series_by_dept", {})
                          if profit_hybrid_section else {})
@@ -881,5 +953,14 @@ def build_detail_json(adm, surg, targets, surg_targets,
             )
         except Exception:
             drill_entry["month_projection"] = None
+
+        # 科別の前月(確報待ち)＋当月 粗利見込みリスト（科別 values_final_total から抽出）
+        try:
+            drill_entry["profit_projections"] = _build_profit_projections(
+                ser, profit_monthly, profit_pending,
+                profit_base_date, profit_driver_month, dept=dname,
+            ) if ser else None
+        except Exception:
+            drill_entry["profit_projections"] = None
 
     return json.dumps(data, ensure_ascii=False, default=_json_safe)
