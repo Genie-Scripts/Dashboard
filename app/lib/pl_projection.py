@@ -371,17 +371,17 @@ def predict_consign(pl_clean: pd.DataFrame, target: pd.Timestamp) -> dict:
 
 
 def predict_facility(pl_clean: pd.DataFrame, target: pd.Timestamp) -> dict:
-    """設備関係費: 直近6か月の robust median (同月オフセットなし).
+    """設備関係費: 月次固定 + 線形トレンド（減価償却ステップ＋機器累積で漸増）.
 
-    リース更新等でレベルが変動するため、過去同月よりも直近6か月の方が
-    現在のレベルを正確に反映する。同月オフセットを足すと
-    過去の低レベル月を引きずって系統的に過小予測になる（MAE 20→7M）。
+    減価償却・リースは日数比例しないため day_basis=None（月次固定）。raw 同月
+    オフセットだけだと過去の低レベル月を引きずり過小予測になるが、トレンド除去後の
+    残差で base/季節性を取ると上昇（全期間 slope≈+2M/月, R²0.65）を追従でき、
+    直近6mo median で残っていた設備寄与の系統過小（+8M/月）を縮小する
+    （確定PL n=24 backtest: 設備寄与 MAE 11.9→8.3, 全体 RMSE 49.0→47.0）.
     """
-    df = pl_clean[pl_clean["月"] < target].copy()
-    df = _filter_interventions(df, "設備関係費")
-    recent = _mad_filter(df.tail(6)["設備関係費"])
-    val = float(recent.median()) if len(recent) else float(df["設備関係費"].median())
-    return {"value": val, "method": f"直近6mo robust median"}
+    r = _predict_cost_with_offset(pl_clean, "設備関係費", target,
+                                    day_basis=None, use_trend=True)
+    return {"value": r["value"], "method": "月次固定+trend"}
 
 
 def predict_misc(pl_clean: pd.DataFrame, target: pd.Timestamp) -> dict:
