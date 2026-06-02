@@ -65,6 +65,13 @@ def _filter_interventions(df: pd.DataFrame, col: str) -> pd.DataFrame:
     return df[~mask]
 
 
+# 期末賞与（3月）の支給開始「年度」。これ以降の年度末（3月）は期末賞与で
+# 給与費が当年度平常水準から上振れする運用変更（院長確認, 2026-06）:
+#   2024-03(FY2023)以前は未支給 / 2025-03(FY2024)・2026-03(FY2025)は支給。
+# 3月の給与費を予測する際、同一レジーム（支給有/無）の過去3月だけを参照する。
+MARCH_BONUS_START_FY = 2024
+
+
 # ──────────────────────────────────────────
 # 共通ユーティリティ
 # ──────────────────────────────────────────
@@ -219,7 +226,41 @@ def predict_payroll(pl_clean: pd.DataFrame, target: pd.Timestamp) -> dict:
                     "offset": 0.0,
                     "method": "過去4月 median"}
 
-    # 5-3月: 当年度（最新4月改定以降）の直近6か月 robust median + 過去同月オフセット
+    if target.month == 3:
+        # 年度末は期末賞与の有無で2レジーム。同月medianは未支給年(例:2024-03)の
+        # 大幅な賞与戻入と支給年が相殺し過小予測するため、対象年と同一レジームの
+        # 過去3月のみで「3月プレミアム = 3月給与費 − 当年度平常水準」を推定し、
+        # 当年度ベースに加算する（2年以上あれば賞与増額トレンドを外挿）。
+        tfy = _fiscal_year(target)
+        target_bonus = tfy >= MARCH_BONUS_START_FY
+        cur = df[df["月"].apply(_fiscal_year) == tfy]
+        base = float(_mad_filter((cur if not cur.empty else df).tail(6)["給与費"]).median())
+        prem = []  # (年度, プレミアム) 同一レジームのみ
+        dff = df.assign(_fy=df["月"].apply(_fiscal_year))
+        for fy, grp in dff.groupby("_fy"):
+            mar = grp[grp["月"].dt.month == 3]["給与費"]
+            norm = grp[grp["月"].dt.month != 3]["給与費"]
+            if len(mar) >= 1 and len(norm) >= 3 and (fy >= MARCH_BONUS_START_FY) == target_bonus:
+                prem.append((int(fy), float(mar.iloc[0]) - float(norm.median())))
+        reg = "期末賞与有" if target_bonus else "期末賞与無"
+        if len(prem) >= 2:
+            xs = np.array([p[0] for p in prem], float)
+            ys = np.array([p[1] for p in prem], float)
+            slope, intercept = np.polyfit(xs - xs.min(), ys, 1)
+            premium = float(slope * (tfy - xs.min()) + intercept)
+            lo, hi = float(ys.min()), float(ys.max() + (ys.max() - ys.min()))
+            premium = max(lo, min(hi, premium))  # 外挿の暴走を抑制
+            method = f"3月[{reg}]: {len(prem)}年プレミアムtrend外挿 prem={premium:+,.0f}"
+        elif len(prem) == 1:
+            premium = prem[0][1]
+            method = f"3月[{reg}]: 直近1年プレミアム prem={premium:+,.0f}"
+        else:
+            premium = 0.0
+            method = f"3月[{reg}]: 同レジーム標本なし（baseのみ）"
+        return {"value": base + premium, "base": base,
+                "offset": premium, "method": method}
+
+    # 5-2月: 当年度（最新4月改定以降）の直近6か月 robust median + 過去同月オフセット
     #   直近窓が4月の給与改定境界を跨ぐと旧改定水準の月が混入し、新年度序盤を
     #   過小予測する（例: 5月は直近6か月のうち5か月が旧年度の低水準）。当年度
     #   （同一改定年度）の月だけに窓を絞り、4月で確定した改定後レベルを継承する。
