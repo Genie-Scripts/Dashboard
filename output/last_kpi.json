@@ -1,51 +1,6 @@
 {
   "snapshots": [
     {
-      "base_date": "2026-04-14",
-      "inpatient": {
-        "avg_7d": 583.3,
-        "rate": 99.3
-      },
-      "admission": {
-        "actual_7d": 357,
-        "planned_7d": 206,
-        "emergency_7d": 152,
-        "rate_7d": 93.9
-      },
-      "operation": {
-        "week_total": 41,
-        "rate": 96.7,
-        "or_util_7d": 75.0
-      },
-      "profit_top": [
-        {
-          "rank": 1,
-          "name": "循環器内科",
-          "rate": 108.1
-        },
-        {
-          "rank": 2,
-          "name": "歯科口腔外科",
-          "rate": 107.6
-        },
-        {
-          "rank": 3,
-          "name": "呼吸器外科",
-          "rate": 103.8
-        },
-        {
-          "rank": 4,
-          "name": "皮膚科",
-          "rate": 102.8
-        },
-        {
-          "rank": 5,
-          "name": "脳神経外科",
-          "rate": 102.2
-        }
-      ]
-    },
-    {
       "base_date": "2026-04-15",
       "inpatient": {
         "avg_7d": 584.3,
@@ -1321,6 +1276,51 @@
         "week_total": 17,
         "rate": 86.2,
         "or_util_7d": 64.0
+      },
+      "profit_top": [
+        {
+          "rank": 1,
+          "name": "歯科口腔外科",
+          "rate": 154.1
+        },
+        {
+          "rank": 2,
+          "name": "総合内科",
+          "rate": 111.5
+        },
+        {
+          "rank": 3,
+          "name": "心臓血管外科",
+          "rate": 111.1
+        },
+        {
+          "rank": 4,
+          "name": "メンタルケア科",
+          "rate": 110.6
+        },
+        {
+          "rank": 5,
+          "name": "放射線治療科",
+          "rate": 108.5
+        }
+      ]
+    },
+    {
+      "base_date": "2026-06-02",
+      "inpatient": {
+        "avg_7d": 529.6,
+        "rate": 92.8
+      },
+      "admission": {
+        "actual_7d": 346,
+        "planned_7d": 213,
+        "emergency_7d": 140,
+        "rate_7d": 91.1
+      },
+      "operation": {
+        "week_total": 35,
+        "rate": 83.8,
+        "or_util_7d": 62.7
       },
       "profit_top": [
         {

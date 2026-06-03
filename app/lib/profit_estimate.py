@@ -876,8 +876,13 @@ def _build_hybrid_daily_series(fit_models: Dict[str, Dict[str, Any]],
 
     # 各日が属する月の営業日数
     month_biz = pd.Series([biz_days_in_month(d.replace(day=1)) for d in dates], index=dates).astype(float)
-    # 見込み変換係数: 当月営業日数 / 30日窓内営業日数
+    # 外来/手術の見込み変換係数: 当月営業日数 / 30日窓内営業日数（営業日比例）
     factor = month_biz.divide(biz_roll.replace(0, np.nan)).fillna(0.0)
+    # 入院（病床日ベース）の見込み変換係数: 当月暦日数 / 窓内暦日数(rolling_days)。
+    # 入院粗利は祝日も含め毎暦日発生するため、営業日比例(factor)で換算すると
+    # GW など窓内営業日が少ない月で系統的に過大評価になる（暦日換算で是正）。
+    month_cal = pd.Series([float(d.days_in_month) for d in dates], index=dates)
+    cal_factor = month_cal / float(rolling_days)
 
     # MTD（月末見込み外挿）用: 月初〜当日の経過営業日数（当日含む）
     biz_elapsed = biz_flag.groupby(dates.to_period("M")).cumsum()
@@ -935,9 +940,9 @@ def _build_hybrid_daily_series(fit_models: Dict[str, Dict[str, Any]],
         hosp_g_ols = hosp_g_ols.add(g_ols, fill_value=0)
         hosp_n_ols = hosp_n_ols.add(n_ols, fill_value=0)
         mask = g_hy.index >= cutoff
-        # 月末見込み変換: 直近30日値 × (当月営業日数 / 30日窓内営業日数)
+        # 月末見込み変換: 外来=営業日係数、入院=暦日係数（病床日は毎暦日発生）
         g_hy_proj = g_hy * factor
-        n_hy_proj = n_hy * factor
+        n_hy_proj = n_hy * cal_factor
         # MTD 月末見込み: 手術モデル科は月内累計ドライバーから外挿、
         # フォールバック/baseline 科は現行 projection を踏襲（MTD 効果を手術科で隔離）
         g_mtd = (predict_monthend_mtd_per_dept(g_model, s_gairai, dept, dates,
@@ -977,9 +982,9 @@ def _build_hybrid_daily_series(fit_models: Dict[str, Dict[str, Any]],
         }
 
     mask = hosp_g_hy.index >= cutoff
-    # 月末見込み変換（病院全体）
+    # 月末見込み変換（病院全体）: 外来=営業日係数、入院=暦日係数
     hosp_g_hy_proj = hosp_g_hy * factor
-    hosp_n_hy_proj = hosp_n_hy * factor
+    hosp_n_hy_proj = hosp_n_hy * cal_factor
     hospital_series = {
         "dates":             [d.strftime("%Y-%m-%d") for d in dates],
         "values_total":      [round((gv + nv), 2) if m else None
@@ -1015,6 +1020,7 @@ def _build_hybrid_daily_series(fit_models: Dict[str, Dict[str, Any]],
     base_month_biz   = int(month_biz.iloc[-1])
     base_window_biz  = int(biz_roll.iloc[-1])
     base_factor      = (base_month_biz / base_window_biz) if base_window_biz > 0 else 0.0
+    base_cal_factor  = float(cal_factor.iloc[-1])   # 入院に適用する暦日係数
 
     # MTD ブレンド月末見込み（base_date 時点）: w = min(1, 経過営業日 / anchor)
     base_biz_elapsed = int(biz_elapsed.iloc[-1])
@@ -1036,6 +1042,7 @@ def _build_hybrid_daily_series(fit_models: Dict[str, Dict[str, Any]],
         "current_month_biz_days":   base_month_biz,
         "window_biz_days":          base_window_biz,
         "projection_factor":        round(base_factor, 4),
+        "inpatient_cal_factor":     round(base_cal_factor, 4),
         "latest_projection_total":  round(lp_g + lp_n, 2),
         "latest_projection_gairai": round(lp_g, 2),
         "latest_projection_nyuin":  round(lp_n, 2),
