@@ -125,6 +125,27 @@
 .sheet-body .btn{padding:9px 15px}
 body.sheet-lock{overflow:hidden}
 @media(max-width:768px){.fab{display:flex}}
+/* ★モバイル: 補助セクション既定折りたたみ（提案5） */
+.mc-caret{display:none}
+@media(max-width:768px){
+  .mc-h{cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:12px}
+  .mc-h h4,.mc-h h3{margin:0}
+  .mc-caret{display:inline-block;font-size:12px;color:var(--mu);transition:transform .15s;flex-shrink:0}
+  .mc-collapsed .mc-h{margin-bottom:0}
+  .mc-collapsed .mc-body{display:none}
+  .mc-collapsed .mc-caret{transform:rotate(-90deg)}
+}
+/* ★モバイル: チャート全画面＋スクロールトップFAB（提案6） */
+.chart-fs-btn{display:none}
+.chart-fs{position:fixed !important;inset:0 !important;z-index:60 !important;margin:0;border-radius:0;background:var(--s);padding:14px;overflow:auto}
+.chart-fs .chart{height:86vh !important;overflow:visible}
+body.chart-fs-lock{overflow:hidden}
+@media(max-width:768px){
+  .cpnl{position:relative}
+  .chart-fs-btn{display:inline-flex;align-items:center;justify-content:center;position:absolute;top:12px;right:12px;z-index:5;width:34px;height:34px;border-radius:9px;border:1px solid var(--ln);background:var(--s);color:var(--sub);font-size:15px;cursor:pointer;box-shadow:0 1px 3px rgba(10,22,42,.08)}
+  .fab-top{bottom:80px;opacity:0;pointer-events:none;transform:translateY(20px)}
+  .fab-top.fab-show{opacity:1;pointer-events:auto;transform:none}
+}
 </style>
 </head>
 <body>
@@ -168,29 +189,33 @@ body.sheet-lock{overflow:hidden}
     <div id="commentBox" class="comment" style="display:none"></div>
     <div class="tb" id="toolbar"></div>
     <div id="chartsWrap" class="charts-container layout-2plus1">
-      <div class="cpnl"><h4 id="chartTitle1">🚪 新入院 推移</h4><div class="chart" id="chart1"></div></div>
-      <div class="cpnl"><h4 id="chartTitle2">🛏️ 在院患者 推移</h4><div class="chart" id="chart2"></div></div>
-      <div class="cpnl chart3-panel"><h4 id="chartTitle3">💉 全麻手術 推移</h4><div class="chart" id="chart3"></div></div>
-      <div class="cpnl" id="chart4panel" style="display:none"><h4 id="chartTitle4">💰 月次粗利 推移</h4><div class="chart" id="chart4"></div></div>
+      <div class="cpnl"><h4 id="chartTitle1">🚪 新入院 推移</h4><div class="chart" id="chart1"></div><button class="chart-fs-btn" onclick="chartFS('chart1',this)" aria-label="チャート全画面">⛶</button></div>
+      <div class="cpnl"><h4 id="chartTitle2">🛏️ 在院患者 推移</h4><div class="chart" id="chart2"></div><button class="chart-fs-btn" onclick="chartFS('chart2',this)" aria-label="チャート全画面">⛶</button></div>
+      <div class="cpnl chart3-panel"><h4 id="chartTitle3">💉 全麻手術 推移</h4><div class="chart" id="chart3"></div><button class="chart-fs-btn" onclick="chartFS('chart3',this)" aria-label="チャート全画面">⛶</button></div>
+      <div class="cpnl" id="chart4panel" style="display:none"><h4 id="chartTitle4">💰 月次粗利 推移</h4><div class="chart" id="chart4"></div><button class="chart-fs-btn" onclick="chartFS('chart4',this)" aria-label="チャート全画面">⛶</button></div>
     </div>
     <div id="estimatePanelWrap" style="display:none;margin-top:14px">
       <div class="cpnl">
         <h4 id="estimateTitle">📈 月末粗利 見込み 推移（直近30日ペース × 当月営業日数）</h4>
         <div class="chart" id="estimateChart"></div>
+        <button class="chart-fs-btn" onclick="chartFS('estimateChart',this)" aria-label="チャート全画面">⛶</button>
         <div id="estimateMeta" style="margin-top:8px;font-size:11px;color:var(--mu);line-height:1.5"></div>
       </div>
     </div>
-    <div id="opVsProfitWrap" style="display:none;margin-top:14px">
-      <div class="charts-container layout-2x2" style="grid-template-columns:1fr 1fr">
-        <div class="cpnl">
-          <h4>🔍 件数 vs 粗利 指数化 <span style="font-weight:500;color:var(--mu);font-size:11px">（過去12ヶ月平均 = 100）</span></h4>
-          <div class="chart" id="opIndexChart"></div>
-          <div id="opIndexMeta" style="margin-top:6px;font-size:11px;color:var(--mu);line-height:1.5"></div>
-        </div>
-        <div class="cpnl">
-          <h4>💎 月次単価 <span style="font-weight:500;color:var(--mu);font-size:11px">（粗利 ÷ 全麻件数）</span></h4>
-          <div class="chart" id="opUnitChart"></div>
-          <div id="opUnitMeta" style="margin-top:6px;font-size:11px;color:var(--mu);line-height:1.5"></div>
+    <div id="opVsProfitWrap" data-mc style="display:none;margin-top:14px">
+      <div class="mc-h" onclick="toggleMC(this)"><h4 style="font-size:13px;font-weight:800">🔍 件数 vs 粗利 詳細分析</h4><span class="mc-caret">▾</span></div>
+      <div class="mc-body">
+        <div class="charts-container layout-2x2" style="grid-template-columns:1fr 1fr">
+          <div class="cpnl">
+            <h4>🔍 件数 vs 粗利 指数化 <span style="font-weight:500;color:var(--mu);font-size:11px">（過去12ヶ月平均 = 100）</span></h4>
+            <div class="chart" id="opIndexChart"></div>
+            <div id="opIndexMeta" style="margin-top:6px;font-size:11px;color:var(--mu);line-height:1.5"></div>
+          </div>
+          <div class="cpnl">
+            <h4>💎 月次単価 <span style="font-weight:500;color:var(--mu);font-size:11px">（粗利 ÷ 全麻件数）</span></h4>
+            <div class="chart" id="opUnitChart"></div>
+            <div id="opUnitMeta" style="margin-top:6px;font-size:11px;color:var(--mu);line-height:1.5"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -212,7 +237,8 @@ body.sheet-lock{overflow:hidden}
 
   <div class="ft">🏥 診療ダッシュボード 部門別 ｜ 生成 {{ generated_at }} ｜ 基準日 {{ base_date }}</div>
 
-<!-- ★モバイル: フローティング設定パレット（FAB + ボトムシート） -->
+<!-- ★モバイル: フローティング設定パレット（FAB + ボトムシート）／スクロールトップFAB -->
+<button class="fab fab-top" id="scrollTopFab" aria-label="トップへ戻る" onclick="window.scrollTo({top:0,behavior:'smooth'})">⬆️</button>
 <button class="fab" id="settingsFab" aria-label="表示設定" onclick="openSheet()">⚙️</button>
 <div class="sheet-backdrop" id="sheetBackdrop" onclick="closeSheet()"></div>
 <div class="sheet" id="settingsSheet" role="dialog" aria-label="表示設定" aria-modal="true">
@@ -1297,11 +1323,13 @@ window.addEventListener('hashchange', () => {
 /* ★モバイル: ヘッダー自動非表示（スクロール↓で隠す / ↑で戻す） */
 (function(){
   var hdr=document.querySelector('.hdr'),lastY=window.scrollY,ticking=false;
+  var stf=document.getElementById('scrollTopFab');
   window.addEventListener('scroll',function(){
     if(!ticking){requestAnimationFrame(function(){
       var y=window.scrollY;
       if(y>lastY&&y>60)hdr.classList.add('hdr-hidden');
       else if(y<lastY)hdr.classList.remove('hdr-hidden');
+      if(stf){if(y>400)stf.classList.add('fab-show');else stf.classList.remove('fab-show');}
       lastY=y;ticking=false;
     });ticking=true;}
   });
@@ -1331,6 +1359,34 @@ window.addEventListener('hashchange', () => {
     return {el:el, sec:document.getElementById(m.sec), home:el?el.parentNode:null, next:el?el.nextSibling:null};
   });
   function isMobile(){return window.innerWidth<=768;}
+  // ★モバイル: 補助セクション折りたたみ（提案5）
+  window.toggleMC=function(h){
+    if(window.innerWidth>768)return;
+    var p=h.closest('[data-mc]'); if(p)p.classList.toggle('mc-collapsed');
+  };
+  window.initMC=function(){
+    var mob=window.innerWidth<=768;
+    if(!mob){document.querySelectorAll('[data-mc]').forEach(function(p){p.classList.remove('mc-collapsed');});return;}
+    if(window.initMC._done)return;
+    document.querySelectorAll('[data-mc]').forEach(function(p){p.classList.add('mc-collapsed');});
+    window.initMC._done=true;
+  };
+  // ★モバイル: チャート擬似全画面（提案6）
+  window.chartFS=function(chartId,btn){
+    var el=document.getElementById(chartId); if(!el||!window.Plotly)return;
+    var wrap=el.closest('.cpnl,.pnl'); if(!wrap)return;
+    var entering=!wrap.classList.contains('chart-fs');
+    if(entering){
+      el.__fsH=(el._fullLayout&&el._fullLayout.height)||320;
+      wrap.classList.add('chart-fs'); document.body.classList.add('chart-fs-lock');
+      if(btn)btn.textContent='✕';
+      window.Plotly.relayout(el,{height:Math.round(window.innerHeight*0.86)});
+    } else {
+      wrap.classList.remove('chart-fs'); document.body.classList.remove('chart-fs-lock');
+      if(btn)btn.textContent='⛶';
+      window.Plotly.relayout(el,{height:el.__fsH||320});
+    }
+  };
   function applyLayout(){
     var m=isMobile();
     saved.forEach(function(s){
@@ -1339,6 +1395,7 @@ window.addEventListener('hashchange', () => {
       else  { if(s.el.parentNode!==s.home) s.home.insertBefore(s.el,s.next); }
     });
     if(!m) closeSheet();
+    if(window.initMC) initMC();
   }
   var sheet=document.getElementById('settingsSheet');
   var backdrop=document.getElementById('sheetBackdrop');

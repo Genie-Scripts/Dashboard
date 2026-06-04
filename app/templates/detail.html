@@ -153,7 +153,40 @@
 .sheet-body .grp{flex-wrap:wrap;gap:7px}
 .sheet-body .btn{padding:9px 15px}
 body.sheet-lock{overflow:hidden}
-@media(max-width:768px){.fab{display:flex}}
+/* ★モバイル: 下部固定タブバー（提案2） */
+.bottom-nav{position:fixed;left:0;right:0;bottom:0;z-index:35;display:none;background:var(--s);border-top:1px solid var(--ln);box-shadow:0 -2px 10px rgba(10,22,42,.10);padding:4px 4px calc(4px + env(safe-area-inset-bottom))}
+.bn-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:none;border:none;padding:6px 2px;cursor:pointer;color:var(--mu);font-family:inherit;border-radius:10px;transition:color .15s,background .15s}
+.bn-item .bn-ic{font-size:19px;line-height:1}
+.bn-item .bn-lb{font-size:10px;font-weight:800}
+.bn-item.active{color:var(--br);background:var(--bl)}
+@media(max-width:768px){.fab{display:flex;bottom:74px}.bottom-nav{display:flex}.w{padding-bottom:74px}}
+/* ★モバイル: KPIサマリー横スワイプ・カルーセル（提案4） */
+@media(max-width:768px){
+  .sum{display:flex;grid-template-columns:none;overflow-x:auto;scroll-snap-type:x mandatory;gap:10px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .sum::-webkit-scrollbar{display:none}
+  .sum>*{scroll-snap-align:start;flex:0 0 86%}
+}
+/* ★モバイル: 補助セクション既定折りたたみ（提案5） */
+.mc-caret{display:none}
+@media(max-width:768px){
+  .mc-h{cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:12px}
+  .mc-h h3{margin:0}
+  .mc-caret{display:inline-block;font-size:12px;color:var(--mu);transition:transform .15s;flex-shrink:0}
+  .mc-collapsed .mc-h{margin-bottom:0}
+  .mc-collapsed .mc-body{display:none}
+  .mc-collapsed .mc-caret{transform:rotate(-90deg)}
+}
+/* ★モバイル: チャート全画面＋スクロールトップFAB（提案6） */
+.chart-fs-btn{display:none}
+.chart-fs{position:fixed !important;inset:0 !important;z-index:60 !important;margin:0;border-radius:0;background:var(--s);padding:14px;overflow:auto}
+.chart-fs .chart{height:86vh !important;overflow:visible}
+body.chart-fs-lock{overflow:hidden}
+@media(max-width:768px){
+  .pnl-chart{position:relative}
+  .chart-fs-btn{display:inline-flex;align-items:center;justify-content:center;position:absolute;top:12px;right:12px;z-index:5;width:34px;height:34px;border-radius:9px;border:1px solid var(--ln);background:var(--s);color:var(--sub);font-size:15px;cursor:pointer;box-shadow:0 1px 3px rgba(10,22,42,.08)}
+  .fab-top{bottom:134px;opacity:0;pointer-events:none;transform:translateY(20px)}
+  .fab-top.fab-show{opacity:1;pointer-events:auto;transform:none}
+}
 </style>
 </head>
 <body>
@@ -189,12 +222,14 @@ body.sheet-lock{overflow:hidden}
   </section>
 
   <section class="main">
-    <div class="pnl pnl-chart"><div class="pnl-ctrl" id="chartControls"></div><h3 id="chartTitle">📊 推移グラフ</h3><div class="chart" id="mainChart"></div></div>
-    <div class="pnl pnl-rank"><div class="pnl-ctrl" id="rankControls"></div>
-      <h3 id="rankTitle">🏆 達成状況</h3>
-      <div class="rk" id="rankList"></div>
-      <div id="rankToggle" class="rank-toggle" style="display:none" onclick="toggleRankAll()">もっと見る &#9662;</div>
-      <div class="legend"><span><span class="ld" style="background:#0e7a54"></span>▲ 達成</span><span><span class="ld" style="background:#b45309"></span>― 接近</span><span><span class="ld" style="background:#c4314b"></span>▼ 未達</span></div>
+    <div class="pnl pnl-chart"><div class="pnl-ctrl" id="chartControls"></div><h3 id="chartTitle">📊 推移グラフ</h3><div class="chart" id="mainChart"></div><button class="chart-fs-btn" onclick="chartFS('mainChart',this)" aria-label="チャート全画面">⛶</button></div>
+    <div class="pnl pnl-rank" data-mc><div class="pnl-ctrl" id="rankControls"></div>
+      <div class="mc-h" onclick="toggleMC(this)"><h3 id="rankTitle">🏆 達成状況</h3><span class="mc-caret">▾</span></div>
+      <div class="mc-body">
+        <div class="rk" id="rankList"></div>
+        <div id="rankToggle" class="rank-toggle" style="display:none" onclick="toggleRankAll()">もっと見る &#9662;</div>
+        <div class="legend"><span><span class="ld" style="background:#0e7a54"></span>▲ 達成</span><span><span class="ld" style="background:#b45309"></span>― 接近</span><span><span class="ld" style="background:#c4314b"></span>▼ 未達</span></div>
+      </div>
     </div>
   </section>
 
@@ -254,7 +289,8 @@ body.sheet-lock{overflow:hidden}
   <div class="ft">🏥 診療ダッシュボード 統合詳細 ｜ 生成 {{ generated_at }} ｜ 基準日 {{ base_date }}</div>
 </div>
 
-<!-- ★モバイル: フローティング設定パレット（FAB + ボトムシート） -->
+<!-- ★モバイル: フローティング設定パレット（FAB + ボトムシート）／スクロールトップFAB -->
+<button class="fab fab-top" id="scrollTopFab" aria-label="トップへ戻る" onclick="window.scrollTo({top:0,behavior:'smooth'})">⬆️</button>
 <button class="fab" id="settingsFab" aria-label="表示設定" onclick="openSheet()">⚙️</button>
 <div class="sheet-backdrop" id="sheetBackdrop" onclick="closeSheet()"></div>
 <div class="sheet" id="settingsSheet" role="dialog" aria-label="表示設定" aria-modal="true">
@@ -269,6 +305,9 @@ body.sheet-lock{overflow:hidden}
     <div class="sheet-sec" id="sheetSecRank"><div class="sheet-sec-label">ランキング順位基準</div></div>
   </div>
 </div>
+
+<!-- ★モバイル: 下部固定タブバー（提案2） -->
+<nav class="bottom-nav" id="bottomNav"></nav>
 
 <script>
 const DATA = {{ data_json|safe }};
@@ -334,6 +373,19 @@ function renderTabs() {
       <div class="per">${t.per}</div>
     </div>`
   ).join('');
+  renderBottomNav(tabs);
+}
+
+// ★モバイル: 下部固定タブバー（上部タブと同じ配列から描画して active 同期）
+function renderBottomNav(tabs) {
+  const el = document.getElementById('bottomNav');
+  if (!el) return;
+  const shortLabels = {inpatient:'在院', admission:'新入院', operation:'全麻', profit:'粗利'};
+  el.innerHTML = tabs.map(t =>
+    `<button class="bn-item${t.id===currentTab?' active':''}" onclick="switchTab('${t.id}')" aria-label="${t.name}">
+       <span class="bn-ic">${t.icon}</span><span class="bn-lb">${shortLabels[t.id]||t.name}</span>
+     </button>`
+  ).join('');
 }
 
 function switchTab(id) {
@@ -344,6 +396,41 @@ function switchTab(id) {
   rankSort = 'gap_asc';
   renderTabs(); renderAll();
 }
+// ★モバイル: 補助セクション折りたたみ（提案5）。desktopは常に展開、mobileは初回のみ既定で畳む。
+function toggleMC(h) {
+  if (window.innerWidth > 768) return;
+  const p = h.closest('[data-mc]');
+  if (p) p.classList.toggle('mc-collapsed');
+}
+function initMC() {
+  const mobile = window.innerWidth <= 768;
+  if (!mobile) { document.querySelectorAll('[data-mc]').forEach(p => p.classList.remove('mc-collapsed')); return; }
+  if (initMC._done) return;
+  document.querySelectorAll('[data-mc]').forEach(p => p.classList.add('mc-collapsed'));
+  initMC._done = true;
+}
+
+// ★モバイル: チャート擬似全画面（提案6）。Plotly の height を viewport に relayout し復帰で戻す。
+function chartFS(chartId, btn) {
+  const el = document.getElementById(chartId);
+  if (!el || !window.Plotly) return;
+  const wrap = el.closest('.pnl');
+  if (!wrap) return;
+  const entering = !wrap.classList.contains('chart-fs');
+  if (entering) {
+    el.__fsH = (el._fullLayout && el._fullLayout.height) || 340;
+    wrap.classList.add('chart-fs');
+    document.body.classList.add('chart-fs-lock');
+    if (btn) btn.textContent = '✕';
+    Plotly.relayout(el, { height: Math.round(window.innerHeight * 0.86) });
+  } else {
+    wrap.classList.remove('chart-fs');
+    document.body.classList.remove('chart-fs-lock');
+    if (btn) btn.textContent = '⛶';
+    Plotly.relayout(el, { height: el.__fsH || 340 });
+  }
+}
+
 function setAxis(ax, btn) {
   currentAxis = ax;
   btn.parentElement.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
@@ -1724,11 +1811,13 @@ function closeDrill() {
 /* ★モバイル: ヘッダー自動非表示（スクロール↓で隠す / ↑で戻す） */
 (function(){
   var hdr=document.querySelector('.hdr'),lastY=window.scrollY,ticking=false;
+  var stf=document.getElementById('scrollTopFab');
   window.addEventListener('scroll',function(){
     if(!ticking){requestAnimationFrame(function(){
       var y=window.scrollY;
       if(y>lastY&&y>60)hdr.classList.add('hdr-hidden');
       else if(y<lastY)hdr.classList.remove('hdr-hidden');
+      if(stf){if(y>400)stf.classList.add('fab-show');else stf.classList.remove('fab-show');}
       lastY=y;ticking=false;
     });ticking=true;}
   });
@@ -1770,6 +1859,7 @@ function closeDrill() {
       else  { if(s.el.parentNode!==s.home) s.home.insertBefore(s.el,s.next); }
     });
     if(!m) closeSheet();
+    if(window.initMC) initMC();
   }
   var sheet=document.getElementById('settingsSheet');
   var backdrop=document.getElementById('sheetBackdrop');
