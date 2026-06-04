@@ -226,10 +226,13 @@ function yoyBadgeHtml(curr, prev) {
   return `<span style="font-size:11px;font-weight:900;padding:2px 7px;border-radius:6px;margin-left:6px;background:${bg};color:${col};white-space:nowrap">前年比 ${arrow} ${sign}${pct.toFixed(1)}%</span>`;
 }
 
-/* チャートタイトル(h4)にバッジを付与。elId 'chartN' → 'chartTitleN' */
-function setChartBadge(elId, badge) {
+/* タイトル末尾のゾーン凡例キャプション（達成/注意の背景帯の説明） */
+const ZONE_CAP = '<span style="font-size:10px;font-weight:700;color:var(--mu);margin-left:8px;white-space:nowrap">🟩達成 🟨注意</span>';
+
+/* チャートタイトル(h4)にバッジ等を付与。elId 'chartN' → 'chartTitleN' */
+function setChartBadge(elId, suffix) {
   const t = document.getElementById(elId.replace('chart', 'chartTitle'));
-  if (t && badge) t.innerHTML = t.textContent + badge;
+  if (t && suffix) t.innerHTML = t.textContent + suffix;
 }
 
 function calcMA(values, w) {
@@ -497,8 +500,8 @@ function renderKpiCards(d) {
     const flowCard = `<div class="kc kc-flow">
       <h3>🔄 入退院フロー</h3>
       <div class="period">${DATA.meta.base_date} 実績</div>
-      <div class="flow-row" style="margin-top:10px"><span class="flow-label">🚑 入院+転入</span><span class="flow-val" style="color:#0D9488">${inFlow}名</span></div>
-      <div class="flow-row"><span class="flow-label">🚶 退院+転出</span><span class="flow-val" style="color:#e67e22">${outFlow}名</span></div>
+      <div class="flow-row" style="margin-top:10px"><span class="flow-label">🚑 入院+転入</span><span class="flow-val" style="color:#0072B2">${inFlow}名</span></div>
+      <div class="flow-row"><span class="flow-label">🚶 退院+転出</span><span class="flow-val" style="color:#E69F00">${outFlow}名</span></div>
       <div class="flow-row" style="border-top:1px solid var(--ln);padding-top:6px;margin-top:4px">
         <span class="flow-label">純増減</span>
         <span class="flow-val" style="color:${netCss}">${netFlow>=0?'+':''}${netFlow}名</span>
@@ -782,9 +785,10 @@ function renderOneChart(elId, td, targetVal) {
     hovermode:'x unified',margin:{l:45,r:15,t:8,b:50},height:_pH(320),
     plot_bgcolor:'#fff',paper_bgcolor:'#fff',shapes
   },{responsive:true});
-  // ★前年同期比バッジ（昨年度同期ON時。新入院=chart1は種別フィルタ中は非対称のため非表示）
+  // ★前年同期比バッジ（昨年度同期ON時。新入院=chart1は種別フィルタ中は非対称のため非表示）＋ゾーン凡例
   const badgeOk = showPrevYear && !(elId === 'chart1' && admType !== 'all');
-  setChartBadge(elId, badgeOk ? yoyBadgeHtml(lastVal(allMA28), lastVal(td.ma28_prev && td.ma28_prev.values)) : '');
+  const badge = badgeOk ? yoyBadgeHtml(lastVal(allMA28), lastVal(td.ma28_prev && td.ma28_prev.values)) : '';
+  setChartBadge(elId, badge + (targetVal ? ZONE_CAP : ''));
 }
 
 // Surgery chart: 7-day rolling sum
@@ -841,8 +845,9 @@ function renderSurgeryChart(elId, td, weeklyTarget) {
     hovermode:'x unified',margin:{l:45,r:15,t:8,b:50},height:_pH(320),
     plot_bgcolor:'#fff',paper_bgcolor:'#fff',shapes
   },{responsive:true});
-  // ★前年同期比バッジ（昨年度同期ON時。週次合計の28日平滑の最新点で比較）
-  setChartBadge(elId, showPrevYear ? yoyBadgeHtml(lastVal(allRS7ma28), lastVal(td.weekly_prev && td.weekly_prev.values)) : '');
+  // ★前年同期比バッジ（昨年度同期ON時。週次合計の28日平滑の最新点で比較）＋ゾーン凡例
+  const opBadge = showPrevYear ? yoyBadgeHtml(lastVal(allRS7ma28), lastVal(td.weekly_prev && td.weekly_prev.values)) : '';
+  setChartBadge(elId, opBadge + (tgt ? ZONE_CAP : ''));
 }
 
 function renderProfitDeptChart(elId, bd, mp, projections) {
@@ -880,7 +885,7 @@ function renderProfitDeptChart(elId, bd, mp, projections) {
 
   const tgtArr = fTargets;
   const achColor = (val, tgt) => {
-    if (tgt == null || !tgt) return '#94A3B8';
+    if (tgt == null || !tgt) return '#999999';
     const r = val / tgt * 100;
     return r >= 100 ? '#0e7a54' : r >= 90 ? '#b45309' : '#c4314b';
   };
@@ -894,8 +899,8 @@ function renderProfitDeptChart(elId, bd, mp, projections) {
   if (provList.length) {
     traces.push({
       name:'前月見込み(確報待ち)', x:provList.map(p=>p.month), y:provList.map(p=>p.projection), type:'bar',
-      marker:{color:'rgba(148,163,184,0.45)', pattern:{shape:'.', size:5, solidity:0.5},
-              line:{color:'#94A3B8', width:1.5}},
+      marker:{color:'rgba(153,153,153,0.40)', pattern:{shape:'.', size:5, solidity:0.5},
+              line:{color:'#999999', width:1.5}},
       opacity:0.9,
       hovertemplate:'%{y:.1f}百万円<extra>前月見込み（確報待ち・暫定）</extra>',
     });
@@ -915,11 +920,11 @@ function renderProfitDeptChart(elId, bd, mp, projections) {
     const tx = [...fMonths], ty = [...tgtArr];
     projList.forEach(p => { if (p.target != null) { tx.push(p.month); ty.push(p.target); } });
     traces.push({name:'目標(営業日補正)', x:tx, y:ty, type:'scatter', mode:'lines+markers',
-                 line:{color:'#C0293B',width:2,dash:'dot',shape:'hv'}, marker:{size:5,color:'#C0293B'}});
+                 line:{color:'#D55E00',width:2,dash:'dot',shape:'hv'}, marker:{size:5,color:'#D55E00'}});
   } else if (bd.target) {
     const xEnd = projList.length ? projList[projList.length-1].month : fMonths[fMonths.length-1];
     traces.push({name:'目標', x:[fMonths[0], xEnd], y:[bd.target,bd.target],
-                 type:'scatter', mode:'lines', line:{color:'#C0293B',width:2,dash:'dot'}});
+                 type:'scatter', mode:'lines', line:{color:'#D55E00',width:2,dash:'dot'}});
   }
 
   // Y軸: 期間最小値基準のレンジ（ゼロ起点ではなく変化量を可視化）
@@ -963,13 +968,13 @@ function renderDeptEstimateChart(bd, hy) {
 
   const traces = [
     {name:'入院（月末見込み）', x:dates, y:nyuin, type:'scatter', mode:'lines', stackgroup:'one',
-     line:{color:'#3A6EA5', width:0.5}, fillcolor:'rgba(58,110,165,0.45)',
+     line:{color:'#E69F00', width:0.5}, fillcolor:'rgba(230,159,0,0.40)',
      hovertemplate:'%{y:.1f}百万円<extra>入院見込み</extra>'},
     {name:'外来（月末見込み）', x:dates, y:gairai, type:'scatter', mode:'lines', stackgroup:'one',
-     line:{color:'#0D9488', width:0.5}, fillcolor:'rgba(13,148,136,0.45)',
+     line:{color:'#56B4E9', width:0.5}, fillcolor:'rgba(86,180,233,0.40)',
      hovertemplate:'%{y:.1f}百万円<extra>外来見込み</extra>'},
     {name:'🧪 月末粗利 見込み合計', x:dates, y:total, type:'scatter', mode:'lines',
-     line:{color:'#9333EA', width:2.8}, hovertemplate:'%{y:.1f}百万円<extra>月末見込み合計</extra>'},
+     line:{color:'#0072B2', width:2.8}, hovertemplate:'%{y:.1f}百万円<extra>月末見込み合計</extra>'},
   ];
   const yAll = total.filter(v => v != null && !isNaN(v));
 
@@ -978,7 +983,7 @@ function renderDeptEstimateChart(bd, hy) {
   if (tgt && dates.length > 0) {
     traces.push({name:`月次目標 ${tgt}百万円`, x:[dates[0], dates[dates.length-1]],
       y:[tgt, tgt], type:'scatter', mode:'lines',
-      line:{color:'#C0293B', width:2, dash:'dot'},
+      line:{color:'#D55E00', width:2, dash:'dot'},
       hovertemplate:'%{y:.1f}百万円<extra>月次目標</extra>'});
     yAll.push(tgt);
   }
@@ -996,7 +1001,7 @@ function renderDeptEstimateChart(bd, hy) {
     });
     if (me.length > 0) {
       traces.push({name:'月次実績', x:me, y:mv, type:'scatter', mode:'markers',
-        marker:{color:'#C0293B', size:10, symbol:'diamond-open', line:{width:2.2}},
+        marker:{color:'#D55E00', size:10, symbol:'diamond-open', line:{width:2.2}},
         hovertemplate:'%{y:.1f}百万円<extra>月次実績</extra>'});
       mv.forEach(v => { if (v != null && !isNaN(v)) yAll.push(v); });
     }
@@ -1092,13 +1097,13 @@ function renderOpVsProfit(opTd, pc) {
   // ── 左: 指数化二重線 ──
   const idxTraces = [
     {name:'全麻件数 指数', x:months, y:idxOps,    type:'scatter', mode:'lines+markers',
-     line:{color:'#0D9488', width:2.4}, marker:{size:6},
+     line:{color:'#0072B2', width:2.4}, marker:{size:6},
      hovertemplate:'%{y:.1f}<extra>件数</extra>'},
     {name:'粗利 指数',     x:months, y:idxProfit, type:'scatter', mode:'lines+markers',
-     line:{color:'#3A6EA5', width:2.4}, marker:{size:6},
+     line:{color:'#E69F00', width:2.4}, marker:{size:6},
      hovertemplate:'%{y:.1f}<extra>粗利</extra>'},
     {name:'基準 100', x:months, y:months.map(()=>100), type:'scatter', mode:'lines',
-     line:{color:'#9CA3AF', width:1, dash:'dot'}, hoverinfo:'skip', showlegend:false},
+     line:{color:'#999999', width:1, dash:'dot'}, hoverinfo:'skip', showlegend:false},
   ];
   const idxYAll = [...idxProfit, ...idxOps].filter(v => v != null);
   const idxLo = idxYAll.length ? Math.min(...idxYAll, 95) : 90;
@@ -1117,14 +1122,14 @@ function renderOpVsProfit(opTd, pc) {
   // ── 右: 月次単価線 ──
   const unitTraces = [
     {name:'単価（粗利÷件数）', x:months, y:unitVals, type:'scatter', mode:'lines+markers',
-     line:{color:'#9333EA', width:2.4}, marker:{size:6},
+     line:{color:'#0072B2', width:2.4}, marker:{size:6},
      hovertemplate:'%{y:.2f}百万/件<extra></extra>'},
   ];
   const unitClean = unitVals.filter(v => v != null);
   const unitAvg = unitClean.length ? unitClean.reduce((a,b)=>a+b,0) / unitClean.length : null;
   if (unitAvg != null) {
     unitTraces.push({name:`平均 ${unitAvg.toFixed(2)}`, x:months, y:months.map(()=>unitAvg),
-      type:'scatter', mode:'lines', line:{color:'#9CA3AF', width:1, dash:'dot'},
+      type:'scatter', mode:'lines', line:{color:'#999999', width:1, dash:'dot'},
       hoverinfo:'skip'});
   }
   const uLo = unitClean.length ? Math.min(...unitClean) : 0;
@@ -1203,10 +1208,10 @@ function renderFlowChart(elId, admTd, outTd) {
   const yAbs2 = Math.max(Math.abs(mn2) + pd2, mx2 + pd2);
 
   Plotly.newPlot(elId, [
-    { name:'入院+転入', x:ds, y:adm,            type:'bar',     marker:{color:'#0D9488'}, opacity:0.75, yaxis:'y' },
-    { name:'退院+転出', x:ds, y:out.map(v=>-v), type:'bar',     marker:{color:'#e67e22'}, opacity:0.75, yaxis:'y' },
+    { name:'入院+転入', x:ds, y:adm,            type:'bar',     marker:{color:'#0072B2'}, opacity:0.75, yaxis:'y' },
+    { name:'退院+転出', x:ds, y:out.map(v=>-v), type:'bar',     marker:{color:'#E69F00'}, opacity:0.75, yaxis:'y' },
     { name:'純増減 移動平均', x:ds, y:nm,        type:'scatter', mode:'lines',
-      line:{color:'#C0293B', width:2.5}, yaxis:'y2' },
+      line:{color:'#D55E00', width:2.5}, yaxis:'y2' },
   ], {
     barmode:'relative',
     font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
@@ -1214,8 +1219,8 @@ function renderFlowChart(elId, admTd, outTd) {
     yaxis:{range:[-Math.ceil(yAbs1), Math.ceil(yAbs1)], gridcolor:'#DCE1E9',
            zeroline:true, zerolinecolor:'#888', zerolinewidth:1.5},
     yaxis2:{overlaying:'y', side:'right', range:[-Math.ceil(yAbs2), Math.ceil(yAbs2)],
-            gridcolor:'transparent', zeroline:true, zerolinecolor:'#C0293B', zerolinewidth:1,
-            tickfont:{size:10, color:'#C0293B'}},
+            gridcolor:'transparent', zeroline:true, zerolinecolor:'#D55E00', zerolinewidth:1,
+            tickfont:{size:10, color:'#D55E00'}},
     legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},
     hovermode:'x unified',
     margin:{l:45,r:45,t:8,b:50}, height:_pH(320),

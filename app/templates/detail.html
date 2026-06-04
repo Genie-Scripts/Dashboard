@@ -833,11 +833,11 @@ function renderEstimateChart() {
 
   const traces = [
     {name:'入院（月末見込み）', x:dates, y:nyuin, type:'scatter', mode:'lines', stackgroup:'one',
-     line:{color:'#3A6EA5', width:0.5}, fillcolor:'rgba(58,110,165,0.45)', hovertemplate:'%{y:.1f}百万円<extra>入院見込み</extra>'},
+     line:{color:'#E69F00', width:0.5}, fillcolor:'rgba(230,159,0,0.40)', hovertemplate:'%{y:.1f}百万円<extra>入院見込み</extra>'},
     {name:'外来（月末見込み）', x:dates, y:gairai, type:'scatter', mode:'lines', stackgroup:'one',
-     line:{color:'#0D9488', width:0.5}, fillcolor:'rgba(13,148,136,0.45)', hovertemplate:'%{y:.1f}百万円<extra>外来見込み</extra>'},
+     line:{color:'#56B4E9', width:0.5}, fillcolor:'rgba(86,180,233,0.40)', hovertemplate:'%{y:.1f}百万円<extra>外来見込み</extra>'},
     {name:'🧪 月末粗利 見込み合計', x:dates, y:total, type:'scatter', mode:'lines',
-     line:{color:'#9333EA', width:2.8}, hovertemplate:'%{y:.1f}百万円<extra>月末見込み合計</extra>'},
+     line:{color:'#0072B2', width:2.8}, hovertemplate:'%{y:.1f}百万円<extra>月末見込み合計</extra>'},
   ];
   const yAll = total.filter(v => v != null && !isNaN(v));
 
@@ -846,7 +846,7 @@ function renderEstimateChart() {
   if (hospTgt != null && dates.length > 0) {
     traces.push({name:`月次目標 ${hospTgt}百万円`, x:[dates[0], dates[dates.length-1]],
       y:[hospTgt, hospTgt], type:'scatter', mode:'lines',
-      line:{color:'#C0293B', width:2, dash:'dot'},
+      line:{color:'#D55E00', width:2, dash:'dot'},
       hovertemplate:'%{y:.1f}百万円<extra>月次目標</extra>'});
     yAll.push(hospTgt);
   }
@@ -866,7 +866,7 @@ function renderEstimateChart() {
     const mv = idxM >= 0 ? vals.slice(idxM) : vals;
     if (me.length > 0) {
       traces.push({name:'月次実績', x:me, y:mv, type:'scatter', mode:'markers',
-        marker:{color:'#C0293B', size:11, symbol:'diamond-open', line:{width:2.4}},
+        marker:{color:'#D55E00', size:11, symbol:'diamond-open', line:{width:2.4}},
         hovertemplate:'%{y:.1f}百万円<extra>月次実績</extra>'});
       mv.forEach(v => { if (v != null && !isNaN(v)) yAll.push(v); });
     }
@@ -1435,7 +1435,7 @@ function renderProfitChart() {
 
   // 月ごとに達成率を計算して色分け
   const achColor = (val, tgt) => {
-    if (tgt == null || tgt === 0) return '#94A3B8';
+    if (tgt == null || tgt === 0) return '#999999';
     const rate = val / tgt * 100;
     if (rate >= 100) return '#0e7a54';
     if (rate >= 90)  return '#b45309';
@@ -1459,8 +1459,8 @@ function renderProfitChart() {
   if (provList.length) {
     traces.push({
       name:'前月見込み(確報待ち)', x:provList.map(p=>p.month), y:provList.map(p=>p.projection), type:'bar',
-      marker:{color:'rgba(148,163,184,0.45)', pattern:{shape:'.', size:5, solidity:0.5},
-              line:{color:'#94A3B8', width:1.5}},
+      marker:{color:'rgba(153,153,153,0.40)', pattern:{shape:'.', size:5, solidity:0.5},
+              line:{color:'#999999', width:1.5}},
       opacity:0.9, showlegend:true,
       hovertemplate:'%{y:.1f}百万円<extra>前月見込み（確報待ち・暫定）</extra>',
     });
@@ -1480,7 +1480,7 @@ function renderProfitChart() {
     projList.forEach(p => { if (p.target != null) { tx.push(p.month); ty.push(p.target); } });
     traces.push({
       name:'月次目標(営業日換算)', x:tx, y:ty, type:'scatter', mode:'lines+markers',
-      line:{color:'#C0293B',width:2,dash:'dot'}, marker:{size:5,color:'#C0293B'},
+      line:{color:'#D55E00',width:2,dash:'dot'}, marker:{size:5,color:'#D55E00'},
     });
   }
   traces.push(...legendDummies);
@@ -1622,16 +1622,16 @@ function openProfitDrill(dept) {
 
   // 外来粗利（営業日補正目標ライン）
   _renderProfitBreakdownChart('drillChartGairai', bd.months, bd.gairai_values, bd.gairai_targets,
-                              '#0EA5E9', '目標(営業日補正)');
+                              '#56B4E9', '目標(営業日補正)');
   // 入院粗利（暦日補正目標ライン）
   _renderProfitBreakdownChart('drillChartNyuin', bd.months, bd.nyuin_values, bd.nyuin_targets,
-                              '#F59E0B', '目標(暦日補正)');
+                              '#E69F00', '目標(暦日補正)');
 
   // 達成率折れ線グラフ
   if (bd.achievements) {
     const achTraces = [
-      {name:'達成率', x:bd.months, y:bd.achievements, type:'scatter', mode:'lines+markers', line:{color:'#0D9488',width:2.5}, marker:{size:5}},
-      {name:'100%', x:[bd.months[0],bd.months[bd.months.length-1]], y:[100,100], type:'scatter', mode:'lines', line:{color:'#C0293B',width:2,dash:'dot'}},
+      {name:'達成率', x:bd.months, y:bd.achievements, type:'scatter', mode:'lines+markers', line:{color:'#0072B2',width:2.5}, marker:{size:5}},
+      {name:'100%', x:[bd.months[0],bd.months[bd.months.length-1]], y:[100,100], type:'scatter', mode:'lines', line:{color:'#D55E00',width:2,dash:'dot'}},
     ];
     Plotly.newPlot('drillChartAch', achTraces, {font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},xaxis:{gridcolor:'#DCE1E9',tickangle:-45},yaxis:{gridcolor:'#DCE1E9',title:{text:'%',font:{size:10}}},legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},hovermode:'x unified',margin:{l:45,r:15,t:8,b:65},height:_pH(320),plot_bgcolor:'#fff',paper_bgcolor:'#fff'},{responsive:true});
   } else {
@@ -1651,7 +1651,7 @@ function _renderProfitBreakdownChart(elId, months, values, targets, barColor, ta
   const traces = [{name:'粗利', x:months, y:values, type:'bar', marker:{color:barColor}, opacity:0.85}];
   if (targets && targets.some(v => v != null)) {
     traces.push({name:targetName, x:months, y:targets, type:'scatter', mode:'lines+markers',
-                 line:{color:'#C0293B',width:2,dash:'dot',shape:'hv'}, marker:{size:5,color:'#C0293B'}});
+                 line:{color:'#D55E00',width:2,dash:'dot',shape:'hv'}, marker:{size:5,color:'#D55E00'}});
   }
   const allY = [...values, ...(targets || [])].filter(v => v != null);
   const yMax = allY.length ? Math.max(...allY) * 1.15 : 10;
