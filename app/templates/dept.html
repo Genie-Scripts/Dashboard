@@ -207,6 +207,31 @@ function stCss(rate) { return rate==null?'mu':rate<90?'dr':rate<100?'wr':'ok'; }
 function stShape(rate) { return rate==null?'—':rate<90?'▼':rate<100?'―':'▲'; }
 function stText(rate) { return rate==null?'—':rate<90?'未達':rate<100?'接近':'達成'; }
 
+/* 配列の末尾の非null値（最新点） */
+function lastVal(arr) {
+  if (!arr) return null;
+  for (let i = arr.length - 1; i >= 0; i--) if (arr[i] != null) return arr[i];
+  return null;
+}
+
+/* 前年同期比バッジ: 最新点の当年MA vs 前年MA。±5%で配色 */
+function yoyBadgeHtml(curr, prev) {
+  if (curr == null || prev == null || prev === 0) return '';
+  const pct = (curr - prev) / Math.abs(prev) * 100;
+  const css = pct > 5 ? 'ok' : pct < -5 ? 'dr' : 'wr';
+  const bg = {ok:'var(--ok-bg)',wr:'var(--wr-bg)',dr:'var(--dr-bg)'}[css];
+  const col = {ok:'var(--ok)',wr:'var(--wr)',dr:'var(--dr)'}[css];
+  const arrow = pct > 5 ? '▲' : pct < -5 ? '▼' : '―';
+  const sign = pct >= 0 ? '+' : '';
+  return `<span style="font-size:11px;font-weight:900;padding:2px 7px;border-radius:6px;margin-left:6px;background:${bg};color:${col};white-space:nowrap">前年比 ${arrow} ${sign}${pct.toFixed(1)}%</span>`;
+}
+
+/* チャートタイトル(h4)にバッジを付与。elId 'chartN' → 'chartTitleN' */
+function setChartBadge(elId, badge) {
+  const t = document.getElementById(elId.replace('chart', 'chartTitle'));
+  if (t && badge) t.innerHTML = t.textContent + badge;
+}
+
 function calcMA(values, w) {
   const ma = [];
   for (let i = 0; i < values.length; i++) {
@@ -729,18 +754,18 @@ function renderOneChart(elId, td, targetVal) {
   const m7 = allMA7.slice(si), m28 = allMA28.slice(si);
 
   const traces = [], yV = [];
-  if (showDaily) { traces.push({name:'日次実績',x:ds,y:vs,type:'scatter',mode:'lines',line:{color:'#94A3B8',width:1,dash:'dot'},opacity:0.7}); yV.push(...vs.filter(v=>v!=null)); }
-  if (showMA7 && m7.length) { traces.push({name:'7日移動平均',x:ds,y:m7,type:'scatter',mode:'lines',line:{color:'#0D9488',width:2.5}}); yV.push(...m7.filter(v=>v!=null)); }
-  if (showMA28 && m28.length) { traces.push({name:'28日移動平均',x:ds,y:m28,type:'scatter',mode:'lines',line:{color:'#e67e22',width:2}}); yV.push(...m28.filter(v=>v!=null)); }
-  // ★昨年度同期 28日移動平均（暦日・固定参照線。Y軸にも収める）
+  if (showDaily) { traces.push({name:'日次実績',x:ds,y:vs,type:'scatter',mode:'lines',line:{color:'#999999',width:1,dash:'dot'},opacity:0.7}); yV.push(...vs.filter(v=>v!=null)); }
+  if (showMA7 && m7.length) { traces.push({name:'7日移動平均',x:ds,y:m7,type:'scatter',mode:'lines',line:{color:'#0072B2',width:2.5}}); yV.push(...m7.filter(v=>v!=null)); }
+  if (showMA28 && m28.length) { traces.push({name:'28日移動平均',x:ds,y:m28,type:'scatter',mode:'lines',line:{color:'#E69F00',width:2}}); yV.push(...m28.filter(v=>v!=null)); }
+  // ★昨年度同期 28日移動平均（紫実線・固定参照線。Y軸にも収める）
   const bp = td.ma28_prev;
   if (showPrevYear && bp && bp.dates && bp.dates.length) {
     const sip = Math.max(0, bp.dates.findIndex(x => x >= cutoff));
     const pds = bp.dates.slice(sip), pvs = bp.values.slice(sip);
-    traces.push({name:'昨年度同期(28日平均)',x:pds,y:pvs,type:'scatter',mode:'lines',line:{color:'#94A3B8',width:1.5}});
+    traces.push({name:'昨年度同期(28日平均)',x:pds,y:pvs,type:'scatter',mode:'lines',line:{color:'#CC79A7',width:1.8}});
     yV.push(...pvs.filter(v=>v!=null));
   }
-  if (targetVal && ds.length) { traces.push({name:`目標 ${Math.round(targetVal*10)/10}`,x:[ds[0],ds[ds.length-1]],y:[targetVal,targetVal],type:'scatter',mode:'lines',line:{color:'#C0293B',width:2,dash:'dot'}}); yV.push(targetVal); }
+  if (targetVal && ds.length) { traces.push({name:`目標 ${Math.round(targetVal*10)/10}`,x:[ds[0],ds[ds.length-1]],y:[targetVal,targetVal],type:'scatter',mode:'lines',line:{color:'#D55E00',width:2,dash:'dot'}}); yV.push(targetVal); }
 
   const mn=yV.length?Math.min(...yV):0, mx=yV.length?Math.max(...yV):10, pd=(mx-mn)*.08||2;
   const yLo=Math.max(0,Math.floor(mn-pd)), yHi=Math.ceil(mx+pd);
@@ -757,6 +782,9 @@ function renderOneChart(elId, td, targetVal) {
     hovermode:'x unified',margin:{l:45,r:15,t:8,b:50},height:_pH(320),
     plot_bgcolor:'#fff',paper_bgcolor:'#fff',shapes
   },{responsive:true});
+  // ★前年同期比バッジ（昨年度同期ON時。新入院=chart1は種別フィルタ中は非対称のため非表示）
+  const badgeOk = showPrevYear && !(elId === 'chart1' && admType !== 'all');
+  setChartBadge(elId, badgeOk ? yoyBadgeHtml(lastVal(allMA28), lastVal(td.ma28_prev && td.ma28_prev.values)) : '');
 }
 
 // Surgery chart: 7-day rolling sum
@@ -785,18 +813,18 @@ function renderSurgeryChart(elId, td, weeklyTarget) {
 
   const tgt = weeklyTarget;
   const traces = [], yV = [];
-  if (showDaily) { traces.push({name:'週間実績',x:ds,y:rs7,type:'scatter',mode:'lines',line:{color:'#94A3B8',width:1,dash:'dot'},opacity:0.7}); yV.push(...rs7.filter(v=>v!=null)); }
-  if (showMA7 && rs7ma.length) { traces.push({name:'4週移動平均',x:ds,y:rs7ma,type:'scatter',mode:'lines',line:{color:'#0D9488',width:2.5}}); yV.push(...rs7ma.filter(v=>v!=null)); }
-  if (showMA28 && rs7ma28.length) { traces.push({name:'28日移動平均',x:ds,y:rs7ma28,type:'scatter',mode:'lines',line:{color:'#e67e22',width:2}}); yV.push(...rs7ma28.filter(v=>v!=null)); }
-  // ★昨年度同期 週次合計（前年7日合計の28日平滑・件/週。全麻チャートの昨年度線と同じ実線表示）
+  if (showDaily) { traces.push({name:'週間実績',x:ds,y:rs7,type:'scatter',mode:'lines',line:{color:'#999999',width:1,dash:'dot'},opacity:0.7}); yV.push(...rs7.filter(v=>v!=null)); }
+  if (showMA7 && rs7ma.length) { traces.push({name:'4週移動平均',x:ds,y:rs7ma,type:'scatter',mode:'lines',line:{color:'#0072B2',width:2.5}}); yV.push(...rs7ma.filter(v=>v!=null)); }
+  if (showMA28 && rs7ma28.length) { traces.push({name:'28日移動平均',x:ds,y:rs7ma28,type:'scatter',mode:'lines',line:{color:'#E69F00',width:2}}); yV.push(...rs7ma28.filter(v=>v!=null)); }
+  // ★昨年度同期 週次合計（前年7日合計の28日平滑・件/週。紫実線）
   const bp = td.weekly_prev;
   if (showPrevYear && bp && bp.dates && bp.dates.length) {
     const sip = Math.max(0, bp.dates.findIndex(x => x >= cutoff));
     const pds = bp.dates.slice(sip), pvs = bp.values.slice(sip);
-    traces.push({name:'昨年度同期(週次合計)',x:pds,y:pvs,type:'scatter',mode:'lines',line:{color:'#94A3B8',width:1.5}});
+    traces.push({name:'昨年度同期(週次合計)',x:pds,y:pvs,type:'scatter',mode:'lines',line:{color:'#CC79A7',width:1.8}});
     yV.push(...pvs.filter(v=>v!=null));
   }
-  if (tgt && ds.length) { traces.push({name:`週目標 ${tgt}`,x:[ds[0],ds[ds.length-1]],y:[tgt,tgt],type:'scatter',mode:'lines',line:{color:'#C0293B',width:2,dash:'dot'}}); yV.push(tgt); }
+  if (tgt && ds.length) { traces.push({name:`週目標 ${tgt}`,x:[ds[0],ds[ds.length-1]],y:[tgt,tgt],type:'scatter',mode:'lines',line:{color:'#D55E00',width:2,dash:'dot'}}); yV.push(tgt); }
 
   const mn=yV.length?Math.min(...yV):0, mx=yV.length?Math.max(...yV):10, pd=(mx-mn)*.08||1;
   const yLo=Math.max(0,Math.floor(mn-pd)), yHi=Math.ceil(mx+pd);
@@ -813,6 +841,8 @@ function renderSurgeryChart(elId, td, weeklyTarget) {
     hovermode:'x unified',margin:{l:45,r:15,t:8,b:50},height:_pH(320),
     plot_bgcolor:'#fff',paper_bgcolor:'#fff',shapes
   },{responsive:true});
+  // ★前年同期比バッジ（昨年度同期ON時。週次合計の28日平滑の最新点で比較）
+  setChartBadge(elId, showPrevYear ? yoyBadgeHtml(lastVal(allRS7ma28), lastVal(td.weekly_prev && td.weekly_prev.values)) : '');
 }
 
 function renderProfitDeptChart(elId, bd, mp, projections) {

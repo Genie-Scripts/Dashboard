@@ -76,6 +76,12 @@ check:
 		load_and_preprocess('$(DATA_DIR)'); \
 		print('✅ データ検証OK')"
 
+## 指標関数のユニットテスト
+.PHONY: test
+test:
+	@echo "$(CYAN)🧪 ユニットテスト実行中...$(RESET)"
+	$(PYTHON) -m unittest discover -s tests -v
+
 ## 特定の基準日で生成
 ## 使用例: make build-date DATE=2026-03-26
 .PHONY: build-date

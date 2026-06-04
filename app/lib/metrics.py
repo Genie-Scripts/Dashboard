@@ -296,6 +296,9 @@ def build_biz_ma30_series(surg: pd.DataFrame, base_date: pd.Timestamp,
     """
     from .config import is_operational_day
 
+    if surg is None or len(surg) == 0 or "全麻" not in surg.columns:
+        return {"dates": [], "values": []}
+
     offset = timedelta(days=365) if prev_year else timedelta(0)
     shifted_base = base_date - offset
 
