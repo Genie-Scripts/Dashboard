@@ -24,6 +24,11 @@ from .config import (
     is_operational_day,
 )
 
+# 前年同期アラインの既定オフセット日数。
+# 364 = 52週ちょうど。曜日を揃えるため週次季節性データ（在院/新入院/全麻/週次合計）の
+# 年度比較線に適する（365日だと年ごとに曜日が1〜2日ずれて累積する）。
+PREVYEAR_OFFSET_DAYS = 364
+
 
 # ════════════════════════════════════════
 # 日次集計（変更なし）
@@ -299,7 +304,7 @@ def build_biz_ma30_series(surg: pd.DataFrame, base_date: pd.Timestamp,
     if surg is None or len(surg) == 0 or "全麻" not in surg.columns:
         return {"dates": [], "values": []}
 
-    offset = timedelta(days=365) if prev_year else timedelta(0)
+    offset = timedelta(days=PREVYEAR_OFFSET_DAYS) if prev_year else timedelta(0)
     shifted_base = base_date - offset
 
     # 全麻の日次件数
@@ -337,7 +342,7 @@ def build_biz_ma30_series(surg: pd.DataFrame, base_date: pd.Timestamp,
 
 
 def build_prevyear_ma_series(series: pd.DataFrame, base_date: pd.Timestamp,
-                             window: int = 28, offset_days: int = 365,
+                             window: int = 28, offset_days: int = PREVYEAR_OFFSET_DAYS,
                              value_col: str = "値") -> dict:
     """
     前年同期の window 日暦日移動平均を当年度日付にアラインして返す。
@@ -346,7 +351,8 @@ def build_prevyear_ma_series(series: pd.DataFrame, base_date: pd.Timestamp,
     build_biz_ma30_series(prev_year=True)（営業平日基準）の暦日版に相当する。
 
     base_date - offset_days 以前の前年データで window 日暦日trailing MA を算出し、
-    各日付を +offset_days して当年度にアラインして返す。window=28（4週）は
+    各日付を +offset_days して当年度にアラインして返す。offset_days の既定は
+    PREVYEAR_OFFSET_DAYS（=364, 52週）で曜日を揃える。window=28（4週）は
     曜日・週末パターンを平準化する。デフォルト表示時のフロント calcMA(values,28)
     （連続日 trailing 28日平均）と定義が一致する。
 
@@ -378,7 +384,8 @@ def build_prevyear_ma_series(series: pd.DataFrame, base_date: pd.Timestamp,
 
 def build_prevyear_weekly_series(series: pd.DataFrame, base_date: pd.Timestamp,
                                  sum_window: int = 7, smooth_window: int = 28,
-                                 offset_days: int = 365, value_col: str = "値") -> dict:
+                                 offset_days: int = PREVYEAR_OFFSET_DAYS,
+                                 value_col: str = "値") -> dict:
     """
     前年同期の sum_window 日ローリング合計（件/週）を smooth_window 日MAで平滑化し、
     当年度日付にアラインして返す。部門別の全麻チャート（週次合計表示）の

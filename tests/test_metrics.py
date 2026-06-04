@@ -23,6 +23,7 @@ from app.lib.metrics import (  # noqa: E402
     build_prevyear_ma_series,
     build_prevyear_weekly_series,
     build_biz_ma30_series,
+    PREVYEAR_OFFSET_DAYS,
 )
 
 BASE = pd.Timestamp("2026-06-03")
@@ -60,12 +61,26 @@ class TestPrevyearMaSeries(unittest.TestCase):
         out = build_prevyear_ma_series(s, BASE, window=28)
         self.assertAlmostEqual(out["values"][-1], 100.0, places=6)
 
-    def test_offset_is_365_days(self):
+    def test_explicit_offset_param(self):
         s = _daily("2024-01-01", "2025-06-03", lambda d, i: 10)
         out = build_prevyear_ma_series(s, BASE, window=28, offset_days=365)
         # 入力最終日 2025-06-03 + 365 = 2026-06-03
         self.assertEqual(out["dates"][-1], "2026-06-03")
         self.assertEqual(len(out["dates"]), len(out["values"]))
+
+    def test_default_offset_is_52_weeks(self):
+        # 既定オフセットは 364 日（52週=曜日合わせ）
+        self.assertEqual(PREVYEAR_OFFSET_DAYS, 364)
+        s = _daily("2024-01-01", "2025-06-10", lambda d, i: 10)
+        default = build_prevyear_ma_series(s, BASE)
+        w52 = build_prevyear_ma_series(s, BASE, offset_days=364)
+        cal = build_prevyear_ma_series(s, BASE, offset_days=365)
+        # 既定 == 52週(364)、暦日(365)とは先頭日が異なる
+        self.assertEqual(default["dates"], w52["dates"])
+        self.assertNotEqual(default["dates"][0], cal["dates"][0])
+        # いずれも末尾は基準日に揃う（shifted_base がオフセットに追従するため）
+        self.assertEqual(default["dates"][-1], "2026-06-03")
+        self.assertEqual(cal["dates"][-1], "2026-06-03")
 
 
 class TestPrevyearWeeklySeries(unittest.TestCase):
