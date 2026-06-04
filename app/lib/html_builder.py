@@ -26,7 +26,7 @@ from .metrics import (
     build_nurse_watch_ranking, build_nurse_load_ranking,
     rolling7_new_admission, rolling7_surgery,
     build_daily_series, build_surgery_daily_series, add_moving_average,
-    build_biz_ma30_series,
+    build_biz_ma30_series, build_prevyear_ma_series, build_prevyear_weekly_series,
     week_over_week, achievement_rate,
 )
 from .charts import (
@@ -404,16 +404,20 @@ def build_detail_json(adm, surg, targets, surg_targets,
     # ★平日/休日フラグを追加
     from .config import is_operational_day
 
-    def _trend_dict(s: pd.DataFrame) -> dict:
-        return {
+    def _trend_dict(s: pd.DataFrame, prevyear: bool = False) -> dict:
+        d = {
             "dates": [d.strftime("%Y-%m-%d") for d in s["日付"]],
             "values": [int(v) if pd.notna(v) else 0 for v in s["値"]],
             "ma7": [round(v, 1) if pd.notna(v) else None for v in s.get("MA7", [])],
             "ma28": [round(v, 1) if pd.notna(v) else None for v in s.get("MA28", [])] if "MA28" in s.columns else [],
             "is_weekday": [bool(is_operational_day(d)) for d in s["日付"]],
         }
+        # ★昨年度同期 28日暦日MA（年度比較オーバーレイ／在院・新入院・部門別用）
+        if prevyear and len(s) > 0:
+            d["ma28_prev"] = build_prevyear_ma_series(s, base_date, window=28)
+        return d
 
-    adm_trend = _trend_dict(series_nadm)
+    adm_trend = _trend_dict(series_nadm, prevyear=True)
     _add_adm_breakdown(adm_trend, series_planned_hosp, series_emg_hosp)
 
     # ★全麻 30平日移動平均（病院全体用）: 当年度 + 昨年度
@@ -425,7 +429,7 @@ def build_detail_json(adm, surg, targets, surg_targets,
     op_trend["biz_ma30_prev"] = biz_ma30_prev
 
     trend = {
-        "inpatient": _trend_dict(series_inp),
+        "inpatient": _trend_dict(series_inp, prevyear=True),
         "admission": adm_trend,
         "operation": op_trend,
     }
@@ -505,9 +509,16 @@ def build_detail_json(adm, surg, targets, surg_targets,
             else:
                 comments.append("目標に接近しています")
 
-        dept_adm_trend = (_trend_dict(dept_nadm_series) if len(dept_nadm_series) > 0
+        dept_adm_trend = (_trend_dict(dept_nadm_series, prevyear=True) if len(dept_nadm_series) > 0
                           else {"dates": [], "values": [], "ma7": [], "ma28": []})
         _add_adm_breakdown(dept_adm_trend, dept_planned_series, dept_emg_series)
+
+        # 全麻（週次合計表示）: 昨年度同期の週次合計線を付与
+        if len(dept_surg_series) > 0:
+            dept_op_trend = _trend_dict(dept_surg_series)
+            dept_op_trend["weekly_prev"] = build_prevyear_weekly_series(dept_surg_series, base_date)
+        else:
+            dept_op_trend = {"dates": [], "values": [], "ma7": []}
 
         drill[dept] = {
             "admission": {
@@ -529,8 +540,8 @@ def build_detail_json(adm, surg, targets, surg_targets,
             },
             "trend": {
                 "admission": dept_adm_trend,
-                "inpatient": _trend_dict(dept_inp_series) if len(dept_inp_series) > 0 else {"dates":[],"values":[],"ma7":[],"ma28":[]},
-                "operation": _trend_dict(dept_surg_series) if len(dept_surg_series) > 0 else {"dates":[],"values":[],"ma7":[]},
+                "inpatient": _trend_dict(dept_inp_series, prevyear=True) if len(dept_inp_series) > 0 else {"dates":[],"values":[],"ma7":[],"ma28":[]},
+                "operation": dept_op_trend,
             },
             "comment": "、".join(comments),
         }
@@ -586,7 +597,7 @@ def build_detail_json(adm, surg, targets, surg_targets,
             else:
                 w_comments.append("目標に接近しています")
 
-        w_adm_trend = (_trend_dict(w_nadm_series) if len(w_nadm_series) > 0
+        w_adm_trend = (_trend_dict(w_nadm_series, prevyear=True) if len(w_nadm_series) > 0
                        else {"dates": [], "values": [], "ma7": [], "ma28": []})
         _add_adm_breakdown(w_adm_trend, w_planned_series, w_emg_series)
 
@@ -616,7 +627,7 @@ def build_detail_json(adm, surg, targets, surg_targets,
             },
             "trend": {
                 "admission": w_adm_trend,
-                "inpatient": _trend_dict(w_inp_series) if len(w_inp_series) > 0 else {"dates":[],"values":[],"ma7":[],"ma28":[]},
+                "inpatient": _trend_dict(w_inp_series, prevyear=True) if len(w_inp_series) > 0 else {"dates":[],"values":[],"ma7":[],"ma28":[]},
                 "operation": {"dates":[],"values":[],"ma7":[]},
                 "outflow": (_trend_dict(w_out_series) if len(w_out_series) > 0
                             else {"dates":[],"values":[],"ma7":[],"ma28":[]}),

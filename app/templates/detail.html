@@ -243,8 +243,10 @@ const hasProfit = !!(DATA.profit && DATA.profit.kpi);
 let showWeekday = true;
 let showHoliday = true;
 let inpDayFilter = 'all'; // 'all' | 'wd' | 'hd'
-let showMA7 = true;
+let showMA7 = false;      // ★在院・新入院の7日移動平均はデフォルト非表示
 let showMA28 = true;
+let showPrevYear = true;  // ★昨年度同期 比較線（在院・新入院）デフォルト表示
+let showOpMA = true;      // ★全麻チャートの30平日移動平均（本線）デフォルト表示
 let showDaily = false;
 let currentDrill = null;  // ★課題4: 開いているドリルダウン名を保持
 let admType = 'all';  // 新入院種別フィルタ: 'all' | 'planned' | 'emergency'
@@ -705,11 +707,12 @@ function renderChartControls() {
       + mkChk('hd','休日',showHoliday,"toggleDayType('holiday',this.checked)");
   const lineChks = isOp
     ? mkChk('d','日次実績（平日）',showDaily,"toggleLine('daily',this.checked)")
-      + mkChk('m7','30平日移動平均',showMA7,"toggleLine('ma7',this.checked)")
+      + mkChk('opma','30平日移動平均',showOpMA,"toggleLine('opma',this.checked)")
       + mkChk('m28','昨年度',showMA28,"toggleLine('ma28',this.checked)")
     : mkChk('d','日次実績',showDaily,"toggleLine('daily',this.checked)")
       + mkChk('m7','7日移動平均',showMA7,"toggleLine('ma7',this.checked)")
-      + mkChk('m28','28日移動平均',showMA28,"toggleLine('ma28',this.checked)");
+      + mkChk('m28','28日移動平均',showMA28,"toggleLine('ma28',this.checked)")
+      + mkChk('py','昨年度同期',showPrevYear,"toggleLine('prev',this.checked)");
   document.getElementById('chartControls').innerHTML = `
     <div class="grp"><span class="gl">期間</span>${periods}</div>
     <div class="grp"><span class="gl">日種</span>${dayChks}</div>
@@ -745,7 +748,9 @@ function setRankSort(val) {
 function toggleLine(type, checked) {
   if (type==='daily') showDaily=checked;
   else if (type==='ma7') showMA7=checked;
+  else if (type==='opma') showOpMA=checked;
   else if (type==='ma28') showMA28=checked;
+  else if (type==='prev') showPrevYear=checked;
   renderContent();
 }
 
@@ -1130,6 +1135,15 @@ function renderChart() {
 
   const fMA28 = fAllMA28.slice(si);
 
+  // ★昨年度同期 28日移動平均（暦日・固定参照線。日種/種別フィルタには追随しない）
+  let pPrevDates = [], pPrevVals = [];
+  const bp = trend.ma28_prev;
+  if (showPrevYear && bp && bp.dates && bp.dates.length) {
+    const sip = Math.max(0, bp.dates.findIndex(d => d >= cutoff));
+    pPrevDates = bp.dates.slice(sip);
+    pPrevVals  = bp.values.slice(sip);
+  }
+
   // ★日次実績（細い点線）
   if (showDaily) {
     traces.push({name:'日次実績', x:fDates, y:fVals, type:'scatter', mode:'lines',
@@ -1145,6 +1159,11 @@ function renderChart() {
     traces.push({name:'28日移動平均', x:fDates, y:fMA28, type:'scatter', mode:'lines',
       line:{color:'#e67e22',width:2}});
   }
+  // ★昨年度同期28日移動平均（全麻チャートの昨年度線と同じ実線表示）
+  if (pPrevDates.length) {
+    traces.push({name:'昨年度同期(28日平均)', x:pPrevDates, y:pPrevVals, type:'scatter', mode:'lines',
+      line:{color:'#94A3B8',width:1.5}});
+  }
   // ★目標ライン（種別フィルタ中は非表示）
   const tgtLabel = currentTab==='inpatient' ? (showWeekday&&showHoliday?'全日目標':'平日/休日目標') : '目標';
   if (fDates.length && showTarget) {
@@ -1159,8 +1178,8 @@ function renderChart() {
       line:{width:8,color:'rgba(245,158,11,0.35)'}, showlegend:true});
   }
 
-  // ★Y軸範囲
-  const allY = [...(showDaily?fVals:[]),...(showMA7?fMA7:[]),...(showMA28?fMA28:[]),...(showTarget?[tgt]:[])].filter(v=>v!=null);
+  // ★Y軸範囲（昨年度同期線も収める）
+  const allY = [...(showDaily?fVals:[]),...(showMA7?fMA7:[]),...(showMA28?fMA28:[]),...pPrevVals,...(showTarget?[tgt]:[])].filter(v=>v!=null);
   const yMin=Math.min(...allY), yMax=Math.max(...allY), yPad=(yMax-yMin)*.08||5;
   const yLo = Math.max(0,Math.floor(yMin-yPad)), yHi = Math.ceil(yMax+yPad);
 
@@ -1216,7 +1235,7 @@ function renderOperationChart() {
 
   // ★30平日移動平均（当年度）: biz_ma30
   const bm = trend.biz_ma30;
-  if (showMA7 && bm && bm.dates && bm.dates.length) {
+  if (showOpMA && bm && bm.dates && bm.dates.length) {
     const si = Math.max(0, bm.dates.findIndex(d => d >= cutoff));
     const ds = bm.dates.slice(si), vs = bm.values.slice(si);
     traces.push({name:'30平日移動平均', x:ds, y:vs, type:'scatter', mode:'lines',

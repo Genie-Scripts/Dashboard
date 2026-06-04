@@ -197,7 +197,7 @@ const DATA = {{ data_json|safe }};
 let currentUnit = null; // 選択中の科・病棟名
 let period = '12w';
 let showWeekday = true, showHoliday = true;
-let showDaily = false, showMA7 = true, showMA28 = true;
+let showDaily = false, showMA7 = false, showMA28 = true, showPrevYear = true;  // ★7日/4週移動平均はデフォルト非表示、昨年度同期はデフォルト表示
 let admType = 'all';  // 新入院種別フィルタ: 'all' | 'planned' | 'emergency'
 // ★モバイル判定: Plotly chart height をビューポート幅で切替
 function _pH(desktop) { return window.innerWidth <= 768 ? 200 : desktop; }
@@ -540,7 +540,7 @@ function renderToolbar() {
   ).join('');
   const mkChk = (lbl,checked,fn) => `<label style="font-size:11px;font-weight:700;color:var(--sub);cursor:pointer;display:flex;align-items:center;gap:2px"><input type="checkbox" ${checked?'checked':''} onchange="${fn}"> ${lbl}</label>`;
   const dayChks = mkChk('平日',showWeekday,"toggleDay('wd',this.checked)") + mkChk('休日',showHoliday,"toggleDay('hd',this.checked)");
-  const lineChks = mkChk('日次',showDaily,"toggleLine('d',this.checked)") + mkChk('7日移動平均',showMA7,"toggleLine('m7',this.checked)") + mkChk('28日移動平均',showMA28,"toggleLine('m28',this.checked)");
+  const lineChks = mkChk('日次',showDaily,"toggleLine('d',this.checked)") + mkChk('7日移動平均',showMA7,"toggleLine('m7',this.checked)") + mkChk('28日移動平均',showMA28,"toggleLine('m28',this.checked)") + mkChk('昨年度同期',showPrevYear,"toggleLine('py',this.checked)");
   const mkRad = (val,lbl) => `<label style="font-size:11px;font-weight:700;color:var(--sub);cursor:pointer;display:flex;align-items:center;gap:2px"><input type="radio" name="admType" value="${val}" ${admType===val?'checked':''} onchange="setAdmType('${val}')"> ${lbl}</label>`;
   const admTypeCtrl = mkRad('all','全体') + mkRad('planned','予定') + mkRad('emergency','緊急');
   document.getElementById('toolbar').innerHTML = `
@@ -566,7 +566,7 @@ function toggleDay(t, c) {
   if (currentUnit) renderCharts(DATA.drill[currentUnit]);
 }
 function toggleLine(t, c) {
-  if (t==='d') showDaily=c; else if (t==='m7') showMA7=c; else showMA28=c;
+  if (t==='d') showDaily=c; else if (t==='m7') showMA7=c; else if (t==='m28') showMA28=c; else if (t==='py') showPrevYear=c;
   if (currentUnit) renderCharts(DATA.drill[currentUnit]);
 }
 
@@ -732,6 +732,14 @@ function renderOneChart(elId, td, targetVal) {
   if (showDaily) { traces.push({name:'日次実績',x:ds,y:vs,type:'scatter',mode:'lines',line:{color:'#94A3B8',width:1,dash:'dot'},opacity:0.7}); yV.push(...vs.filter(v=>v!=null)); }
   if (showMA7 && m7.length) { traces.push({name:'7日移動平均',x:ds,y:m7,type:'scatter',mode:'lines',line:{color:'#0D9488',width:2.5}}); yV.push(...m7.filter(v=>v!=null)); }
   if (showMA28 && m28.length) { traces.push({name:'28日移動平均',x:ds,y:m28,type:'scatter',mode:'lines',line:{color:'#e67e22',width:2}}); yV.push(...m28.filter(v=>v!=null)); }
+  // ★昨年度同期 28日移動平均（暦日・固定参照線。Y軸にも収める）
+  const bp = td.ma28_prev;
+  if (showPrevYear && bp && bp.dates && bp.dates.length) {
+    const sip = Math.max(0, bp.dates.findIndex(x => x >= cutoff));
+    const pds = bp.dates.slice(sip), pvs = bp.values.slice(sip);
+    traces.push({name:'昨年度同期(28日平均)',x:pds,y:pvs,type:'scatter',mode:'lines',line:{color:'#94A3B8',width:1.5}});
+    yV.push(...pvs.filter(v=>v!=null));
+  }
   if (targetVal && ds.length) { traces.push({name:`目標 ${Math.round(targetVal*10)/10}`,x:[ds[0],ds[ds.length-1]],y:[targetVal,targetVal],type:'scatter',mode:'lines',line:{color:'#C0293B',width:2,dash:'dot'}}); yV.push(targetVal); }
 
   const mn=yV.length?Math.min(...yV):0, mx=yV.length?Math.max(...yV):10, pd=(mx-mn)*.08||2;
@@ -780,6 +788,14 @@ function renderSurgeryChart(elId, td, weeklyTarget) {
   if (showDaily) { traces.push({name:'週間実績',x:ds,y:rs7,type:'scatter',mode:'lines',line:{color:'#94A3B8',width:1,dash:'dot'},opacity:0.7}); yV.push(...rs7.filter(v=>v!=null)); }
   if (showMA7 && rs7ma.length) { traces.push({name:'4週移動平均',x:ds,y:rs7ma,type:'scatter',mode:'lines',line:{color:'#0D9488',width:2.5}}); yV.push(...rs7ma.filter(v=>v!=null)); }
   if (showMA28 && rs7ma28.length) { traces.push({name:'28日移動平均',x:ds,y:rs7ma28,type:'scatter',mode:'lines',line:{color:'#e67e22',width:2}}); yV.push(...rs7ma28.filter(v=>v!=null)); }
+  // ★昨年度同期 週次合計（前年7日合計の28日平滑・件/週。全麻チャートの昨年度線と同じ実線表示）
+  const bp = td.weekly_prev;
+  if (showPrevYear && bp && bp.dates && bp.dates.length) {
+    const sip = Math.max(0, bp.dates.findIndex(x => x >= cutoff));
+    const pds = bp.dates.slice(sip), pvs = bp.values.slice(sip);
+    traces.push({name:'昨年度同期(週次合計)',x:pds,y:pvs,type:'scatter',mode:'lines',line:{color:'#94A3B8',width:1.5}});
+    yV.push(...pvs.filter(v=>v!=null));
+  }
   if (tgt && ds.length) { traces.push({name:`週目標 ${tgt}`,x:[ds[0],ds[ds.length-1]],y:[tgt,tgt],type:'scatter',mode:'lines',line:{color:'#C0293B',width:2,dash:'dot'}}); yV.push(tgt); }
 
   const mn=yV.length?Math.min(...yV):0, mx=yV.length?Math.max(...yV):10, pd=(mx-mn)*.08||1;

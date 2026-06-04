@@ -333,6 +333,84 @@ def build_biz_ma30_series(surg: pd.DataFrame, base_date: pd.Timestamp,
     return {"dates": result_dates, "values": result_values}
 
 
+def build_prevyear_ma_series(series: pd.DataFrame, base_date: pd.Timestamp,
+                             window: int = 28, offset_days: int = 365,
+                             value_col: str = "値") -> dict:
+    """
+    前年同期の window 日暦日移動平均を当年度日付にアラインして返す。
+
+    在院/新入院/部門別の「昨年度同期」比較線オーバーレイ用。全麻の
+    build_biz_ma30_series(prev_year=True)（営業平日基準）の暦日版に相当する。
+
+    base_date - offset_days 以前の前年データで window 日暦日trailing MA を算出し、
+    各日付を +offset_days して当年度にアラインして返す。window=28（4週）は
+    曜日・週末パターンを平準化する。デフォルト表示時のフロント calcMA(values,28)
+    （連続日 trailing 28日平均）と定義が一致する。
+
+    Returns:
+        {"dates": [str, ...], "values": [float, ...]}
+    """
+    if series is None or len(series) == 0:
+        return {"dates": [], "values": []}
+    s = series[["日付", value_col]].dropna(subset=["日付"]).sort_values("日付")
+    if len(s) == 0:
+        return {"dates": [], "values": []}
+
+    # 暦日に reindex（歯抜け日は0埋め）して暦日 trailing 移動平均
+    full_idx = pd.date_range(s["日付"].min(), s["日付"].max(), freq="D")
+    daily = s.set_index("日付")[value_col].reindex(full_idx, fill_value=0)
+    ma = daily.rolling(window=window, min_periods=1).mean()
+
+    # 前年同期窓のみ採用 → 日付を +offset_days して当年度へアライン
+    offset = timedelta(days=offset_days)
+    shifted_base = base_date - offset
+    ma = ma[ma.index <= shifted_base]
+    if len(ma) == 0:
+        return {"dates": [], "values": []}
+
+    dates = [(d + offset).strftime("%Y-%m-%d") for d in ma.index]
+    values = [round(float(v), 1) for v in ma.values]
+    return {"dates": dates, "values": values}
+
+
+def build_prevyear_weekly_series(series: pd.DataFrame, base_date: pd.Timestamp,
+                                 sum_window: int = 7, smooth_window: int = 28,
+                                 offset_days: int = 365, value_col: str = "値") -> dict:
+    """
+    前年同期の sum_window 日ローリング合計（件/週）を smooth_window 日MAで平滑化し、
+    当年度日付にアラインして返す。部門別の全麻チャート（週次合計表示）の
+    「昨年度同期」比較線用。
+
+    暦日 reindex（歯抜け日0埋め）→ 7日ローリング合計 → 28日MAで平滑化 →
+    base_date - offset_days 以前のみ採用 → 各日付を +offset_days して当年度へ。
+    フロント renderSurgeryChart の calcRollingSumByDate(.,7) + calcMA(.,28) と
+    定義が一致する（min_periods=1）。
+
+    Returns:
+        {"dates": [str, ...], "values": [float, ...]}
+    """
+    if series is None or len(series) == 0:
+        return {"dates": [], "values": []}
+    s = series[["日付", value_col]].dropna(subset=["日付"]).sort_values("日付")
+    if len(s) == 0:
+        return {"dates": [], "values": []}
+
+    full_idx = pd.date_range(s["日付"].min(), s["日付"].max(), freq="D")
+    daily = s.set_index("日付")[value_col].reindex(full_idx, fill_value=0)
+    weekly = daily.rolling(window=sum_window, min_periods=1).sum()
+    smooth = weekly.rolling(window=smooth_window, min_periods=1).mean()
+
+    offset = timedelta(days=offset_days)
+    shifted_base = base_date - offset
+    smooth = smooth[smooth.index <= shifted_base]
+    if len(smooth) == 0:
+        return {"dates": [], "values": []}
+
+    dates = [(d + offset).strftime("%Y-%m-%d") for d in smooth.index]
+    values = [round(float(v), 1) for v in smooth.values]
+    return {"dates": dates, "values": values}
+
+
 def build_weekly_agg(series: pd.DataFrame) -> pd.DataFrame:
     """日次→週次集約（月曜始まり）"""
     df = series.copy()
