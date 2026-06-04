@@ -133,6 +133,27 @@
 /* ★モバイル: ヘッダー自動非表示 */
 .hdr{transition:transform .3s ease}.hdr.hdr-hidden{transform:translateY(-100%)}
 }
+/* ★モバイル: フローティング設定パレット (FAB + ボトムシート) */
+.fab{position:fixed;right:16px;bottom:18px;z-index:40;width:54px;height:54px;border-radius:50%;border:none;background:var(--br);color:#fff;font-size:22px;line-height:1;box-shadow:0 6px 18px rgba(10,22,42,.28);cursor:pointer;display:none;align-items:center;justify-content:center;transition:transform .2s,opacity .2s}
+.fab:active{transform:scale(.92)}
+.fab.fab-hidden{opacity:0;pointer-events:none;transform:translateY(90px)}
+.sheet-backdrop{position:fixed;inset:0;z-index:45;background:rgba(10,22,42,.45);opacity:0;pointer-events:none;transition:opacity .25s}
+.sheet-backdrop.open{opacity:1;pointer-events:auto}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:46;background:var(--s);border-radius:18px 18px 0 0;box-shadow:0 -8px 28px rgba(10,22,42,.28);transform:translateY(100%);transition:transform .28s cubic-bezier(.4,0,.2,1);max-height:82vh;display:flex;flex-direction:column}
+.sheet.open{transform:translateY(0)}
+.sheet-head{position:relative;display:flex;align-items:center;gap:10px;padding:16px 16px 10px;border-bottom:1px solid var(--ln);flex-shrink:0;touch-action:none}
+.sheet-grip{position:absolute;top:7px;left:50%;transform:translateX(-50%);width:38px;height:4px;border-radius:999px;background:var(--ln)}
+.sheet-title{font-size:14px;font-weight:900;color:var(--ink)}
+.sheet-close{margin-left:auto;background:var(--bl);border:1px solid #93b4e4;border-radius:9px;color:var(--br);font-size:13px;font-weight:900;padding:7px 18px;cursor:pointer}
+.sheet-body{padding:4px 16px 22px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.sheet-sec{padding:13px 0;border-bottom:1px solid var(--ln)}
+.sheet-sec:last-child{border-bottom:none}
+.sheet-sec-label{font-size:11px;font-weight:900;color:var(--mu);margin-bottom:9px;letter-spacing:.04em}
+.sheet-body .global-bar,.sheet-body .pnl-ctrl{margin:0;padding:0;border-bottom:none;flex-direction:column;align-items:stretch;gap:12px}
+.sheet-body .grp{flex-wrap:wrap;gap:7px}
+.sheet-body .btn{padding:9px 15px}
+body.sheet-lock{overflow:hidden}
+@media(max-width:768px){.fab{display:flex}}
 </style>
 </head>
 <body>
@@ -231,6 +252,22 @@
   </div>
 
   <div class="ft">🏥 診療ダッシュボード 統合詳細 ｜ 生成 {{ generated_at }} ｜ 基準日 {{ base_date }}</div>
+</div>
+
+<!-- ★モバイル: フローティング設定パレット（FAB + ボトムシート） -->
+<button class="fab" id="settingsFab" aria-label="表示設定" onclick="openSheet()">⚙️</button>
+<div class="sheet-backdrop" id="sheetBackdrop" onclick="closeSheet()"></div>
+<div class="sheet" id="settingsSheet" role="dialog" aria-label="表示設定" aria-modal="true">
+  <div class="sheet-head">
+    <span class="sheet-grip"></span>
+    <span class="sheet-title">⚙️ 表示設定</span>
+    <button class="sheet-close" onclick="closeSheet()">完了</button>
+  </div>
+  <div class="sheet-body">
+    <div class="sheet-sec" id="sheetSecGlobal"><div class="sheet-sec-label">表示軸・入院種別</div></div>
+    <div class="sheet-sec" id="sheetSecChart"><div class="sheet-sec-label">グラフ（期間・日種・描画）</div></div>
+    <div class="sheet-sec" id="sheetSecRank"><div class="sheet-sec-label">ランキング順位基準</div></div>
+  </div>
 </div>
 
 <script>
@@ -1711,6 +1748,57 @@ function closeDrill() {
     var b=document.querySelector('.dm-btn');
     if(b)b.textContent=h.getAttribute('data-theme')==='dark'?'☀️':'🌙';
   });
+})();
+/* ★モバイル: フローティング設定パレット（FAB + ボトムシート）
+   制御要素を物理移動して再利用（既存レンダリング関数は getElementById で動作） */
+(function(){
+  var moves=[
+    {id:'globalBar',     sec:'sheetSecGlobal'},
+    {id:'chartControls', sec:'sheetSecChart'},
+    {id:'rankControls',  sec:'sheetSecRank'}
+  ];
+  var saved=moves.map(function(m){
+    var el=document.getElementById(m.id);
+    return {el:el, sec:document.getElementById(m.sec), home:el?el.parentNode:null, next:el?el.nextSibling:null};
+  });
+  function isMobile(){return window.innerWidth<=768;}
+  function applyLayout(){
+    var m=isMobile();
+    saved.forEach(function(s){
+      if(!s.el||!s.sec)return;
+      if(m){ if(s.el.parentNode!==s.sec) s.sec.appendChild(s.el); }
+      else  { if(s.el.parentNode!==s.home) s.home.insertBefore(s.el,s.next); }
+    });
+    if(!m) closeSheet();
+  }
+  var sheet=document.getElementById('settingsSheet');
+  var backdrop=document.getElementById('sheetBackdrop');
+  var fab=document.getElementById('settingsFab');
+  window.openSheet=function(){
+    sheet.classList.add('open'); backdrop.classList.add('open');
+    document.body.classList.add('sheet-lock'); fab.classList.add('fab-hidden');
+  };
+  window.closeSheet=function(){
+    sheet.classList.remove('open'); backdrop.classList.remove('open');
+    document.body.classList.remove('sheet-lock'); fab.classList.remove('fab-hidden');
+  };
+  /* ヘッダーをスワイプダウンで閉じる */
+  var head=sheet.querySelector('.sheet-head'), startY=null, dy=0;
+  head.addEventListener('touchstart',function(e){startY=e.touches[0].clientY;dy=0;sheet.style.transition='none';},{passive:true});
+  head.addEventListener('touchmove',function(e){
+    if(startY===null)return;
+    dy=e.touches[0].clientY-startY; if(dy<0)dy=0;
+    sheet.style.transform='translateY('+dy+'px)';
+  },{passive:true});
+  head.addEventListener('touchend',function(){
+    sheet.style.transition=''; sheet.style.transform='';
+    if(dy>70)closeSheet(); startY=null; dy=0;
+  });
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')closeSheet();});
+  var rt;
+  window.addEventListener('resize',function(){clearTimeout(rt);rt=setTimeout(applyLayout,150);});
+  document.addEventListener('DOMContentLoaded',applyLayout);
+  if(document.readyState!=='loading')applyLayout();
 })();
 </script>
 </body>
