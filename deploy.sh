@@ -42,7 +42,8 @@ fi
 
 # ── 0b. 必要モデルの存在確認・自動pull ──
 # app/lib/ai_narrative.py の DEFAULT_MODEL と一致させる（環境変数で上書き可）
-OLLAMA_MODEL="${OLLAMA_MODEL:-ki-krugle-jp/llm-jp-4-8b-thinking:q4_k_m}"
+# export して python(generate_html.py)へ確実に渡す（旧llm-jpはOllama0.30系で動作不能）
+export OLLAMA_MODEL="${OLLAMA_MODEL:-MedAIBase/MedGemma1.5:4b}"
 if ! ollama list 2>/dev/null | awk 'NR>1 {print $1}' | grep -qx "$OLLAMA_MODEL"; then
   echo "📥 モデル '$OLLAMA_MODEL' が未取得 — pullします..." >> "$LOG"
   notify "モデル取得中: $OLLAMA_MODEL" "Ollama"

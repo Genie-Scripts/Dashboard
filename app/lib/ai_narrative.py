@@ -28,7 +28,10 @@ logger = logging.getLogger(__name__)
 # 設定（必要に応じて上書き）
 # ────────────────────────────────────
 # 環境変数 OLLAMA_MODEL で deploy.sh と一元管理
-DEFAULT_MODEL = os.environ.get("OLLAMA_MODEL", "ki-krugle-jp/llm-jp-4-8b-thinking:q4_k_m")
+# 注: ki-krugle-jp/llm-jp-4-8b-thinking は Ollama 0.30 系で
+#     「Failed to initialize samplers」(format=json) / harmony 出力の
+#     パース失敗で動作不能になったため、weekly_story と同じ MedGemma に統一。
+DEFAULT_MODEL = os.environ.get("OLLAMA_MODEL", "MedAIBase/MedGemma1.5:4b")
 DEFAULT_TEMPERATURE = 0.2
 DEFAULT_NUM_PREDICT = 220          # 出力トークン上限
 REQUEST_TIMEOUT_SEC = 60           # 1 アラートあたりの上限
