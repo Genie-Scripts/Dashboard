@@ -4,7 +4,7 @@ triage.py — 部門トリアージ（多KPI合成スコアリング + LLMナラ
 設計原則（alerts.py / ai_narrative.py / weekly_story.py と同様）:
     - 数値計算・ランキングは Python で確定
     - LLM には翻訳（事実→自然文）のみを任せる
-    - Ollama 未起動時は無害に失敗（Python 生成の fallback を使用）
+    - oMLX 未起動時は無害に失敗（Python 生成の fallback を使用）
 
 エントリポイント:
     build_triage_section(adm, surg, targets, surg_targets, profit_monthly, base_date)
@@ -27,16 +27,16 @@ from .metrics import (
     daily_inpatient, build_daily_series, week_over_week,
     achievement_rate,
 )
+from .llm import DEFAULT_MODEL, chat_json
 
 logger = logging.getLogger(__name__)
 
 # ────────────────────────────────────
 # 設定
 # ────────────────────────────────────
-DEFAULT_MODEL = "MedAIBase/MedGemma1.5:4b"
+# 使用モデルは llm.DEFAULT_MODEL（環境変数 OMLX_MODEL で一元管理）
 DEFAULT_TEMPERATURE = 0.2
 DEFAULT_NUM_PREDICT = 200
-REQUEST_TIMEOUT_SEC = 60
 
 COMPOSITE_THRESHOLD = 90.0   # composite_rate < 90 → トリアージ対象
 PRIORITY_HIGH_THRESHOLD = 80.0
@@ -457,29 +457,18 @@ def _make_fallback_narrative(item: dict) -> dict:
 def _narrate_one(item: dict, model: str, temperature: float) -> Optional[dict]:
     """単一科を LLM で翻訳。失敗時は None"""
     try:
-        import ollama
-    except ImportError:
-        logger.info("ollama 未インストール: triage narrative をスキップ")
-        return None
-    try:
-        res = ollama.chat(
+        content = chat_json(
+            system=TRIAGE_SYSTEM_PROMPT,
+            user=_build_triage_prompt(item),
             model=model,
-            messages=[
-                {"role": "system", "content": TRIAGE_SYSTEM_PROMPT},
-                {"role": "user",   "content": _build_triage_prompt(item)},
-            ],
-            options={
-                "temperature": temperature,
-                "num_predict": DEFAULT_NUM_PREDICT,
-            },
-            format="json",
-            keep_alive="5m",
+            temperature=temperature,
+            max_tokens=DEFAULT_NUM_PREDICT,
         )
     except Exception as e:
-        logger.warning(f"Ollama triage 呼び出し失敗 ({item['name']}): {e}")
+        # oMLX 未起動 / openai 未インストール / モデル未取得 すべてここで無害に縮退
+        logger.warning(f"oMLX triage 呼び出し失敗 ({item['name']}): {e}")
         return None
 
-    content = (res.get("message") or {}).get("content", "")
     result = _extract_triage_json(content, entity_name=item["name"])
     if result is None:
         return None
@@ -499,7 +488,7 @@ def narrate_triage(items: list[dict],
 
     - LLM 成功時: narrative = {priority, headline, observation, suggestion}
     - LLM 失敗時: use_fallback=True なら Python 定型文、False なら None
-    - Ollama 未起動時は全科 fallback（例外は投げない）
+    - oMLX 未起動時は全科 fallback（例外は投げない）
     """
     enriched = []
     for item in items:

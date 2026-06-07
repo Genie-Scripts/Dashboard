@@ -11,7 +11,7 @@ weekly_story.py — 週次ストーリー（WoW差分特化）
     output/last_kpi.json  … 履歴付きスナップショット（直近30日）
 
 設計原則（ai_narrative.py と同じ）:
-    - Ollama 未起動・未取得時は無害に失敗（story=None を返す）
+    - oMLX 未起動・未取得時は無害に失敗（story=None を返す）
     - 差分が無ければ LLM 呼び出し自体をスキップ
 """
 
@@ -24,10 +24,12 @@ from typing import Optional
 
 import pandas as pd
 
+from .llm import DEFAULT_MODEL, chat_json
+
 logger = logging.getLogger(__name__)
 
 
-DEFAULT_MODEL = "MedAIBase/MedGemma1.5:4b"
+# 使用モデルは llm.DEFAULT_MODEL（環境変数 OMLX_MODEL で一元管理）
 DEFAULT_TEMPERATURE = 0.2
 DEFAULT_NUM_PREDICT = 260
 SNAPSHOT_RETAIN_DAYS = 30
@@ -298,25 +300,17 @@ def narrate_weekly_story(diffs: list[str], base_date: str, prior_date: str,
     if not diffs:
         return None
     try:
-        import ollama
-    except ImportError:
-        logger.info("ollama 未インストール: 週次ストーリーをスキップ")
-        return None
-    try:
-        res = ollama.chat(
+        content = chat_json(
+            system=SYSTEM_PROMPT,
+            user=_build_user_prompt(diffs, base_date, prior_date),
             model=model,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": _build_user_prompt(diffs, base_date, prior_date)},
-            ],
-            options={"temperature": temperature, "num_predict": DEFAULT_NUM_PREDICT},
-            format="json",
-            keep_alive="5m",
+            temperature=temperature,
+            max_tokens=DEFAULT_NUM_PREDICT,
         )
     except Exception as e:
-        logger.warning(f"Ollama 週次ストーリー呼び出し失敗: {e}")
+        # oMLX 未起動 / openai 未インストール / モデル未取得 すべてここで無害に縮退
+        logger.warning(f"oMLX 週次ストーリー呼び出し失敗: {e}")
         return None
-    content = (res.get("message") or {}).get("content", "")
     return _extract_story(content)
 
 

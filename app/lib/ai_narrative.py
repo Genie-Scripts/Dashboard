@@ -1,5 +1,5 @@
 """
-ai_narrative.py — Ollama 経由でアラートを自然言語化
+ai_narrative.py — oMLX(OpenAI互換) 経由でアラートを自然言語化
 
 alerts.py が返した「確定事実」を受け取り、ローカルLLMで
 {headline, body, action} の JSON を生成してアラートに添える。
@@ -8,18 +8,19 @@ alerts.py が返した「確定事実」を受け取り、ローカルLLMで
     - LLMには「計算」させない。与えた事実のみを翻訳する
     - 数値を文中で再引用させない（ハルシネーション封じ）
     - 出力は JSON 強制、temperature 低め
-    - Ollama 未起動・モデル未取得時は無害に失敗（narrative=None）
+    - oMLX 未起動・モデル未取得時は無害に失敗（narrative=None）
 
 環境:
-    依存: `pip install ollama`
-    モデル取得: `ollama pull gemma3:4b`（または qwen2.5:7b 等）
+    依存: `pip install openai`
+    モデル: 環境変数 OMLX_MODEL（既定 Llama-3.1-Swallow-8B-Instruct-v0.5）
 """
 
 from __future__ import annotations
 import json
 import logging
-import os
 from typing import Optional
+
+from .llm import DEFAULT_MODEL, chat_json
 
 logger = logging.getLogger(__name__)
 
@@ -27,14 +28,9 @@ logger = logging.getLogger(__name__)
 # ────────────────────────────────────
 # 設定（必要に応じて上書き）
 # ────────────────────────────────────
-# 環境変数 OLLAMA_MODEL で deploy.sh と一元管理
-# 注: ki-krugle-jp/llm-jp-4-8b-thinking は Ollama 0.30 系で
-#     「Failed to initialize samplers」(format=json) / harmony 出力の
-#     パース失敗で動作不能になったため、weekly_story と同じ MedGemma に統一。
-DEFAULT_MODEL = os.environ.get("OLLAMA_MODEL", "MedAIBase/MedGemma1.5:4b")
+# 使用モデルは llm.DEFAULT_MODEL（環境変数 OMLX_MODEL で deploy.sh と一元管理）
 DEFAULT_TEMPERATURE = 0.2
 DEFAULT_NUM_PREDICT = 220          # 出力トークン上限
-REQUEST_TIMEOUT_SEC = 60           # 1 アラートあたりの上限
 
 
 SYSTEM_PROMPT = """あなたは病院経営会議向けの要約ライターです。以下を厳守してください。
@@ -99,30 +95,18 @@ def _extract_json(text: str) -> Optional[dict]:
 def _narrate_one(alert: dict, model: str, temperature: float) -> Optional[dict]:
     """単一アラートを LLM で翻訳"""
     try:
-        import ollama  # 遅延 import（未インストールでも他の処理に影響しない）
-    except ImportError:
-        logger.info("ollama パッケージが未インストール: narrative 生成をスキップ")
-        return None
-
-    try:
-        res = ollama.chat(
+        content = chat_json(
+            system=SYSTEM_PROMPT,
+            user=_build_user_prompt(alert),
             model=model,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user",   "content": _build_user_prompt(alert)},
-            ],
-            options={
-                "temperature": temperature,
-                "num_predict": DEFAULT_NUM_PREDICT,
-            },
-            format="json",
-            keep_alive="5m",
+            temperature=temperature,
+            max_tokens=DEFAULT_NUM_PREDICT,
         )
     except Exception as e:
-        logger.warning(f"Ollama 呼び出し失敗 ({alert['id']}): {e}")
+        # oMLX 未起動 / openai 未インストール / モデル未取得 すべてここで無害に縮退
+        logger.warning(f"oMLX 呼び出し失敗 ({alert['id']}): {e}")
         return None
 
-    content = (res.get("message") or {}).get("content", "")
     return _extract_json(content)
 
 
