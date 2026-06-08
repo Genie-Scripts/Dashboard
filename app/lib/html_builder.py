@@ -33,6 +33,7 @@ from .charts import (
     build_inpatient_chart, build_new_admission_chart,
     build_surgery_chart_hospital, build_surgery_chart_dept,
     build_surgery_year_compare_chart, build_ward_utilization_heatmap,
+    build_discharge_dow_heatmap,
 )
 from .profit import build_profit_kpi, build_profit_chart_data
 from .profit_estimate import (
@@ -436,6 +437,8 @@ def build_detail_json(adm, surg, targets, surg_targets,
 
     # ── charts: 特殊グラフ用データ ──
     heatmap = build_ward_utilization_heatmap(adm, base_date, targets)
+    discharge_heatmap = build_discharge_dow_heatmap(adm, base_date, entity="ward")
+    discharge_heatmap_dept = build_discharge_dow_heatmap(adm, base_date, entity="dept")
 
     # ── drill: 診療科ドリルダウン ──
     drill = {}
@@ -838,6 +841,8 @@ def build_detail_json(adm, surg, targets, surg_targets,
         "drill": drill,
         "charts": {
             "occupancy_heatmap": heatmap,
+            "discharge_dow_heatmap": discharge_heatmap,
+            "discharge_dow_heatmap_dept": discharge_heatmap_dept,
         },
     }
 

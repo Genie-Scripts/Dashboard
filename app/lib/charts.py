@@ -370,6 +370,75 @@ def build_ward_utilization_heatmap(adm: pd.DataFrame, base_date: pd.Timestamp,
     return {"traces": traces, "layout": layout, "config": {"responsive": True}}
 
 
+def build_discharge_dow_heatmap(adm: pd.DataFrame, base_date: pd.Timestamp,
+                                entity: str = "ward", weeks: int = 8,
+                                min_per_week: float = 5.0) -> dict:
+    """退院の 曜日×ユニット ヒートマップ（曜日平準化の全体俯瞰）。
+
+    セル値 z = 目標(平日均等[月〜金20%]・週末最小[土日0])からの乖離
+              （実績シェア − 目標, ポイント）。赤=過多 / 青=過少。
+    表示テキストは実績シェア%。行は金土シェア降順（偏りが大きい順＝上）。
+    分子は退院患者数のみ（死亡・転出を除外）= discharge_dow_profile に準拠。
+    """
+    from .metrics import discharge_dow_profile
+    from .config import (WARD_NAMES, WARD_HIDDEN,
+                         NADM_DISPLAY_DEPTS, SURGERY_DISPLAY_DEPTS)
+
+    labels = ["月", "火", "水", "木", "金", "土", "日"]
+    target = [20.0, 20.0, 20.0, 20.0, 20.0, 0.0, 0.0]
+
+    rows = []  # (name, shares[7])
+    if entity == "ward":
+        for wcode, wname in WARD_NAMES.items():
+            if wcode in WARD_HIDDEN:
+                continue
+            p = discharge_dow_profile(adm, base_date, group_col="病棟コード",
+                                      group_val=wcode, weeks=weeks)
+            if p["per_week"] >= min_per_week:
+                rows.append((wname, p["shares"]))
+    else:
+        for dept in sorted(NADM_DISPLAY_DEPTS | SURGERY_DISPLAY_DEPTS):
+            p = discharge_dow_profile(adm, base_date, group_col="診療科名",
+                                      group_val=dept, weeks=weeks)
+            if p["per_week"] >= min_per_week:
+                rows.append((dept, p["shares"]))
+
+    # 金土シェア降順（偏りが大きい順を上に）
+    rows.sort(key=lambda r: -(r[1][4] + r[1][5]))
+
+    names = [r[0] for r in rows]
+    z = [[round(s - t, 1) for s, t in zip(sh, target)] for _, sh in rows]
+    text = [[f"{s:.0f}" for s in sh] for _, sh in rows]
+
+    # 発散配色: 青(過少) → 白(目標通り) → 赤(過多)
+    colorscale = [
+        [0.0, "#2166ac"], [0.30, "#92c5de"], [0.5, "#f7f7f7"],
+        [0.70, "#f4a582"], [1.0, "#b2182b"],
+    ]
+
+    traces = [{
+        "type": "heatmap",
+        "z": z, "x": labels, "y": names,
+        "text": text, "texttemplate": "%{text}%", "textfont": {"size": 10},
+        "colorscale": colorscale, "zmid": 0, "zmin": -15, "zmax": 15,
+        "xgap": 2, "ygap": 2,
+        "colorbar": {"title": {"text": "目標比", "side": "right"}, "ticksuffix": "pt",
+                     "thickness": 12, "len": 0.9},
+        "hovertemplate": "%{y}<br>%{x}曜: 実績%{text}%（目標比 %{z:+.1f}pt）<extra></extra>",
+    }]
+
+    layout = _base_layout("", height=max(260, 26 * len(names) + 96))
+    layout["xaxis"] = {"type": "category", "side": "top", "gridcolor": "transparent",
+                       "tickfont": {"size": 12}}
+    layout["yaxis"] = {"autorange": "reversed", "gridcolor": "transparent",
+                       "tickfont": {"size": 10}}
+    layout["margin"] = {"l": 92, "r": 64, "t": 26, "b": 14}
+    layout["hovermode"] = "closest"
+
+    return {"traces": traces, "layout": layout,
+            "config": {"responsive": True, "displayModeBar": False}}
+
+
 # ═══════════════════════════════════════
 # 粗利チャート（変更なし）
 # ═══════════════════════════════════════

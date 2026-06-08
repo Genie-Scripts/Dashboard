@@ -55,6 +55,9 @@
 .charts-container.layout-2plus1 .chart3-panel{grid-column:1/-1}
 .charts-container.layout-2x2{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
 .charts-container.layout-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.dhm-toggle{display:inline-flex;gap:4px;background:#eef2f7;border-radius:8px;padding:3px}
+.dhm-tg{border:none;background:transparent;font-family:inherit;font-size:12px;font-weight:700;color:var(--mu);padding:4px 12px;border-radius:6px;cursor:pointer}
+.dhm-tg.active{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
 .cpnl{background:var(--s);border:1px solid var(--ln);border-radius:var(--r);padding:16px;box-shadow:var(--sh)}.cpnl h4{font-size:13px;font-weight:800;margin:0 0 8px;color:var(--sub);min-width:0}
 .contrib-list{display:flex;flex-direction:column;gap:6px}
 .contrib-row{display:grid;grid-template-columns:24px 1fr 90px 110px;gap:8px;align-items:center;padding:8px 10px;background:#fafbfc;border:1px solid var(--ln);border-radius:8px;font-size:12px;cursor:pointer;transition:background .15s}
@@ -233,6 +236,24 @@ body.chart-fs-lock{overflow:hidden}
     </div>
   </section>
 
+  <!-- 退院 曜日×ユニット ヒートマップ（曜日平準化の全体俯瞰・常時表示） -->
+  <section class="main" id="dischargeHeatmapSection" style="grid-template-columns:1fr">
+    <div class="pnl">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <h3 style="margin:0">🚪 退院 曜日×<span id="dhmEntityLabel">病棟</span> ヒートマップ <span style="font-weight:500;color:var(--mu);font-size:11px">（直近8週・死亡退院除く・目標比）</span></h3>
+        <div class="dhm-toggle">
+          <button id="dhmBtnWard" class="dhm-tg active" onclick="switchDhm('ward')">🏥 病棟</button>
+          <button id="dhmBtnDept" class="dhm-tg" onclick="switchDhm('dept')">🩺 診療科</button>
+        </div>
+      </div>
+      <div class="chart" id="dischargeHeatmapChart"></div>
+      <div style="margin-top:8px;font-size:11px;color:var(--mu);line-height:1.6">
+        🟥 目標より<b>多い</b>（減らす／前倒し元）・🟦 目標より<b>少ない</b>（受け皿）。目標は平日均等(月〜金20%)・週末最小。
+        行は上ほど<b>金土集中が強い</b>。標準アクションは<b>土曜→月曜の付け替え</b>（総退院数・在院は維持）。各セルの%は実績シェア。
+      </div>
+    </div>
+  </section>
+
   <!-- 月末粗利 見込み 推移（profitタブ専用、ハイブリッド予測） -->
   <section class="main" id="estimateSection" style="display:none;grid-template-columns:1fr">
     <div class="pnl pnl-chart">
@@ -314,6 +335,7 @@ const DATA = {{ data_json|safe }};
 
 let currentTab = 'admission';
 let currentAxis = 'dept';
+let dhmEntity = 'ward';   // 退院曜日ヒートマップの対象（ward / dept）
 let currentPeriod = '12w';
 const hasProfit = !!(DATA.profit && DATA.profit.kpi);
 let showWeekday = true;
@@ -337,7 +359,30 @@ document.addEventListener('DOMContentLoaded', () => {
   if (['inpatient','admission','operation','profit'].includes(hash.split('?')[0])) currentTab = hash.split('?')[0];
   if (params.get('axis')) currentAxis = params.get('axis');
   renderTabs(); renderAll();
+  renderDischargeHeatmap();
 });
+
+// ══════════════════════════
+// 退院 曜日×ユニット ヒートマップ（曜日平準化の全体俯瞰）
+// ══════════════════════════
+function renderDischargeHeatmap() {
+  const key = dhmEntity === 'dept' ? 'discharge_dow_heatmap_dept' : 'discharge_dow_heatmap';
+  const hm = DATA.charts && DATA.charts[key];
+  const el = document.getElementById('dischargeHeatmapChart');
+  if (!el) return;
+  if (!hm || !hm.traces || !hm.traces[0] || !(hm.traces[0].y || []).length) {
+    el.innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:60px 0">対象データなし</div>';
+    return;
+  }
+  Plotly.newPlot(el, hm.traces, Object.assign({}, hm.layout), hm.config || {responsive:true});
+}
+function switchDhm(e) {
+  dhmEntity = e;
+  document.getElementById('dhmBtnWard').classList.toggle('active', e === 'ward');
+  document.getElementById('dhmBtnDept').classList.toggle('active', e === 'dept');
+  document.getElementById('dhmEntityLabel').textContent = e === 'dept' ? '診療科' : '病棟';
+  renderDischargeHeatmap();
+}
 
 // ★課題4: タブに大きい数字＋期間ラベルを明記
 function renderTabs() {
