@@ -91,6 +91,27 @@ def build_alert_context(alert: dict) -> str:
     return "\n".join(parts)
 
 
+def build_leveling_context() -> str:
+    """退院曜日平準化ナラティブ用の追加コンテキストを生成。空なら空文字。"""
+    data = _load()
+    if not data:
+        return ""
+
+    parts = []
+
+    global_rules = data.get("global_rules", [])
+    if global_rules:
+        parts.append("【評価方針（全体）】")
+        parts.append(_format_rules(global_rules))
+
+    lev_rules = data.get("discharge_leveling_rules", [])
+    if lev_rules:
+        parts.append("\n【退院曜日平準化の評価方針】")
+        parts.append(_format_rules(lev_rules))
+
+    return "\n".join(parts)
+
+
 def build_weekly_context() -> str:
     """週次ストーリー用の追加コンテキストを生成。空なら空文字。"""
     data = _load()

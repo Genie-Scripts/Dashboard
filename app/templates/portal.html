@@ -95,6 +95,8 @@
 .triage-tab-l2{background:transparent;border:none;border-bottom:2px solid transparent;font-size:12px;font-weight:700;padding:4px 10px 8px;cursor:pointer;color:var(--sub);transition:all .15s;font-family:inherit}
 .triage-tab-l2.active{color:var(--ink);border-bottom-color:var(--br)}
 .triage-tab-l2:hover:not(.active){color:var(--ink)}
+.triage-leveling-note{font-size:11.5px;color:var(--sub);line-height:1.55;margin:10px 18px 6px;padding:8px 11px;background:#F4F8FB;border:1px solid #DCE6EF;border-radius:7px}
+.triage-leveling-note b{color:var(--ink)}
 .triage-panel{padding:12px 0}
 /* トリアージ行（信号機スタイル） */
 .triage-item{border-bottom:1px solid var(--ln);border-left:4px solid transparent;padding:10px 18px 10px 14px}
@@ -232,6 +234,9 @@
         <button class="triage-tab-l2" data-l2="ward-improvement" role="tab"
                 aria-selected="false"
                 onclick="switchTriageL2('ward','improvement')">📈 改善</button>
+        <button class="triage-tab-l2" data-l2="ward-leveling" role="tab"
+                aria-selected="false"
+                onclick="switchTriageL2('ward','leveling')">🚪 退院平準化</button>
       </div>
       {# 病棟 要注視 #}
       <div id="triage-ward-attention" class="triage-panel" role="tabpanel">
@@ -284,6 +289,32 @@
         <p style="color:var(--mu);font-size:13px;padding:16px 18px;">改善トピックなし</p>
         {% endif %}
       </div>
+      {# 病棟 退院平準化 #}
+      <div id="triage-ward-leveling" class="triage-panel" role="tabpanel" hidden>
+        <p class="triage-leveling-note">🚪 退院が週後半（特に土曜）に偏り、月曜が谷の病棟。<b>土曜→月曜の付け替え</b>で平準化（総退院数・在院は維持）。</p>
+        {% if triage.ward_leveling %}
+          {% for item in triage.ward_leveling %}
+          <div class="triage-item {{ item.priority }}">
+            <a class="triage-item-row" href="{{ item.href }}"
+               onclick="event.preventDefault();toggleNarrative('wl{{ loop.index }}');location.href='{{ item.href }}'">
+              <span class="pri-dot {{ item.priority }}" aria-label="優先度 {{ item.priority }}"></span>
+              <span class="triage-name">{{ item.name }}</span>
+              <button class="triage-acc-btn" id="acc-btn-wl{{ loop.index }}"
+                      aria-expanded="false" aria-controls="narrative-wl{{ loop.index }}"
+                      onclick="event.preventDefault();event.stopPropagation();toggleNarrative('wl{{ loop.index }}')">▼詳細</button>
+            </a>
+            <div class="triage-headline">{{ item.kpi_summary }}</div>
+            <div class="triage-narrative" id="narrative-wl{{ loop.index }}" hidden
+                 role="region" aria-label="{{ item.name }} 退院平準化">
+              <div class="triage-obs">🤖 {{ item.narrative.observation }}</div>
+              <div class="triage-sug">{{ item.narrative.suggestion }}</div>
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+        <p style="color:var(--mu);font-size:13px;padding:16px 18px;">退院曜日の偏りが大きい病棟なし（再配分率が基準内）</p>
+        {% endif %}
+      </div>
     </div>
 
     {# ── 診療科パネル ── #}
@@ -295,6 +326,9 @@
         <button class="triage-tab-l2" data-l2="dept-improvement" role="tab"
                 aria-selected="false"
                 onclick="switchTriageL2('dept','improvement')">📈 改善</button>
+        <button class="triage-tab-l2" data-l2="dept-leveling" role="tab"
+                aria-selected="false"
+                onclick="switchTriageL2('dept','leveling')">🚪 退院平準化</button>
       </div>
       {# 診療科 要注視 #}
       <div id="triage-dept-attention" class="triage-panel" role="tabpanel">
@@ -347,6 +381,32 @@
         <p style="color:var(--mu);font-size:13px;padding:16px 18px;">改善トピックなし</p>
         {% endif %}
       </div>
+      {# 診療科 退院平準化 #}
+      <div id="triage-dept-leveling" class="triage-panel" role="tabpanel" hidden>
+        <p class="triage-leveling-note">🚪 退院が週後半（特に土曜）に偏り、月曜が谷の診療科。<b>土曜→月曜の付け替え</b>で平準化（総退院数・在院は維持）。</p>
+        {% if triage.dept_leveling %}
+          {% for item in triage.dept_leveling %}
+          <div class="triage-item {{ item.priority }}">
+            <a class="triage-item-row" href="{{ item.href }}"
+               onclick="event.preventDefault();toggleNarrative('dl{{ loop.index }}');location.href='{{ item.href }}'">
+              <span class="pri-dot {{ item.priority }}" aria-label="優先度 {{ item.priority }}"></span>
+              <span class="triage-name">{{ item.name }}</span>
+              <button class="triage-acc-btn" id="acc-btn-dl{{ loop.index }}"
+                      aria-expanded="false" aria-controls="narrative-dl{{ loop.index }}"
+                      onclick="event.preventDefault();event.stopPropagation();toggleNarrative('dl{{ loop.index }}')">▼詳細</button>
+            </a>
+            <div class="triage-headline">{{ item.kpi_summary }}</div>
+            <div class="triage-narrative" id="narrative-dl{{ loop.index }}" hidden
+                 role="region" aria-label="{{ item.name }} 退院平準化">
+              <div class="triage-obs">🤖 {{ item.narrative.observation }}</div>
+              <div class="triage-sug">{{ item.narrative.suggestion }}</div>
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+        <p style="color:var(--mu);font-size:13px;padding:16px 18px;">退院曜日の偏りが大きい診療科なし（再配分率が基準内）</p>
+        {% endif %}
+      </div>
     </div>
   </section>
 
@@ -388,7 +448,7 @@ function switchTriageL1(category) {
 }
 /* ── トリアージ第2階層タブ切替（要注視/改善） ── */
 function switchTriageL2(category, sub) {
-  ['attention', 'improvement'].forEach(function(s) {
+  ['attention', 'improvement', 'leveling'].forEach(function(s) {
     var panel = document.getElementById('triage-' + category + '-' + s);
     var btn = document.querySelector('[data-l2="' + category + '-' + s + '"]');
     if (!panel || !btn) return;

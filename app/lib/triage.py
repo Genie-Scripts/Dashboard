@@ -25,7 +25,7 @@ from .config import (
 from .metrics import (
     rolling7_new_admission, rolling7_surgery,
     daily_inpatient, build_daily_series, week_over_week,
-    achievement_rate,
+    achievement_rate, discharge_dow_profile,
 )
 from .llm import DEFAULT_MODEL, chat_json
 
@@ -510,6 +510,177 @@ def narrate_triage(items: list[dict],
 
 
 # ════════════════════════════════════════
+# 退院曜日平準化（composite_rate とは別軸の独立検知）
+# ════════════════════════════════════════
+
+LEVELING_REDIST_THRESHOLD = 30.0   # 再配分率(%) これ以上を発信対象
+LEVELING_MIN_PER_WEEK     = 10.0   # 週退院がこれ未満は付け替え余地が小さく%も不安定なため除外
+LEVELING_MAX_ITEMS        = 5      # 病棟・科それぞれ最大件数
+LEVELING_WEEKS            = 8
+
+LEVELING_SYSTEM_PROMPT = """あなたは病院の病床管理・退院支援向けの要約ライターです。以下を厳守してください。
+
+【厳守事項】
+1. 与えられた確定事実のみを使い、新しい数値・事実・原因を追加しない
+2. テーマは「退院の曜日平準化」。土曜など週後半に偏った退院を、谷である月曜（週前半）へ"付け替える"提案に限定する
+3. 【最重要】退院を早める・在院日数を短縮する提案は禁止。これは曜日の付け替えであり、総退院数と在院患者数は維持する前提。「早期退院」「退院促進」等の表現は使わない
+4. 推測・原因断定・人名・治療方針は書かない
+5. 改善の打ち手は「週末の退院準備の前倒し」「月曜の退院枠確保」など曜日付け替えに資する観点に限る
+6. headline / observation / suggestion に診療科名・病棟名を含めない（画面に別途表示されるため重複を避ける）
+7. 出力は指定 JSON のみ。前置き・説明文・``` は付けない
+8. 日本語、簡潔・丁寧・事務的なトーン
+
+【出力スキーマ】
+{
+  "priority": "high|mid|low",
+  "headline": "20字以内の見出し（体言止め可）",
+  "observation": "曜日偏在の状況を述べる 50字以内",
+  "suggestion": "土曜→月曜の付け替え等の具体策 80字以内"
+}"""
+
+
+def _leveling_priority(redist: float) -> str:
+    if redist >= 37:
+        return "high"
+    if redist >= 33:
+        return "mid"
+    return "low"
+
+
+def _leveling_item(name: str, entity_type: str, prof: dict, href: str) -> Optional[dict]:
+    """discharge_dow_profile から triage item スキーマの平準化アイテムを生成。
+    閾値未満・小規模ユニットは None。"""
+    redist = prof.get("redistribution") or 0.0
+    per_week = prof.get("per_week") or 0.0
+    if per_week < LEVELING_MIN_PER_WEEK or redist < LEVELING_REDIST_THRESHOLD:
+        return None
+
+    shares = prof.get("shares") or [0] * 7
+    mon = prof.get("mon_share", 0.0)
+    sat = prof.get("sat_share", 0.0)
+    fri = shares[4] if len(shares) > 4 else 0.0
+    redist_vol = round(redist / 100.0 * per_week, 1)   # 付け替え余地（件/週）
+
+    facts = [
+        f"退院が週後半に集中: 土曜{sat:.0f}%・金曜{fri:.0f}%に対し、月曜は{mon:.0f}%で谷",
+        f"目標(平日均等)からの再配分率{redist:.0f}%、曜日の付け替え余地は週{redist_vol:.0f}件程度",
+        f"週次退院は約{per_week:.0f}件（総量・平均在院は維持する前提）",
+    ]
+    return {
+        "name": name,
+        "entity_type": entity_type,
+        "entity_label": "病棟" if entity_type == "ward" else "科",
+        "redist": round(float(redist), 1),
+        "priority": _leveling_priority(redist),
+        "facts": facts,
+        "kpi_summary": f"土{sat:.0f}% / 月{mon:.0f}% / 再配分{redist:.0f}%（週{redist_vol:.0f}件）",
+        "narrative": None,
+        "href": href,
+    }
+
+
+def score_leveling(adm: pd.DataFrame, base_date: pd.Timestamp) -> tuple[list[dict], list[dict]]:
+    """退院曜日の偏り（再配分率）が閾値超過の科・病棟を抽出。
+    Returns: (dept_items, ward_items)  いずれも redist 降順・上位 LEVELING_MAX_ITEMS 件。"""
+    dept_items: list[dict] = []
+    for dept in sorted(NADM_DISPLAY_DEPTS | SURGERY_DISPLAY_DEPTS):
+        prof = discharge_dow_profile(adm, base_date, group_col="診療科名",
+                                     group_val=dept, weeks=LEVELING_WEEKS)
+        it = _leveling_item(dept, "dept", prof, href=f"dept.html#{dept}")
+        if it:
+            dept_items.append(it)
+
+    ward_items: list[dict] = []
+    for wcode, wname in WARD_NAMES.items():
+        if wcode in WARD_HIDDEN:
+            continue
+        prof = discharge_dow_profile(adm, base_date, group_col="病棟コード",
+                                     group_val=wcode, weeks=LEVELING_WEEKS)
+        it = _leveling_item(wname, "ward", prof, href=f"dept.html#{wname}")
+        if it:
+            ward_items.append(it)
+
+    dept_items.sort(key=lambda x: -x["redist"])
+    ward_items.sort(key=lambda x: -x["redist"])
+    return dept_items[:LEVELING_MAX_ITEMS], ward_items[:LEVELING_MAX_ITEMS]
+
+
+def _build_leveling_prompt(item: dict) -> str:
+    from .eval_rules import build_leveling_context
+    facts_block = "\n".join(f"- {f}" for f in item["facts"])
+    ctx = build_leveling_context()
+    ctx_block = f"\n{ctx}\n" if ctx else ""
+    label = item.get("entity_label", "科")
+    return f"""以下の確定事実を要約し、JSON を1つだけ出力してください。
+
+【対象】{label}（退院の曜日平準化）
+【優先度】{item['priority']}
+
+【確定事実】
+{facts_block}
+{ctx_block}
+【注意】
+- priority は必ず "{item['priority']}" を出力すること（Python で再検証する）
+- headline / observation / suggestion / priority の4キーを持つ JSON を出力すること
+- 退院を早める・在院日数を短縮する提案は禁止。曜日の付け替え（土曜→月曜）に限定すること
+- 科名・病棟名は出力しないこと
+- 事実にない数値・原因・人物を補わないこと
+- JSON 以外の文字（```、前置き、末尾コメント）を出力しないこと"""
+
+
+def _make_leveling_fallback(item: dict) -> dict:
+    """LLM 失敗時の Python 定型文 fallback"""
+    return {
+        "priority":    item["priority"],
+        "headline":    "退院が週後半に偏在",
+        "observation": "土曜など週後半に退院が集中し、月曜が谷になっています",
+        "suggestion":  "土曜予定の退院を月曜へ。週末は退院準備を進め月曜に実行。総退院数と在院は維持してください",
+    }
+
+
+def _narrate_leveling_one(item: dict, model: str, temperature: float) -> Optional[dict]:
+    try:
+        content = chat_json(
+            system=LEVELING_SYSTEM_PROMPT,
+            user=_build_leveling_prompt(item),
+            model=model,
+            temperature=temperature,
+            max_tokens=DEFAULT_NUM_PREDICT,
+        )
+    except Exception as e:
+        logger.warning(f"oMLX leveling 呼び出し失敗 ({item['name']}): {e}")
+        return None
+    result = _extract_triage_json(content, entity_name=item["name"])
+    if result is None:
+        return None
+    result["priority"] = item["priority"]   # Python 側で強制
+    return result
+
+
+def narrate_leveling(items: list[dict], model: str = DEFAULT_MODEL,
+                     temperature: float = DEFAULT_TEMPERATURE,
+                     use_fallback: bool = True, quiet: bool = False) -> list[dict]:
+    """退院平準化アイテムに narrative を付与（LLM 失敗時は定型文）。"""
+    enriched = []
+    for item in items:
+        n = _narrate_leveling_one(item, model=model, temperature=temperature)
+        item2 = dict(item)
+        if n is not None:
+            item2["narrative"] = n
+            status = "✓"
+        elif use_fallback:
+            item2["narrative"] = _make_leveling_fallback(item)
+            status = "fb"
+        else:
+            item2["narrative"] = None
+            status = "—"
+        if not quiet:
+            print(f"    [leveling] {status} {item['name']} (再配分{item['redist']:.0f}%)")
+        enriched.append(item2)
+    return enriched
+
+
+# ════════════════════════════════════════
 # エントリポイント
 # ════════════════════════════════════════
 
@@ -548,4 +719,14 @@ def build_triage_section(adm: pd.DataFrame, surg: pd.DataFrame,
     ward_items  = pick_targets(ward_scored, adm, base_date)
     ward_items  = _narrate_items(ward_items, use_llm_narrative, model, quiet)
 
-    return {"dept": dept_items, "ward": ward_items}
+    # 退院曜日平準化（composite_rate とは別軸。閾値超過ユニットのみ）
+    lev_dept, lev_ward = score_leveling(adm, base_date)
+    if use_llm_narrative:
+        lev_dept = narrate_leveling(lev_dept, model=model, quiet=quiet)
+        lev_ward = narrate_leveling(lev_ward, model=model, quiet=quiet)
+    else:
+        lev_dept = [dict(it, narrative=_make_leveling_fallback(it)) for it in lev_dept]
+        lev_ward = [dict(it, narrative=_make_leveling_fallback(it)) for it in lev_ward]
+
+    return {"dept": dept_items, "ward": ward_items,
+            "dept_leveling": lev_dept, "ward_leveling": lev_ward}
