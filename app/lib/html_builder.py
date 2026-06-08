@@ -223,7 +223,8 @@ def build_portal_context(adm, surg, targets, surg_targets,
                          base_date, generated_at=None,
                          include_ai_alerts: bool = True,
                          weekly_story: dict = None,
-                         profit_monthly=None) -> dict:
+                         profit_monthly=None,
+                         include_triage: bool = True) -> dict:
     """
     portal.html テンプレート用のコンテキスト辞書を生成。
 
@@ -302,7 +303,11 @@ def build_portal_context(adm, surg, targets, surg_targets,
     ]
 
     # ── 部門トリアージ（多KPI合成スコアリング + LLMナラティブ）──
-    triage = _build_triage(adm, surg, targets, surg_targets, profit_monthly, base_date)
+    # detail.html では triage を使わない（attention/improvement のみ）。
+    # その場合 LLM 計算を丸ごとスキップして二重実行を防ぐ。
+    triage = (_build_triage(adm, surg, targets, surg_targets, profit_monthly, base_date)
+              if include_triage
+              else {"dept": [], "ward": [], "dept_leveling": [], "ward_leveling": []})
 
     # ── AI アラート（後方互換：include_ai_alerts=True 時のみ。portal では使用しない）──
     ai_alerts = (_build_ai_alerts(adm, surg, targets, surg_targets, base_date)
@@ -641,9 +646,11 @@ def build_detail_json(adm, surg, targets, surg_targets,
         }
 
     # ── attention / improvement ──
-    # detail.html では AI アラートは不要（portal.html 専用）
+    # detail.html は attention/improvement のみ使用。AI アラート/トリアージ/
+    # 退院平準化（いずれも LLM）は portal.html 専用なのでここでは計算しない。
     portal_ctx = build_portal_context(adm, surg, targets, surg_targets, base_date,
                                        generated_at, include_ai_alerts=False,
+                                       include_triage=False,
                                        profit_monthly=profit_monthly)
 
     # ── profit: 粗利データ ──

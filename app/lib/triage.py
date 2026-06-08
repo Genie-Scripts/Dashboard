@@ -42,6 +42,10 @@ COMPOSITE_THRESHOLD = 90.0   # composite_rate < 90 → トリアージ対象
 PRIORITY_HIGH_THRESHOLD = 80.0
 PRIORITY_MID_THRESHOLD  = 90.0
 
+# 全身麻酔手術の達成率がこれ以上なら「大幅クリア」とみなし、
+# 在院患者数・退院曜日の指摘を控える（外科系の主軸は手術実績）
+SURGERY_OVERACHIEVE_RATE = 120.0
+
 # 重み
 WEIGHT_ADM    = 1.1
 WEIGHT_INP    = 1.0
@@ -71,6 +75,11 @@ TRIAGE_SYSTEM_PROMPT = """あなたは病院経営会議向けの要約ライタ
    個別KPI（新入院・在院患者・手術・粗利）の達成状況で表現すること。
 9. headline / observation / suggestion に診療科名・病棟名を含めない。
    科名・病棟名は画面上で別途表示されるため、重複を避けること。
+10. 在院患者数の打ち手として「在院日数の短縮」「早期退院」「退院促進」を
+    提案しないこと。在院患者数は経営の根幹指標であり、低い場合の打ち手は
+    新入院・紹介患者の確保である（在院日数短縮は在院を下げ逆効果）。
+11. 「全身麻酔手術が目標を大きく上回っている」旨の注記がある場合は、
+    手術実績を主軸に肯定的に評価し、在院患者数や退院曜日の偏りは強く指摘しない。
 
 【出力スキーマ】
 {
@@ -346,6 +355,13 @@ def pick_targets(scored: list[dict], adm: pd.DataFrame,
             kpi_parts.append(f"粗利{item['profit_rate']:.0f}%")
         item["kpi_summary"] = " | ".join(kpi_parts)
 
+        # 全身麻酔手術を大幅クリアしている外科系は在院・退院曜日をうるさく言わない
+        item["surgery_strong"] = bool(
+            not is_ward and item.get("is_surgery_dept")
+            and item.get("op_rate") is not None
+            and item["op_rate"] >= SURGERY_OVERACHIEVE_RATE
+        )
+
         entity_label = "病棟" if is_ward else "科"
         item["rank_from_bottom"] = i + 1
         item["total_items"] = len(items)
@@ -368,6 +384,9 @@ def pick_targets(scored: list[dict], adm: pd.DataFrame,
 def _build_triage_prompt(item: dict) -> str:
     facts_block = "\n".join(f"- {f}" for f in item["facts"])
     wow_line = f"\n・前週同曜日比: {item['wow_hint']}" if item.get("wow_hint") else ""
+    strong_note = ("\n\n【重要】この科は全身麻酔手術が目標を大きく上回っている。"
+                   "手術実績を主軸に肯定的に評価し、在院患者数や退院曜日の偏りは"
+                   "強く指摘しないこと。") if item.get("surgery_strong") else ""
     entity_label = item.get("entity_label", "科")
     total_label = f"全{item['total_items']}{entity_label}" if "total_items" in item else f"全{item.get('total_depts', '?')}科"
     return f"""以下の確定事実を要約し、JSON を1つだけ出力してください。
@@ -376,7 +395,7 @@ def _build_triage_prompt(item: dict) -> str:
 【優先度】{item['priority']}
 
 【確定事実】
-{facts_block}{wow_line}
+{facts_block}{wow_line}{strong_note}
 
 【注意】
 - priority は必ず "{item['priority']}" を出力すること（Python で再検証する）
@@ -517,6 +536,8 @@ LEVELING_REDIST_THRESHOLD = 30.0   # 再配分率(%) これ以上を発信対象
 LEVELING_MIN_PER_WEEK     = 10.0   # 週退院がこれ未満は付け替え余地が小さく%も不安定なため除外
 LEVELING_MAX_ITEMS        = 5      # 病棟・科それぞれ最大件数
 LEVELING_WEEKS            = 8
+LEVELING_TREND_WEEKS      = 4      # 改善傾向判定: 直近4週 vs 前4週で再配分率を比較
+LEVELING_IMPROVE_PT       = 4.0    # 再配分率が4pt以上 低下/上昇 で 改善/悪化 とみなす
 
 LEVELING_SYSTEM_PROMPT = """あなたは病院の病床管理・退院支援向けの要約ライターです。以下を厳守してください。
 
@@ -527,8 +548,9 @@ LEVELING_SYSTEM_PROMPT = """あなたは病院の病床管理・退院支援向�
 4. 推測・原因断定・人名・治療方針は書かない
 5. 改善の打ち手は「週末の退院準備の前倒し」「月曜の退院枠確保」など曜日付け替えに資する観点に限る
 6. headline / observation / suggestion に診療科名・病棟名を含めない（画面に別途表示されるため重複を避ける）
-7. 出力は指定 JSON のみ。前置き・説明文・``` は付けない
-8. 日本語、簡潔・丁寧・事務的なトーン
+7. 「改善傾向」の事実がある場合は、まず肯定的に評価し、その上でさらなる平準化を促す
+8. 出力は指定 JSON のみ。前置き・説明文・``` は付けない
+9. 日本語、簡潔・丁寧・事務的なトーン
 
 【出力スキーマ】
 {
@@ -547,9 +569,29 @@ def _leveling_priority(redist: float) -> str:
     return "low"
 
 
-def _leveling_item(name: str, entity_type: str, prof: dict, href: str) -> Optional[dict]:
+def _downgrade_priority(p: str) -> str:
+    """改善傾向のユニットは優先度を1段下げる"""
+    return {"high": "mid", "mid": "low", "low": "low"}.get(p, p)
+
+
+def _leveling_trend(adm: pd.DataFrame, base_date: pd.Timestamp,
+                    group_col: str, group_val: str) -> Optional[float]:
+    """退院曜日の改善傾向。直近4週 vs 前4週の再配分率の差(pt)。
+    正=改善（再配分率が低下）。いずれかの窓で退院が少なすぎる場合は None。"""
+    recent = discharge_dow_profile(adm, base_date, group_col=group_col,
+                                   group_val=group_val, weeks=LEVELING_TREND_WEEKS)
+    prior_base = base_date - pd.Timedelta(days=7 * LEVELING_TREND_WEEKS)
+    prior = discharge_dow_profile(adm, prior_base, group_col=group_col,
+                                  group_val=group_val, weeks=LEVELING_TREND_WEEKS)
+    if recent["per_week"] < 3 or prior["per_week"] < 3:
+        return None
+    return round(prior["redistribution"] - recent["redistribution"], 1)
+
+
+def _leveling_item(name: str, entity_type: str, prof: dict, href: str,
+                   redist_trend: Optional[float] = None) -> Optional[dict]:
     """discharge_dow_profile から triage item スキーマの平準化アイテムを生成。
-    閾値未満・小規模ユニットは None。"""
+    閾値未満・小規模ユニットは None。redist_trend>0 は改善傾向。"""
     redist = prof.get("redistribution") or 0.0
     per_week = prof.get("per_week") or 0.0
     if per_week < LEVELING_MIN_PER_WEEK or redist < LEVELING_REDIST_THRESHOLD:
@@ -561,32 +603,58 @@ def _leveling_item(name: str, entity_type: str, prof: dict, href: str) -> Option
     fri = shares[4] if len(shares) > 4 else 0.0
     redist_vol = round(redist / 100.0 * per_week, 1)   # 付け替え余地（件/週）
 
+    improving = redist_trend is not None and redist_trend >= LEVELING_IMPROVE_PT
+    worsening = redist_trend is not None and redist_trend <= -LEVELING_IMPROVE_PT
+
     facts = [
         f"退院が週後半に集中: 土曜{sat:.0f}%・金曜{fri:.0f}%に対し、月曜は{mon:.0f}%で谷",
         f"目標(平日均等)からの再配分率{redist:.0f}%、曜日の付け替え余地は週{redist_vol:.0f}件程度",
         f"週次退院は約{per_week:.0f}件（総量・平均在院は維持する前提）",
     ]
+    if improving:
+        facts.append(f"退院曜日の偏りは改善傾向（再配分率が直近4週で前4週比 {redist_trend:.0f}pt 低下）")
+    elif worsening:
+        facts.append(f"退院曜日の偏りは悪化傾向（再配分率が直近4週で前4週比 {abs(redist_trend):.0f}pt 上昇）")
+
+    priority = _leveling_priority(redist)
+    if improving:
+        priority = _downgrade_priority(priority)   # 改善中は優先度を1段下げて評価
+
+    trend_tag = "↘改善" if improving else ("↗悪化" if worsening else "")
     return {
         "name": name,
         "entity_type": entity_type,
         "entity_label": "病棟" if entity_type == "ward" else "科",
         "redist": round(float(redist), 1),
-        "priority": _leveling_priority(redist),
+        "redist_trend": redist_trend,
+        "improving": improving,
+        "priority": priority,
         "facts": facts,
-        "kpi_summary": f"土{sat:.0f}% / 月{mon:.0f}% / 再配分{redist:.0f}%（週{redist_vol:.0f}件）",
+        "kpi_summary": f"土{sat:.0f}% / 月{mon:.0f}% / 再配分{redist:.0f}%（週{redist_vol:.0f}件）{trend_tag}",
         "narrative": None,
         "href": href,
     }
 
 
-def score_leveling(adm: pd.DataFrame, base_date: pd.Timestamp) -> tuple[list[dict], list[dict]]:
+def score_leveling(adm: pd.DataFrame, surg: pd.DataFrame, surg_targets: dict,
+                   base_date: pd.Timestamp) -> tuple[list[dict], list[dict]]:
     """退院曜日の偏り（再配分率）が閾値超過の科・病棟を抽出。
+    全身麻酔手術を大幅クリアしている外科系（手術目標設定科）は対象外。
     Returns: (dept_items, ward_items)  いずれも redist 降順・上位 LEVELING_MAX_ITEMS 件。"""
+    r7_surg = rolling7_surgery(surg, base_date)["by_dept"]
+
     dept_items: list[dict] = []
     for dept in sorted(NADM_DISPLAY_DEPTS | SURGERY_DISPLAY_DEPTS):
+        # 手術目標を大幅にクリアしている外科系は退院曜日集中をうるさく言わない
+        if dept in SURGERY_DISPLAY_DEPTS:
+            s_rate = achievement_rate(r7_surg.get(dept, 0), surg_targets.get(dept))
+            if s_rate is not None and s_rate >= SURGERY_OVERACHIEVE_RATE:
+                continue
         prof = discharge_dow_profile(adm, base_date, group_col="診療科名",
                                      group_val=dept, weeks=LEVELING_WEEKS)
-        it = _leveling_item(dept, "dept", prof, href=f"dept.html#{dept}")
+        trend = _leveling_trend(adm, base_date, "診療科名", dept)
+        it = _leveling_item(dept, "dept", prof, href=f"dept.html#{dept}",
+                            redist_trend=trend)
         if it:
             dept_items.append(it)
 
@@ -596,7 +664,9 @@ def score_leveling(adm: pd.DataFrame, base_date: pd.Timestamp) -> tuple[list[dic
             continue
         prof = discharge_dow_profile(adm, base_date, group_col="病棟コード",
                                      group_val=wcode, weeks=LEVELING_WEEKS)
-        it = _leveling_item(wname, "ward", prof, href=f"dept.html#{wname}")
+        trend = _leveling_trend(adm, base_date, "病棟コード", wcode)
+        it = _leveling_item(wname, "ward", prof, href=f"dept.html#{wname}",
+                            redist_trend=trend)
         if it:
             ward_items.append(it)
 
@@ -630,6 +700,13 @@ def _build_leveling_prompt(item: dict) -> str:
 
 def _make_leveling_fallback(item: dict) -> dict:
     """LLM 失敗時の Python 定型文 fallback"""
+    if item.get("improving"):
+        return {
+            "priority":    item["priority"],
+            "headline":    "改善傾向（平準化を継続）",
+            "observation": "退院の曜日偏りは改善傾向ですが、なお土曜寄りです",
+            "suggestion":  "この流れで土曜の退院を月曜へ。週末の退院準備の前倒しを継続してください（総退院数・在院は維持）",
+        }
     return {
         "priority":    item["priority"],
         "headline":    "退院が週後半に偏在",
@@ -719,8 +796,9 @@ def build_triage_section(adm: pd.DataFrame, surg: pd.DataFrame,
     ward_items  = pick_targets(ward_scored, adm, base_date)
     ward_items  = _narrate_items(ward_items, use_llm_narrative, model, quiet)
 
-    # 退院曜日平準化（composite_rate とは別軸。閾値超過ユニットのみ）
-    lev_dept, lev_ward = score_leveling(adm, base_date)
+    # 退院曜日平準化（composite_rate とは別軸。閾値超過ユニットのみ。
+    # 手術を大幅クリアの外科系は対象外、改善傾向は優先度を下げて評価）
+    lev_dept, lev_ward = score_leveling(adm, surg, surg_targets, base_date)
     if use_llm_narrative:
         lev_dept = narrate_leveling(lev_dept, model=model, quiet=quiet)
         lev_ward = narrate_leveling(lev_ward, model=model, quiet=quiet)
