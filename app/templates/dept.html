@@ -194,6 +194,15 @@ body.chart-fs-lock{overflow:hidden}
       <div class="cpnl chart3-panel"><h4 id="chartTitle3">💉 全麻手術 推移</h4><div class="chart" id="chart3"></div><button class="chart-fs-btn" onclick="chartFS('chart3',this)" aria-label="チャート全画面">⛶</button></div>
       <div class="cpnl" id="chart4panel" style="display:none"><h4 id="chartTitle4">💰 月次粗利 推移</h4><div class="chart" id="chart4"></div><button class="chart-fs-btn" onclick="chartFS('chart4',this)" aria-label="チャート全画面">⛶</button></div>
     </div>
+    <div id="dischargeDowWrap" style="display:none;margin-top:14px">
+      <div class="cpnl">
+        <h4 id="dischargeDowTitle">🚪 退院 曜日プロファイル <span style="font-weight:500;color:var(--mu);font-size:11px">（直近8週・死亡退院は除く）</span></h4>
+        <div id="dischargeDowBadges" style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 2px"></div>
+        <div class="chart" id="dischargeDowChart"></div>
+        <button class="chart-fs-btn" onclick="chartFS('dischargeDowChart',this)" aria-label="チャート全画面">⛶</button>
+        <div id="dischargeDowMeta" style="margin-top:8px;font-size:11px;color:var(--mu);line-height:1.6"></div>
+      </div>
+    </div>
     <div id="estimatePanelWrap" style="display:none;margin-top:14px">
       <div class="cpnl">
         <h4 id="estimateTitle">📈 月末粗利 見込み 推移（直近30日ペース × 当月営業日数）</h4>
@@ -738,6 +747,9 @@ function renderCharts(d) {
     }
   }
 
+  // 退院 曜日プロファイル（診療科・病棟 両方。8週固定なので period/曜日トグルに非依存）
+  renderDischargeDow(d);
+
   // 直近30日 推計粗利チャート（診療科のみ、ハイブリッド推計データがあれば表示）
   const estWrap = document.getElementById('estimatePanelWrap');
   if (!isWard && d.profit_hybrid && d.profit_hybrid.series) {
@@ -1231,6 +1243,62 @@ function renderOpVsProfit(opTd, pc) {
     `直近3M平均 件数 <b>${fmt(rO)}</b>件/月（前9M比 ${tag(fmtPct(rO,pO), colorOf(rO,pO))}） ／ 粗利 <b>${fmt(rP)}</b>百万（${tag(fmtPct(rP,pP), colorOf(rP,pP))}）`;
   document.getElementById('opUnitMeta').innerHTML =
     `直近3M平均 単価 <b>${fmt(rU, 2)}</b>百万/件（前9M比 ${tag(fmtPct(rU,pU), colorOf(rU,pU))}）`;
+}
+
+// 退院 曜日プロファイル（曜日平準化）: 谷=月を上げ／山=土を下げる
+function renderDischargeDow(d) {
+  const wrap = document.getElementById('dischargeDowWrap');
+  const dd = d && d.discharge_dow;
+  // データなし（PROFIT_ONLY科や退院ゼロ単位）は非表示
+  if (!dd || !dd.per_week || dd.per_week <= 0) { if (wrap) wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+
+  const labels = ['月','火','水','木','金','土','日'];
+  const shares = dd.shares || [];
+  const counts = dd.counts || [];
+  const target = dd.target || [20,20,20,20,20,0,0];
+  // 棒の色: 月=谷(青で強調) / 土=山(橙で強調) / 他=ニュートラル
+  const colors = labels.map((_, i) => i===0 ? '#0072B2' : i===5 ? '#E69F00' : '#9AA7B8');
+
+  // バッジ
+  const badge = (label, val, sub, col) =>
+    `<span style="display:inline-flex;flex-direction:column;gap:1px;padding:5px 10px;border-radius:8px;background:${col}14;border:1px solid ${col}55;line-height:1.25">
+       <span style="font-size:10px;color:var(--mu);font-weight:700">${label}</span>
+       <span style="font-size:14px;font-weight:900;color:${col}">${val}<span style="font-size:9px;font-weight:700;color:var(--mu);margin-left:3px">${sub||''}</span></span>
+     </span>`;
+  const monCol = dd.mon_share < 15 ? '#0072B2' : '#0e7a54';
+  const satCol = dd.sat_share > 14 ? '#E69F00' : '#0e7a54';
+  document.getElementById('dischargeDowBadges').innerHTML =
+      badge('月曜シェア（谷）', dd.mon_share + '%', '▸目標↑20%', monCol)
+    + badge('土曜シェア（山）', dd.sat_share + '%', '▸目標↓', satCol)
+    + badge('再配分率', dd.redistribution + '%', '低いほど平準', '#5A6A82')
+    + badge('退院/週（総量）', dd.per_week + '名', '維持', '#5A6A82');
+
+  Plotly.newPlot('dischargeDowChart', [
+    { name:'退院シェア', x:labels, y:shares, type:'bar',
+      marker:{color:colors}, opacity:0.85,
+      text:counts.map((c,i)=>`${shares[i]}%<br>${c}名`), textposition:'outside',
+      textfont:{size:10},
+      hovertemplate:'%{x}: %{y}%（%{customdata}名）<extra></extra>', customdata:counts },
+    { name:'目標（平日均等・週末最小）', x:labels, y:target, type:'scatter',
+      mode:'lines+markers', line:{color:'#D55E00', width:2, dash:'dash'},
+      marker:{size:5, color:'#D55E00'},
+      hovertemplate:'目標 %{x}: %{y}%<extra></extra>' },
+  ], {
+    font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
+    xaxis:{gridcolor:'transparent'},
+    yaxis:{title:{text:'退院シェア(%)',font:{size:10}}, gridcolor:'#DCE1E9',
+           rangemode:'tozero', ticksuffix:'%'},
+    legend:{orientation:'h',x:0,y:-0.18,font:{size:10}},
+    margin:{l:48,r:20,t:14,b:42}, height:_pH(300),
+    plot_bgcolor:'#fff', paper_bgcolor:'#fff',
+  }, {responsive:true, displayModeBar:false});
+
+  document.getElementById('dischargeDowMeta').innerHTML =
+    `📌 これは<b>「退院曜日の付け替え」</b>指標です（早期退院＝在院短縮を促すものではありません）。`
+    + `標準アクション：<b>土曜の退院を月曜へ</b>（週末は退院準備を仕込み、月曜に実行）。`
+    + `平準化が「再配分」で進んでいるかは、<b>退院/週（${dd.per_week}名・総量）</b>と隣の<b>在院患者 推移</b>が維持されているかで確認してください。`
+    + `<span style="color:var(--mu)">（直近${dd.weeks}週・完全週のみ集計／分子は退院患者数のみ＝死亡・転出を除く）</span>`;
 }
 
 function renderFlowChart(elId, admTd, outTd) {

@@ -27,7 +27,7 @@ from .metrics import (
     rolling7_new_admission, rolling7_surgery,
     build_daily_series, build_surgery_daily_series, add_moving_average,
     build_biz_ma30_series, build_prevyear_ma_series, build_prevyear_weekly_series,
-    week_over_week, achievement_rate,
+    week_over_week, achievement_rate, discharge_dow_profile,
 )
 from .charts import (
     build_inpatient_chart, build_new_admission_chart,
@@ -543,6 +543,7 @@ def build_detail_json(adm, surg, targets, surg_targets,
                 "inpatient": _trend_dict(dept_inp_series, prevyear=True) if len(dept_inp_series) > 0 else {"dates":[],"values":[],"ma7":[],"ma28":[]},
                 "operation": dept_op_trend,
             },
+            "discharge_dow": discharge_dow_profile(adm, base_date, group_col="診療科名", group_val=dept),
             "comment": "、".join(comments),
         }
 
@@ -632,6 +633,7 @@ def build_detail_json(adm, surg, targets, surg_targets,
                 "outflow": (_trend_dict(w_out_series) if len(w_out_series) > 0
                             else {"dates":[],"values":[],"ma7":[],"ma28":[]}),
             },
+            "discharge_dow": discharge_dow_profile(adm, base_date, group_col="病棟コード", group_val=wcode),
             "comment": "、".join(w_comments),
         }
 

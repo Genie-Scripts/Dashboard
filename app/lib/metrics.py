@@ -73,6 +73,76 @@ def daily_new_admission(adm: pd.DataFrame, date: pd.Timestamp) -> dict:
     }
 
 
+def discharge_dow_profile(adm: pd.DataFrame, date: pd.Timestamp,
+                          group_col: str = None, group_val: str = None,
+                          weeks: int = 8) -> dict:
+    """退院の曜日プロファイル（曜日平準化指標）
+
+    分子は「退院患者数」のみ（死亡・転出は除外＝平準化＝曜日付け替えの
+    対象となる予定退院に近い母数）。直近 weeks 週ぶんの「完全週(月〜日)」を
+    集計対象とし、基準日を含む部分週は除外して曜日カウントの偏りをなくす。
+
+    目標プロファイルは「平日均等(月〜金=各20%)・週末最小(土日=0)」。
+    谷=月曜シェアを上げ、山=土曜シェアを下げる方針に対応。
+
+    Returns:
+        {
+          "counts": [月..日],          # 退院患者数の曜日別合計(死亡除く)
+          "shares": [月..日],          # 構成比(%)、合計100
+          "target": [20,20,20,20,20,0,0],  # 目標シェア(%)
+          "mon_share": float,          # 月曜シェア(谷・引き上げ対象)
+          "sat_share": float,          # 土曜シェア(山・引き下げ対象)
+          "redistribution": float,     # 再配分率(%) = ½Σ|share-target|
+          "per_week": float,           # 週あたり退院総数(ガードレール)
+          "weeks": float,              # 実集計週数
+        }
+    """
+    # 目標: 平日均等・週末最小（谷=月を上げ／山=土を下げる方針）
+    TARGET = [20.0, 20.0, 20.0, 20.0, 20.0, 0.0, 0.0]
+
+    # 直近 weeks 週ぶんの完全週（月〜日）。基準日を含む部分週は除外。
+    monday = date - timedelta(days=date.weekday())
+    start = monday - timedelta(days=7 * weeks)
+    end = monday - timedelta(days=1)
+
+    # 集計週数は暦（全体データの日付）基準。患者ゼロで行が無い日があっても
+    # ユニットによって週数がぶれないようにする。
+    cal_days = adm[(adm["日付"] >= start) & (adm["日付"] <= end)]["日付"].nunique()
+    n_weeks = round(cal_days / 7, 1) if cal_days else 0.0
+
+    df = adm
+    if group_col == "病棟コード":
+        df = df[df["病棟_表示"]]
+    else:
+        df = df[df["科_表示"]]
+    if group_col and group_val:
+        df = df[df[group_col] == group_val]
+
+    win = df[(df["日付"] >= start) & (df["日付"] <= end)]
+
+    counts = [0] * 7
+    if len(win) > 0:
+        for wd, v in win.groupby("曜日")["退院患者数"].sum().items():
+            counts[int(wd)] = int(v)
+
+    total = sum(counts)
+
+    shares = [c / total * 100 for c in counts] if total > 0 else [0.0] * 7
+    redistribution = sum(abs(s - t) for s, t in zip(shares, TARGET)) / 2
+    per_week = total / n_weeks if n_weeks else 0.0
+
+    return {
+        "counts": counts,
+        "shares": [round(s, 1) for s in shares],
+        "target": TARGET,
+        "mon_share": round(shares[0], 1),
+        "sat_share": round(shares[5], 1),
+        "redistribution": round(redistribution, 1),
+        "per_week": round(per_week, 1),
+        "weeks": n_weeks,
+    }
+
+
 def daily_surgery(surg: pd.DataFrame, date: pd.Timestamp) -> dict:
     """日次手術件数"""
     day = surg[surg["手術実施日"] == date]
