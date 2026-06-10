@@ -439,6 +439,170 @@ def build_discharge_dow_heatmap(adm: pd.DataFrame, base_date: pd.Timestamp,
             "config": {"responsive": True, "displayModeBar": False}}
 
 
+# 退院・入院 曜日ヒートマップ：指標 → (集計列, 表示ラベル, アイコン)
+DOW_METRICS = {
+    "discharge":    ("退院患者数",   "退院",     "🚪"),
+    "admission":    ("新入院患者数", "入院(全)", "🛏️"),
+    "planned":      ("入院患者数",   "予定入院", "🗓️"),
+    "emergency":    ("緊急入院患者数", "緊急入院", "🚑"),
+    "transfer_in":  ("転入患者数",   "転入",     "↘"),
+}
+
+# 発散配色（青=少/減 → 白=0 → 赤=多/増）。目標比・4週Δ 共通。
+_DHM_DIVERGENT = [
+    [0.0, "#2166ac"], [0.30, "#92c5de"], [0.5, "#f7f7f7"],
+    [0.70, "#f4a582"], [1.0, "#b2182b"],
+]
+# 連続配色（薄→濃インディゴ）。入院系の「負荷シェア」現状表示用。
+_DHM_LOAD = [[0.0, "#eef2ff"], [0.5, "#818cf8"], [1.0, "#312e81"]]
+
+
+def _dow_unit_candidates(entity: str):
+    """ヒートマップ対象ユニットの候補 (code, name) リスト。"""
+    from .config import (WARD_NAMES, WARD_HIDDEN,
+                         NADM_DISPLAY_DEPTS, SURGERY_DISPLAY_DEPTS)
+    if entity == "ward":
+        return "病棟コード", [(w, n) for w, n in WARD_NAMES.items() if w not in WARD_HIDDEN]
+    return "診療科名", [(d, d) for d in sorted(NADM_DISPLAY_DEPTS | SURGERY_DISPLAY_DEPTS)]
+
+
+def dow_shared_units(adm: pd.DataFrame, base_date: pd.Timestamp,
+                     entity: str = "ward", min_per_week: float = 5.0,
+                     weeks: int = 8) -> list:
+    """退院・入院 両ヒートマップで共通に使う、行順を揃えたユニット (code, name) 列。
+
+    退院 or 全入院 のいずれかが週平均 min_per_week 以上のユニットを採用し、
+    「退院＋全入院」の週平均件数の降順（=規則的な並び）で返す。指標を切り替えても
+    行の並びが一致するよう、並べ替えキーは指標非依存（退院＋全入院）で固定する。
+    """
+    from .metrics import dow_event_profile
+    group_col, cand = _dow_unit_candidates(entity)
+    scored = []
+    for code, name in cand:
+        dis = dow_event_profile(adm, base_date, "退院患者数",
+                                group_col=group_col, group_val=code, weeks=weeks)["per_week"]
+        adm_pw = dow_event_profile(adm, base_date, "新入院患者数",
+                                   group_col=group_col, group_val=code, weeks=weeks)["per_week"]
+        if dis >= min_per_week or adm_pw >= min_per_week:
+            scored.append((code, name, dis + adm_pw))
+    scored.sort(key=lambda r: -r[2])  # 入退院ボリューム降順
+    return [(c, n) for c, n, _ in scored]
+
+
+def build_dow_heatmap(adm: pd.DataFrame, base_date: pd.Timestamp,
+                      entity: str = "ward", metric: str = "discharge",
+                      mode: str = "current", weeks: int = 8,
+                      min_per_week: float = 5.0, units: list = None) -> dict:
+    """退院・入院 曜日×ユニット ヒートマップ（汎用）。
+
+    metric: discharge / admission / planned / emergency / transfer_in
+    mode:
+      - "current": 退院=目標比（平日均等[月〜金20%]・週末最小）の発散配色。
+                   入院系=曜日シェアの負荷連続配色（濃いほど集中）。
+      - "delta4w": 直近4週 − その前4週 のシェア差(Δpt) を発散配色（赤=増/青=減）。
+    units: (code, name) の順序付きリスト。指定時はその並び・集合をそのまま使う
+           （退院・入院ヒートで行を揃えるため dow_shared_units の結果を渡す）。
+           None のときは候補から per_week>=min を抽出し指標別に並べ替える（後方互換）。
+    """
+    from .metrics import dow_event_profile
+
+    value_col, _label, _icon = DOW_METRICS[metric]
+    labels = ["月", "火", "水", "木", "金", "土", "日"]
+    target = [20.0, 20.0, 20.0, 20.0, 20.0, 0.0, 0.0]
+
+    if units is not None:
+        group_col = "病棟コード" if entity == "ward" else "診療科名"
+        rows = [(name, dow_event_profile(adm, base_date, value_col,
+                                         group_col=group_col, group_val=code, weeks=weeks))
+                for code, name in units]
+    else:
+        group_col, cand = _dow_unit_candidates(entity)
+        rows = []  # (name, profile)
+        for code, name in cand:
+            p = dow_event_profile(adm, base_date, value_col,
+                                  group_col=group_col, group_val=code, weeks=weeks)
+            if p["per_week"] >= min_per_week:
+                rows.append((name, p))
+        if metric == "discharge":
+            rows.sort(key=lambda r: -(r[1]["shares"][4] + r[1]["shares"][5]))  # 金土集中順
+        else:
+            rows.sort(key=lambda r: -r[1]["per_week"])  # 負荷の大きい順
+
+    names = [r[0] for r in rows]
+
+    if mode == "delta4w":
+        z = [r[1]["delta"] for r in rows]
+        text = [[f"{v:+.0f}" for v in r[1]["delta"]] for r in rows]
+        z_kw = {"zmid": 0, "zmin": -10, "zmax": 10, "colorscale": _DHM_DIVERGENT}
+        cbtitle = "4週Δ"
+        hov = "%{y}<br>%{x}曜: Δ%{z:+.1f}pt（直近4週−前4週シェア）<extra></extra>"
+    elif metric == "discharge":
+        z = [[round(s - t, 1) for s, t in zip(r[1]["shares"], target)] for r in rows]
+        text = [[f"{s:.0f}" for s in r[1]["shares"]] for r in rows]
+        z_kw = {"zmid": 0, "zmin": -15, "zmax": 15, "colorscale": _DHM_DIVERGENT}
+        cbtitle = "目標比"
+        hov = "%{y}<br>%{x}曜: 実績%{text}%（目標比 %{z:+.1f}pt）<extra></extra>"
+    else:
+        z = [r[1]["shares"] for r in rows]
+        text = [[f"{s:.0f}" for s in r[1]["shares"]] for r in rows]
+        z_kw = {"zmin": 0, "zmax": 35, "colorscale": _DHM_LOAD}
+        cbtitle = "シェア"
+        hov = "%{y}<br>%{x}曜: シェア%{z:.0f}%<extra></extra>"
+
+    traces = [dict({
+        "type": "heatmap",
+        "z": z, "x": labels, "y": names,
+        "text": text, "texttemplate": "%{text}", "textfont": {"size": 10},
+        "xgap": 2, "ygap": 2,
+        "colorbar": {"title": {"text": cbtitle, "side": "right"},
+                     "ticksuffix": "pt" if mode == "delta4w" or metric == "discharge" else "%",
+                     "thickness": 12, "len": 0.9},
+        "hovertemplate": hov,
+    }, **z_kw)]
+
+    layout = _base_layout("", height=max(220, 26 * len(names) + 92))
+    layout["xaxis"] = {"type": "category", "side": "top", "gridcolor": "transparent",
+                       "tickfont": {"size": 12}}
+    layout["yaxis"] = {"autorange": "reversed", "gridcolor": "transparent",
+                       "tickfont": {"size": 10}}
+    layout["margin"] = {"l": 92, "r": 64, "t": 26, "b": 14}
+    layout["hovermode"] = "closest"
+
+    return {"traces": traces, "layout": layout,
+            "config": {"responsive": True, "displayModeBar": False}}
+
+
+def build_dow_unit_detail(adm: pd.DataFrame, base_date: pd.Timestamp,
+                          entity: str, units: list, weeks: int = 8) -> dict:
+    """単一ユニットの入退院 曜日比較（行クリック・ドリル）用データ。
+
+    返値: { ユニット名: { metric: {avg:[月..日 日平均人数], per_week, delta:[Δpt]} } }
+    metric は discharge / admission / planned / emergency（病棟は transfer_in も）。
+    avg は 8週合計を実集計週数で割った「その曜日の日平均人数」。
+    """
+    from .metrics import dow_event_profile
+    group_col = "病棟コード" if entity == "ward" else "診療科名"
+    metrics = ["discharge", "admission", "planned", "emergency"]
+    if entity == "ward":
+        metrics.append("transfer_in")
+
+    out = {}
+    for code, name in units:
+        md = {}
+        for met in metrics:
+            value_col = DOW_METRICS[met][0]
+            p = dow_event_profile(adm, base_date, value_col,
+                                  group_col=group_col, group_val=code, weeks=weeks)
+            w = p["weeks"] or 1
+            md[met] = {
+                "avg": [round(c / w, 1) for c in p["counts"]],
+                "per_week": p["per_week"],
+                "delta": p["delta"],
+            }
+        out[name] = md
+    return out
+
+
 # ═══════════════════════════════════════
 # 粗利チャート（変更なし）
 # ═══════════════════════════════════════

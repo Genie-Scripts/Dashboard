@@ -37,6 +37,13 @@
 .grp{display:flex;align-items:center;gap:5px}.gl{font-size:12px;font-weight:800;color:var(--sub)}.btn{background:var(--s);border:1px solid var(--ln);border-radius:10px;padding:8px 14px;font-size:12px;font-weight:800;color:var(--sub);cursor:pointer;box-shadow:0 1px 3px rgba(10,22,42,.04);transition:all .15s}.btn:hover{border-color:#93b4e4;color:var(--br)}.btn.active{background:var(--bl);border-color:#93b4e4;color:var(--br)}
 .main{display:grid;grid-template-columns:1.15fr .85fr;gap:14px;margin-top:12px;align-items:start}.pnl-chart{}.pnl{background:var(--s);border:1px solid var(--ln);border-radius:var(--r);padding:18px;box-shadow:var(--sh);overflow:hidden}.pnl h3{margin:0 0 12px;font-size:14px;font-weight:800}
 .chart{width:100%;height:340px;overflow:hidden}
+.dhm-chart{height:auto !important;min-height:180px;overflow:visible}
+.dhm-sub{font-size:13px;font-weight:800;margin:6px 0 4px}
+.dhm-cap{font-weight:500;color:var(--mu);font-size:11px}
+.dhm-radio{display:inline-flex;gap:2px;background:#eef2f7;border-radius:8px;padding:3px;flex-wrap:wrap}
+.dhm-radio label{font-size:11px;font-weight:700;color:var(--mu);padding:3px 9px;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:3px}
+.dhm-radio label.on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.dhm-radio input{display:none}
 .rk{display:grid;gap:6px}.ri{display:grid;grid-template-columns:26px 1fr 120px 55px 60px 16px;gap:6px;align-items:center;padding:10px;border:1px solid var(--ln);border-radius:12px;background:#fbfdff;cursor:pointer;transition:background .1s}.ri:hover{background:var(--bl)}.num{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900}.num.ok{background:#d1fae5;color:#065f42}.num.wr{background:#fef3c7;color:#92400e}.num.dr{background:#fce4ec;color:var(--dr-t)}.nm{font-size:13px;font-weight:900}.mt2{font-size:10px;color:var(--sub)}.bar{height:7px;background:#edf2f7;border-radius:999px;overflow:hidden}.fill{height:100%;border-radius:999px}.fill.ok{background:var(--ok)}.fill.wr{background:var(--wr)}.fill.dr{background:var(--dr)}.rt{font-size:12px;font-weight:900;text-align:right}.rt.ok{color:var(--ok)}.rt.wr{color:var(--wr)}.rt.dr{color:var(--dr)}.stl{font-size:9px;font-weight:800;text-align:center;padding:2px 5px;border-radius:5px}.stl.ok{background:var(--ok-bg);color:#065f42}.stl.wr{background:var(--wr-bg);color:#7c3a06}.stl.dr{background:var(--dr-bg);color:var(--dr-t)}.arrow{color:var(--mu);font-size:14px}
 .legend{display:flex;gap:14px;justify-content:center;margin-top:10px;font-size:11px;color:var(--sub)}.ld{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:3px;vertical-align:middle}
 .rank-toggle{text-align:center;padding:10px;font-size:13px;font-weight:800;color:var(--br);cursor:pointer;border-top:1px solid var(--ln);margin-top:8px;transition:background .15s}.rank-toggle:hover{background:var(--bl);border-radius:0 0 12px 12px}.rank-toggle.expanded{color:var(--mu)}
@@ -236,21 +243,50 @@ body.chart-fs-lock{overflow:hidden}
     </div>
   </section>
 
-  <!-- 退院 曜日×ユニット ヒートマップ（曜日平準化の全体俯瞰・常時表示） -->
+  <!-- 退院・入院 曜日×ユニット ヒートマップ（2段組・常時表示） -->
   <section class="main" id="dischargeHeatmapSection" style="grid-template-columns:1fr">
     <div class="pnl">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-        <h3 style="margin:0">🚪 退院 曜日×<span id="dhmEntityLabel">病棟</span> ヒートマップ <span style="font-weight:500;color:var(--mu);font-size:11px">（直近8週・死亡退院除く・目標比）</span></h3>
-        <div class="dhm-toggle">
-          <button id="dhmBtnWard" class="dhm-tg active" onclick="switchDhm('ward')">🏥 病棟</button>
-          <button id="dhmBtnDept" class="dhm-tg" onclick="switchDhm('dept')">🩺 診療科</button>
+        <h3 style="margin:0">📊 退院・入院 曜日×<span id="dhmEntityLabel">病棟</span> ヒートマップ <span style="font-weight:500;color:var(--mu);font-size:11px">（直近8週・死亡退院除く）</span></h3>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <div class="dhm-toggle">
+            <button id="dhmBtnWard" class="dhm-tg active" onclick="switchDhmEntity('ward')">🏥 病棟</button>
+            <button id="dhmBtnDept" class="dhm-tg" onclick="switchDhmEntity('dept')">🩺 診療科</button>
+          </div>
+          <div class="dhm-toggle">
+            <button id="dhmBtnCur" class="dhm-tg active" onclick="switchDhmMode('current')">現状</button>
+            <button id="dhmBtnDelta" class="dhm-tg" onclick="switchDhmMode('delta4w')">📈 4週Δ</button>
+          </div>
         </div>
       </div>
-      <div class="chart" id="dischargeHeatmapChart"></div>
-      <div style="margin-top:8px;font-size:11px;color:var(--mu);line-height:1.6">
-        🟥 目標より<b>多い</b>（減らす／前倒し元）・🟦 目標より<b>少ない</b>（受け皿）。目標は平日均等(月〜金20%)・週末最小。
-        行は上ほど<b>金土集中が強い</b>。標準アクションは<b>土曜→月曜の付け替え</b>（総退院数・在院は維持）。各セルの%は実績シェア。
+
+      <!-- 退院 -->
+      <h4 class="dhm-sub">🚪 退院 <span id="dhmDisCap" class="dhm-cap"></span></h4>
+      <div class="dhm-chart" id="dischargeHeatmapChart"></div>
+
+      <!-- 入院 -->
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-top:14px">
+        <h4 class="dhm-sub" style="margin:0">🛏️ 入院 <span id="dhmAdmCap" class="dhm-cap"></span></h4>
+        <div class="dhm-radio" id="dhmAdmRadio">
+          <label class="on"><input type="radio" name="dhmAdm" value="admission" checked>全入院</label>
+          <label><input type="radio" name="dhmAdm" value="planned">予定</label>
+          <label><input type="radio" name="dhmAdm" value="emergency">緊急</label>
+          <label class="dhm-ward-only"><input type="radio" name="dhmAdm" value="transfer_in">転入</label>
+        </div>
       </div>
+      <div class="dhm-chart" id="admissionHeatmapChart"></div>
+
+      <!-- 行クリック → 単一ユニットの入退院 曜日比較 -->
+      <div id="dhmDrill" style="display:none;margin-top:14px;border-top:1px dashed var(--ln);padding-top:12px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+          <h4 class="dhm-sub" style="margin:0" id="dhmDrillTitle"></h4>
+          <button class="dhm-tg" onclick="closeDhmDrill()">✕ 閉じる</button>
+        </div>
+        <div class="dhm-chart" id="dhmDrillChart"></div>
+        <div id="dhmDrillMeta" style="font-size:11px;color:var(--mu);line-height:1.6;margin-top:6px"></div>
+      </div>
+
+      <div id="dhmFootnote" style="margin-top:8px;font-size:11px;color:var(--mu);line-height:1.6"></div>
     </div>
   </section>
 
@@ -335,7 +371,10 @@ const DATA = {{ data_json|safe }};
 
 let currentTab = 'admission';
 let currentAxis = 'dept';
-let dhmEntity = 'ward';   // 退院曜日ヒートマップの対象（ward / dept）
+let dhmEntity = 'ward';   // 退院・入院曜日ヒートマップの対象（ward / dept）
+let dhmMode = 'current';  // 'current'(現状) | 'delta4w'(直近4週−前4週)
+let dhmAdm = 'admission'; // 入院ヒートの指標: admission|planned|emergency|transfer_in
+let dhmDrillUnit = null;  // 行クリックで開いている単一ユニット名
 let currentPeriod = '12w';
 const hasProfit = !!(DATA.profit && DATA.profit.kpi);
 let showWeekday = true;
@@ -359,29 +398,144 @@ document.addEventListener('DOMContentLoaded', () => {
   if (['inpatient','admission','operation','profit'].includes(hash.split('?')[0])) currentTab = hash.split('?')[0];
   if (params.get('axis')) currentAxis = params.get('axis');
   renderTabs(); renderAll();
-  renderDischargeHeatmap();
+  document.querySelectorAll('#dhmAdmRadio input').forEach(i =>
+    i.addEventListener('change', () => switchDhmAdm(i.value)));
+  renderDowHeatmaps();
 });
 
 // ══════════════════════════
-// 退院 曜日×ユニット ヒートマップ（曜日平準化の全体俯瞰）
+// 退院・入院 曜日×ユニット ヒートマップ（2段組・現状/4週Δ）
 // ══════════════════════════
-function renderDischargeHeatmap() {
-  const key = dhmEntity === 'dept' ? 'discharge_dow_heatmap_dept' : 'discharge_dow_heatmap';
-  const hm = DATA.charts && DATA.charts[key];
-  const el = document.getElementById('dischargeHeatmapChart');
+const DHM_ADM_LABELS = {admission:'入院(全)', planned:'予定入院', emergency:'緊急入院',
+                        transfer_in:'転入'};
+
+function _drawHm(key, elId) {
+  const hms = (DATA.charts && DATA.charts.dow_heatmaps) || {};
+  const hm = hms[key];
+  const el = document.getElementById(elId);
   if (!el) return;
   if (!hm || !hm.traces || !hm.traces[0] || !(hm.traces[0].y || []).length) {
-    el.innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:60px 0">対象データなし</div>';
+    el.innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:40px 0">対象データなし</div>';
     return;
   }
-  Plotly.newPlot(el, hm.traces, Object.assign({}, hm.layout), hm.config || {responsive:true});
+  Plotly.newPlot(el, hm.traces, Object.assign({}, hm.layout), hm.config || {responsive:true})
+    .then(gd => gd.on('plotly_click', ev => {
+      if (ev.points && ev.points[0]) openDhmDrill(ev.points[0].y);
+    }));
 }
-function switchDhm(e) {
+
+function renderDowHeatmaps() {
+  // 診療科では転入は対象外 → 全入院にフォールバック
+  let am = dhmAdm;
+  if (dhmEntity === 'dept' && am === 'transfer_in') am = 'admission';
+
+  _drawHm(`${dhmEntity}_discharge_${dhmMode}`, 'dischargeHeatmapChart');
+  _drawHm(`${dhmEntity}_${am}_${dhmMode}`, 'admissionHeatmapChart');
+
+  // キャプション
+  const disCap = dhmMode === 'delta4w'
+    ? '（直近4週−前4週のシェア差／🟥増・🟦減）'
+    : '（🟥目標より多い・🟦少ない／目標=平日均等[月〜金20%]・週末最小）';
+  const admCap = dhmMode === 'delta4w'
+    ? `${DHM_ADM_LABELS[am]}（直近4週−前4週のシェア差／🟥増・🟦減）`
+    : `${DHM_ADM_LABELS[am]}（色が濃いほど曜日に負荷集中・%は構成比）`;
+  document.getElementById('dhmDisCap').textContent = disCap;
+  document.getElementById('dhmAdmCap').textContent = admCap;
+  document.getElementById('dhmFootnote').innerHTML =
+    '行は退院・入院で<b>同じ並び</b>（入退院ボリュームの多い順）に統一。各セルは曜日構成比%（4週Δはpt差）。'
+    + '退院・全入院いずれも週平均5件未満のユニットは非表示。<b>行（病棟/診療科）をクリック</b>で単一ユニットの入退院比較を表示。'
+    + '退院の標準アクションは<b>土曜→月曜の付け替え</b>（総数・在院は維持）。';
+
+  // ドリルが開いていれば（指標/モード/対象切替に追随して）再描画
+  if (dhmDrillUnit) renderDhmDrill();
+}
+
+// ── 単一ユニットの入退院 曜日比較（行クリック・ドリル） ──
+function _deltaSummary(delta) {
+  const L = ['月','火','水','木','金','土','日'];
+  let up = 0, dn = 0;
+  for (let i = 1; i < 7; i++) { if (delta[i] > delta[up]) up = i; if (delta[i] < delta[dn]) dn = i; }
+  const parts = [];
+  if (delta[up] > 0.5) parts.push(`${L[up]}+${delta[up].toFixed(0)}pt`);
+  if (delta[dn] < -0.5) parts.push(`${L[dn]}${delta[dn].toFixed(0)}pt`);
+  return parts.length ? parts.join('・') : 'ほぼ横ばい';
+}
+
+function openDhmDrill(name) {
+  dhmDrillUnit = name;
+  document.getElementById('dhmDrill').style.display = 'block';
+  renderDhmDrill();
+  document.getElementById('dhmDrill').scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+function closeDhmDrill() {
+  dhmDrillUnit = null;
+  document.getElementById('dhmDrill').style.display = 'none';
+}
+
+function renderDhmDrill() {
+  const det = DATA.charts && DATA.charts.dow_unit_detail && DATA.charts.dow_unit_detail[dhmEntity];
+  const name = dhmDrillUnit;
+  if (!det || !det[name]) { closeDhmDrill(); return; }  // 対象切替で存在しなければ閉じる
+  let am = dhmAdm;
+  if (dhmEntity === 'dept' && am === 'transfer_in') am = 'admission';
+  const d = det[name];
+  const L = ['月','火','水','木','金','土','日'];
+  const traces = [
+    {type:'bar', name:'🚪 退院', x:L, y:d.discharge.avg, marker:{color:'#e07a5f'}},
+    {type:'bar', name:'🛏️ ' + DHM_ADM_LABELS[am], x:L, y:d[am].avg, marker:{color:'#3d5a80'}},
+  ];
+  const layout = {
+    barmode:'group', height:_pH(260),
+    margin:{l:42, r:16, t:8, b:30},
+    font:{family:'Noto Sans JP, sans-serif', size:11, color:'#5A6A82'},
+    legend:{orientation:'h', x:0, y:-0.22},
+    plot_bgcolor:'#fff', paper_bgcolor:'#fff',
+    xaxis:{type:'category'},
+    yaxis:{rangemode:'tozero', title:{text:'日平均(人)', font:{size:10}}, gridcolor:'#eef2f7'},
+    hovermode:'x unified',
+  };
+  Plotly.newPlot('dhmDrillChart', traces, layout, {responsive:true, displayModeBar:false});
+  document.getElementById('dhmDrillTitle').textContent =
+    `📊 ${name} 入退院 曜日プロファイル（直近8週・日平均）`;
+  document.getElementById('dhmDrillMeta').innerHTML =
+    `週平均 退院 <b>${d.discharge.per_week}</b>件 ／ ${DHM_ADM_LABELS[am]} <b>${d[am].per_week}</b>件。`
+    + ` 4週Δ(直近4週−前4週シェア): 退院 ${_deltaSummary(d.discharge.delta)} ／ ${DHM_ADM_LABELS[am]} ${_deltaSummary(d[am].delta)}。`
+    + ` <span style="color:var(--mu)">棒=曜日別の日平均人数。退院が金土に偏り入院が平日に寄るほど、退院前倒し（土→月）の余地。</span>`;
+}
+
+function switchDhmEntity(e) {
   dhmEntity = e;
   document.getElementById('dhmBtnWard').classList.toggle('active', e === 'ward');
   document.getElementById('dhmBtnDept').classList.toggle('active', e === 'dept');
   document.getElementById('dhmEntityLabel').textContent = e === 'dept' ? '診療科' : '病棟';
-  renderDischargeHeatmap();
+  // 診療科では転入ラジオを隠す
+  document.querySelectorAll('#dhmAdmRadio .dhm-ward-only').forEach(l =>
+    l.style.display = e === 'ward' ? 'inline-flex' : 'none');
+  if (e === 'dept' && dhmAdm === 'transfer_in') {
+    _setDhmAdmActive('admission'); dhmAdm = 'admission';
+  }
+  renderDowHeatmaps();
+}
+
+function switchDhmMode(m) {
+  dhmMode = m;
+  document.getElementById('dhmBtnCur').classList.toggle('active', m === 'current');
+  document.getElementById('dhmBtnDelta').classList.toggle('active', m === 'delta4w');
+  renderDowHeatmaps();
+}
+
+function _setDhmAdmActive(m) {
+  document.querySelectorAll('#dhmAdmRadio label').forEach(l =>
+    l.classList.toggle('on', l.querySelector('input').value === m));
+  const inp = document.querySelector(`#dhmAdmRadio input[value="${m}"]`);
+  if (inp) inp.checked = true;
+}
+
+function switchDhmAdm(m) {
+  dhmAdm = m;
+  _setDhmAdmActive(m);
+  renderDowHeatmaps();
 }
 
 // ★課題4: タブに大きい数字＋期間ラベルを明記

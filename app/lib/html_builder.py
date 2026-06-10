@@ -33,7 +33,8 @@ from .charts import (
     build_inpatient_chart, build_new_admission_chart,
     build_surgery_chart_hospital, build_surgery_chart_dept,
     build_surgery_year_compare_chart, build_ward_utilization_heatmap,
-    build_discharge_dow_heatmap,
+    build_discharge_dow_heatmap, build_dow_heatmap, dow_shared_units,
+    build_dow_unit_detail,
 )
 from .profit import build_profit_kpi, build_profit_chart_data
 from .profit_estimate import (
@@ -445,6 +446,23 @@ def build_detail_json(adm, surg, targets, surg_targets,
     discharge_heatmap = build_discharge_dow_heatmap(adm, base_date, entity="ward")
     discharge_heatmap_dept = build_discharge_dow_heatmap(adm, base_date, entity="dept")
 
+    # 退院・入院 曜日ヒートマップ（2段組・指標ラジオ・現状/4週Δトグル）
+    # キー: f"{entity}_{metric}_{mode}"。診療科では転入は対象外。
+    # 退院・入院で行（病棟/診療科）の並びが揃うよう、共通の順序付きユニット列を渡す。
+    dow_heatmaps = {}
+    dow_unit_detail = {}
+    for ent in ("ward", "dept"):
+        units = dow_shared_units(adm, base_date, entity=ent)
+        metrics = ["discharge", "admission", "planned", "emergency"]
+        if ent == "ward":
+            metrics += ["transfer_in"]
+        for met in metrics:
+            for mode in ("current", "delta4w"):
+                dow_heatmaps[f"{ent}_{met}_{mode}"] = build_dow_heatmap(
+                    adm, base_date, entity=ent, metric=met, mode=mode, units=units)
+        # 行クリック・ドリル用の単一ユニット入退院データ
+        dow_unit_detail[ent] = build_dow_unit_detail(adm, base_date, ent, units)
+
     # ── drill: 診療科ドリルダウン ──
     drill = {}
     r7_nadm = rolling7_new_admission(adm, base_date)
@@ -850,6 +868,8 @@ def build_detail_json(adm, surg, targets, surg_targets,
             "occupancy_heatmap": heatmap,
             "discharge_dow_heatmap": discharge_heatmap,
             "discharge_dow_heatmap_dept": discharge_heatmap_dept,
+            "dow_heatmaps": dow_heatmaps,
+            "dow_unit_detail": dow_unit_detail,
         },
     }
 

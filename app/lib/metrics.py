@@ -143,6 +143,64 @@ def discharge_dow_profile(adm: pd.DataFrame, date: pd.Timestamp,
     }
 
 
+def dow_event_profile(adm: pd.DataFrame, date: pd.Timestamp, value_col: str,
+                      group_col: str = None, group_val: str = None,
+                      weeks: int = 8) -> dict:
+    """任意イベント列の曜日プロファイル（退院/入院/予定/緊急/転入/転出 共通）。
+
+    直近 weeks 週の完全週(月〜日)を母数に、曜日別合計・構成比(%)を返す。
+    さらに後半 weeks/2 週（=直近）と前半 weeks/2 週に分割した構成比と
+    その差分(Δpt = 直近 − 前)も返す（4週Δ＝改善/悪化モード用）。
+    discharge_dow_profile と同じ表示フィルタ（科_表示/病棟_表示）に従う。
+    """
+    monday = date - timedelta(days=date.weekday())
+    start = monday - timedelta(days=7 * weeks)
+    end = monday - timedelta(days=1)
+    half = max(1, weeks // 2)
+    mid = monday - timedelta(days=7 * half)   # 直近半 = [mid, end], 前半 = [start, mid)
+
+    df = adm
+    if group_col == "病棟コード":
+        df = df[df["病棟_表示"]]
+    else:
+        df = df[df["科_表示"]]
+    if group_col and group_val:
+        df = df[df[group_col] == group_val]
+
+    win = df[(df["日付"] >= start) & (df["日付"] <= end)]
+
+    def _counts(sub):
+        c = [0.0] * 7
+        if len(sub) > 0:
+            for wd, v in sub.groupby("曜日")[value_col].sum().items():
+                c[int(wd)] = float(v)
+        return c
+
+    def _shares(c):
+        tot = sum(c)
+        return [v / tot * 100 for v in c] if tot > 0 else [0.0] * 7
+
+    counts = _counts(win)
+    shares_recent = _shares(_counts(win[win["日付"] >= mid]))
+    shares_prev = _shares(_counts(win[win["日付"] < mid]))
+    shares = _shares(counts)
+    delta = [r - p for r, p in zip(shares_recent, shares_prev)]
+
+    cal_days = adm[(adm["日付"] >= start) & (adm["日付"] <= end)]["日付"].nunique()
+    n_weeks = round(cal_days / 7, 1) if cal_days else 0.0
+    per_week = sum(counts) / n_weeks if n_weeks else 0.0
+
+    return {
+        "counts": [round(c, 1) for c in counts],
+        "shares": [round(s, 1) for s in shares],
+        "shares_recent": [round(s, 1) for s in shares_recent],
+        "shares_prev": [round(s, 1) for s in shares_prev],
+        "delta": [round(d, 1) for d in delta],
+        "per_week": round(per_week, 1),
+        "weeks": n_weeks,
+    }
+
+
 def daily_surgery(surg: pd.DataFrame, date: pd.Timestamp) -> dict:
     """日次手術件数"""
     day = surg[surg["手術実施日"] == date]
