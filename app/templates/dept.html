@@ -98,10 +98,21 @@
 .mp-foot .mp-rate.wr{color:var(--wr)}
 .mp-foot .mp-rate.dr{color:var(--dr)}
 
-@media(max-width:768px){.kpi-row{grid-template-columns:repeat(2,1fr) !important}.charts-grid{grid-template-columns:1fr}.cpnl .chart{height:200px}.cpnl{overflow:hidden}.grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}.ward-extra{grid-template-columns:1fr 1fr 1fr}.hdr .row{flex-direction:column;align-items:flex-start}.dept-sel{width:100%}.w{overflow-x:hidden}.tb{gap:6px}.grp{flex-wrap:wrap}
+@media(max-width:768px){.kpi-row{grid-template-columns:repeat(2,1fr) !important}.charts-grid{grid-template-columns:1fr}.cpnl .chart{height:200px}.cpnl{overflow:hidden}.grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}.ward-extra{grid-template-columns:1fr 1fr 1fr}.hdr{padding:6px 12px}.hdr .row{flex-direction:column;align-items:stretch;gap:6px}.left{display:flex;align-items:center;gap:8px;min-width:0}.title{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.back{font-size:11px;white-space:nowrap}.meta{display:none}.hdr .nav-bar{display:none}.dept-sel{flex:1 1 auto;width:auto;min-width:0}.w{overflow-x:hidden}.tb{gap:6px}.grp{flex-wrap:wrap}
 .mp-grid{grid-template-columns:repeat(2,1fr);gap:8px}.mp-big{font-size:20px}
 /* ★モバイル: ヘッダー自動非表示 */
 .hdr{transition:transform .3s ease}.hdr.hdr-hidden{transform:translateY(-100%)}
+.sheet .nav-bar{margin:0;padding:0;border-top:none;flex-wrap:wrap;gap:8px}.sheet .nav-bar a{color:var(--ink);border:1px solid var(--ln);padding:8px 14px}.sheet .nav-bar a:hover{color:var(--br);border-color:#93b4e4}.sheet .nav-bar a.active{background:var(--bl);color:var(--br);border-color:#93b4e4}
+}
+/* ★モバイル横向き: ヘッダを1段スリム化＋固定解除（自動非表示も無効・ナビは横並び維持） */
+@media (orientation:landscape) and (max-height:500px){
+  .hdr{position:static;transition:none;display:flex;align-items:center;flex-wrap:nowrap;gap:12px;padding:5px 14px}
+  .hdr.hdr-hidden{transform:none}
+  .hdr .row{flex:1 1 auto;min-width:0}
+  .meta{display:none}
+  .title{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hdr .nav-bar{display:flex;flex:0 0 auto;margin:0;padding:0;border-top:none}
+  .dept-sel{width:auto;flex:0 1 auto}
 }
 /* ★モバイル: フローティング設定パレット (FAB + ボトムシート) */
 .fab{position:fixed;right:16px;bottom:18px;z-index:40;width:54px;height:54px;border-radius:50%;border:none;background:var(--br);color:#fff;font-size:22px;line-height:1;box-shadow:0 6px 18px rgba(10,22,42,.28);cursor:pointer;display:none;align-items:center;justify-content:center;transition:transform .2s,opacity .2s}
@@ -164,7 +175,7 @@ body.chart-fs-lock{overflow:hidden}
     <button class="dm-btn" onclick="toggleDarkMode()">🌙</button>
   </div>
 </div>
-<nav class="nav-bar">
+<nav class="nav-bar" id="pageNav">
   <a href="portal.html">🏥 ポータル</a>
   <a href="detail.html">📊 統合詳細</a>
   <a href="dept.html" class="active">🩺 部門別</a>
@@ -264,6 +275,7 @@ body.chart-fs-lock{overflow:hidden}
     <button class="sheet-close" onclick="closeSheet()">完了</button>
   </div>
   <div class="sheet-body">
+    <div class="sheet-sec" id="sheetSecPage"><div class="sheet-sec-label">ページ移動</div></div>
     <div class="sheet-sec" id="sheetSecTb"><div class="sheet-sec-label">グラフ（期間・日種・描画・入院種別）</div></div>
   </div>
 </div>
@@ -1429,13 +1441,15 @@ window.addEventListener('hashchange', () => {
 <script>
 /* ★モバイル: ヘッダー自動非表示（スクロール↓で隠す / ↑で戻す） */
 (function(){
-  var hdr=document.querySelector('.hdr'),lastY=window.scrollY,ticking=false;
+  var hdr=document.querySelector('.hdr'),lastY=window.scrollY,acc=0,ticking=false;
   var stf=document.getElementById('scrollTopFab');
+  var lsQ=window.matchMedia('(orientation:landscape) and (max-height:500px)');
   window.addEventListener('scroll',function(){
     if(!ticking){requestAnimationFrame(function(){
-      var y=window.scrollY;
-      if(y>lastY&&y>60)hdr.classList.add('hdr-hidden');
-      else if(y<lastY)hdr.classList.remove('hdr-hidden');
+      var y=window.scrollY,dy=y-lastY;
+      if(lsQ.matches){hdr.classList.remove('hdr-hidden');}            /* 横向きはstatic: 非表示制御しない */
+      else if(dy>0){acc=acc>0?acc+dy:dy;if(acc>10&&y>60)hdr.classList.add('hdr-hidden');}
+      else if(dy<0){acc=acc<0?acc+dy:dy;if(acc<-48||y<60)hdr.classList.remove('hdr-hidden');}
       if(stf){if(y>400)stf.classList.add('fab-show');else stf.classList.remove('fab-show');}
       lastY=y;ticking=false;
     });ticking=true;}
@@ -1460,7 +1474,7 @@ window.addEventListener('hashchange', () => {
 /* ★モバイル: フローティング設定パレット（FAB + ボトムシート）
    ツールバーを物理移動して再利用（renderToolbar は getElementById で動作） */
 (function(){
-  var moves=[{id:'toolbar', sec:'sheetSecTb'}];
+  var moves=[{id:'pageNav', sec:'sheetSecPage'},{id:'toolbar', sec:'sheetSecTb'}];
   var saved=moves.map(function(m){
     var el=document.getElementById(m.id);
     return {el:el, sec:document.getElementById(m.sec), home:el?el.parentNode:null, next:el?el.nextSibling:null};

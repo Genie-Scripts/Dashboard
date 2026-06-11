@@ -145,8 +145,18 @@
   .vl{font-size:30px}
   .nav{display:block}
   .wrap{padding-bottom:120px}
-  .hdr{transition:transform .3s ease}.hdr.hdr-hidden{transform:translateY(-100%)}
+  .hdr{transition:transform .3s ease;padding:6px 12px}.hdr.hdr-hidden{transform:translateY(-100%)}
+  .hdr .row1{flex-wrap:wrap;gap:6px}.hdr .left{min-width:0;flex:1 1 auto}.title{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.meta{display:none}.nav-bar{margin-top:6px;padding-top:6px}
   .triage-facts-body{flex-direction:column;gap:3px}
+}
+/* ★モバイル横向き: ヘッダを1段スリム化＋固定解除（自動非表示も無効・ナビは横並び維持） */
+@media (orientation:landscape) and (max-height:500px){
+  .hdr{position:static;transition:none;flex-direction:row;align-items:center;flex-wrap:nowrap;gap:12px;padding:5px 14px}
+  .hdr.hdr-hidden{transform:none}
+  .hdr .row1{flex:1 1 auto;min-width:0}
+  .meta{display:none}
+  .title{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .nav-bar{flex:0 0 auto;margin:0;padding:0;border-top:none}
 }
 </style>
 </head>
@@ -472,12 +482,14 @@ function toggleNarrative(idx) {
 
 /* ★モバイル: ヘッダー自動非表示 */
 (function(){
-  var hdr=document.querySelector('.hdr'),lastY=window.scrollY,ticking=false;
+  var hdr=document.querySelector('.hdr'),lastY=window.scrollY,acc=0,ticking=false;
+  var lsQ=window.matchMedia('(orientation:landscape) and (max-height:500px)');
   window.addEventListener('scroll',function(){
     if(!ticking){requestAnimationFrame(function(){
-      var y=window.scrollY;
-      if(y>lastY&&y>60)hdr.classList.add('hdr-hidden');
-      else if(y<lastY)hdr.classList.remove('hdr-hidden');
+      var y=window.scrollY,dy=y-lastY;
+      if(lsQ.matches){hdr.classList.remove('hdr-hidden');}            /* 横向きはstatic: 非表示制御しない */
+      else if(dy>0){acc=acc>0?acc+dy:dy;if(acc>10&&y>60)hdr.classList.add('hdr-hidden');}
+      else if(dy<0){acc=acc<0?acc+dy:dy;if(acc<-48||y<60)hdr.classList.remove('hdr-hidden');}
       lastY=y;ticking=false;
     });ticking=true;}
   });
