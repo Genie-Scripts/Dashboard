@@ -194,6 +194,13 @@ body.chart-fs-lock{overflow:hidden}
       <div class="cpnl chart3-panel"><h4 id="chartTitle3">💉 全麻手術 推移</h4><div class="chart" id="chart3"></div><button class="chart-fs-btn" onclick="chartFS('chart3',this)" aria-label="チャート全画面">⛶</button></div>
       <div class="cpnl" id="chart4panel" style="display:none"><h4 id="chartTitle4">💰 月次粗利 推移</h4><div class="chart" id="chart4"></div><button class="chart-fs-btn" onclick="chartFS('chart4',this)" aria-label="チャート全画面">⛶</button></div>
     </div>
+    <div id="balancePanelWrap" style="display:none;margin-top:14px">
+      <div class="cpnl">
+        <h4 id="balanceTitle">🔄 入退院バランス 推移 <span style="font-weight:500;color:var(--mu);font-size:11px">（新入院 − 退院＋死亡。線が上＝在院増・下＝在院減／7日=朱・28日=紫破線）</span></h4>
+        <div class="chart" id="chartBal"></div>
+        <button class="chart-fs-btn" onclick="chartFS('chartBal',this)" aria-label="チャート全画面">⛶</button>
+      </div>
+    </div>
     <div id="dischargeDowWrap" style="display:none;margin-top:14px">
       <div class="cpnl">
         <h4 id="dischargeDowTitle">🚪 退院 曜日プロファイル <span style="font-weight:500;color:var(--mu);font-size:11px">（直近8週・死亡退院は除く）</span></h4>
@@ -744,6 +751,18 @@ function renderCharts(d) {
       chart4panel.style.display = 'none';
       document.getElementById('chartTitle3').textContent = `— データなし`;
       document.getElementById('chart3').innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">対象データなし</div>';
+    }
+  }
+
+  // 入退院バランス: 診療科は専用の全幅パネル、病棟は chart3 に既出のため非表示
+  const balWrap = document.getElementById('balancePanelWrap');
+  if (balWrap) {
+    if (isWard) {
+      balWrap.style.display = 'none';
+    } else {
+      balWrap.style.display = '';
+      renderFlowChart('chartBal', d.trend?.admission, d.trend?.outflow,
+                      {inLabel:'新入院', outLabel:'退院（死亡含む）'});
     }
   }
 
@@ -1301,12 +1320,25 @@ function renderDischargeDow(d) {
     + `<span style="color:var(--mu)">（直近${dd.weeks}週・完全週のみ集計／分子は退院患者数のみ＝死亡・転出を除く）</span>`;
 }
 
-function renderFlowChart(elId, admTd, outTd) {
+// 入退院バランス（フロー収支）。opts.inLabel/outLabel でバーのラベルを切替
+//  病棟: inflow=新入院+転入, outflow=退院+死亡+転出（退出合計）
+//  診療科: inflow=新入院, outflow=退院+死亡（退院合計／転入転出は同一科内でゼロ和）
+function renderFlowChart(elId, admTd, outTd, opts) {
+  opts = opts || {};
+  const inLabel = opts.inLabel || '入院＋転入';
+  const outLabel = opts.outLabel || '退院＋転出（死亡含む）';
   if (!admTd || !outTd || !admTd.dates || !admTd.dates.length) {
     document.getElementById(elId).innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">データなし</div>';
     return;
   }
   const cutoff = periodCutoff();
+
+  // ★基調ヘッドライン: 全データ（日種フィルタ非依存）の直近7日 純増減/日
+  const fullIn = admTd.values || [], fullOut = outTd.values || [];
+  const n = fullIn.length, k = Math.min(7, n);
+  let s7 = 0; for (let i = n - k; i < n; i++) s7 += (fullIn[i] || 0) - (fullOut[i] || 0);
+  const net7 = k ? Math.round(s7 / k * 10) / 10 : 0;
+  const basis = net7 >= 0.5 ? {t:'在院 増基調', c:'#0e7a54'} : net7 <= -0.5 ? {t:'在院 減基調', c:'#c4314b'} : {t:'在院 横ばい', c:'#7c3a06'};
 
   // 曜日フィルタ（admTd と outTd は同一日付のため admTd.is_weekday を共用）
   let dates = admTd.dates, aV = admTd.values, oV = outTd.values || [];
@@ -1321,16 +1353,18 @@ function renderFlowChart(elId, admTd, outTd) {
     dates = fd; aV = fa; oV = fo;
   }
 
-  // 純増減と MA7
+  // 純増減と MA（7日=速い・28日=基準トレンド。クロス＝在院の加速/減速）
   const netVals = aV.map((v, i) => (v || 0) - (oV[i] || 0));
   const netMA7  = calcMA(netVals, 7);
+  const netMA28 = calcMA(netVals, 28);
 
   // 期間カットオフ
   const si  = Math.max(0, dates.findIndex(x => x >= cutoff));
   const ds  = dates.slice(si);
   const adm = aV.slice(si);
   const out = oV.slice(si);
-  const nm  = netMA7.slice(si);
+  const nm7  = netMA7.slice(si);
+  const nm28 = netMA28.slice(si);
 
   // 第1軸（バー）の範囲: 0点を揃えるため対称レンジ
   const yV1 = [...adm, ...out.map(v => -v)].filter(v => v != null);
@@ -1339,17 +1373,19 @@ function renderFlowChart(elId, admTd, outTd) {
   const pd1 = (mx1 - mn1) * 0.08 || 1;
   const yAbs1 = Math.max(Math.abs(mn1) + pd1, mx1 + pd1);
   // 第2軸（純増減MA）の範囲: 0点を揃えるため対称レンジ
-  const yV2 = nm.filter(v => v != null);
+  const yV2 = [...nm7, ...nm28].filter(v => v != null);
   const mn2 = yV2.length ? Math.min(...yV2) : -3;
   const mx2 = yV2.length ? Math.max(...yV2) : 3;
   const pd2 = (mx2 - mn2) * 0.15 || 1;
   const yAbs2 = Math.max(Math.abs(mn2) + pd2, mx2 + pd2);
 
   Plotly.newPlot(elId, [
-    { name:'入院+転入', x:ds, y:adm,            type:'bar',     marker:{color:'#0072B2'}, opacity:0.75, yaxis:'y' },
-    { name:'退院+転出', x:ds, y:out.map(v=>-v), type:'bar',     marker:{color:'#E69F00'}, opacity:0.75, yaxis:'y' },
-    { name:'純増減 移動平均', x:ds, y:nm,        type:'scatter', mode:'lines',
+    { name:inLabel,  x:ds, y:adm,            type:'bar',     marker:{color:'#0072B2'}, opacity:0.75, yaxis:'y' },
+    { name:outLabel, x:ds, y:out.map(v=>-v), type:'bar',     marker:{color:'#E69F00'}, opacity:0.75, yaxis:'y' },
+    { name:'純増減 7日', x:ds, y:nm7,         type:'scatter', mode:'lines',
       line:{color:'#D55E00', width:2.5}, yaxis:'y2' },
+    { name:'純増減 28日', x:ds, y:nm28,       type:'scatter', mode:'lines',
+      line:{color:'#9333ea', width:1.6, dash:'dash'}, yaxis:'y2' },
   ], {
     barmode:'relative',
     font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
@@ -1361,8 +1397,11 @@ function renderFlowChart(elId, admTd, outTd) {
             tickfont:{size:10, color:'#D55E00'}},
     legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},
     hovermode:'x unified',
-    margin:{l:45,r:45,t:8,b:50}, height:_pH(320),
+    margin:{l:45,r:45,t:30,b:56}, height:_pH(320),
     plot_bgcolor:'#fff', paper_bgcolor:'#fff',
+    annotations:[{xref:'paper',yref:'paper',x:0,y:1.0,xanchor:'left',yanchor:'bottom',showarrow:false,
+      text:`<b>${basis.t}</b>（直近7日 純${net7>=0?'+':''}${net7}/日）`,
+      font:{size:11,color:basis.c}}],
   }, {responsive:true});
 }
 

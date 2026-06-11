@@ -164,6 +164,85 @@ def build_new_admission_chart(daily_series: pd.DataFrame, base_date: pd.Timestam
 
 
 # ═══════════════════════════════════════
+# 入退院バランス（フロー収支）グラフ
+# ═══════════════════════════════════════
+
+def build_inout_balance_chart(inflow_series: pd.DataFrame, outflow_series: pd.DataFrame,
+                              base_date: pd.Timestamp, period_key: str = "24w",
+                              ma_window: int = 7, dept_name: str = "全体") -> dict:
+    """入退院バランス（フロー収支）グラフ。
+
+    新入院(inflow=正バー) と 退院合計(outflow=負バー) を 0 を挟む発散バーで描き、
+    純増減(inflow−outflow)の移動平均を第2軸の線で重ねる。
+
+    設計意図:
+      - 新入院・退院は同一単位(人/日)なので「共通の第1軸」に発散バーで置く。
+        バーの上下＝在院数を押し上げる/押し下げる力、面積差＝在院数の増減の勢い。
+      - 純増減(≒在院数の日次差分)は導出量でスケールが小さいため、0を中心にした
+        「第2軸の線」に分離する。線の符号＝在院数の増減基調（先行的な傾き）。
+
+    inflow_series / outflow_series は build_daily_series の出力（列: 日付, 値）。
+    病院全体では転入/転出は病棟間移動で相殺するため outflow=退院合計(退院+死亡)を渡す。
+    """
+    _in = inflow_series[["日付", "値"]].rename(columns={"値": "inflow"})
+    _out = outflow_series[["日付", "値"]].rename(columns={"値": "outflow"})
+    m = _in.merge(_out, on="日付", how="outer").sort_values("日付").reset_index(drop=True)
+    m["inflow"] = m["inflow"].fillna(0)
+    m["outflow"] = m["outflow"].fillna(0)
+    m["net_ma"] = (m["inflow"] - m["outflow"]).rolling(ma_window, min_periods=1).mean()
+
+    if period_key == "24w":
+        cutoff = base_date - pd.Timedelta(weeks=24)
+    elif period_key == "fy":
+        fy_year = base_date.year if base_date.month >= 4 else base_date.year - 1
+        cutoff = pd.Timestamp(f"{fy_year}-04-01")
+    else:
+        cutoff = base_date - pd.Timedelta(days=365)
+    m = m[m["日付"] >= cutoff]
+
+    xs = [d.strftime("%Y-%m-%d") for d in m["日付"]]
+    inflow = [int(v) for v in m["inflow"]]
+    outflow_neg = [-int(v) for v in m["outflow"]]
+    net_ma = [round(v, 1) if pd.notna(v) else None for v in m["net_ma"]]
+
+    traces = [
+        {"name": "新入院", "x": xs, "y": inflow, "type": "bar",
+         "marker": {"color": "#0072B2"}, "opacity": 0.75, "yaxis": "y"},
+        {"name": "退院（死亡含む）", "x": xs, "y": outflow_neg, "type": "bar",
+         "marker": {"color": "#E69F00"}, "opacity": 0.75, "yaxis": "y"},
+        {"name": f"純増減 {ma_window}日平均", "x": xs, "y": net_ma, "type": "scatter",
+         "mode": "lines", "line": {"color": "#D55E00", "width": 2.5}, "yaxis": "y2"},
+    ]
+
+    # 第1軸・第2軸とも 0 を中心に対称化（増減の向きを直感的に読めるよう）
+    y1abs = (max([abs(v) for v in inflow + outflow_neg]) if inflow else 5) * 1.08 or 5
+    _y2 = [abs(v) for v in net_ma if v is not None]
+    y2abs = (max(_y2) if _y2 else 3) * 1.18 or 3
+
+    layout = {
+        "title": {"text": f"入退院バランス（{dept_name}）",
+                  "font": {"size": 14, "color": "#1a2332"}, "x": 0.01},
+        "barmode": "relative",
+        "font": {"family": "Noto Sans JP, sans-serif", "size": 11, "color": "#5A6A82"},
+        "xaxis": {"gridcolor": "#DCE1E9", "type": "date", "tickformat": "%m/%d", "tickangle": -45},
+        "yaxis": {"range": [-y1abs, y1abs], "gridcolor": "#DCE1E9",
+                  "zeroline": True, "zerolinecolor": "#888", "zerolinewidth": 1.5,
+                  "title": {"text": "人/日", "font": {"size": 10}}},
+        "yaxis2": {"overlaying": "y", "side": "right", "range": [-y2abs, y2abs],
+                   "gridcolor": "transparent", "zeroline": True,
+                   "zerolinecolor": "#D55E00", "zerolinewidth": 1,
+                   "tickfont": {"size": 10, "color": "#D55E00"},
+                   "title": {"text": "純増減", "font": {"size": 10, "color": "#D55E00"}}},
+        "legend": {"orientation": "h", "x": 0, "y": -0.22, "font": {"size": 10}},
+        "hovermode": "x unified",
+        "margin": {"l": 50, "r": 46, "t": 40, "b": 55},
+        "height": 360,
+        "plot_bgcolor": "#ffffff", "paper_bgcolor": "#ffffff",
+    }
+    return {"traces": traces, "layout": layout, "config": {"responsive": True}}
+
+
+# ═══════════════════════════════════════
 # 全身麻酔手術 推移グラフ（v2.1: 二重基準）
 # ═══════════════════════════════════════
 

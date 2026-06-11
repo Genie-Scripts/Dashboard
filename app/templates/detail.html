@@ -243,8 +243,8 @@ body.chart-fs-lock{overflow:hidden}
     </div>
   </section>
 
-  <!-- 退院・入院 曜日×ユニット ヒートマップ（2段組・常時表示） -->
-  <section class="main" id="dischargeHeatmapSection" style="grid-template-columns:1fr">
+  <!-- 退院・入院 曜日×ユニット ヒートマップ（入退院バランスタブ限定表示） -->
+  <section class="main" id="dischargeHeatmapSection" style="grid-template-columns:1fr;display:none">
     <div class="pnl">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
         <h3 style="margin:0">📊 退院・入院 曜日×<span id="dhmEntityLabel">病棟</span> ヒートマップ <span style="font-weight:500;color:var(--mu);font-size:11px">（直近8週・死亡退院除く）</span></h3>
@@ -382,6 +382,8 @@ let showHoliday = true;
 let inpDayFilter = 'all'; // 'all' | 'wd' | 'hd'
 let showMA7 = false;      // ★在院・新入院の7日移動平均はデフォルト非表示
 let showMA28 = true;
+let showBalMA7 = true;    // ★入退院バランス: 純増減 7日線（速い＝直近1週の在院スロープ）
+let showBalMA28 = true;   // ★入退院バランス: 純増減 28日線（基準トレンド。7d×28dのクロス＝加速/減速）
 let showPrevYear = true;  // ★昨年度同期 比較線（在院・新入院）デフォルト表示
 let showOpMA = true;      // ★全麻チャートの30平日移動平均（本線）デフォルト表示
 let showDaily = false;
@@ -395,12 +397,13 @@ function _pH(desktop) { return window.innerWidth <= 768 ? 200 : desktop; }
 document.addEventListener('DOMContentLoaded', () => {
   const hash = location.hash.replace('#','');
   const params = new URLSearchParams(location.hash.includes('?') ? location.hash.split('?')[1] : '');
-  if (['inpatient','admission','operation','profit'].includes(hash.split('?')[0])) currentTab = hash.split('?')[0];
+  if (['inpatient','admission','balance','operation','profit'].includes(hash.split('?')[0])) currentTab = hash.split('?')[0];
   if (params.get('axis')) currentAxis = params.get('axis');
   renderTabs(); renderAll();
   document.querySelectorAll('#dhmAdmRadio input').forEach(i =>
     i.addEventListener('change', () => switchDhmAdm(i.value)));
-  renderDowHeatmaps();
+  // 曜日ヒートマップは入退院バランスタブ限定。表示状態は renderContent() が制御し、
+  // 非表示→表示の瞬間にのみ描画する（display:none では Plotly が幅を取得できないため）。
 });
 
 // ══════════════════════════
@@ -548,6 +551,10 @@ function renderTabs() {
     {id:'admission', icon:'🚪', name:'新入院',
      big:`${DATA.kpi.admission.actual_7d}人`, per:`直近7日累計`,
      st:DATA.kpi.admission.status},
+    {id:'balance', icon:'🔄', name:'入退院バランス',
+     big:`${DATA.kpi.balance.net_7d>=0?'+':''}${DATA.kpi.balance.net_7d}人/日`,
+     per:`直近7日 新入院−退院（在院${DATA.kpi.balance.net_7d>=0?'増':'減'}基調）`,
+     st:DATA.kpi.balance.status},
     {id:'operation', icon:'💉', name:'全身麻酔手術',
      big:`${DATA.kpi.operation.daily_avg}件/日`, per:`直近7平日平均`,
      st:DATA.kpi.operation.status},
@@ -579,7 +586,7 @@ function renderTabs() {
 function renderBottomNav(tabs) {
   const el = document.getElementById('bottomNav');
   if (!el) return;
-  const shortLabels = {inpatient:'在院', admission:'新入院', operation:'全麻', profit:'粗利'};
+  const shortLabels = {inpatient:'在院', admission:'新入院', balance:'入退院', operation:'全麻', profit:'粗利'};
   el.innerHTML = tabs.map(t =>
     `<button class="bn-item${t.id===currentTab?' active':''}" onclick="switchTab('${t.id}')" aria-label="${t.name}">
        <span class="bn-ic">${t.icon}</span><span class="bn-lb">${shortLabels[t.id]||t.name}</span>
@@ -927,6 +934,24 @@ function renderSummary() {
        curr:kpi.fy_avg, prev:kpi.prev_fy_avg,
        prevLabel:kpi.prev_fy_avg!=null?`前年度 ${kpi.prev_fy_avg}人/週`:'前年度 —'},
     ];
+  } else if (currentTab === 'balance') {
+    const b = kpi; // DATA.kpi.balance
+    main = {
+      icon:'🔄', label:'入退院バランス（純増減）', periodNote:'直近7日 新入院 − 退院（死亡含む）／日',
+      actual:`${b.net_7d>=0?'+':''}${b.net_7d}`, unit:'人/日', targetLabel:'均衡',
+      target:0, gap:b.net_7d, gapUnit:'人/日',
+      rate: b.net_7d>=0?100:0, status:b.status
+    };
+    refs = [
+      {k:'新入院（直近7日平均）', v:`${b.inflow_7d}人/日`, unit:'人/日',
+       curr:b.inflow_7d, prev:b.outflow_7d, prevLabel:`退院 ${b.outflow_7d}人/日`},
+      {k:'退院＋死亡（直近7日平均）', v:`${b.outflow_7d}人/日`, unit:'人/日',
+       curr:b.outflow_7d, prev:b.inflow_7d, prevLabel:`新入院 ${b.inflow_7d}人/日`,
+       dr:b.outflow_7d>b.inflow_7d},
+      {k:'純増減（直近28日平均）', v:`${b.net_28d>=0?'+':''}${b.net_28d}人/日`, unit:'人/日',
+       curr:b.net_28d, prev:0, prevLabel:'均衡ライン 0人/日',
+       dr:b.net_28d<0},
+    ];
   } else if (currentTab === 'profit' && hasProfit) {
     const pk = DATA.profit.kpi;
     const pRate = pk.hospital_achievement;
@@ -1042,6 +1067,20 @@ function renderChartControls() {
     return;
   }
 
+  if (currentTab === 'balance') {
+    const periodDefsB = [{l:'直近12週',p:'12w'},{l:'直近24週',p:'24w'},{l:'直近365日',p:'365d'},{l:'年度開始来',p:'ytd'}];
+    const periodsB = periodDefsB.map(d => `<span class="btn${d.p===currentPeriod?' active':''}" onclick="setPeriod('${d.p}',this)">${d.l}</span>`).join('');
+    const dayChksB = mkChk('wd','平日',showWeekday,"toggleDayType('weekday',this.checked)")
+      + mkChk('hd','休日',showHoliday,"toggleDayType('holiday',this.checked)");
+    const maChks = mkChk('bm7','7日純増減',showBalMA7,"toggleBalLine('ma7',this.checked)")
+      + mkChk('bm28','28日純増減',showBalMA28,"toggleBalLine('ma28',this.checked)");
+    document.getElementById('chartControls').innerHTML = `
+      <div class="grp"><span class="gl">期間</span>${periodsB}</div>
+      <div class="grp"><span class="gl">日種</span>${dayChksB}</div>
+      <div class="grp"><span class="gl">純増減</span>${maChks}</div>`;
+    return;
+  }
+
   const periodDefs = [{l:'直近12週',p:'12w'},{l:'直近24週',p:'24w'},{l:'直近365日',p:'365d'},{l:'年度開始来',p:'ytd'}];
   const periods = periodDefs.map(d =>
     `<span class="btn${d.p===currentPeriod?' active':''}" onclick="setPeriod('${d.p}',this)">${d.l}</span>`
@@ -1104,6 +1143,13 @@ function setInpDayFilter(f) {
   renderSummary();
 }
 
+function toggleBalLine(type, checked) {
+  if (type === 'ma7') showBalMA7 = checked;
+  else if (type === 'ma28') showBalMA28 = checked;
+  if (!showBalMA7 && !showBalMA28) { showBalMA7 = true; } // 最低1本は残す
+  renderContent();
+}
+
 function toggleDayType(type, checked) {
   if (type==='weekday') showWeekday = checked;
   else showHoliday = checked;
@@ -1116,6 +1162,21 @@ function renderContent() {
   renderChart();
   renderRanking();
   renderEstimateSection();
+  renderDischargeHeatmapVisibility();
+}
+
+// 曜日×ユニット ヒートマップは入退院バランスタブだけに表示。
+// display:none では Plotly が幅を取得できないため、非表示→表示に切り替わる瞬間に描画する。
+function renderDischargeHeatmapVisibility() {
+  const sec = document.getElementById('dischargeHeatmapSection');
+  if (!sec) return;
+  if (currentTab === 'balance') {
+    const wasHidden = sec.style.display === 'none';
+    sec.style.display = '';
+    if (wasHidden) renderDowHeatmaps();
+  } else {
+    sec.style.display = 'none';
+  }
 }
 
 const hasEstimate = !!(
@@ -1454,6 +1515,7 @@ function filterByDayType(dates, values, isWeekday) {
 function renderChart() {
   if (currentTab === 'profit') { renderProfitChart(); return; }
   if (currentTab === 'operation') { renderOperationChart(); return; }
+  if (currentTab === 'balance') { renderBalanceChart(); return; }
   const trend = DATA.trend[currentTab];
   if (!trend || !trend.dates.length) return;
   const cutoff = periodCutoff();
@@ -1560,6 +1622,76 @@ function renderChart() {
   document.getElementById('chartTitle').innerHTML = titleBase + badge + (showTarget ? ZONE_CAP : '');
 }
 
+// ★入退院バランス（病院全体）: 新入院(正バー) vs 退院合計(負バー) ＋ 純増減を第2軸の線
+function renderBalanceChart() {
+  const trend = DATA.trend.balance;
+  if (!trend || !trend.dates || !trend.dates.length) return;
+  const cutoff = periodCutoff();
+
+  // 曜日フィルタ（inflow/outflow は同一日付なので is_weekday を共用）
+  let dates = trend.dates, aV = trend.inflow, oV = trend.outflow || [];
+  if (trend.is_weekday && trend.is_weekday.length) {
+    const fd = [], fa = [], fo = [];
+    trend.dates.forEach((d, i) => {
+      const wd = trend.is_weekday[i];
+      if ((wd && showWeekday) || (!wd && showHoliday)) {
+        fd.push(d); fa.push(aV[i]); fo.push(oV[i] != null ? oV[i] : 0);
+      }
+    });
+    dates = fd; aV = fa; oV = fo;
+  }
+
+  // 純増減（新入院−退院）と移動平均（7日=速い・28日=基準トレンド）
+  const netVals = aV.map((v, i) => (v || 0) - (oV[i] || 0));
+  const netMA7 = calcMA(netVals, 7);
+  const netMA28 = calcMA(netVals, 28);
+
+  // 期間カットオフ
+  const si = Math.max(0, dates.findIndex(x => x >= cutoff));
+  const ds = dates.slice(si), adm = aV.slice(si), out = oV.slice(si);
+  const nm7 = netMA7.slice(si), nm28 = netMA28.slice(si);
+
+  // 第1軸（バー）: 0 を中心に対称
+  const yV1 = [...adm, ...out.map(v => -v)].filter(v => v != null);
+  const yAbs1 = (yV1.length ? Math.max(Math.abs(Math.min(...yV1)), Math.max(...yV1)) : 5) * 1.08 || 5;
+  // 第2軸（純増減MA）: 表示中の線を含めて 0 を中心に対称
+  const yV2 = [...(showBalMA7?nm7:[]), ...(showBalMA28?nm28:[])].filter(v => v != null);
+  const yAbs2 = (yV2.length ? Math.max(...yV2.map(Math.abs)) : 3) * 1.18 || 3;
+
+  const balTraces = [
+    { name:'新入院', x:ds, y:adm, type:'bar', marker:{color:'#0072B2'}, opacity:0.75, yaxis:'y' },
+    { name:'退院（死亡含む）', x:ds, y:out.map(v => -v), type:'bar', marker:{color:'#E69F00'}, opacity:0.75, yaxis:'y' },
+  ];
+  if (showBalMA7)  balTraces.push({ name:'純増減 7日平均', x:ds, y:nm7, type:'scatter', mode:'lines',
+      line:{color:'#D55E00', width:2.5}, yaxis:'y2' });
+  if (showBalMA28) balTraces.push({ name:'純増減 28日平均', x:ds, y:nm28, type:'scatter', mode:'lines',
+      line:{color:'#9333ea', width:1.8, dash:'dash'}, yaxis:'y2' });
+
+  Plotly.newPlot('mainChart', balTraces, {
+    barmode:'relative',
+    font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
+    xaxis:{gridcolor:'#DCE1E9', tickformat:'%m/%d', tickangle:-45},
+    yaxis:{range:[-Math.ceil(yAbs1), Math.ceil(yAbs1)], gridcolor:'#DCE1E9',
+           zeroline:true, zerolinecolor:'#888', zerolinewidth:1.5, title:{text:'人/日',font:{size:10}}},
+    yaxis2:{overlaying:'y', side:'right', range:[-Math.ceil(yAbs2), Math.ceil(yAbs2)],
+            gridcolor:'transparent', zeroline:true, zerolinecolor:'#D55E00', zerolinewidth:1,
+            tickfont:{size:10, color:'#D55E00'}, title:{text:'純増減',font:{size:10,color:'#D55E00'}}},
+    legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},
+    hovermode:'x unified',
+    margin:{l:48,r:46,t:10,b:55}, height:_pH(340),
+    plot_bgcolor:'#fff', paper_bgcolor:'#fff',
+  }, {responsive:true});
+
+  const pLabels = {'12w':'直近12週','24w':'直近24週','365d':'直近365日','ytd':'年度開始来','all':'全期間'};
+  const dayLabel = (showWeekday&&showHoliday)?'':showWeekday?' 平日のみ':' 休日のみ';
+  const b = DATA.kpi.balance;
+  const bgMap = {ok:'var(--ok-bg)',wr:'var(--wr-bg)',dr:'var(--dr-bg)',mu:'#f0f4f9'};
+  const tcMap = {ok:'#065f42',wr:'#7c3a06',dr:'var(--dr-t)',mu:'var(--mu)'};
+  const badge = `<span style="font-size:12px;font-weight:900;padding:3px 9px;border-radius:6px;margin-left:8px;background:${bgMap[b.status.css]};color:${tcMap[b.status.css]}">${b.status.shape} 在院${b.status.text}（純${b.net_7d>=0?'+':''}${b.net_7d}人/日）</span>`;
+  const legendNote = `<span style="font-size:11px;color:var(--mu);font-weight:600;margin-left:8px">青↑新入院 ／ 橙↓退院 ／ 純増減 朱=7日(速)・紫破線=28日(基準)：7日が28日を上抜け＝加速</span>`;
+  document.getElementById('chartTitle').innerHTML = `🔄 入退院バランス 推移（${pLabels[currentPeriod]}${dayLabel}）${badge}${legendNote}`;
+}
+
 // ★全身麻酔 病院全体グラフ: 30平日移動平均 + 昨年度比較
 function renderOperationChart() {
   const trend = DATA.trend.operation;
@@ -1653,7 +1785,9 @@ let rankExpanded = false;
 
 function renderRanking() {
   if (currentTab === 'profit') { renderProfitRanking(); return; }
-  const raw = (DATA.perf[currentTab]||{})[currentAxis] || [];
+  // 入退院バランスは在院数の増減を示すため、ランキングは在院（達成状況）を流用
+  const rankTab = (currentTab === 'balance') ? 'inpatient' : currentTab;
+  const raw = (DATA.perf[rankTab]||{})[currentAxis] || [];
 
   // クライアントサイドソート（差分も計算）
   const items = raw.map(r => ({...r, gap: r.target != null ? Math.round((r.actual - r.target)*10)/10 : null}));

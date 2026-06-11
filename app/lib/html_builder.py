@@ -441,6 +441,44 @@ def build_detail_json(adm, surg, targets, surg_targets,
         "operation": op_trend,
     }
 
+    # ── 入退院バランス（フロー収支・病院全体） ──
+    # 病院全体では転入/転出は病棟間移動で相殺するため、在院数からの流出は退院合計
+    # (退院+死亡)。ΔCensus ≈ 新入院患者数(inflow) − 退院合計(outflow)。
+    series_outflow = build_daily_series(adm, "退院合計")
+    _bal = (series_nadm[["日付", "値"]].rename(columns={"値": "inflow"})
+            .merge(series_outflow[["日付", "値"]].rename(columns={"値": "outflow"}),
+                   on="日付", how="outer").sort_values("日付").reset_index(drop=True))
+    _bal["inflow"] = _bal["inflow"].fillna(0)
+    _bal["outflow"] = _bal["outflow"].fillna(0)
+    trend["balance"] = {
+        "dates": [d.strftime("%Y-%m-%d") for d in _bal["日付"]],
+        "inflow": [int(v) for v in _bal["inflow"]],
+        "outflow": [int(v) for v in _bal["outflow"]],
+        "is_weekday": [bool(is_operational_day(d)) for d in _bal["日付"]],
+    }
+    # 直近7日/28日 ネットフロー KPI（在院数の増減基調）
+    _b7, _b28 = _bal.tail(7), _bal.tail(28)
+    _net7 = round((_b7["inflow"].sum() - _b7["outflow"].sum()) / 7, 1)
+    _net28 = round((_b28["inflow"].sum() - _b28["outflow"].sum()) / max(len(_b28), 1), 1)
+    if _net7 >= 0.5:
+        _bal_status = {"css": "ok", "shape": "▲", "text": "増基調"}
+    elif _net7 <= -0.5:
+        _bal_status = {"css": "dr", "shape": "▼", "text": "減基調"}
+    else:
+        _bal_status = {"css": "wr", "shape": "―", "text": "横ばい"}
+    if _net7 - _net28 >= 0.3:
+        _bal_trend = {"css": "ok", "label": "▲ 加速"}
+    elif _net7 - _net28 <= -0.3:
+        _bal_trend = {"css": "dr", "label": "▼ 減速"}
+    else:
+        _bal_trend = {"css": "mu", "label": "→ 一定"}
+    balance_kpi = {
+        "net_7d": _net7, "net_28d": _net28,
+        "inflow_7d": round(_b7["inflow"].mean(), 1),
+        "outflow_7d": round(_b7["outflow"].mean(), 1),
+        "status": _bal_status, "trend": _bal_trend,
+    }
+
     # ── charts: 特殊グラフ用データ ──
     heatmap = build_ward_utilization_heatmap(adm, base_date, targets)
     discharge_heatmap = build_discharge_dow_heatmap(adm, base_date, entity="ward")
@@ -509,6 +547,11 @@ def build_detail_json(adm, surg, targets, surg_targets,
         )
         dept_inp_series = add_moving_average(dept_inp_series, 7)
 
+        # ── 診療科別 入退院バランス用 流出（退院合計＝退院+死亡） ──
+        # 診療科では転入/転出は同一科内の病棟間移動でゼロ和（実データで残差不変を確認）。
+        # よって流出は退院合計のみで ΔCensus ≈ 新入院 − 退院合計 が成立。
+        dept_outflow_series = build_daily_series(adm, "退院合計", group_col="診療科名", group_val=dept)
+
         # ── 診療科別推移データ（手術）: 手術対象科のみ ──
         if is_surgery_dept:
             dept_surg_series = build_surgery_daily_series(surg, ga_only=True, dept=dept)
@@ -568,6 +611,8 @@ def build_detail_json(adm, surg, targets, surg_targets,
                 "admission": dept_adm_trend,
                 "inpatient": _trend_dict(dept_inp_series, prevyear=True) if len(dept_inp_series) > 0 else {"dates":[],"values":[],"ma7":[],"ma28":[]},
                 "operation": dept_op_trend,
+                "outflow": (_trend_dict(dept_outflow_series) if len(dept_outflow_series) > 0
+                            else {"dates":[],"values":[],"ma7":[],"ma28":[]}),
             },
             "discharge_dow": discharge_dow_profile(adm, base_date, group_col="診療科名", group_val=dept),
             "comment": "、".join(comments),
@@ -858,6 +903,7 @@ def build_detail_json(adm, surg, targets, surg_targets,
                 "trend": kpi["operation_trend"],
                 "status": kpi["operation_status"],
             },
+            "balance": balance_kpi,
         },
         "attention": portal_ctx["attention"],
         "improvement": portal_ctx["improvement"],
