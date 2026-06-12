@@ -550,22 +550,24 @@ def dow_shared_units(adm: pd.DataFrame, base_date: pd.Timestamp,
                      weeks: int = 8) -> list:
     """退院・入院 両ヒートマップで共通に使う、行順を揃えたユニット (code, name) 列。
 
-    退院 or 全入院 のいずれかが週平均 min_per_week 以上のユニットを採用し、
-    「退院＋全入院」の週平均件数の降順（=規則的な並び）で返す。指標を切り替えても
-    行の並びが一致するよう、並べ替えキーは指標非依存（退院＋全入院）で固定する。
+    退院 or 全入院 のいずれかが週平均 min_per_week 以上のユニットを採用する。
+    行順は **候補の固定順（病棟=フロア順 / 診療科=コード順）** をそのまま使い、
+    ボリュームや集中度によるデータ依存の並べ替えはしない。
+    （週ごとに行が入れ替わると特定ユニットを探しづらく週次比較もしにくいため、
+    位置を固定する。指標 discharge/admission/planned… を切り替えても並びは不変。
+    build_dow_heatmap は yaxis autorange='reversed' のため units[0]=最上段。）
     """
     from .metrics import dow_event_profile
     group_col, cand = _dow_unit_candidates(entity)
-    scored = []
-    for code, name in cand:
+    units = []
+    for code, name in cand:  # cand は既に固定順（ward=フロア順 / dept=コード順）
         dis = dow_event_profile(adm, base_date, "退院患者数",
                                 group_col=group_col, group_val=code, weeks=weeks)["per_week"]
         adm_pw = dow_event_profile(adm, base_date, "新入院患者数",
                                    group_col=group_col, group_val=code, weeks=weeks)["per_week"]
         if dis >= min_per_week or adm_pw >= min_per_week:
-            scored.append((code, name, dis + adm_pw))
-    scored.sort(key=lambda r: -r[2])  # 入退院ボリューム降順
-    return [(c, n) for c, n, _ in scored]
+            units.append((code, name))
+    return units
 
 
 def build_dow_heatmap(adm: pd.DataFrame, base_date: pd.Timestamp,
