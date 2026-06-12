@@ -154,21 +154,40 @@ def _merge_admission_files(frames: list) -> pd.DataFrame:
     """
     入院データの複数ファイルをマージ。
 
-    【重複除去の方針】
-    入院データは1つの病棟に同一診療科が複数行存在するケースがある
-    （例: 04C病棟に「救急科」が2行、それぞれ在院患者数が異なる）。
-    これは正当なデータ構造であり、(日付・病棟・診療科) をキーにした
-    drop_duplicates では正当な行まで削除してしまう。
+    【重複除去の方針（v2: ファイル内の多重行を保持）】
+    入院データは看護師が勤務帯ごとに手入力するため、1病棟・同一診療科が
+    複数行に分かれて入力されるケースがある（例: 04C病棟。エラー修正時の
+    分割入力など）。これは正当なデータで、行を合算して在院数を出す必要がある。
 
-    そのため、全列が完全に一致する行（=ファイル間の真の重複）のみを除去する。
-    値が異なる行は複数ファイル由来であっても両方保持する。
+    一方、複数ファイル（例: 通年ファイルと直近ファイル）は日付範囲が重なり、
+    同一行がそのまま二重に存在する（＝ファイル間の真の重複）。これは除去したい。
+
+    旧実装は「全列一致＝真の重複」とみなして drop_duplicates(keep='last') して
+    いたが、1ファイル内に値まで完全一致する正当な複数行（例: 在院1が2行）が
+    あると、それも誤って1行に潰し在院数を過少計上していた
+    （直近データで 72日中26日 / −1〜−3人）。
+
+    そこで各ファイル内での同一行の出現順位(_occ)を付けてから結合し、
+    (全列 + _occ) で重複除去する。これにより:
+      - ファイル内の正当な同一行 … _occ が異なるため両方保持
+      - ファイル間の真の重複     … _occ まで一致するため1つに集約
     """
     if len(frames) == 1:
         return frames[0].reset_index(drop=True)
 
-    combined = pd.concat(frames, ignore_index=True)
-    # 全列一致の完全重複のみ除去（正当な複数行は保持）
-    combined = combined.drop_duplicates(keep="last")
+    # 列の和集合で各フレームを揃える（ファイル間で列差があっても安全に結合）
+    value_cols = list(pd.concat([f.iloc[:0] for f in frames]).columns)
+    parts = []
+    for f in frames:
+        f = f.reindex(columns=value_cols)
+        # ファイル内での同一行の出現順位（NaN もキーに含める）
+        f["_occ"] = f.groupby(value_cols, dropna=False).cumcount()
+        parts.append(f)
+
+    combined = pd.concat(parts, ignore_index=True)
+    # (全列 + _occ) で重複除去 → ファイル間の真の重複のみ集約、ファイル内多重行は保持
+    combined = combined.drop_duplicates(subset=value_cols + ["_occ"], keep="last")
+    combined = combined.drop(columns="_occ")
     return combined.sort_values("日付").reset_index(drop=True)
 
 
