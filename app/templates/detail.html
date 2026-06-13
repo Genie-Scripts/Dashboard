@@ -207,6 +207,70 @@ body.chart-fs-lock{overflow:hidden}
   .fab-top{bottom:134px;opacity:0;pointer-events:none;transform:translateY(20px)}
   .fab-top.fab-show{opacity:1;pointer-events:auto;transform:none}
 }
+/* ── 入退院バランス サブタブ＋平準化アクション（週末のびしろ） ── */
+:root{
+  --soft-red:#e58aa0;--soft-amber:#e3ad6e;--soft-green:#6fc1a3;--soft-slate:#a6b3c4;
+  --soft-red-ink:#b15a73;--soft-amber-ink:#a87a36;--soft-green-ink:#3d8f6d;
+}
+.bsubtabs{display:none;gap:4px;background:var(--s);border:1px solid var(--ln);border-radius:12px;padding:4px;margin:14px 0;box-shadow:var(--sh)}
+.bsub{flex:1;background:transparent;border:none;border-radius:9px;font-size:13px;font-weight:800;padding:8px 6px;cursor:pointer;color:var(--sub);transition:all .15s;font-family:inherit;display:flex;flex-direction:column;align-items:center;gap:1px;line-height:1.25}
+.bsub.active{background:var(--bd);color:#fff;box-shadow:0 2px 6px rgba(10,54,113,.3)}
+.bsub small{font-size:10px;font-weight:600;opacity:.85}
+.lv-ctrl{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px}
+.lv-seg{display:flex;gap:4px;border:1px solid var(--ln);border-radius:10px;padding:3px;background:var(--bg)}
+.lv-seg button{background:transparent;border:none;border-radius:8px;font-size:12.5px;font-weight:800;padding:6px 13px;cursor:pointer;color:var(--sub);font-family:inherit;transition:all .15s}
+.lv-seg button.active{background:var(--br);color:#fff}
+.lv-kpi{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:8px}
+.lv-kc{background:var(--bg);border:1px solid var(--ln);border-radius:10px;padding:12px 14px;border-top:4px solid var(--br)}
+.lv-kc.dr{border-top-color:var(--soft-red);background:var(--dr-bg)}
+.lv-kc .lk{font-size:11.5px;color:var(--sub);font-weight:700}
+.lv-kc .lv{font-size:24px;font-weight:900;line-height:1.1;margin:5px 0 2px}
+.lv-kc .lv small{font-size:13px;font-weight:800;color:var(--sub)}
+.lv-kc .ls{font-size:11px;color:var(--mu)}
+.lv-kc .ls b{color:var(--dr-t)}
+.lv-matrix-wrap{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+#lvMatrix{flex:1 1 380px;min-width:300px;max-width:560px}
+.lv-legend{flex:0 0 210px;font-size:11.5px;color:var(--sub);line-height:1.6}
+.lv-legend .qz{display:flex;align-items:flex-start;gap:7px;margin-bottom:7px}
+.lv-legend .sw{width:12px;height:12px;border-radius:3px;flex-shrink:0;margin-top:2px}
+.lv-legend b{color:var(--ink)}
+.lv-dot{cursor:pointer}.lv-dot:hover{stroke:var(--ink);stroke-width:2}
+.lv-rank{display:flex;flex-direction:column}
+.lv-row{display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid var(--ln);cursor:pointer}
+.lv-row:last-child{border-bottom:none}.lv-row:hover{background:var(--bg)}.lv-row.sel{background:var(--bl)}
+.lv-no{width:22px;height:22px;border-radius:50%;background:var(--bd);color:#fff;font-size:11px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.lv-no.t3{background:var(--soft-red)}
+.lv-nm{flex:0 0 92px;font-size:13px;font-weight:800;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lv-bar-track{flex:1;min-width:60px;height:16px;background:var(--bg);border-radius:5px;overflow:hidden;border:1px solid var(--ln)}
+.lv-bar-fill{height:100%;border-radius:4px 0 0 4px;transition:width .3s}
+.lv-mv{flex:0 0 88px;text-align:right;font-size:14px;font-weight:900}
+.lv-mv small{font-size:10px;font-weight:700;color:var(--mu)}
+.lv-bd{flex:0 0 52px;text-align:center;font-size:11px;font-weight:900;padding:2px 0;border-radius:999px}
+.lv-bd.ok{background:var(--ok-bg);color:var(--soft-green-ink)}
+.lv-bd.wr{background:var(--wr-bg);color:var(--soft-amber-ink)}
+.lv-bd.bad{background:var(--dr-bg);color:var(--soft-red-ink)}
+.lv-detail{display:grid;grid-template-columns:1.05fr 1fr;gap:14px}
+.lv-dow{background:var(--bg);border:1px solid var(--ln);border-radius:10px;padding:12px 14px}
+.lv-dowt{font-size:11.5px;font-weight:800;color:var(--sub);margin-bottom:8px}
+.lv-dowbars{display:flex;align-items:flex-end;gap:6px;height:96px}
+.lv-col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:3px}
+.lv-cb{width:100%;border-radius:3px 3px 0 0;background:var(--br)}
+.lv-cb.fri{background:var(--soft-red)}.lv-cb.wknd{background:var(--mu)}
+.lv-cl{font-size:10px;font-weight:700;color:var(--sub)}.lv-cl.fri{color:var(--soft-red-ink)}
+.lv-cv{font-size:9.5px;font-weight:800;color:var(--ink)}
+.lv-act{background:var(--bg);border:1px solid var(--ln);border-radius:10px;padding:12px 14px}
+.lv-chip{font-size:11.5px;color:var(--sub);margin-bottom:8px}
+.lv-chip b{color:var(--ink);font-weight:900}
+.lv-aitag{font-size:9px;font-weight:800;color:var(--br);background:var(--bl);border-radius:999px;padding:1px 6px;margin-left:4px;vertical-align:middle}
+.lv-nar{font-size:13px;line-height:1.7;color:var(--ink);background:var(--s);border:1px solid var(--ln);border-radius:9px;padding:10px 12px}
+.lv-nar .ld{color:var(--dr-t);font-weight:800}
+.lv-mvline{display:flex;align-items:center;gap:7px;margin-top:9px;padding:9px 11px;background:var(--bl);border-radius:9px;font-size:12.5px;font-weight:800;color:var(--br)}
+.lv-link{font-size:11.5px;line-height:1.65;color:var(--sub);margin-top:9px;padding:8px 10px;background:#F4F8FB;border:1px solid #DCE6EF;border-radius:8px}
+.lv-link b{color:var(--ink)}
+.lv-foot{font-size:11px;color:var(--sub);line-height:1.6;margin-top:12px;padding:9px 11px;background:var(--s);border:1px solid var(--ln);border-radius:9px}
+.lv-foot b{color:var(--ink)}
+.lv-empty{font-size:12px;color:var(--mu);padding:20px;text-align:center}
+@media(max-width:768px){.lv-kpi{grid-template-columns:1fr}.lv-detail{grid-template-columns:1fr}.lv-nm{flex-basis:70px}.lv-mv{flex-basis:70px}}
 </style>
 </head>
 <body>
@@ -241,7 +305,14 @@ body.chart-fs-lock{overflow:hidden}
     </div>
   </section>
 
-  <section class="main">
+  <!-- 入退院バランス サブタブ（balanceタブ限定・概況→曜日構造→平準化アクションの3層） -->
+  <div class="bsubtabs" id="balanceSubtabs">
+    <button class="bsub active" data-sub="overview" onclick="setBalanceSubtab('overview')">📋 概況<small>増減モニタ</small></button>
+    <button class="bsub" data-sub="dow" onclick="setBalanceSubtab('dow')">📅 曜日構造<small>ヒートマップ</small></button>
+    <button class="bsub" data-sub="action" onclick="setBalanceSubtab('action')">🎯 平準化アクション<small>誰が何をするか</small></button>
+  </div>
+
+  <section class="main" id="mainSection">
     <div class="pnl pnl-chart"><div class="pnl-ctrl" id="chartControls"></div><h3 id="chartTitle">📊 推移グラフ</h3><div class="chart" id="mainChart"></div><button class="chart-fs-btn" onclick="chartFS('mainChart',this)" aria-label="チャート全画面">⛶</button></div>
     <div class="pnl pnl-rank" data-mc><div class="pnl-ctrl" id="rankControls"></div>
       <div class="mc-h" onclick="toggleMC(this)"><h3 id="rankTitle">🏆 達成状況</h3><span class="mc-caret">▾</span></div>
@@ -297,6 +368,30 @@ body.chart-fs-lock{overflow:hidden}
       </div>
 
       <div id="dhmFootnote" style="margin-top:8px;font-size:11px;color:var(--mu);line-height:1.6"></div>
+    </div>
+  </section>
+
+  <!-- 週末のびしろ＝平準化アクション（balanceタブ・平準化サブタブ限定） -->
+  <section class="main" id="levelingSection" style="grid-template-columns:1fr;display:none">
+    <div class="pnl">
+      <div class="lv-ctrl">
+        <div class="lv-seg" id="lvViewSeg">
+          <button data-view="dept" class="active" onclick="setLvView('dept')">🩺 診療科（患者軸）</button>
+          <button data-view="ward" onclick="setLvView('ward')">🛏 病棟（床軸）</button>
+        </div>
+        <div class="lv-seg" id="lvMetricSeg">
+          <button data-metric="abs" class="active" onclick="setLvMetric('abs')">のびしろ（実数）</button>
+          <button data-metric="ratio" onclick="setLvMetric('ratio')">維持率（％）</button>
+        </div>
+      </div>
+      <div class="lv-kpi" id="lvKpi"></div>
+      <h4 class="dhm-sub">① 優先マトリクス <span class="dhm-cap">横＝週末在院維持率（右ほど良好・褒める方向）／縦＝のびしろ</span></h4>
+      <div class="lv-matrix-wrap"><svg id="lvMatrix" viewBox="0 0 460 360" role="img" aria-label="優先マトリクス"></svg><div class="lv-legend" id="lvLegend"></div></div>
+      <h4 class="dhm-sub" style="margin-top:16px">② ランキング <span class="dhm-cap" id="lvRankCap"></span></h4>
+      <div class="lv-rank" id="lvRank"></div>
+      <h4 class="dhm-sub" style="margin-top:16px">③ 今週の一手 <span class="dhm-cap" id="lvActName"></span></h4>
+      <div class="lv-detail" id="lvDetail"></div>
+      <div class="lv-foot">狙いは週末ディップの回復＝<b>金曜の退院を月〜木へ分散＋週末入院で補充</b>（新患が週末も在院＝ベッド回転）。<b>在院日数の延長＝月曜延伸はしない</b>。週末＝土日（金曜の退院ラッシュは「曜日構造」で別掲）。順位＝のびしろ（インパクト）／バッジ＝維持率（規模に依らず公平）。</div>
     </div>
   </section>
 
@@ -476,10 +571,15 @@ function _deltaSummary(delta) {
 }
 
 function openDhmDrill(name) {
-  dhmDrillUnit = name;
-  document.getElementById('dhmDrill').style.display = 'block';
-  renderDhmDrill();
-  document.getElementById('dhmDrill').scrollIntoView({behavior:'smooth', block:'nearest'});
+  // 行クリック → 平準化アクションの「今週の一手」へ送客（旧インラインdrillを統合）
+  lvView = dhmEntity;
+  lvSel[dhmEntity] = name;
+  _lvRendered = false;
+  document.querySelectorAll('#lvViewSeg button').forEach(b =>
+    b.classList.toggle('active', b.dataset.view === dhmEntity));
+  setBalanceSubtab('action');
+  const sec = document.getElementById('levelingSection');
+  if (sec) sec.scrollIntoView({behavior:'smooth', block:'start'});
 }
 
 function closeDhmDrill() {
@@ -607,6 +707,7 @@ function renderBottomNav(tabs) {
 
 function switchTab(id) {
   currentTab = id;
+  if (id === 'balance') balanceSubtab = 'overview';  // タブ入場時は概況から（mainChartが可視で正しくサイズされる）
   if (id === 'operation' || id === 'profit') currentAxis = 'dept';
   admType = 'all';   // タブ切替でフィルタリセット
   inpDayFilter = 'all'; // 在院 全日/平日/休日リセット
@@ -1173,7 +1274,7 @@ function renderContent() {
   renderChart();
   renderRanking();
   renderEstimateSection();
-  renderDischargeHeatmapVisibility();
+  renderBalanceLayout();
 }
 
 // 曜日×ユニット ヒートマップは入退院バランスタブだけに表示。
@@ -1188,6 +1289,198 @@ function renderDischargeHeatmapVisibility() {
   } else {
     sec.style.display = 'none';
   }
+}
+
+// ════════════════════════════════════════
+// 入退院バランス サブタブ（概況／曜日構造／平準化アクション）＋ 週末のびしろ
+// ════════════════════════════════════════
+let balanceSubtab = 'overview';   // overview | dow | action
+let lvView = 'dept';              // dept | ward
+let lvMetric = 'abs';             // abs(のびしろ) | ratio(維持率)
+let lvSel = {};                   // entity → 選択ユニット名
+let _lvRendered = false;
+const LV_WK = ['月','火','水','木','金','土','日'];
+
+function setBalanceSubtab(t){ balanceSubtab = t; renderBalanceLayout(); }
+function setLvView(v){ lvView = v;
+  document.querySelectorAll('#lvViewSeg button').forEach(b=>b.classList.toggle('active', b.dataset.view===v));
+  renderLeveling();
+}
+function setLvMetric(m){ lvMetric = m;
+  document.querySelectorAll('#lvMetricSeg button').forEach(b=>b.classList.toggle('active', b.dataset.metric===m));
+  renderLeveling();
+}
+
+function renderBalanceLayout(){
+  const mainSec = document.getElementById('mainSection');
+  const heatSec = document.getElementById('dischargeHeatmapSection');
+  const lvlSec  = document.getElementById('levelingSection');
+  const bar     = document.getElementById('balanceSubtabs');
+  const isBal   = currentTab === 'balance';
+  const show = (el,on)=>{ if(el) el.style.display = on ? '' : 'none'; };
+  if (bar) bar.style.display = isBal ? 'flex' : 'none';
+  if (!isBal){ show(mainSec,true); show(heatSec,false); show(lvlSec,false); return; }
+  if (bar) bar.querySelectorAll('.bsub').forEach(b=>b.classList.toggle('active', b.dataset.sub===balanceSubtab));
+  show(mainSec, balanceSubtab==='overview');
+  if (balanceSubtab==='dow'){
+    const wasHidden = heatSec && heatSec.style.display==='none';
+    if (heatSec) heatSec.style.display='';
+    if (wasHidden) renderDowHeatmaps();
+  } else show(heatSec,false);
+  if (balanceSubtab==='action'){
+    const wasHidden = lvlSec && lvlSec.style.display==='none';
+    if (lvlSec) lvlSec.style.display='';
+    if (wasHidden || !_lvRendered) renderLeveling();
+  } else show(lvlSec,false);
+}
+
+function _lvData(){
+  const wl = (DATA.charts && DATA.charts.weekend_leveling) || {};
+  return wl[lvView] || {units:[], total:{}};
+}
+function _lvLost(u){ return u.room_per_week || 0; }
+function _lvName(name){ return name; }   // 病棟コード/診療科名をそのまま表示（将来名称変換可）
+function _lvRetClass(r){ return r>=0.92 ? 'ok' : r>=0.86 ? 'wr' : 'bad'; }
+
+function renderLeveling(){
+  const data = _lvData();
+  const units = (data.units||[]).slice();
+  const rl = document.getElementById('lvRank');
+  if (!units.length){ if(rl) rl.innerHTML='<div class="lv-empty">対象データなし</div>'; _lvRendered=true; return; }
+  if (!lvSel[lvView] || !units.find(u=>u.name===lvSel[lvView]))
+    lvSel[lvView] = units.slice().sort((a,b)=>_lvLost(b)-_lvLost(a))[0].name;
+  renderLvKpi(data, units);
+  renderLvMatrix(units);
+  renderLvRank(units);
+  renderLvDetail(units);
+  _lvRendered = true;
+}
+
+function renderLvKpi(data, units){
+  const t = data.total || {};
+  const top = units.slice().sort((a,b)=>_lvLost(b)-_lvLost(a))[0];
+  const rec = Math.round((t.room_per_week||0)*0.55);
+  const ret = t.retention!=null ? Math.round(t.retention*100) : '—';
+  const scope = lvView==='dept' ? '／全診療科' : '／全病棟';
+  document.getElementById('lvKpi').innerHTML =
+    `<div class="lv-kc dr"><div class="lk">週末のびしろ 合計 ${scope}</div>`
+    + `<div class="lv">${(t.room_per_week||0).toFixed(0)} <small>人日/週</small></div>`
+    + `<div class="ls">平準化で実現 ≒ <b>+${rec} 人日/週</b></div></div>`
+    + `<div class="lv-kc"><div class="lk">平均 週末在院維持率</div>`
+    + `<div class="lv">${ret}<small>%</small></div><div class="ls">目標 ≥ 88%（平日在院比）</div></div>`
+    + `<div class="lv-kc"><div class="lk">最優先（のびしろ 最大）</div>`
+    + `<div class="lv" style="font-size:18px">${_lvName(top.name)}</div>`
+    + `<div class="ls">${_lvLost(top).toFixed(0)} 人日/週・維持率 <b>${top.retention!=null?Math.round(top.retention*100):'—'}%</b></div></div>`;
+}
+
+function renderLvMatrix(units){
+  const W=460,H=360,padL=52,padR=18,padT=18,padB=46;
+  const x0=padL,x1=W-padR,y0=H-padB,y1=padT;
+  const rooms = units.map(_lvLost);
+  const YMAX = Math.max(20, Math.ceil(Math.max(...rooms,1)/5)*5+3);
+  const YTH = Math.round(YMAX*0.45);
+  const XMIN=0.50, XMAX=1.00, XTH=0.85;
+  const clampX = v => Math.max(XMIN, Math.min(XMAX, v));
+  const sx = v => x0+((clampX(v)-XMIN)/(XMAX-XMIN))*(x1-x0);
+  const sy = v => y0-(Math.min(v,YMAX)/YMAX)*(y0-y1);
+  let s=`<rect x="${x0}" y="${y1}" width="${x1-x0}" height="${y0-y1}" fill="#fafbfd" stroke="var(--ln)"/>`;
+  s+=`<rect x="${x0}" y="${y1}" width="${sx(XTH)-x0}" height="${sy(YTH)-y1}" fill="#fdecef"/>`;
+  s+=`<rect x="${sx(XTH)}" y="${sy(YTH)}" width="${x1-sx(XTH)}" height="${y0-sy(YTH)}" fill="#edfbf3"/>`;
+  s+=`<line x1="${sx(XTH)}" y1="${y1}" x2="${sx(XTH)}" y2="${y0}" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="5 4"/>`;
+  s+=`<line x1="${x0}" y1="${sy(YTH)}" x2="${x1}" y2="${sy(YTH)}" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="5 4"/>`;
+  [0.5,0.6,0.7,0.8,0.9,1.0].forEach(v=>{s+=`<text x="${sx(v)}" y="${y0+15}" text-anchor="middle" font-size="11" fill="var(--mu)">${Math.round(v*100)}%</text>`;});
+  for(let v=0; v<=YMAX; v+=Math.max(5,Math.round(YMAX/4))) s+=`<text x="${x0-8}" y="${sy(v)+4}" text-anchor="end" font-size="11" fill="var(--mu)">${v}</text>`;
+  s+=`<text x="${(x0+x1)/2}" y="${H-6}" text-anchor="middle" font-size="12" fill="var(--sub)" font-weight="800">週末在院維持率 → 右ほど良好</text>`;
+  s+=`<text transform="translate(14,${(y0+y1)/2}) rotate(-90)" text-anchor="middle" font-size="12" fill="var(--sub)" font-weight="800">週末のびしろ/週 → 大</text>`;
+  const maxWd = Math.max(...units.map(u=>u.weekday_avg||0),1);
+  // ラベルは混雑回避のため のびしろ上位6＋選択中のみ（他はドットのみ）
+  const labelSet = new Set(units.slice().sort((a,b)=>_lvLost(b)-_lvLost(a)).slice(0,6).map(u=>u.name));
+  if (lvSel[lvView]) labelSet.add(lvSel[lvView]);
+  units.forEach(u=>{
+    const ret = u.retention!=null ? u.retention : XMIN;
+    const cx=sx(ret), cy=sy(_lvLost(u)), rr=6+(u.weekday_avg||0)/maxWd*14;
+    const prio = ret<XTH && _lvLost(u)>=YTH, big = ret>=XTH && _lvLost(u)>=YTH, coach = ret<XTH && _lvLost(u)<YTH;
+    const col = prio?'var(--soft-red)':big?'var(--soft-amber)':coach?'var(--soft-slate)':'var(--soft-green)';
+    const sel = u.name===lvSel[lvView];
+    s+=`<circle class="lv-dot" data-name="${u.name}" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${rr.toFixed(1)}" fill="${col}" fill-opacity="0.9" stroke="${sel?'var(--ink)':'#fff'}" stroke-width="${sel?2.5:1.5}"/>`;
+    if (labelSet.has(u.name))
+      s+=`<text x="${cx.toFixed(1)}" y="${(cy-rr-3).toFixed(1)}" text-anchor="middle" font-size="10.5" font-weight="800" fill="var(--ink)" pointer-events="none">${_lvName(u.name)}</text>`;
+  });
+  const svg=document.getElementById('lvMatrix');
+  svg.innerHTML=s;
+  svg.querySelectorAll('.lv-dot').forEach(c=>c.addEventListener('click',()=>{ lvSel[lvView]=c.dataset.name; renderLeveling(); }));
+  document.getElementById('lvLegend').innerHTML =
+     `<div class="qz"><span class="sw" style="background:var(--soft-red)"></span><span><b>左上：最優先</b><br>低維持×大のびしろ。効果最大。</span></div>`
+    +`<div class="qz"><span class="sw" style="background:var(--soft-amber)"></span><span><b>右上：規模で効く</b><br>維持率は良いが在院大。小改善でも人日。</span></div>`
+    +`<div class="qz"><span class="sw" style="background:var(--soft-slate)"></span><span><b>左下：行動コーチ</b><br>偏在強いが小規模。優先度低。</span></div>`
+    +`<div class="qz"><span class="sw" style="background:var(--soft-green)"></span><span><b>右下：良好・手本</b><br>維持できている。横展開。</span></div>`
+    +`<p style="margin-top:5px;font-size:10.5px;color:var(--mu)">バブル径＝平日在院規模。</p>`;
+}
+
+function renderLvRank(units){
+  const abs = lvMetric==='abs';
+  const sorted = units.slice().sort((a,b)=> abs ? _lvLost(b)-_lvLost(a) : (a.retention||0)-(b.retention||0));
+  const maxLost = Math.max(...units.map(_lvLost),1);
+  let h='';
+  sorted.forEach((u,i)=>{
+    const ret = u.retention!=null ? u.retention : 0;
+    const w = abs ? (_lvLost(u)/maxLost*100) : ((1-ret)/0.5*100);
+    const barCol = abs ? 'var(--br)' : (ret>=0.92?'var(--soft-green)':ret>=0.86?'var(--soft-amber)':'var(--soft-red)');
+    const metric = abs ? `${_lvLost(u).toFixed(0)}<small>人日/週</small>` : `${Math.round(ret*100)}<small>％ 維持</small>`;
+    const dlt = u.room_delta_4w;
+    const dtxt = (dlt>0.5)?` <span style="color:var(--soft-red-ink)">↗+${dlt.toFixed(0)}</span>`:(dlt<-0.5)?` <span style="color:var(--soft-green-ink)">↘${dlt.toFixed(0)}</span>`:'';
+    h+=`<div class="lv-row${u.name===lvSel[lvView]?' sel':''}" data-name="${u.name}">`
+      +`<div class="lv-no${i<3?' t3':''}">${i+1}</div>`
+      +`<div class="lv-nm">${_lvName(u.name)}</div>`
+      +`<div class="lv-bar-track"><div class="lv-bar-fill" style="width:${Math.max(2,Math.min(100,w))}%;background:${barCol}"></div></div>`
+      +`<div class="lv-mv" style="color:${barCol}">${metric}${dtxt}</div>`
+      +`<div class="lv-bd ${_lvRetClass(ret)}">${Math.round(ret*100)}%</div></div>`;
+  });
+  const rl=document.getElementById('lvRank'); rl.innerHTML=h;
+  rl.querySelectorAll('.lv-row').forEach(r=>r.addEventListener('click',()=>{ lvSel[lvView]=r.dataset.name; renderLeveling(); }));
+  document.getElementById('lvRankCap').textContent = abs ? '順位＝のびしろ（実数）' : '順位＝維持率（規模に依らず公平）';
+}
+
+function renderLvDetail(units){
+  const u = units.find(x=>x.name===lvSel[lvView]) || units[0];
+  document.getElementById('lvActName').textContent = '／' + _lvName(u.name);
+  const det = DATA.charts && DATA.charts.dow_unit_detail && DATA.charts.dow_unit_detail[lvView];
+  const dd = det && det[u.name] && det[u.name].discharge;
+  let bars='', friShare=null;
+  if (dd && dd.avg){
+    const mx = Math.max(...dd.avg, 0.1), sum = dd.avg.reduce((a,c)=>a+c,0);
+    friShare = sum>0 ? Math.round(dd.avg[4]/sum*100) : null;
+    dd.avg.forEach((v,i)=>{
+      const cls = i===4?'fri':(i>=5?'wknd':'');
+      bars+=`<div class="lv-col"><div class="lv-cv">${v.toFixed(1)}</div>`
+          +`<div class="lv-cb ${cls}" style="height:${Math.max(4,v/mx*100)}%"></div>`
+          +`<div class="lv-cl ${i===4?'fri':''}">${LV_WK[i]}</div></div>`;
+    });
+  } else { bars='<div class="lv-empty">曜日データなし</div>'; }
+  const dropPct = u.retention!=null ? Math.round((1-u.retention)*100) : null;
+  const rec = Math.round(_lvLost(u)*0.55);
+  const isWard = lvView==='ward';
+  const lnar = u.narrative;   // {body, action} or undefined（oMLX生成・上位のみ）
+  const aiTag = (lnar && lnar.body) ? ' <span class="lv-aitag">AI</span>' : '';
+  // 数値は常にチップで表示（LLM本文は数値を使わない定性的記述）
+  const chip = `<div class="lv-chip">のびしろ <b>${_lvLost(u).toFixed(0)}</b> 人日/週 ・ 維持率 <b>${u.retention!=null?Math.round(u.retention*100):'—'}%</b>`
+    + (friShare!=null?` ・ 金曜退院 <b>${friShare}%</b>`:'') + `</div>`;
+  const body = (lnar && lnar.body)
+    ? `<span class="ld">${_lvName(u.name)}</span>：${lnar.body}`
+    : `<span class="ld">${_lvName(u.name)}</span>は週末（土日）に在院が`
+      + (dropPct!=null?`${dropPct}%低下`:'低下')
+      + (friShare!=null?`。退院が金曜に集中。`:'。');
+  const moveText = (lnar && lnar.action) ? lnar.action
+    : (isWard ? `相乗り科の金曜退院を平日へ分散＋週末入院で補充`
+              : `金曜の退院を月〜木へ分散し、空床を平日入院で補充`);
+  const link = isWard
+    ? `床の番人として相乗り科間の退院曜日を調整するのが病棟のレバー。延伸ではなく回転で取る。`
+    : `自科の退院曜日（金曜集中）の分散が効くレバー。床は持たないので病棟側の週末入院補充と両輪。`;
+  document.getElementById('lvDetail').innerHTML =
+    `<div class="lv-dow"><div class="lv-dowt">退院曜日プロファイル（直近8週・日平均）</div><div class="lv-dowbars">${bars}</div></div>`
+    +`<div class="lv-act">${chip}<div class="lv-nar">${body}${aiTag}</div>`
+    +`<div class="lv-mvline"><span style="font-size:15px;font-weight:900">→</span>${moveText}<span style="color:var(--mu);font-weight:700;margin-left:4px">（約 +${rec}人日/週）</span></div>`
+    +`<div class="lv-link">${link}</div></div>`;
 }
 
 const hasEstimate = !!(

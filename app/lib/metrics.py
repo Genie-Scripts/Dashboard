@@ -201,6 +201,98 @@ def dow_event_profile(adm: pd.DataFrame, date: pd.Timestamp, value_col: str,
     }
 
 
+def weekend_census_retention(adm: pd.DataFrame, date: pd.Timestamp,
+                             entity: str = "ward", weeks: int = 8,
+                             min_weekday_avg: float = 5.0) -> dict:
+    """週末(土日)の在院ディップをユニット別に算出（平準化アクション層の主指標）。
+
+    平日=月〜金, 週末=土日。直近 weeks 完全週(月〜日)の在院患者数を母数に、
+    ユニットごとに 平日平均在院 / 土日平均在院 / 維持率 / のびしろ(人日/週) を返す。
+      維持率   = 土日平均在院 ÷ 平日平均在院         （高い=褒める方向。100%=ディップ無）
+      のびしろ = (平日平均在院 − 土日平均在院) × 2日  （週末に取り戻せる在院人日/週・0クリップ）
+      room_delta_4w = 直近4週 − 前4週 の のびしろ      （正=拡大=悪化 / 負=改善）
+    ※在院ディップは実データ上 土日（金曜の在院は平日水準）。金曜の退院ラッシュは
+      原因として dow_event_profile（曜日プロファイル）で別途捕捉する＝二窓設計。
+
+    entity: "ward"=病棟コード / "dept"=診療科名。
+    min_weekday_avg: 平日平均在院がこの値未満のユニットは除外（小規模ノイズ）。
+    返値 units はのびしろ降順（インパクト順）。
+    """
+    group_col = "病棟コード" if entity == "ward" else "診療科名"
+    disp_col = "病棟_表示" if entity == "ward" else "科_表示"
+
+    if len(adm) == 0:
+        return {"entity": entity, "weeks": 0.0, "base_date": date, "units": [], "total": {}}
+
+    monday = date - timedelta(days=date.weekday())
+    start = monday - timedelta(days=7 * weeks)
+    end = monday - timedelta(days=1)
+    half = max(1, weeks // 2)
+    mid = monday - timedelta(days=7 * half)   # 直近半 = [mid, end], 前半 = [start, mid)
+
+    df = adm[adm[disp_col]]
+    win = df[(df["日付"] >= start) & (df["日付"] <= end)]
+    cal_days = win["日付"].nunique()
+    n_weeks = round(cal_days / 7, 1) if cal_days else 0.0
+    if len(win) == 0:
+        return {"entity": entity, "weeks": 0.0, "base_date": date, "units": [], "total": {}}
+
+    # 日付×ユニットで在院合計（行重複を排除して各日の在院数にする）
+    daily = (win.groupby(["日付", group_col])["在院患者数"].sum().reset_index())
+    daily["wd"] = daily["日付"].dt.weekday
+
+    def _stats(sub):
+        """平日平均・土日平均・維持率・のびしろ(人日/週)"""
+        wk = sub[sub["wd"] <= 4]["在院患者数"]
+        we = sub[sub["wd"] >= 5]["在院患者数"]
+        wk_avg = float(wk.mean()) if len(wk) else 0.0
+        we_avg = float(we.mean()) if len(we) else 0.0
+        retention = (we_avg / wk_avg) if wk_avg > 0 else None
+        room = max(0.0, wk_avg - we_avg) * 2.0
+        return wk_avg, we_avg, retention, room
+
+    recent = daily[daily["日付"] >= mid]
+    prev = daily[daily["日付"] < mid]
+
+    units = []
+    for name, sub in daily.groupby(group_col):
+        wk_avg, we_avg, retention, room = _stats(sub)
+        if wk_avg < min_weekday_avg:
+            continue
+        _, _, _, room_r = _stats(recent[recent[group_col] == name])
+        _, _, _, room_p = _stats(prev[prev[group_col] == name])
+        units.append({
+            "name": name,
+            "weekday_avg": round(wk_avg, 1),
+            "weekend_avg": round(we_avg, 1),
+            "retention": round(retention, 3) if retention is not None else None,
+            "room_per_week": round(room, 1),
+            "room_delta_4w": round(room_r - room_p, 1),
+        })
+
+    units.sort(key=lambda u: u["room_per_week"], reverse=True)
+
+    # 全体（エンティティ合計の日次在院から）
+    g = daily.groupby("日付")["在院患者数"].sum().reset_index()
+    g["wd"] = g["日付"].dt.weekday
+    wk_all = float(g[g["wd"] <= 4]["在院患者数"].mean()) if len(g) else 0.0
+    we_all = float(g[g["wd"] >= 5]["在院患者数"].mean()) if len(g) else 0.0
+    ret_all = round(we_all / wk_all, 3) if wk_all > 0 else None
+
+    return {
+        "entity": entity,
+        "weeks": n_weeks,
+        "base_date": date,
+        "units": units,
+        "total": {
+            "weekday_avg": round(wk_all, 1),
+            "weekend_avg": round(we_all, 1),
+            "retention": ret_all,
+            "room_per_week": round(sum(u["room_per_week"] for u in units), 1),
+        },
+    }
+
+
 def daily_surgery(surg: pd.DataFrame, date: pd.Timestamp) -> dict:
     """日次手術件数"""
     day = surg[surg["手術実施日"] == date]

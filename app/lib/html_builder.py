@@ -28,6 +28,7 @@ from .metrics import (
     build_daily_series, build_surgery_daily_series, add_moving_average,
     build_biz_ma30_series, build_prevyear_ma_series, build_prevyear_weekly_series,
     week_over_week, achievement_rate, discharge_dow_profile,
+    weekend_census_retention,
 )
 from .charts import (
     build_inpatient_chart, build_new_admission_chart,
@@ -501,6 +502,17 @@ def build_detail_json(adm, surg, targets, surg_targets,
         # 行クリック・ドリル用の単一ユニット入退院データ
         dow_unit_detail[ent] = build_dow_unit_detail(adm, base_date, ent, units)
 
+    # 週末(土日)在院ディップ＝平準化アクション層の主データ（維持率/のびしろ/4週Δ）。
+    # 在院ディップは土日窓（金曜の在院は平日水準。金曜の退院ラッシュは曜日ヒートで別掲）。
+    weekend_leveling = {
+        ent: weekend_census_retention(adm, base_date, entity=ent, weeks=8)
+        for ent in ("ward", "dept")
+    }
+    # のびしろ上位ユニットに「今週の一手」narrative を付与（oMLX/Swallow-8B）。
+    # 未起動・モデル未取得時は narrative=None → フロントが定型文で代替（無害縮退）。
+    from .ai_narrative import narrate_leveling_actions
+    weekend_leveling = narrate_leveling_actions(weekend_leveling, dow_unit_detail, top_n=6)
+
     # ── drill: 診療科ドリルダウン ──
     drill = {}
     r7_nadm = rolling7_new_admission(adm, base_date)
@@ -916,6 +928,7 @@ def build_detail_json(adm, surg, targets, surg_targets,
             "discharge_dow_heatmap_dept": discharge_heatmap_dept,
             "dow_heatmaps": dow_heatmaps,
             "dow_unit_detail": dow_unit_detail,
+            "weekend_leveling": weekend_leveling,
         },
     }
 
