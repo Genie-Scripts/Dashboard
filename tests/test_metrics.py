@@ -23,6 +23,7 @@ from app.lib.metrics import (  # noqa: E402
     build_prevyear_ma_series,
     build_prevyear_weekly_series,
     build_biz_ma30_series,
+    weekend_census_retention,
     PREVYEAR_OFFSET_DAYS,
 )
 
@@ -124,6 +125,55 @@ class TestBizMa30PrevAlign(unittest.TestCase):
     def test_empty_surgery(self):
         empty = pd.DataFrame(columns=["手術実施日", "全麻"])
         self.assertEqual(build_biz_ma30_series(empty, BASE), {"dates": [], "values": []})
+
+
+def _census_adm(base, ward_levels):
+    """直近8完全週(月〜日)の日次在院 adm を合成。
+    ward_levels: {病棟コード: (平日在院, 土日在院)}（各日1行）。"""
+    monday = base - pd.Timedelta(days=base.weekday())
+    idx = pd.date_range(monday - pd.Timedelta(days=56), monday - pd.Timedelta(days=1), freq="D")
+    rows = []
+    for d in idx:
+        we = d.weekday() >= 5
+        for w, (wk, wknd) in ward_levels.items():
+            rows.append({"日付": d, "病棟_表示": True, "病棟コード": w,
+                         "在院患者数": (wknd if we else wk)})
+    return pd.DataFrame(rows)
+
+
+class TestWeekendCensusRetention(unittest.TestCase):
+    """週末(土日)在院ディップ：維持率＝土日÷平日、のびしろ＝(平日−土日)×2。"""
+
+    def test_retention_and_room(self):
+        r = weekend_census_retention(_census_adm(BASE, {"W1": (100, 80)}),
+                                     BASE, entity="ward", weeks=8)
+        u = r["units"][0]
+        self.assertEqual(u["name"], "W1")
+        self.assertAlmostEqual(u["weekday_avg"], 100.0)
+        self.assertAlmostEqual(u["weekend_avg"], 80.0)
+        self.assertAlmostEqual(u["retention"], 0.8)
+        self.assertAlmostEqual(u["room_per_week"], 40.0)      # (100-80)*2
+        self.assertAlmostEqual(r["total"]["retention"], 0.8)
+
+    def test_sorted_by_room_desc_and_min_filter(self):
+        r = weekend_census_retention(
+            _census_adm(BASE, {"BIG": (100, 70), "MID": (50, 44), "SMALL": (3, 1)}),
+            BASE, entity="ward", weeks=8, min_weekday_avg=5.0)
+        names = [u["name"] for u in r["units"]]
+        self.assertEqual(names, ["BIG", "MID"])               # room降順・SMALLは平日<5で除外
+
+    def test_room_clipped_when_weekend_higher(self):
+        # 週末の方が在院が高い＝お手本（維持率>100%・のびしろ0）
+        r = weekend_census_retention(_census_adm(BASE, {"MODEL": (80, 90)}),
+                                     BASE, entity="ward", weeks=8)
+        u = r["units"][0]
+        self.assertEqual(u["room_per_week"], 0.0)
+        self.assertGreater(u["retention"], 1.0)
+
+    def test_empty_input(self):
+        empty = pd.DataFrame(columns=["日付", "病棟_表示", "病棟コード", "在院患者数"])
+        r = weekend_census_retention(empty, BASE, entity="ward")
+        self.assertEqual(r["units"], [])
 
 
 if __name__ == "__main__":

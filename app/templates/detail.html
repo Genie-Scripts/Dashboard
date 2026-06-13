@@ -235,6 +235,12 @@ body.chart-fs-lock{overflow:hidden}
 .lv-legend .sw{width:12px;height:12px;border-radius:3px;flex-shrink:0;margin-top:2px}
 .lv-legend b{color:var(--ink)}
 .lv-dot{cursor:pointer}.lv-dot:hover{stroke:var(--ink);stroke-width:2}
+.lv-outnote{margin-top:8px;font-size:11.5px;line-height:1.9}
+.lv-outnote:empty{display:none}
+.lv-outlbl{color:var(--soft-red-ink);font-weight:800;margin-right:4px}
+.lv-outchip{display:inline-block;background:var(--dr-bg);color:var(--soft-red-ink);border:1px solid #f0c8d2;border-radius:999px;padding:2px 10px;margin:0 5px 4px 0;font-weight:700;cursor:pointer}
+.lv-outchip.sel{outline:2px solid var(--soft-red-ink);outline-offset:1px}
+.lv-outchip:hover{filter:brightness(.97)}
 .lv-rank{display:flex;flex-direction:column}
 .lv-row{display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid var(--ln);cursor:pointer}
 .lv-row:last-child{border-bottom:none}.lv-row:hover{background:var(--bg)}.lv-row.sel{background:var(--bl)}
@@ -249,7 +255,9 @@ body.chart-fs-lock{overflow:hidden}
 .lv-bd.ok{background:var(--ok-bg);color:var(--soft-green-ink)}
 .lv-bd.wr{background:var(--wr-bg);color:var(--soft-amber-ink)}
 .lv-bd.bad{background:var(--dr-bg);color:var(--soft-red-ink)}
-.lv-detail{display:grid;grid-template-columns:1.05fr 1fr;gap:14px}
+.lv-detail{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:14px}
+.lv-nar,.lv-mvline,.lv-link{overflow-wrap:anywhere}
+.lv-nar .ld{white-space:nowrap}
 .lv-dow{background:var(--bg);border:1px solid var(--ln);border-radius:10px;padding:12px 14px}
 .lv-dowt{font-size:11.5px;font-weight:800;color:var(--sub);margin-bottom:8px}
 .lv-dowbars{display:flex;align-items:flex-end;gap:6px;height:96px}
@@ -387,6 +395,7 @@ body.chart-fs-lock{overflow:hidden}
       <div class="lv-kpi" id="lvKpi"></div>
       <h4 class="dhm-sub">① 優先マトリクス <span class="dhm-cap">横＝週末在院維持率（右ほど良好・褒める方向）／縦＝のびしろ</span></h4>
       <div class="lv-matrix-wrap"><svg id="lvMatrix" viewBox="0 0 460 360" role="img" aria-label="優先マトリクス"></svg><div class="lv-legend" id="lvLegend"></div></div>
+      <div class="lv-outnote" id="lvOutliers"></div>
       <h4 class="dhm-sub" style="margin-top:16px">② ランキング <span class="dhm-cap" id="lvRankCap"></span></h4>
       <div class="lv-rank" id="lvRank"></div>
       <h4 class="dhm-sub" style="margin-top:16px">③ 今週の一手 <span class="dhm-cap" id="lvActName"></span></h4>
@@ -1271,10 +1280,10 @@ function toggleDayType(type, checked) {
 }
 
 function renderContent() {
+  renderBalanceLayout();   // レイアウト（balanceの可視/全幅）を先に確定 → renderChart が正しい幅で描画
   renderChart();
   renderRanking();
   renderEstimateSection();
-  renderBalanceLayout();
 }
 
 // 曜日×ユニット ヒートマップは入退院バランスタブだけに表示。
@@ -1319,6 +1328,12 @@ function renderBalanceLayout(){
   const isBal   = currentTab === 'balance';
   const show = (el,on)=>{ if(el) el.style.display = on ? '' : 'none'; };
   if (bar) bar.style.display = isBal ? 'flex' : 'none';
+  // balance の概況は「在院タブと同じ達成状況ランキング」を省略し、発散バーを全幅に
+  if (mainSec){
+    mainSec.style.gridTemplateColumns = isBal ? '1fr' : '';
+    const rp = mainSec.querySelector('.pnl-rank');
+    if (rp) rp.style.display = isBal ? 'none' : '';
+  }
   if (!isBal){ show(mainSec,true); show(heatSec,false); show(lvlSec,false); return; }
   if (bar) bar.querySelectorAll('.bsub').forEach(b=>b.classList.toggle('active', b.dataset.sub===balanceSubtab));
   show(mainSec, balanceSubtab==='overview');
@@ -1339,7 +1354,8 @@ function _lvData(){
   return wl[lvView] || {units:[], total:{}};
 }
 function _lvLost(u){ return u.room_per_week || 0; }
-function _lvName(name){ return name; }   // 病棟コード/診療科名をそのまま表示（将来名称変換可）
+function _lvName(name){ return name; }   // payload側で病棟は表示名に統一済み
+function _lvShort(name){ return String(name).replace('病棟','').replace('センター','C'); }  // マトリクスのバブルラベル用
 function _lvRetClass(r){ return r>=0.92 ? 'ok' : r>=0.86 ? 'wr' : 'bad'; }
 
 function renderLeveling(){
@@ -1373,13 +1389,36 @@ function renderLvKpi(data, units){
     + `<div class="ls">${_lvLost(top).toFixed(0)} 人日/週・維持率 <b>${top.retention!=null?Math.round(top.retention*100):'—'}%</b></div></div>`;
 }
 
-function renderLvMatrix(units){
+function renderLvMatrix(allUnits){
+  // 混雑回避①: のびしろが小さい（=非アクション）ユニットは点を描かず、上位のみプロット
+  const maxRoom = Math.max(...allUnits.map(_lvLost), 1);
+  const roomFloor = Math.max(2, maxRoom * 0.20);
+  let units = allUnits.filter(u => _lvLost(u) >= roomFloor || u.name === lvSel[lvView]);
+  units = units.slice().sort((a,b)=>_lvLost(b)-_lvLost(a)).slice(0, 14);
+  const hidden = allUnits.length - units.length;
+
+  // 混雑回避①b: 維持率が極端に低い（多くは小規模で変動大）外れ値を別枠へ → 本体クラスタを拡大。
+  // 下位からの「次との差>0.10 かつ <0.75」を外れ値として剥がす（ギャップ検出・閾値ハードコード回避）。
+  const byRet = units.slice().sort((a,b)=>(a.retention??1)-(b.retention??1));
+  const outliers = [];
+  for (let i=0; i<byRet.length-1; i++){
+    const cur=byRet[i].retention, nxt=byRet[i+1].retention;
+    if (cur!=null && nxt!=null && cur<0.75 && (nxt-cur)>0.10) outliers.push(byRet[i]);
+    else break;
+  }
+  const outSet = new Set(outliers.map(u=>u.name));
+  const plot = units.filter(u=>!outSet.has(u.name));
+  if (plot.length) units = plot;   // 全部外れ値の異常時のみ元のまま
+
   const W=460,H=360,padL=52,padR=18,padT=18,padB=46;
   const x0=padL,x1=W-padR,y0=H-padB,y1=padT;
   const rooms = units.map(_lvLost);
-  const YMAX = Math.max(20, Math.ceil(Math.max(...rooms,1)/5)*5+3);
+  const YMAX = Math.max(12, Math.ceil(Math.max(...rooms,1)/4)*4 + 2);
   const YTH = Math.round(YMAX*0.45);
-  const XMIN=0.50, XMAX=1.00, XTH=0.85;
+  // 混雑回避②: x軸をデータにズーム（クラスタを横に広げる。外れ値は左端にクリップ）
+  const rets = units.map(u=>u.retention).filter(r=>r!=null);
+  const XMIN = Math.max(0.40, Math.min(0.80, Math.floor((Math.min(...rets,0.85)-0.03)*20)/20));
+  const XMAX=1.00, XTH=0.85;
   const clampX = v => Math.max(XMIN, Math.min(XMAX, v));
   const sx = v => x0+((clampX(v)-XMIN)/(XMAX-XMIN))*(x1-x0);
   const sy = v => y0-(Math.min(v,YMAX)/YMAX)*(y0-y1);
@@ -1388,23 +1427,23 @@ function renderLvMatrix(units){
   s+=`<rect x="${sx(XTH)}" y="${sy(YTH)}" width="${x1-sx(XTH)}" height="${y0-sy(YTH)}" fill="#edfbf3"/>`;
   s+=`<line x1="${sx(XTH)}" y1="${y1}" x2="${sx(XTH)}" y2="${y0}" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="5 4"/>`;
   s+=`<line x1="${x0}" y1="${sy(YTH)}" x2="${x1}" y2="${sy(YTH)}" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="5 4"/>`;
-  [0.5,0.6,0.7,0.8,0.9,1.0].forEach(v=>{s+=`<text x="${sx(v)}" y="${y0+15}" text-anchor="middle" font-size="11" fill="var(--mu)">${Math.round(v*100)}%</text>`;});
-  for(let v=0; v<=YMAX; v+=Math.max(5,Math.round(YMAX/4))) s+=`<text x="${x0-8}" y="${sy(v)+4}" text-anchor="end" font-size="11" fill="var(--mu)">${v}</text>`;
+  for(let k=0;k<=5;k++){ const v=XMIN+(XMAX-XMIN)*k/5; s+=`<text x="${sx(v)}" y="${y0+15}" text-anchor="middle" font-size="11" fill="var(--mu)">${Math.round(v*100)}%</text>`; }
+  for(let v=0; v<=YMAX; v+=Math.max(4,Math.round(YMAX/4))) s+=`<text x="${x0-8}" y="${sy(v)+4}" text-anchor="end" font-size="11" fill="var(--mu)">${v}</text>`;
   s+=`<text x="${(x0+x1)/2}" y="${H-6}" text-anchor="middle" font-size="12" fill="var(--sub)" font-weight="800">週末在院維持率 → 右ほど良好</text>`;
   s+=`<text transform="translate(14,${(y0+y1)/2}) rotate(-90)" text-anchor="middle" font-size="12" fill="var(--sub)" font-weight="800">週末のびしろ/週 → 大</text>`;
   const maxWd = Math.max(...units.map(u=>u.weekday_avg||0),1);
-  // ラベルは混雑回避のため のびしろ上位6＋選択中のみ（他はドットのみ）
-  const labelSet = new Set(units.slice().sort((a,b)=>_lvLost(b)-_lvLost(a)).slice(0,6).map(u=>u.name));
+  // 混雑回避③: バブルは小さめ。ラベルは上位7＋選択中のみ・病棟は短縮名
+  const labelSet = new Set(units.slice(0,7).map(u=>u.name));
   if (lvSel[lvView]) labelSet.add(lvSel[lvView]);
   units.forEach(u=>{
     const ret = u.retention!=null ? u.retention : XMIN;
-    const cx=sx(ret), cy=sy(_lvLost(u)), rr=6+(u.weekday_avg||0)/maxWd*14;
+    const cx=sx(ret), cy=sy(_lvLost(u)), rr=4.5+(u.weekday_avg||0)/maxWd*7;
     const prio = ret<XTH && _lvLost(u)>=YTH, big = ret>=XTH && _lvLost(u)>=YTH, coach = ret<XTH && _lvLost(u)<YTH;
     const col = prio?'var(--soft-red)':big?'var(--soft-amber)':coach?'var(--soft-slate)':'var(--soft-green)';
     const sel = u.name===lvSel[lvView];
-    s+=`<circle class="lv-dot" data-name="${u.name}" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${rr.toFixed(1)}" fill="${col}" fill-opacity="0.9" stroke="${sel?'var(--ink)':'#fff'}" stroke-width="${sel?2.5:1.5}"/>`;
+    s+=`<circle class="lv-dot" data-name="${u.name}" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${rr.toFixed(1)}" fill="${col}" fill-opacity="0.82" stroke="${sel?'var(--ink)':'#fff'}" stroke-width="${sel?2.5:1.2}"/>`;
     if (labelSet.has(u.name))
-      s+=`<text x="${cx.toFixed(1)}" y="${(cy-rr-3).toFixed(1)}" text-anchor="middle" font-size="10.5" font-weight="800" fill="var(--ink)" pointer-events="none">${_lvName(u.name)}</text>`;
+      s+=`<text x="${cx.toFixed(1)}" y="${(cy-rr-3).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="800" fill="var(--ink)" pointer-events="none">${_lvShort(u.name)}</text>`;
   });
   const svg=document.getElementById('lvMatrix');
   svg.innerHTML=s;
@@ -1414,7 +1453,16 @@ function renderLvMatrix(units){
     +`<div class="qz"><span class="sw" style="background:var(--soft-amber)"></span><span><b>右上：規模で効く</b><br>維持率は良いが在院大。小改善でも人日。</span></div>`
     +`<div class="qz"><span class="sw" style="background:var(--soft-slate)"></span><span><b>左下：行動コーチ</b><br>偏在強いが小規模。優先度低。</span></div>`
     +`<div class="qz"><span class="sw" style="background:var(--soft-green)"></span><span><b>右下：良好・手本</b><br>維持できている。横展開。</span></div>`
-    +`<p style="margin-top:5px;font-size:10.5px;color:var(--mu)">バブル径＝平日在院規模。</p>`;
+    +`<p style="margin-top:5px;font-size:10.5px;color:var(--mu)">バブル径＝平日在院規模。${hidden>0?`のびしろ上位のみ表示（小${hidden}件は下のランキング参照）。`:''}</p>`;
+  // 外れ値（小規模・極端低維持）は別枠の注記に（クリックで選択）
+  const on = document.getElementById('lvOutliers');
+  if (on){
+    on.innerHTML = outliers.length
+      ? `<span class="lv-outlbl">⚠ 枠外（維持率が極端に低い小規模ユニット）:</span>`
+        + outliers.map(u=>`<span class="lv-outchip${u.name===lvSel[lvView]?' sel':''}" data-name="${u.name}">${_lvShort(u.name)} 維持率${u.retention!=null?Math.round(u.retention*100):'—'}%・のびしろ${_lvLost(u).toFixed(0)}</span>`).join('')
+      : '';
+    on.querySelectorAll('.lv-outchip').forEach(c=>c.addEventListener('click',()=>{ lvSel[lvView]=c.dataset.name; renderLeveling(); }));
+  }
 }
 
 function renderLvRank(units){
@@ -1460,6 +1508,8 @@ function renderLvDetail(units){
   const dropPct = u.retention!=null ? Math.round((1-u.retention)*100) : null;
   const rec = Math.round(_lvLost(u)*0.55);
   const isWard = lvView==='ward';
+  const isModel = u.retention!=null && u.retention>=1.0;   // 週末≥平日＝手本
+  const friConc = friShare!=null && friShare>=20;          // 金曜集中（20%超）
   const lnar = u.narrative;   // {body, action} or undefined（oMLX生成・上位のみ）
   const aiTag = (lnar && lnar.body) ? ' <span class="lv-aitag">AI</span>' : '';
   // 数値は常にチップで表示（LLM本文は数値を使わない定性的記述）
@@ -1467,9 +1517,11 @@ function renderLvDetail(units){
     + (friShare!=null?` ・ 金曜退院 <b>${friShare}%</b>`:'') + `</div>`;
   const body = (lnar && lnar.body)
     ? `<span class="ld">${_lvName(u.name)}</span>：${lnar.body}`
-    : `<span class="ld">${_lvName(u.name)}</span>は週末（土日）に在院が`
-      + (dropPct!=null?`${dropPct}%低下`:'低下')
-      + (friShare!=null?`。退院が金曜に集中。`:'。');
+    : isModel
+      ? `<span class="ld">${_lvName(u.name)}</span>は週末も在院を保てています（手本）。`
+      : `<span class="ld">${_lvName(u.name)}</span>は週末（土日）に在院が`
+        + (dropPct!=null?`${dropPct}%低下`:'低下')
+        + (friConc?`。退院が金曜に集中。`:'。');
   const moveText = (lnar && lnar.action) ? lnar.action
     : (isWard ? `相乗り科の金曜退院を平日へ分散＋週末入院で補充`
               : `金曜の退院を月〜木へ分散し、空床を平日入院で補充`);

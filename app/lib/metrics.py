@@ -254,6 +254,12 @@ def weekend_census_retention(adm: pd.DataFrame, date: pd.Timestamp,
     recent = daily[daily["日付"] >= mid]
     prev = daily[daily["日付"] < mid]
 
+    # 病棟は表示名に統一（dow_unit_detail/ヒートマップ行クリックが表示名キーのため）
+    name_map = {}
+    if entity == "ward":
+        from .config import WARD_NAMES
+        name_map = WARD_NAMES
+
     units = []
     for name, sub in daily.groupby(group_col):
         wk_avg, we_avg, retention, room = _stats(sub)
@@ -262,7 +268,7 @@ def weekend_census_retention(adm: pd.DataFrame, date: pd.Timestamp,
         _, _, _, room_r = _stats(recent[recent[group_col] == name])
         _, _, _, room_p = _stats(prev[prev[group_col] == name])
         units.append({
-            "name": name,
+            "name": name_map.get(name, name),
             "weekday_avg": round(wk_avg, 1),
             "weekend_avg": round(we_avg, 1),
             "retention": round(retention, 3) if retention is not None else None,
