@@ -220,6 +220,8 @@ body.chart-fs-lock{overflow:hidden}
 .lv-seg{display:flex;gap:4px;border:1px solid var(--ln);border-radius:10px;padding:3px;background:var(--bg)}
 .lv-seg button{background:transparent;border:none;border-radius:8px;font-size:12.5px;font-weight:800;padding:6px 13px;cursor:pointer;color:var(--sub);font-family:inherit;transition:all .15s}
 .lv-seg button.active{background:var(--br);color:#fff}
+.lv-def{font-size:11.5px;color:var(--sub);line-height:1.7;background:#F4F8FB;border:1px solid #DCE6EF;border-radius:8px;padding:9px 12px;margin-bottom:12px}
+.lv-def b{color:var(--ink)}
 .lv-kpi{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:8px}
 .lv-kc{background:var(--bg);border:1px solid var(--ln);border-radius:10px;padding:12px 14px;border-top:4px solid var(--br)}
 .lv-kc.dr{border-top-color:var(--soft-red);background:var(--dr-bg)}
@@ -257,7 +259,7 @@ body.chart-fs-lock{overflow:hidden}
 .lv-bd.bad{background:var(--dr-bg);color:var(--soft-red-ink)}
 .lv-detail{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:14px}
 .lv-nar,.lv-mvline,.lv-link{overflow-wrap:anywhere}
-.lv-nar .ld{white-space:nowrap}
+.lv-ld{white-space:nowrap}
 .lv-dow{background:var(--bg);border:1px solid var(--ln);border-radius:10px;padding:12px 14px}
 .lv-dowt{font-size:11.5px;font-weight:800;color:var(--sub);margin-bottom:8px}
 .lv-dowbars{display:flex;align-items:flex-end;gap:6px;height:96px}
@@ -271,7 +273,7 @@ body.chart-fs-lock{overflow:hidden}
 .lv-chip b{color:var(--ink);font-weight:900}
 .lv-aitag{font-size:9px;font-weight:800;color:var(--br);background:var(--bl);border-radius:999px;padding:1px 6px;margin-left:4px;vertical-align:middle}
 .lv-nar{font-size:13px;line-height:1.7;color:var(--ink);background:var(--s);border:1px solid var(--ln);border-radius:9px;padding:10px 12px}
-.lv-nar .ld{color:var(--dr-t);font-weight:800}
+.lv-ld{color:var(--dr-t);font-weight:800}
 .lv-mvline{display:flex;align-items:center;gap:7px;margin-top:9px;padding:9px 11px;background:var(--bl);border-radius:9px;font-size:12.5px;font-weight:800;color:var(--br)}
 .lv-link{font-size:11.5px;line-height:1.65;color:var(--sub);margin-top:9px;padding:8px 10px;background:#F4F8FB;border:1px solid #DCE6EF;border-radius:8px}
 .lv-link b{color:var(--ink)}
@@ -392,6 +394,7 @@ body.chart-fs-lock{overflow:hidden}
           <button data-metric="ratio" onclick="setLvMetric('ratio')">維持率（％）</button>
         </div>
       </div>
+      <div class="lv-def">💡 <b>のびしろ</b>＝（平日[月〜金]平均在院 − 土日平均在院）× 2日 ＝ <b>週末に取り戻せる在院（人日/週）</b>。<b>維持率</b>＝土日平均 ÷ 平日平均（高いほど良い・100%でディップ無）。在院日数の延長ではなく、<b>金曜退院の平日分散＋週末入院の補充</b>で取り戻す（週末＝土日。金曜の退院ラッシュは「曜日構造」で別掲）。</div>
       <div class="lv-kpi" id="lvKpi"></div>
       <h4 class="dhm-sub">① 優先マトリクス <span class="dhm-cap">横＝週末在院維持率（右ほど良好・褒める方向）／縦＝のびしろ</span></h4>
       <div class="lv-matrix-wrap"><svg id="lvMatrix" viewBox="0 0 460 360" role="img" aria-label="優先マトリクス"></svg><div class="lv-legend" id="lvLegend"></div></div>
@@ -1515,11 +1518,14 @@ function renderLvDetail(units){
   // 数値は常にチップで表示（LLM本文は数値を使わない定性的記述）
   const chip = `<div class="lv-chip">のびしろ <b>${_lvLost(u).toFixed(0)}</b> 人日/週 ・ 維持率 <b>${u.retention!=null?Math.round(u.retention*100):'—'}%</b>`
     + (friShare!=null?` ・ 金曜退院 <b>${friShare}%</b>`:'') + `</div>`;
+  const _nm = _lvName(u.name);
   const body = (lnar && lnar.body)
-    ? `<span class="ld">${_lvName(u.name)}</span>：${lnar.body}`
+    ? (lnar.body.startsWith(_nm)                              // LLM本文が部署名で始まる場合は二重表記を避け、先頭名だけ強調
+        ? `<span class="lv-ld">${_nm}</span>${lnar.body.slice(_nm.length)}`
+        : `<span class="lv-ld">${_nm}</span>：${lnar.body}`)
     : isModel
-      ? `<span class="ld">${_lvName(u.name)}</span>は週末も在院を保てています（手本）。`
-      : `<span class="ld">${_lvName(u.name)}</span>は週末（土日）に在院が`
+      ? `<span class="lv-ld">${_nm}</span>は週末も在院を保てています（手本）。`
+      : `<span class="lv-ld">${_nm}</span>は週末（土日）に在院が`
         + (dropPct!=null?`${dropPct}%低下`:'低下')
         + (friConc?`。退院が金曜に集中。`:'。');
   const moveText = (lnar && lnar.action) ? lnar.action
