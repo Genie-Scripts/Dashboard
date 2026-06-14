@@ -1394,6 +1394,10 @@ function renderDowProfile(entity, name, wrapId){
   const d = det && det[name];
   if (!d || !d.discharge){ wrap.innerHTML = '<div class="lv-empty">曜日データなし</div>'; return; }
 
+  // 病棟は床フロー（流入=新入院+転入 / 流出=退院+死亡+転出）、診療科は純粋な退院/入院
+  const isWard = entity === 'ward';
+  const outLbl = isWard ? '流出' : '退院';
+  const inLbl  = isWard ? '流入' : '入院';
   const rb = (w,lbl)=>`<button class="dowp-rb${dowWin===w?' active':''}" onclick="setDowWin('${w}')">${lbl}</button>`;
   const chartId = wrapId + '_chart';
   const pwD = (d.discharge.per_week && d.discharge.per_week[dowWin]) || 0;
@@ -1404,16 +1408,16 @@ function renderDowProfile(entity, name, wrapId){
     +   _dowBadge(entity, name)
     + `</div>`
     + `<div class="dowp-chart" id="${chartId}"></div>`
-    + `<div class="dowp-delta"><span class="dowp-dt">退院の傾向（直近4週 vs 前4週）</span>${_dowDischargeDelta(d.discharge.delta)}</div>`
-    + `<div class="dowp-meta">週あたり 退院 <b>${pwD}</b>件 ／ 入院 <b>${pwA}</b>件（${DOW_WIN_LABEL[dowWin]}）。`
+    + `<div class="dowp-delta"><span class="dowp-dt">${outLbl}の傾向（直近4週 vs 前4週）</span>${_dowDischargeDelta(d.discharge.delta)}</div>`
+    + `<div class="dowp-meta">週あたり ${outLbl} <b>${pwD}</b>件 ／ ${inLbl} <b>${pwA}</b>件（${DOW_WIN_LABEL[dowWin]}）。`
     +   `棒＝曜日別の日平均人数。<b style="color:#2a9d8f">緑線＝在院指数（平日平均=100）</b>で、谷ほど週末に在院が落ちている。`
-    +   `<b>退院が金土に偏り・入院が平日に寄るほど、退院前倒し（金→月〜木）＋週末入院補充の余地</b>。`
-    +   `<span class="dowp-dn"> 死亡退院・転出は除く。</span></div>`;
+    +   `<b>${outLbl}が金土に偏り・${inLbl}が平日に寄るほど、退院前倒し（金→月〜木）＋週末入院補充の余地</b>。`
+    +   `<span class="dowp-dn"> ${isWard ? '流出＝退院+死亡+転出／流入＝新入院+転入。' : '死亡退院・転出は除く。'}</span></div>`;
 
   const yD = d.discharge[dowWin] || [], yA = (d.admission && d.admission[dowWin]) || [];
   const traces = [
-    {type:'bar', name:'🚪 退院', x:LV_WK, y:yD, marker:{color:'#e07a5f'}},
-    {type:'bar', name:'🛏️ 入院', x:LV_WK, y:yA, marker:{color:'#3d5a80'}},
+    {type:'bar', name:'🚪 ' + outLbl, x:LV_WK, y:yD, marker:{color:'#e07a5f'}},
+    {type:'bar', name:'🛏️ ' + inLbl, x:LV_WK, y:yA, marker:{color:'#3d5a80'}},
   ];
   // 在院の谷ライン: 平均日次在院を「平日(月〜金)平均=100」に指数化して y2 に重ねる。
   // 100アンカー固定で軸がぶれず、週末の在院ディップ(週内変動)が一目で読める。

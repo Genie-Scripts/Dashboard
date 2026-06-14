@@ -666,17 +666,24 @@ def build_dow_unit_detail(adm: pd.DataFrame, base_date: pd.Timestamp,
     集計期間ラジオ（直近7日=w7 / 直近4週=w4 / 直近8週=w8）に対応する。
     delta は 8週呼び出しの 4週Δ（直近4週 − 前4週・シェアpt）＝傾向の固定指標。
     census は曜日別の平均日次在院（生の人数・フロント側で平日平均=100の指数化に使う）。
+    病棟は床フロー（流入=新入院+転入 / 流出=退院+死亡+転出）。診療科は転入転出が
+    同一科内でゼロ和のため純粋な新入院/退院。入退院バランスタブの流入/流出定義に揃える。
     """
     from .metrics import dow_event_profile
     group_col = "病棟コード" if entity == "ward" else "診療科名"
     metrics = ["discharge", "admission"]
     windows = {"w7": 1, "w4": 4, "w8": 8}
+    # discharge=流出側 / admission=流入側 の列をエンティティ別に切替
+    if entity == "ward":
+        col = {"discharge": "退出合計", "admission": "新入院患者数_病棟"}
+    else:
+        col = {"discharge": "退院患者数", "admission": "新入院患者数"}
 
     out = {}
     for code, name in units:
         md = {}
         for met in metrics:
-            value_col = DOW_METRICS[met][0]
+            value_col = col[met]
             avgs, pws, delta = {}, {}, [0.0] * 7
             for key, wk in windows.items():
                 p = dow_event_profile(adm, base_date, value_col,
