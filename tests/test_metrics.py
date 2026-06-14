@@ -170,6 +170,29 @@ class TestWeekendCensusRetention(unittest.TestCase):
         self.assertEqual(u["room_per_week"], 0.0)
         self.assertGreater(u["retention"], 1.0)
 
+    def test_census_delta_constant_is_zero(self):
+        # 在院サマリ バッジ用フィールド: 定常な在院では census_delta_4w=0
+        r = weekend_census_retention(_census_adm(BASE, {"W1": (100, 80)}),
+                                     BASE, entity="ward", weeks=8)
+        u = r["units"][0]
+        self.assertIn("census_delta_4w", u)
+        self.assertAlmostEqual(u["census_delta_4w"], 0.0)
+
+    def test_census_delta_4w_tracks_weekday_change(self):
+        # 平日在院が 前4週90 → 直近4週110 なら census_delta_4w=+20
+        monday = BASE - pd.Timedelta(days=BASE.weekday())
+        mid = monday - pd.Timedelta(days=28)   # 直近半=[mid,end] / 前半=[start,mid)
+        idx = pd.date_range(monday - pd.Timedelta(days=56), monday - pd.Timedelta(days=1), freq="D")
+        rows = []
+        for d in idx:
+            we = d.weekday() >= 5
+            wk = 110 if d >= mid else 90
+            rows.append({"日付": d, "病棟_表示": True, "病棟コード": "W1",
+                         "在院患者数": (80 if we else wk)})
+        r = weekend_census_retention(pd.DataFrame(rows), BASE, entity="ward", weeks=8)
+        u = r["units"][0]
+        self.assertAlmostEqual(u["census_delta_4w"], 20.0)
+
     def test_empty_input(self):
         empty = pd.DataFrame(columns=["日付", "病棟_表示", "病棟コード", "在院患者数"])
         r = weekend_census_retention(empty, BASE, entity="ward")

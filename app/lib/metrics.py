@@ -265,8 +265,8 @@ def weekend_census_retention(adm: pd.DataFrame, date: pd.Timestamp,
         wk_avg, we_avg, retention, room = _stats(sub)
         if wk_avg < min_weekday_avg:
             continue
-        _, _, _, room_r = _stats(recent[recent[group_col] == name])
-        _, _, _, room_p = _stats(prev[prev[group_col] == name])
+        wk_r, _, _, room_r = _stats(recent[recent[group_col] == name])
+        wk_p, _, _, room_p = _stats(prev[prev[group_col] == name])
         units.append({
             "name": name_map.get(name, name),
             "weekday_avg": round(wk_avg, 1),
@@ -274,6 +274,8 @@ def weekend_census_retention(adm: pd.DataFrame, date: pd.Timestamp,
             "retention": round(retention, 3) if retention is not None else None,
             "room_per_week": round(room, 1),
             "room_delta_4w": round(room_r - room_p, 1),
+            # 在院サマリ バッジ用: 平日平均在院の 直近4週 − 前4週（増減アイコン・評価色なし）
+            "census_delta_4w": round(wk_r - wk_p, 1),
         })
 
     units.sort(key=lambda u: u["room_per_week"], reverse=True)

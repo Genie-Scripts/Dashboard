@@ -654,32 +654,37 @@ def build_dow_heatmap(adm: pd.DataFrame, base_date: pd.Timestamp,
 
 
 def build_dow_unit_detail(adm: pd.DataFrame, base_date: pd.Timestamp,
-                          entity: str, units: list, weeks: int = 8) -> dict:
-    """単一ユニットの入退院 曜日比較（行クリック・ドリル）用データ。
+                          entity: str, units: list) -> dict:
+    """単一ユニットの入退院 曜日プロファイル（曜日構造の行クリック / 平準化カード選択）用データ。
 
-    返値: { ユニット名: { metric: {avg:[月..日 日平均人数], per_week, delta:[Δpt]} } }
-    metric は discharge / admission / planned / emergency（病棟は transfer_in も）。
-    avg は 8週合計を実集計週数で割った「その曜日の日平均人数」。
+    返値: { ユニット名: { metric: {w7:[月..日], w4:[...], w8:[...],
+                                   per_week:{w7,w4,w8}, delta:[Δpt]} } }
+    metric は discharge / admission（全入院）の2種のみ。予定/緊急/転入の内訳は
+    曜日構造のヒートマップ（dow_heatmaps）側に任せ、ここには含めない（payload削減）。
+    各窓 wN は「直近N週（完全週・月〜日）」を母数にした曜日別 日平均人数で、
+    集計期間ラジオ（直近7日=w7 / 直近4週=w4 / 直近8週=w8）に対応する。
+    delta は 8週呼び出しの 4週Δ（直近4週 − 前4週・シェアpt）＝傾向の固定指標。
     """
     from .metrics import dow_event_profile
     group_col = "病棟コード" if entity == "ward" else "診療科名"
-    metrics = ["discharge", "admission", "planned", "emergency"]
-    if entity == "ward":
-        metrics.append("transfer_in")
+    metrics = ["discharge", "admission"]
+    windows = {"w7": 1, "w4": 4, "w8": 8}
 
     out = {}
     for code, name in units:
         md = {}
         for met in metrics:
             value_col = DOW_METRICS[met][0]
-            p = dow_event_profile(adm, base_date, value_col,
-                                  group_col=group_col, group_val=code, weeks=weeks)
-            w = p["weeks"] or 1
-            md[met] = {
-                "avg": [round(c / w, 1) for c in p["counts"]],
-                "per_week": p["per_week"],
-                "delta": p["delta"],
-            }
+            avgs, pws, delta = {}, {}, [0.0] * 7
+            for key, wk in windows.items():
+                p = dow_event_profile(adm, base_date, value_col,
+                                      group_col=group_col, group_val=code, weeks=wk)
+                w = p["weeks"] or 1
+                avgs[key] = [round(c / w, 1) for c in p["counts"]]
+                pws[key] = p["per_week"]
+                if key == "w8":
+                    delta = p["delta"]
+            md[met] = {**avgs, "per_week": pws, "delta": delta}
         out[name] = md
     return out
 

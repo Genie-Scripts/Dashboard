@@ -157,10 +157,10 @@ def _q_delta(d):
 
 
 def _q_friday(dd):
-    """退院の金曜集中度（dow_unit_detail の discharge.avg[月..日]）"""
-    if not dd or not dd.get("discharge", {}).get("avg"):
+    """退院の金曜集中度（dow_unit_detail の discharge.w8[月..日]＝8週平均）"""
+    if not dd or not dd.get("discharge", {}).get("w8"):
         return None
-    avg = dd["discharge"]["avg"]
+    avg = dd["discharge"]["w8"]
     tot = sum(avg)
     if tot <= 0: return None
     share = avg[4] / tot
@@ -170,10 +170,10 @@ def _q_friday(dd):
 
 
 def _q_weekend_adm(dd):
-    """週末入院での補充の有無（admission.avg の土日 vs 平日）"""
-    if not dd or not dd.get("admission", {}).get("avg"):
+    """週末入院での補充の有無（admission.w8 の土日 vs 平日＝8週平均）"""
+    if not dd or not dd.get("admission", {}).get("w8"):
         return None
-    a = dd["admission"]["avg"]
+    a = dd["admission"]["w8"]
     wd = sum(a[0:5]) / 5 if len(a) >= 5 else 0
     we = sum(a[5:7]) / 2 if len(a) >= 7 else 0
     if wd <= 0: return None

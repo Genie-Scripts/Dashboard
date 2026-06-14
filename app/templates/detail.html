@@ -222,7 +222,7 @@ body.chart-fs-lock{overflow:hidden}
 .lv-seg button.active{background:var(--br);color:#fff}
 .lv-def{font-size:11.5px;color:var(--sub);line-height:1.7;background:#F4F8FB;border:1px solid #DCE6EF;border-radius:8px;padding:9px 12px;margin-bottom:12px}
 .lv-def b{color:var(--ink)}
-.lv-kpi{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:8px}
+.lv-kpi{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:8px}
 .lv-kc{background:var(--bg);border:1px solid var(--ln);border-radius:10px;padding:12px 14px;border-top:4px solid var(--br)}
 .lv-kc.dr{border-top-color:var(--soft-red);background:var(--dr-bg)}
 .lv-kc .lk{font-size:11.5px;color:var(--sub);font-weight:700}
@@ -257,7 +257,34 @@ body.chart-fs-lock{overflow:hidden}
 .lv-bd.ok{background:var(--ok-bg);color:var(--soft-green-ink)}
 .lv-bd.wr{background:var(--wr-bg);color:var(--soft-amber-ink)}
 .lv-bd.bad{background:var(--dr-bg);color:var(--soft-red-ink)}
-.lv-detail{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:14px}
+.lv-bd.mu{background:var(--bg);color:var(--sub);border:1px solid var(--ln)}
+/* ② 部門カード（固定順・順位なし・中立トーン） */
+.lv-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:8px}
+.lv-card{display:flex;flex-direction:column;gap:6px;align-items:stretch;text-align:left;background:var(--bg);border:1px solid var(--ln);border-radius:10px;padding:9px 11px;cursor:pointer;font-family:inherit;transition:all .12s}
+.lv-card:hover{border-color:var(--br);background:var(--s)}
+.lv-card.sel{border-color:var(--br);box-shadow:0 0 0 2px var(--bl)}
+.lv-card-nm{font-size:12.5px;font-weight:800;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lv-card-model{font-size:9px;font-weight:800;color:var(--soft-green-ink);background:var(--ok-bg);border-radius:999px;padding:1px 6px;margin-left:3px}
+.lv-card-mt{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.lv-card-mt .lv-bd{flex:0 0 auto;min-width:46px}
+.lv-card-ic{font-size:13px;font-weight:900;color:var(--mu)}
+/* 入退院 曜日プロファイル 共通部品 */
+.lv-profile{margin-bottom:4px}
+.dowp-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:4px}
+.dowp-radio{display:flex;gap:3px;border:1px solid var(--ln);border-radius:9px;padding:3px;background:var(--bg)}
+.dowp-rb{background:transparent;border:none;border-radius:7px;font-size:11.5px;font-weight:800;padding:5px 11px;cursor:pointer;color:var(--sub);font-family:inherit;transition:all .12s}
+.dowp-rb.active{background:var(--br);color:#fff}
+.dowp-badge{font-size:11.5px;color:var(--sub);font-weight:700;background:var(--bg);border:1px solid var(--ln);border-radius:999px;padding:4px 11px;white-space:nowrap}
+.dowp-badge b{font-size:16px;font-weight:900;color:var(--ink)}
+.dowp-badge small{font-size:10px;color:var(--mu);font-weight:700}
+.dowp-bi{color:var(--sub);font-weight:800;margin-left:4px}
+.dowp-chart{width:100%}
+.dowp-delta{font-size:11.5px;line-height:1.8;color:var(--sub);margin-top:4px;padding:7px 11px;background:var(--bg);border:1px solid var(--ln);border-radius:8px}
+.dowp-dt{font-weight:800;color:var(--ink);margin-right:8px}
+.dowp-dn{color:var(--mu)}
+.dowp-meta{font-size:11px;color:var(--sub);line-height:1.65;margin-top:6px}
+.dowp-meta b{color:var(--ink);font-weight:800}
+.lv-detail{display:flex;flex-direction:column;gap:14px}
 .lv-nar,.lv-mvline,.lv-link{overflow-wrap:anywhere}
 .lv-ld{white-space:nowrap}
 .lv-dow{background:var(--bg);border:1px solid var(--ln);border-radius:10px;padding:12px 14px}
@@ -280,7 +307,12 @@ body.chart-fs-lock{overflow:hidden}
 .lv-foot{font-size:11px;color:var(--sub);line-height:1.6;margin-top:12px;padding:9px 11px;background:var(--s);border:1px solid var(--ln);border-radius:9px}
 .lv-foot b{color:var(--ink)}
 .lv-empty{font-size:12px;color:var(--mu);padding:20px;text-align:center}
-@media(max-width:768px){.lv-kpi{grid-template-columns:1fr}.lv-detail{grid-template-columns:1fr}.lv-nm{flex-basis:70px}.lv-mv{flex-basis:70px}}
+@media(max-width:768px){
+  .lv-kpi{grid-template-columns:1fr}
+  .lv-cards{grid-template-columns:repeat(auto-fill,minmax(108px,1fr))}
+  .dowp-head{flex-direction:column;align-items:stretch}
+  .dowp-badge{align-self:flex-start}
+}
 </style>
 </head>
 <body>
@@ -373,8 +405,7 @@ body.chart-fs-lock{overflow:hidden}
           <h4 class="dhm-sub" style="margin:0" id="dhmDrillTitle"></h4>
           <button class="dhm-tg" onclick="closeDhmDrill()">✕ 閉じる</button>
         </div>
-        <div class="dhm-chart" id="dhmDrillChart"></div>
-        <div id="dhmDrillMeta" style="font-size:11px;color:var(--mu);line-height:1.6;margin-top:6px"></div>
+        <div id="dhmDrillBody"></div>
       </div>
 
       <div id="dhmFootnote" style="margin-top:8px;font-size:11px;color:var(--mu);line-height:1.6"></div>
@@ -389,21 +420,17 @@ body.chart-fs-lock{overflow:hidden}
           <button data-view="dept" class="active" onclick="setLvView('dept')">🩺 診療科（患者軸）</button>
           <button data-view="ward" onclick="setLvView('ward')">🛏 病棟（床軸）</button>
         </div>
-        <div class="lv-seg" id="lvMetricSeg">
-          <button data-metric="abs" class="active" onclick="setLvMetric('abs')">のびしろ（実数）</button>
-          <button data-metric="ratio" onclick="setLvMetric('ratio')">維持率（％）</button>
-        </div>
       </div>
-      <div class="lv-def">💡 <b>のびしろ</b>＝（平日[月〜金]平均在院 − 土日平均在院）× 2日 ＝ <b>週末に取り戻せる在院（人日/週）</b>。<b>維持率</b>＝土日平均 ÷ 平日平均（高いほど良い・100%でディップ無）。在院日数の延長ではなく、<b>金曜退院の平日分散＋週末入院の補充</b>で取り戻す（週末＝土日。金曜の退院ラッシュは「曜日構造」で別掲）。</div>
+      <div class="lv-def">💡 <b>週末在院維持率</b>＝土日平均在院 ÷ 平日平均在院（高いほど良い・100%でディップ無）。狙いは在院日数の延長ではなく、<b>金曜退院の平日分散＋週末入院の補充</b>で週末も在院を保つこと（週末＝土日。金曜の退院ラッシュは「曜日構造」で別掲）。</div>
       <div class="lv-kpi" id="lvKpi"></div>
-      <h4 class="dhm-sub">① 優先マトリクス <span class="dhm-cap">横＝週末在院維持率（右ほど良好・褒める方向）／縦＝のびしろ</span></h4>
-      <div class="lv-matrix-wrap"><svg id="lvMatrix" viewBox="0 0 460 360" role="img" aria-label="優先マトリクス"></svg><div class="lv-legend" id="lvLegend"></div></div>
+      <h4 class="dhm-sub">① 全体マップ <span class="dhm-cap">横＝週末在院維持率（右ほど良好・褒める方向）／縦＝週末に取り戻せる在院。<span style="color:var(--soft-green-ink);font-weight:800">緑＝手本</span></span></h4>
+      <div class="lv-matrix-wrap"><svg id="lvMatrix" viewBox="0 0 460 360" role="img" aria-label="全体マップ"></svg><div class="lv-legend" id="lvLegend"></div></div>
       <div class="lv-outnote" id="lvOutliers"></div>
-      <h4 class="dhm-sub" style="margin-top:16px">② ランキング <span class="dhm-cap" id="lvRankCap"></span></h4>
-      <div class="lv-rank" id="lvRank"></div>
+      <h4 class="dhm-sub" style="margin-top:16px">② 部門を選ぶ <span class="dhm-cap">クリックで下に曜日プロファイルと今週の一手</span></h4>
+      <div class="lv-cards" id="lvCards"></div>
       <h4 class="dhm-sub" style="margin-top:16px">③ 今週の一手 <span class="dhm-cap" id="lvActName"></span></h4>
       <div class="lv-detail" id="lvDetail"></div>
-      <div class="lv-foot">狙いは週末ディップの回復＝<b>金曜の退院を月〜木へ分散＋週末入院で補充</b>（新患が週末も在院＝ベッド回転）。<b>在院日数の延長＝月曜延伸はしない</b>。週末＝土日（金曜の退院ラッシュは「曜日構造」で別掲）。順位＝のびしろ（インパクト）／バッジ＝維持率（規模に依らず公平）。</div>
+      <div class="lv-foot">狙いは週末ディップの回復＝<b>金曜の退院を月〜木へ分散＋週末入院で補充</b>（新患が週末も在院＝ベッド回転）。<b>在院日数の延長＝月曜延伸はしない</b>。週末＝土日（金曜の退院ラッシュは「曜日構造」で別掲）。</div>
     </div>
   </section>
 
@@ -571,27 +598,13 @@ function renderDowHeatmaps() {
   if (dhmDrillUnit) renderDhmDrill();
 }
 
-// ── 単一ユニットの入退院 曜日比較（行クリック・ドリル） ──
-function _deltaSummary(delta) {
-  const L = ['月','火','水','木','金','土','日'];
-  let up = 0, dn = 0;
-  for (let i = 1; i < 7; i++) { if (delta[i] > delta[up]) up = i; if (delta[i] < delta[dn]) dn = i; }
-  const parts = [];
-  if (delta[up] > 0.5) parts.push(`${L[up]}+${delta[up].toFixed(0)}pt`);
-  if (delta[dn] < -0.5) parts.push(`${L[dn]}${delta[dn].toFixed(0)}pt`);
-  return parts.length ? parts.join('・') : 'ほぼ横ばい';
-}
-
+// ── 単一ユニットの入退院 曜日プロファイル（行クリック・ドリル → 共通部品 renderDowProfile）──
 function openDhmDrill(name) {
-  // 行クリック → 平準化アクションの「今週の一手」へ送客（旧インラインdrillを統合）
-  lvView = dhmEntity;
-  lvSel[dhmEntity] = name;
-  _lvRendered = false;
-  document.querySelectorAll('#lvViewSeg button').forEach(b =>
-    b.classList.toggle('active', b.dataset.view === dhmEntity));
-  setBalanceSubtab('action');
-  const sec = document.getElementById('levelingSection');
-  if (sec) sec.scrollIntoView({behavior:'smooth', block:'start'});
+  // 行クリック → 同タブ内にインラインで入退院 曜日プロファイルを開く（探索面）
+  dhmDrillUnit = name;
+  document.getElementById('dhmDrill').style.display = '';
+  renderDhmDrill();
+  document.getElementById('dhmDrill').scrollIntoView({behavior:'smooth', block:'nearest'});
 }
 
 function closeDhmDrill() {
@@ -600,34 +613,11 @@ function closeDhmDrill() {
 }
 
 function renderDhmDrill() {
-  const det = DATA.charts && DATA.charts.dow_unit_detail && DATA.charts.dow_unit_detail[dhmEntity];
   const name = dhmDrillUnit;
-  if (!det || !det[name]) { closeDhmDrill(); return; }  // 対象切替で存在しなければ閉じる
-  let am = dhmAdm;
-  if (dhmEntity === 'dept' && am === 'transfer_in') am = 'admission';
-  const d = det[name];
-  const L = ['月','火','水','木','金','土','日'];
-  const traces = [
-    {type:'bar', name:'🚪 退院', x:L, y:d.discharge.avg, marker:{color:'#e07a5f'}},
-    {type:'bar', name:'🛏️ ' + DHM_ADM_LABELS[am], x:L, y:d[am].avg, marker:{color:'#3d5a80'}},
-  ];
-  const layout = {
-    barmode:'group', height:_pH(260),
-    margin:{l:42, r:16, t:8, b:30},
-    font:{family:'Noto Sans JP, sans-serif', size:11, color:'#5A6A82'},
-    legend:{orientation:'h', x:0, y:-0.22},
-    plot_bgcolor:'#fff', paper_bgcolor:'#fff',
-    xaxis:{type:'category'},
-    yaxis:{rangemode:'tozero', title:{text:'日平均(人)', font:{size:10}}, gridcolor:'#eef2f7'},
-    hovermode:'x unified',
-  };
-  Plotly.newPlot('dhmDrillChart', traces, layout, {responsive:true, displayModeBar:false});
-  document.getElementById('dhmDrillTitle').textContent =
-    `📊 ${name} 入退院 曜日プロファイル（直近8週・日平均）`;
-  document.getElementById('dhmDrillMeta').innerHTML =
-    `週平均 退院 <b>${d.discharge.per_week}</b>件 ／ ${DHM_ADM_LABELS[am]} <b>${d[am].per_week}</b>件。`
-    + ` 4週Δ(直近4週−前4週シェア): 退院 ${_deltaSummary(d.discharge.delta)} ／ ${DHM_ADM_LABELS[am]} ${_deltaSummary(d[am].delta)}。`
-    + ` <span style="color:var(--mu)">棒=曜日別の日平均人数。退院が金土に偏り入院が平日に寄るほど、退院前倒し（土→月）の余地。</span>`;
+  const det = DATA.charts && DATA.charts.dow_unit_detail && DATA.charts.dow_unit_detail[dhmEntity];
+  if (!name || !det || !det[name]) { closeDhmDrill(); return; }  // 対象切替で存在しなければ閉じる
+  document.getElementById('dhmDrillTitle').textContent = `📊 ${name} 入退院 曜日プロファイル`;
+  renderDowProfile(dhmEntity, name, 'dhmDrillBody');   // 共通部品（集計期間ラジオ＋Δ＋在院バッジ）
 }
 
 function switchDhmEntity(e) {
@@ -1308,7 +1298,6 @@ function renderDischargeHeatmapVisibility() {
 // ════════════════════════════════════════
 let balanceSubtab = 'overview';   // overview | dow | action
 let lvView = 'dept';              // dept | ward
-let lvMetric = 'abs';             // abs(のびしろ) | ratio(維持率)
 let lvSel = {};                   // entity → 選択ユニット名
 let _lvRendered = false;
 const LV_WK = ['月','火','水','木','金','土','日'];
@@ -1316,10 +1305,6 @@ const LV_WK = ['月','火','水','木','金','土','日'];
 function setBalanceSubtab(t){ balanceSubtab = t; renderBalanceLayout(); }
 function setLvView(v){ lvView = v;
   document.querySelectorAll('#lvViewSeg button').forEach(b=>b.classList.toggle('active', b.dataset.view===v));
-  renderLeveling();
-}
-function setLvMetric(m){ lvMetric = m;
-  document.querySelectorAll('#lvMetricSeg button').forEach(b=>b.classList.toggle('active', b.dataset.metric===m));
   renderLeveling();
 }
 
@@ -1361,35 +1346,121 @@ function _lvName(name){ return name; }   // payload側で病棟は表示名に�
 function _lvShort(name){ return String(name).replace('病棟','').replace('センター','C'); }  // マトリクスのバブルラベル用
 function _lvRetClass(r){ return r>=0.92 ? 'ok' : r>=0.86 ? 'wr' : 'bad'; }
 
+// ════════════════════════════════════════
+// 入退院 曜日プロファイル（共通部品）
+//   曜日構造の行クリック（探索）と 平準化アクションのカード選択（発信）の両方から使う。
+//   退院/入院の併置グループ棒＋集計期間ラジオ(直近7日/4週/8週)＋退院傾向Δ数字＋在院バッジ。
+// ════════════════════════════════════════
+let dowWin = 'w8';            // w7(直近7日) | w4(直近4週) | w8(直近8週)
+let dowProfileCtx = null;     // {entity, name, wrapId}（ラジオ再描画・リサイズ追随用）
+const DOW_WIN_LABEL = {w7:'直近7日', w4:'直近4週', w8:'直近8週'};
+
+function setDowWin(w){
+  dowWin = w;
+  if (dowProfileCtx) renderDowProfile(dowProfileCtx.entity, dowProfileCtx.name, dowProfileCtx.wrapId);
+}
+
+// 在院サマリ バッジ（平日平均在院＋増減アイコン・評価色なし＝記述的）
+function _dowBadge(entity, name){
+  const wl = (DATA.charts && DATA.charts.weekend_leveling && DATA.charts.weekend_leveling[entity]) || {units:[]};
+  const u = (wl.units||[]).find(x=>x.name===name);
+  if (!u) return '';
+  const lvl = u.weekday_avg!=null ? u.weekday_avg.toFixed(0) : '—';
+  const d = u.census_delta_4w;
+  const icon = (d>0.5) ? '▲ 増' : (d<-0.5) ? '▼ 減' : '― 横ばい';
+  return `<div class="dowp-badge">平日在院 <b>${lvl}</b><small>人</small> <span class="dowp-bi">${icon}</span></div>`;
+}
+
+// 退院の曜日Δ（直近4週 − 前4週・シェアpt）を平準化の望ましさで色分け。動いた曜日(|Δ|≥2)のみ。
+//   金土＝減るほど改善（緑）／月〜木＝増えるほど改善（緑）。日は中立。
+function _dowDischargeDelta(delta){
+  const parts = [];
+  (delta||[]).forEach((v,i)=>{
+    if (Math.abs(v) < 2) return;
+    if (i === 6){ parts.push(`<span class="dowp-dn">${LV_WK[i]} ${v>0?'+':''}${v.toFixed(0)}pt</span>`); return; }
+    const good = (i===4||i===5) ? v<0 : v>0;
+    const col = good ? 'var(--soft-green-ink)' : 'var(--soft-red-ink)';
+    const tag = good ? '改善' : '偏り拡大';
+    parts.push(`<span style="color:${col};font-weight:800">${LV_WK[i]} ${v>0?'+':''}${v.toFixed(0)}pt ${tag}</span>`);
+  });
+  return parts.length ? parts.join('　') : '<span class="dowp-dn">大きな変化なし</span>';
+}
+
+function renderDowProfile(entity, name, wrapId){
+  const wrap = document.getElementById(wrapId);
+  if (!wrap) return;
+  dowProfileCtx = {entity, name, wrapId};
+  const det = DATA.charts && DATA.charts.dow_unit_detail && DATA.charts.dow_unit_detail[entity];
+  const d = det && det[name];
+  if (!d || !d.discharge){ wrap.innerHTML = '<div class="lv-empty">曜日データなし</div>'; return; }
+
+  const rb = (w,lbl)=>`<button class="dowp-rb${dowWin===w?' active':''}" onclick="setDowWin('${w}')">${lbl}</button>`;
+  const chartId = wrapId + '_chart';
+  const pwD = (d.discharge.per_week && d.discharge.per_week[dowWin]) || 0;
+  const pwA = (d.admission && d.admission.per_week && d.admission.per_week[dowWin]) || 0;
+  wrap.innerHTML =
+      `<div class="dowp-head">`
+    +   `<div class="dowp-radio">${rb('w7','直近7日')}${rb('w4','直近4週')}${rb('w8','直近8週')}</div>`
+    +   _dowBadge(entity, name)
+    + `</div>`
+    + `<div class="dowp-chart" id="${chartId}"></div>`
+    + `<div class="dowp-delta"><span class="dowp-dt">退院の傾向（直近4週 vs 前4週）</span>${_dowDischargeDelta(d.discharge.delta)}</div>`
+    + `<div class="dowp-meta">週あたり 退院 <b>${pwD}</b>件 ／ 入院 <b>${pwA}</b>件（${DOW_WIN_LABEL[dowWin]}）。`
+    +   `棒＝曜日別の日平均人数。<b>退院が金土に偏り・入院が平日に寄るほど、退院前倒し（金→月〜木）＋週末入院補充の余地</b>。`
+    +   `<span class="dowp-dn"> 死亡退院・転出は除く。</span></div>`;
+
+  const yD = d.discharge[dowWin] || [], yA = (d.admission && d.admission[dowWin]) || [];
+  const traces = [
+    {type:'bar', name:'🚪 退院', x:LV_WK, y:yD, marker:{color:'#e07a5f'}},
+    {type:'bar', name:'🛏️ 入院', x:LV_WK, y:yA, marker:{color:'#3d5a80'}},
+  ];
+  const layout = {
+    barmode:'group', height:_pH(240), margin:{l:42, r:14, t:8, b:30},
+    font:{family:'Noto Sans JP, sans-serif', size:11, color:'#5A6A82'},
+    legend:{orientation:'h', x:0, y:-0.22},
+    plot_bgcolor:'#fff', paper_bgcolor:'#fff',
+    xaxis:{type:'category'},
+    yaxis:{rangemode:'tozero', title:{text:'日平均(人)', font:{size:10}}, gridcolor:'#eef2f7'},
+    hovermode:'x unified',
+  };
+  Plotly.newPlot(chartId, traces, layout, {responsive:true, displayModeBar:false});
+}
+
 function renderLeveling(){
   const data = _lvData();
   const units = (data.units||[]).slice();
-  const rl = document.getElementById('lvRank');
-  if (!units.length){ if(rl) rl.innerHTML='<div class="lv-empty">対象データなし</div>'; _lvRendered=true; return; }
+  const cl = document.getElementById('lvCards');
+  if (!units.length){ if(cl) cl.innerHTML='<div class="lv-empty">対象データなし</div>'; _lvRendered=true; return; }
+  // 既定の選択＝今週の一手の焦点（のびしろ最大）。カード/マトリクスは固定順だが、③は行動対象を1つ前面に。
   if (!lvSel[lvView] || !units.find(u=>u.name===lvSel[lvView]))
     lvSel[lvView] = units.slice().sort((a,b)=>_lvLost(b)-_lvLost(a))[0].name;
   renderLvKpi(data, units);
   renderLvMatrix(units);
-  renderLvRank(units);
+  renderLvCards(units);
   renderLvDetail(units);
   _lvRendered = true;
 }
 
+// カードは固定順（フロア順/診療科コード順）で並べる。順＝dow_unit_detail のキー順（dow_shared_units 由来）。
+function _lvFixedOrder(units){
+  const det = (DATA.charts && DATA.charts.dow_unit_detail && DATA.charts.dow_unit_detail[lvView]) || {};
+  const order = Object.keys(det);
+  const idx = n => { const i = order.indexOf(n); return i<0 ? 9999 : i; };
+  return units.slice().sort((a,b)=> idx(a.name)-idx(b.name) || String(a.name).localeCompare(b.name,'ja'));
+}
+
 function renderLvKpi(data, units){
   const t = data.total || {};
-  const top = units.slice().sort((a,b)=>_lvLost(b)-_lvLost(a))[0];
   const rec = Math.round((t.room_per_week||0)*0.55);
   const ret = t.retention!=null ? Math.round(t.retention*100) : '—';
   const scope = lvView==='dept' ? '／全診療科' : '／全病棟';
+  // 集計2枚（全体の機会量と平均維持率）。特定ユニットの名指しはしない。
   document.getElementById('lvKpi').innerHTML =
-    `<div class="lv-kc dr"><div class="lk">週末のびしろ 合計 ${scope}</div>`
+    `<div class="lv-kc"><div class="lk">週末に取り戻せる在院 合計 ${scope}</div>`
     + `<div class="lv">${(t.room_per_week||0).toFixed(0)} <small>人日/週</small></div>`
     + `<div class="ls">平準化で実現 ≒ <b>+${rec} 人日/週</b></div></div>`
     + `<div class="lv-kc"><div class="lk">平均 週末在院維持率</div>`
-    + `<div class="lv">${ret}<small>%</small></div><div class="ls">目標 ≥ 88%（平日在院比）</div></div>`
-    + `<div class="lv-kc"><div class="lk">最優先（のびしろ 最大）</div>`
-    + `<div class="lv" style="font-size:18px">${_lvName(top.name)}</div>`
-    + `<div class="ls">${_lvLost(top).toFixed(0)} 人日/週・維持率 <b>${top.retention!=null?Math.round(top.retention*100):'—'}%</b></div></div>`;
+    + `<div class="lv">${ret}<small>%</small></div><div class="ls">目標 ≥ 88%（平日在院比）</div></div>`;
 }
 
 function renderLvMatrix(allUnits){
@@ -1417,7 +1488,6 @@ function renderLvMatrix(allUnits){
   const x0=padL,x1=W-padR,y0=H-padB,y1=padT;
   const rooms = units.map(_lvLost);
   const YMAX = Math.max(12, Math.ceil(Math.max(...rooms,1)/4)*4 + 2);
-  const YTH = Math.round(YMAX*0.45);
   // 混雑回避②: x軸をデータにズーム（クラスタを横に広げる。外れ値は左端にクリップ）
   const rets = units.map(u=>u.retention).filter(r=>r!=null);
   const XMIN = Math.max(0.40, Math.min(0.80, Math.floor((Math.min(...rets,0.85)-0.03)*20)/20));
@@ -1426,10 +1496,10 @@ function renderLvMatrix(allUnits){
   const sx = v => x0+((clampX(v)-XMIN)/(XMAX-XMIN))*(x1-x0);
   const sy = v => y0-(Math.min(v,YMAX)/YMAX)*(y0-y1);
   let s=`<rect x="${x0}" y="${y1}" width="${x1-x0}" height="${y0-y1}" fill="#fafbfd" stroke="var(--ln)"/>`;
-  s+=`<rect x="${x0}" y="${y1}" width="${sx(XTH)-x0}" height="${sy(YTH)-y1}" fill="#fdecef"/>`;
-  s+=`<rect x="${sx(XTH)}" y="${sy(YTH)}" width="${x1-sx(XTH)}" height="${y0-sy(YTH)}" fill="#edfbf3"/>`;
-  s+=`<line x1="${sx(XTH)}" y1="${y1}" x2="${sx(XTH)}" y2="${y0}" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="5 4"/>`;
-  s+=`<line x1="${x0}" y1="${sy(YTH)}" x2="${x1}" y2="${sy(YTH)}" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="5 4"/>`;
+  // 中立化: 名指しの赤「最優先」象限は廃止。右（維持率高）＝手本ゾーンだけを緑で褒める方向に。
+  s+=`<rect x="${sx(XTH)}" y="${y1}" width="${x1-sx(XTH)}" height="${y0-y1}" fill="#edfbf3"/>`;
+  s+=`<line x1="${sx(XTH)}" y1="${y1}" x2="${sx(XTH)}" y2="${y0}" stroke="#86c9a6" stroke-width="1.5" stroke-dasharray="5 4"/>`;
+  s+=`<text x="${sx(XTH)+4}" y="${y1+12}" font-size="10" font-weight="800" fill="var(--soft-green-ink)">手本ゾーン</text>`;
   for(let k=0;k<=5;k++){ const v=XMIN+(XMAX-XMIN)*k/5; s+=`<text x="${sx(v)}" y="${y0+15}" text-anchor="middle" font-size="11" fill="var(--mu)">${Math.round(v*100)}%</text>`; }
   for(let v=0; v<=YMAX; v+=Math.max(4,Math.round(YMAX/4))) s+=`<text x="${x0-8}" y="${sy(v)+4}" text-anchor="end" font-size="11" fill="var(--mu)">${v}</text>`;
   s+=`<text x="${(x0+x1)/2}" y="${H-6}" text-anchor="middle" font-size="12" fill="var(--sub)" font-weight="800">週末在院維持率 → 右ほど良好</text>`;
@@ -1441,8 +1511,7 @@ function renderLvMatrix(allUnits){
   units.forEach(u=>{
     const ret = u.retention!=null ? u.retention : XMIN;
     const cx=sx(ret), cy=sy(_lvLost(u)), rr=4.5+(u.weekday_avg||0)/maxWd*7;
-    const prio = ret<XTH && _lvLost(u)>=YTH, big = ret>=XTH && _lvLost(u)>=YTH, coach = ret<XTH && _lvLost(u)<YTH;
-    const col = prio?'var(--soft-red)':big?'var(--soft-amber)':coach?'var(--soft-slate)':'var(--soft-green)';
+    const col = ret>=XTH ? 'var(--soft-green)' : 'var(--soft-slate)';   // 手本=緑 / それ以外=中立（赤名指しなし）
     const sel = u.name===lvSel[lvView];
     s+=`<circle class="lv-dot" data-name="${u.name}" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${rr.toFixed(1)}" fill="${col}" fill-opacity="0.82" stroke="${sel?'var(--ink)':'#fff'}" stroke-width="${sel?2.5:1.2}"/>`;
     if (labelSet.has(u.name))
@@ -1452,71 +1521,59 @@ function renderLvMatrix(allUnits){
   svg.innerHTML=s;
   svg.querySelectorAll('.lv-dot').forEach(c=>c.addEventListener('click',()=>{ lvSel[lvView]=c.dataset.name; renderLeveling(); }));
   document.getElementById('lvLegend').innerHTML =
-     `<div class="qz"><span class="sw" style="background:var(--soft-red)"></span><span><b>左上：最優先</b><br>低維持×大のびしろ。効果最大。</span></div>`
-    +`<div class="qz"><span class="sw" style="background:var(--soft-amber)"></span><span><b>右上：規模で効く</b><br>維持率は良いが在院大。小改善でも人日。</span></div>`
-    +`<div class="qz"><span class="sw" style="background:var(--soft-slate)"></span><span><b>左下：行動コーチ</b><br>偏在強いが小規模。優先度低。</span></div>`
-    +`<div class="qz"><span class="sw" style="background:var(--soft-green)"></span><span><b>右下：良好・手本</b><br>維持できている。横展開。</span></div>`
-    +`<p style="margin-top:5px;font-size:10.5px;color:var(--mu)">バブル径＝平日在院規模。${hidden>0?`のびしろ上位のみ表示（小${hidden}件は下のランキング参照）。`:''}</p>`;
+     `<div class="qz"><span class="sw" style="background:var(--soft-green)"></span><span><b>右：手本</b><br>週末も在院を維持できている（維持率高）。横展開の参考。</span></div>`
+    +`<div class="qz"><span class="sw" style="background:var(--soft-slate)"></span><span><b>左：伸びしろ</b><br>週末に在院が落ちる。上ほど週末に取り戻せる在院が大きい。</span></div>`
+    +`<p style="margin-top:5px;font-size:10.5px;color:var(--mu)">バブル径＝平日在院規模。${hidden>0?`規模上位のみ表示（小${hidden}件は下のカード参照）。`:''}</p>`;
   // 外れ値（小規模・極端低維持）は別枠の注記に（クリックで選択）
   const on = document.getElementById('lvOutliers');
   if (on){
     on.innerHTML = outliers.length
-      ? `<span class="lv-outlbl">⚠ 枠外（維持率が極端に低い小規模ユニット）:</span>`
-        + outliers.map(u=>`<span class="lv-outchip${u.name===lvSel[lvView]?' sel':''}" data-name="${u.name}">${_lvShort(u.name)} 維持率${u.retention!=null?Math.round(u.retention*100):'—'}%・のびしろ${_lvLost(u).toFixed(0)}</span>`).join('')
+      ? `<span class="lv-outlbl">別掲（小規模で週ごとの変動が大きいユニット）:</span>`
+        + outliers.map(u=>`<span class="lv-outchip${u.name===lvSel[lvView]?' sel':''}" data-name="${u.name}">${_lvShort(u.name)} 維持率${u.retention!=null?Math.round(u.retention*100):'—'}%</span>`).join('')
       : '';
     on.querySelectorAll('.lv-outchip').forEach(c=>c.addEventListener('click',()=>{ lvSel[lvView]=c.dataset.name; renderLeveling(); }));
   }
 }
 
-function renderLvRank(units){
-  const abs = lvMetric==='abs';
-  const sorted = units.slice().sort((a,b)=> abs ? _lvLost(b)-_lvLost(a) : (a.retention||0)-(b.retention||0));
-  const maxLost = Math.max(...units.map(_lvLost),1);
+// 部門カード（固定順・順位なし）。クリックで③今週の一手を更新。
+// 中立トーン: 維持率は表示するが赤の名指しはせず、手本(≥100%)だけ緑で褒める。
+function renderLvCards(units){
+  const ordered = _lvFixedOrder(units);
   let h='';
-  sorted.forEach((u,i)=>{
-    const ret = u.retention!=null ? u.retention : 0;
-    const w = abs ? (_lvLost(u)/maxLost*100) : ((1-ret)/0.5*100);
-    const barCol = abs ? 'var(--br)' : (ret>=0.92?'var(--soft-green)':ret>=0.86?'var(--soft-amber)':'var(--soft-red)');
-    const metric = abs ? `${_lvLost(u).toFixed(0)}<small>人日/週</small>` : `${Math.round(ret*100)}<small>％ 維持</small>`;
-    const dlt = u.room_delta_4w;
-    const dtxt = (dlt>0.5)?` <span style="color:var(--soft-red-ink)">↗+${dlt.toFixed(0)}</span>`:(dlt<-0.5)?` <span style="color:var(--soft-green-ink)">↘${dlt.toFixed(0)}</span>`:'';
-    h+=`<div class="lv-row${u.name===lvSel[lvView]?' sel':''}" data-name="${u.name}">`
-      +`<div class="lv-no${i<3?' t3':''}">${i+1}</div>`
-      +`<div class="lv-nm">${_lvName(u.name)}</div>`
-      +`<div class="lv-bar-track"><div class="lv-bar-fill" style="width:${Math.max(2,Math.min(100,w))}%;background:${barCol}"></div></div>`
-      +`<div class="lv-mv" style="color:${barCol}">${metric}${dtxt}</div>`
-      +`<div class="lv-bd ${_lvRetClass(ret)}">${Math.round(ret*100)}%</div></div>`;
+  ordered.forEach(u=>{
+    const ret = u.retention!=null ? Math.round(u.retention*100) : null;
+    const isModel = u.retention!=null && u.retention>=1.0;
+    const badge = isModel ? 'ok' : 'mu';                  // 手本のみ緑・他は中立（赤なし）
+    const d = u.census_delta_4w;
+    const icon = (d>0.5)?'▲':(d<-0.5)?'▼':'―';
+    const sel = u.name===lvSel[lvView] ? ' sel' : '';
+    const model = isModel ? ' <span class="lv-card-model">手本</span>' : '';
+    h+=`<button class="lv-card${sel}" data-name="${u.name}">`
+      +`<span class="lv-card-nm">${_lvName(u.name)}${model}</span>`
+      +`<span class="lv-card-mt"><span class="lv-bd ${badge}">${ret!=null?ret+'%':'—'}</span>`
+      +`<span class="lv-card-ic" title="平日在院の直近4週増減">${icon}</span></span></button>`;
   });
-  const rl=document.getElementById('lvRank'); rl.innerHTML=h;
-  rl.querySelectorAll('.lv-row').forEach(r=>r.addEventListener('click',()=>{ lvSel[lvView]=r.dataset.name; renderLeveling(); }));
-  document.getElementById('lvRankCap').textContent = abs ? '順位＝のびしろ（実数）' : '順位＝維持率（規模に依らず公平）';
+  const el=document.getElementById('lvCards'); el.innerHTML=h;
+  el.querySelectorAll('.lv-card').forEach(c=>c.addEventListener('click',()=>{ lvSel[lvView]=c.dataset.name; renderLeveling(); }));
 }
 
 function renderLvDetail(units){
   const u = units.find(x=>x.name===lvSel[lvView]) || units[0];
   document.getElementById('lvActName').textContent = '／' + _lvName(u.name);
+  // 金曜退院シェア（8週）＝定性記述の補助
   const det = DATA.charts && DATA.charts.dow_unit_detail && DATA.charts.dow_unit_detail[lvView];
   const dd = det && det[u.name] && det[u.name].discharge;
-  let bars='', friShare=null;
-  if (dd && dd.avg){
-    const mx = Math.max(...dd.avg, 0.1), sum = dd.avg.reduce((a,c)=>a+c,0);
-    friShare = sum>0 ? Math.round(dd.avg[4]/sum*100) : null;
-    dd.avg.forEach((v,i)=>{
-      const cls = i===4?'fri':(i>=5?'wknd':'');
-      bars+=`<div class="lv-col"><div class="lv-cv">${v.toFixed(1)}</div>`
-          +`<div class="lv-cb ${cls}" style="height:${Math.max(4,v/mx*100)}%"></div>`
-          +`<div class="lv-cl ${i===4?'fri':''}">${LV_WK[i]}</div></div>`;
-    });
-  } else { bars='<div class="lv-empty">曜日データなし</div>'; }
+  let friShare = null;
+  if (dd && dd.w8){ const sum = dd.w8.reduce((a,c)=>a+c,0); friShare = sum>0 ? Math.round(dd.w8[4]/sum*100) : null; }
+  const friConc = friShare!=null && friShare>=20;          // 金曜集中（20%超）
   const dropPct = u.retention!=null ? Math.round((1-u.retention)*100) : null;
   const rec = Math.round(_lvLost(u)*0.55);
   const isWard = lvView==='ward';
   const isModel = u.retention!=null && u.retention>=1.0;   // 週末≥平日＝手本
-  const friConc = friShare!=null && friShare>=20;          // 金曜集中（20%超）
   const lnar = u.narrative;   // {body, action} or undefined（oMLX生成・上位のみ）
   const aiTag = (lnar && lnar.body) ? ' <span class="lv-aitag">AI</span>' : '';
-  // 数値は常にチップで表示（LLM本文は数値を使わない定性的記述）
-  const chip = `<div class="lv-chip">のびしろ <b>${_lvLost(u).toFixed(0)}</b> 人日/週 ・ 維持率 <b>${u.retention!=null?Math.round(u.retention*100):'—'}%</b>`
+  // 数値はチップで（LLM本文は数値を使わない定性的記述）。発信トーン: 維持率と機会量を併記、順位は出さない。
+  const chip = `<div class="lv-chip">週末在院維持率 <b>${u.retention!=null?Math.round(u.retention*100):'—'}%</b> ・ 週末に取り戻せる在院 <b>${_lvLost(u).toFixed(0)}</b> 人日/週`
     + (friShare!=null?` ・ 金曜退院 <b>${friShare}%</b>`:'') + `</div>`;
   const _nm = _lvName(u.name);
   const body = (lnar && lnar.body)
@@ -1535,10 +1592,11 @@ function renderLvDetail(units){
     ? `床の番人として相乗り科間の退院曜日を調整するのが病棟のレバー。延伸ではなく回転で取る。`
     : `自科の退院曜日（金曜集中）の分散が効くレバー。床は持たないので病棟側の週末入院補充と両輪。`;
   document.getElementById('lvDetail').innerHTML =
-    `<div class="lv-dow"><div class="lv-dowt">退院曜日プロファイル（直近8週・日平均）</div><div class="lv-dowbars">${bars}</div></div>`
+    `<div id="lvProfileBody" class="lv-profile"></div>`
     +`<div class="lv-act">${chip}<div class="lv-nar">${body}${aiTag}</div>`
     +`<div class="lv-mvline"><span style="font-size:15px;font-weight:900">→</span>${moveText}<span style="color:var(--mu);font-weight:700;margin-left:4px">（約 +${rec}人日/週）</span></div>`
     +`<div class="lv-link">${link}</div></div>`;
+  renderDowProfile(lvView, u.name, 'lvProfileBody');   // 入退院併置＋集計期間ラジオ＋Δ＋在院バッジ（共通部品）
 }
 
 const hasEstimate = !!(
