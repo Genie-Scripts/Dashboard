@@ -658,12 +658,14 @@ def build_dow_unit_detail(adm: pd.DataFrame, base_date: pd.Timestamp,
     """単一ユニットの入退院 曜日プロファイル（曜日構造の行クリック / 平準化カード選択）用データ。
 
     返値: { ユニット名: { metric: {w7:[月..日], w4:[...], w8:[...],
-                                   per_week:{w7,w4,w8}, delta:[Δpt]} } }
+                                   per_week:{w7,w4,w8}, delta:[Δpt]},
+                          census: {w7:[月..日 平均日次在院], w4, w8} } }
     metric は discharge / admission（全入院）の2種のみ。予定/緊急/転入の内訳は
     曜日構造のヒートマップ（dow_heatmaps）側に任せ、ここには含めない（payload削減）。
     各窓 wN は「直近N週（完全週・月〜日）」を母数にした曜日別 日平均人数で、
     集計期間ラジオ（直近7日=w7 / 直近4週=w4 / 直近8週=w8）に対応する。
     delta は 8週呼び出しの 4週Δ（直近4週 − 前4週・シェアpt）＝傾向の固定指標。
+    census は曜日別の平均日次在院（生の人数・フロント側で平日平均=100の指数化に使う）。
     """
     from .metrics import dow_event_profile
     group_col = "病棟コード" if entity == "ward" else "診療科名"
@@ -685,6 +687,15 @@ def build_dow_unit_detail(adm: pd.DataFrame, base_date: pd.Timestamp,
                 if key == "w8":
                     delta = p["delta"]
             md[met] = {**avgs, "per_week": pws, "delta": delta}
+        # 在院の曜日プロファイル（平均日次在院）。在院患者数は (日付×ユニット) の合計が
+        # その日の在院なので、dow_event_profile の曜日別合計 ÷ 週数 = 曜日別 平均日次在院。
+        cen = {}
+        for key, wk in windows.items():
+            p = dow_event_profile(adm, base_date, "在院患者数",
+                                  group_col=group_col, group_val=code, weeks=wk)
+            w = p["weeks"] or 1
+            cen[key] = [round(c / w, 1) for c in p["counts"]]
+        md["census"] = cen
         out[name] = md
     return out
 

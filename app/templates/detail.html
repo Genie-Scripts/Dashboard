@@ -1406,7 +1406,8 @@ function renderDowProfile(entity, name, wrapId){
     + `<div class="dowp-chart" id="${chartId}"></div>`
     + `<div class="dowp-delta"><span class="dowp-dt">退院の傾向（直近4週 vs 前4週）</span>${_dowDischargeDelta(d.discharge.delta)}</div>`
     + `<div class="dowp-meta">週あたり 退院 <b>${pwD}</b>件 ／ 入院 <b>${pwA}</b>件（${DOW_WIN_LABEL[dowWin]}）。`
-    +   `棒＝曜日別の日平均人数。<b>退院が金土に偏り・入院が平日に寄るほど、退院前倒し（金→月〜木）＋週末入院補充の余地</b>。`
+    +   `棒＝曜日別の日平均人数。<b style="color:#2a9d8f">緑線＝在院指数（平日平均=100）</b>で、谷ほど週末に在院が落ちている。`
+    +   `<b>退院が金土に偏り・入院が平日に寄るほど、退院前倒し（金→月〜木）＋週末入院補充の余地</b>。`
     +   `<span class="dowp-dn"> 死亡退院・転出は除く。</span></div>`;
 
   const yD = d.discharge[dowWin] || [], yA = (d.admission && d.admission[dowWin]) || [];
@@ -1414,8 +1415,27 @@ function renderDowProfile(entity, name, wrapId){
     {type:'bar', name:'🚪 退院', x:LV_WK, y:yD, marker:{color:'#e07a5f'}},
     {type:'bar', name:'🛏️ 入院', x:LV_WK, y:yA, marker:{color:'#3d5a80'}},
   ];
+  // 在院の谷ライン: 平均日次在院を「平日(月〜金)平均=100」に指数化して y2 に重ねる。
+  // 100アンカー固定で軸がぶれず、週末の在院ディップ(週内変動)が一目で読める。
+  const cen = (d.census && d.census[dowWin]) || [];
+  let censusIdx = null, y2min = 70, y2max = 112;
+  if (cen.length === 7){
+    const base = (cen[0]+cen[1]+cen[2]+cen[3]+cen[4]) / 5;   // 平日(月金)平均在院
+    if (base > 0){
+      censusIdx = cen.map(c => Math.round(c / base * 100));
+      const lo = Math.min(...censusIdx), hi = Math.max(...censusIdx);
+      y2min = Math.min(70, Math.floor((lo - 6) / 10) * 10);  // 通常70固定・深い谷の科だけ下へ広げる
+      y2max = Math.max(112, Math.ceil((hi + 4) / 4) * 4);    // 100基準を上部で安定表示
+      traces.push({
+        type:'scatter', mode:'lines+markers', name:'在院指数(平日=100)',
+        x:LV_WK, y:censusIdx, yaxis:'y2',
+        line:{color:'#2a9d8f', width:2.5}, marker:{size:5, color:'#2a9d8f'},
+        hovertemplate:'在院 %{y}（平日=100）<extra></extra>',
+      });
+    }
+  }
   const layout = {
-    barmode:'group', height:_pH(240), margin:{l:42, r:14, t:8, b:30},
+    barmode:'group', height:_pH(240), margin:{l:42, r:censusIdx?44:14, t:8, b:30},
     font:{family:'Noto Sans JP, sans-serif', size:11, color:'#5A6A82'},
     legend:{orientation:'h', x:0, y:-0.22},
     plot_bgcolor:'#fff', paper_bgcolor:'#fff',
@@ -1423,6 +1443,18 @@ function renderDowProfile(entity, name, wrapId){
     yaxis:{rangemode:'tozero', title:{text:'日平均(人)', font:{size:10}}, gridcolor:'#eef2f7'},
     hovermode:'x unified',
   };
+  if (censusIdx){
+    layout.yaxis2 = {
+      overlaying:'y', side:'right', range:[y2min, y2max],
+      title:{text:'在院指数(平日=100)', font:{size:9, color:'#2a9d8f'}},
+      tickfont:{size:9, color:'#2a9d8f'}, showgrid:false, zeroline:false,
+    };
+    // 平日基準=100 の参照線（眼が常に基準を持てるようにし、谷の深さを正直に読ませる）
+    layout.shapes = [{
+      type:'line', xref:'paper', x0:0, x1:1, yref:'y2', y0:100, y1:100,
+      line:{color:'#2a9d8f', width:1, dash:'dot'}, opacity:0.45,
+    }];
+  }
   Plotly.newPlot(chartId, traces, layout, {responsive:true, displayModeBar:false});
 }
 
