@@ -246,7 +246,7 @@
                 onclick="switchTriageL2('ward','improvement')">📈 改善</button>
         <button class="triage-tab-l2" data-l2="ward-leveling" role="tab"
                 aria-selected="false"
-                onclick="switchTriageL2('ward','leveling')">🚪 退院平準化</button>
+                onclick="switchTriageL2('ward','leveling')">🚪 曜日偏在</button>
       </div>
       {# 病棟 要注視 #}
       <div id="triage-ward-attention" class="triage-panel" role="tabpanel">
@@ -299,7 +299,7 @@
         <p style="color:var(--mu);font-size:13px;padding:16px 18px;">改善トピックなし</p>
         {% endif %}
       </div>
-      {# 病棟 退院平準化 #}
+      {# 病棟 曜日偏在 #}
       <div id="triage-ward-leveling" class="triage-panel" role="tabpanel" hidden>
         <p class="triage-leveling-note">🚪 退院が週後半（特に土曜）に偏り、月曜が谷の病棟。<b>土曜→月曜の付け替え</b>で平準化（総退院数・在院は維持）。</p>
         {% if triage.ward_leveling %}
@@ -315,7 +315,7 @@
             </a>
             <div class="triage-headline">{{ item.kpi_summary }}</div>
             <div class="triage-narrative" id="narrative-wl{{ loop.index }}" hidden
-                 role="region" aria-label="{{ item.name }} 退院平準化">
+                 role="region" aria-label="{{ item.name }} 曜日偏在">
               <div class="triage-obs">🤖 {{ item.narrative.observation }}</div>
               <div class="triage-sug">{{ item.narrative.suggestion }}</div>
             </div>
@@ -338,7 +338,7 @@
                 onclick="switchTriageL2('dept','improvement')">📈 改善</button>
         <button class="triage-tab-l2" data-l2="dept-leveling" role="tab"
                 aria-selected="false"
-                onclick="switchTriageL2('dept','leveling')">🚪 退院平準化</button>
+                onclick="switchTriageL2('dept','leveling')">🚪 曜日偏在</button>
       </div>
       {# 診療科 要注視 #}
       <div id="triage-dept-attention" class="triage-panel" role="tabpanel">
@@ -391,7 +391,7 @@
         <p style="color:var(--mu);font-size:13px;padding:16px 18px;">改善トピックなし</p>
         {% endif %}
       </div>
-      {# 診療科 退院平準化 #}
+      {# 診療科 曜日偏在 #}
       <div id="triage-dept-leveling" class="triage-panel" role="tabpanel" hidden>
         <p class="triage-leveling-note">🚪 退院が週後半（特に土曜）に偏り、月曜が谷の診療科。<b>土曜→月曜の付け替え</b>で平準化（総退院数・在院は維持）。</p>
         {% if triage.dept_leveling %}
@@ -407,7 +407,7 @@
             </a>
             <div class="triage-headline">{{ item.kpi_summary }}</div>
             <div class="triage-narrative" id="narrative-dl{{ loop.index }}" hidden
-                 role="region" aria-label="{{ item.name }} 退院平準化">
+                 role="region" aria-label="{{ item.name }} 曜日偏在">
               <div class="triage-obs">🤖 {{ item.narrative.observation }}</div>
               <div class="triage-sug">{{ item.narrative.suggestion }}</div>
             </div>
