@@ -157,6 +157,24 @@ body.chart-fs-lock{overflow:hidden}
   .fab-top{bottom:80px;opacity:0;pointer-events:none;transform:translateY(20px)}
   .fab-top.fab-show{opacity:1;pointer-events:auto;transform:none}
 }
+/* 入退院 曜日プロファイル 共通部品（detail.html と同一意匠） */
+:root{--soft-green-ink:#3d8f6d;--soft-red-ink:#b15a73}
+.lv-profile{margin-bottom:4px}
+.lv-empty{font-size:12px;color:var(--mu);padding:20px;text-align:center}
+.dowp-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:4px}
+.dowp-radio{display:flex;gap:3px;border:1px solid var(--ln);border-radius:9px;padding:3px;background:var(--bg)}
+.dowp-rb{background:transparent;border:none;border-radius:7px;font-size:11.5px;font-weight:800;padding:5px 11px;cursor:pointer;color:var(--sub);font-family:inherit;transition:all .12s}
+.dowp-rb.active{background:var(--br);color:#fff}
+.dowp-badge{font-size:11.5px;color:var(--sub);font-weight:700;background:var(--bg);border:1px solid var(--ln);border-radius:999px;padding:4px 11px;white-space:nowrap}
+.dowp-badge b{font-size:16px;font-weight:900;color:var(--ink)}
+.dowp-badge small{font-size:10px;color:var(--mu);font-weight:700}
+.dowp-bi{color:var(--sub);font-weight:800;margin-left:4px}
+.dowp-chart{width:100%}
+.dowp-delta{font-size:11.5px;line-height:1.8;color:var(--sub);margin-top:4px;padding:7px 11px;background:var(--bg);border:1px solid var(--ln);border-radius:8px}
+.dowp-dt{font-weight:800;color:var(--ink);margin-right:8px}
+.dowp-dn{color:var(--mu)}
+.dowp-meta{font-size:11px;color:var(--sub);line-height:1.65;margin-top:6px}
+.dowp-meta b{color:var(--ink);font-weight:800}
 </style>
 </head>
 <body>
@@ -214,11 +232,8 @@ body.chart-fs-lock{overflow:hidden}
     </div>
     <div id="dischargeDowWrap" style="display:none;margin-top:14px">
       <div class="cpnl">
-        <h4 id="dischargeDowTitle">🚪 退院 曜日プロファイル <span style="font-weight:500;color:var(--mu);font-size:11px">（直近8週・死亡退院は除く）</span></h4>
-        <div id="dischargeDowBadges" style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 2px"></div>
-        <div class="chart" id="dischargeDowChart"></div>
-        <button class="chart-fs-btn" onclick="chartFS('dischargeDowChart',this)" aria-label="チャート全画面">⛶</button>
-        <div id="dischargeDowMeta" style="margin-top:8px;font-size:11px;color:var(--mu);line-height:1.6"></div>
+        <h4 id="dischargeDowTitle">📊 入退院 曜日プロファイル <span style="font-weight:500;color:var(--mu);font-size:11px">（集計期間切替・緑線＝在院指数 平日=100）</span></h4>
+        <div id="dowProfileBody" class="lv-profile"></div>
       </div>
     </div>
     <div id="estimatePanelWrap" style="display:none;margin-top:14px">
@@ -1276,60 +1291,127 @@ function renderOpVsProfit(opTd, pc) {
     `直近3M平均 単価 <b>${fmt(rU, 2)}</b>百万/件（前9M比 ${tag(fmtPct(rU,pU), colorOf(rU,pU))}）`;
 }
 
-// 退院 曜日プロファイル（曜日平準化）: 谷=月を上げ／山=土を下げる
+// ════════════════════════════════════════
+// 入退院 曜日プロファイル（共通部品・detail.html と同一。3つ目の重複だった
+// renderDischargeDow を本部品へ統一）。退院/入院の併置グループ棒＋集計期間ラジオ
+// (直近7日/4週/8週)＋傾向Δ数字＋在院バッジ＋在院指数(平日=100)の谷ライン(y2)。
+// 病棟は床フロー(流入=新入院+転入 / 流出=退院+死亡+転出)、診療科は純粋な退院/入院。
+// ════════════════════════════════════════
+const LV_WK = ['月','火','水','木','金','土','日'];
+let dowWin = 'w8';            // w7(直近7日) | w4(直近4週) | w8(直近8週)
+let dowProfileCtx = null;     // {entity, name, wrapId}
+const DOW_WIN_LABEL = {w7:'直近7日', w4:'直近4週', w8:'直近8週'};
+
+function setDowWin(w){
+  dowWin = w;
+  if (dowProfileCtx) renderDowProfile(dowProfileCtx.entity, dowProfileCtx.name, dowProfileCtx.wrapId);
+}
+
+function _dowBadge(entity, name){
+  const wl = (DATA.charts && DATA.charts.weekend_leveling && DATA.charts.weekend_leveling[entity]) || {units:[]};
+  const u = (wl.units||[]).find(x=>x.name===name);
+  if (!u) return '';
+  const lvl = u.weekday_avg!=null ? u.weekday_avg.toFixed(0) : '—';
+  const d = u.census_delta_4w;
+  const icon = (d>0.5) ? '▲ 増' : (d<-0.5) ? '▼ 減' : '― 横ばい';
+  return `<div class="dowp-badge">平日在院 <b>${lvl}</b><small>人</small> <span class="dowp-bi">${icon}</span></div>`;
+}
+
+function _dowDischargeDelta(delta){
+  const parts = [];
+  (delta||[]).forEach((v,i)=>{
+    if (Math.abs(v) < 2) return;
+    if (i === 6){ parts.push(`<span class="dowp-dn">${LV_WK[i]} ${v>0?'+':''}${v.toFixed(0)}pt</span>`); return; }
+    const good = (i===4||i===5) ? v<0 : v>0;
+    const col = good ? 'var(--soft-green-ink)' : 'var(--soft-red-ink)';
+    const tag = good ? '改善' : '偏り拡大';
+    parts.push(`<span style="color:${col};font-weight:800">${LV_WK[i]} ${v>0?'+':''}${v.toFixed(0)}pt ${tag}</span>`);
+  });
+  return parts.length ? parts.join('　') : '<span class="dowp-dn">大きな変化なし</span>';
+}
+
+function renderDowProfile(entity, name, wrapId){
+  const wrap = document.getElementById(wrapId);
+  if (!wrap) return;
+  dowProfileCtx = {entity, name, wrapId};
+  const det = DATA.charts && DATA.charts.dow_unit_detail && DATA.charts.dow_unit_detail[entity];
+  const d = det && det[name];
+  if (!d || !d.discharge){ wrap.innerHTML = '<div class="lv-empty">曜日データなし</div>'; return; }
+
+  const isWard = entity === 'ward';
+  const outLbl = isWard ? '流出' : '退院';
+  const inLbl  = isWard ? '流入' : '入院';
+  const rb = (w,lbl)=>`<button class="dowp-rb${dowWin===w?' active':''}" onclick="setDowWin('${w}')">${lbl}</button>`;
+  const chartId = wrapId + '_chart';
+  const pwD = (d.discharge.per_week && d.discharge.per_week[dowWin]) || 0;
+  const pwA = (d.admission && d.admission.per_week && d.admission.per_week[dowWin]) || 0;
+  wrap.innerHTML =
+      `<div class="dowp-head">`
+    +   `<div class="dowp-radio">${rb('w7','直近7日')}${rb('w4','直近4週')}${rb('w8','直近8週')}</div>`
+    +   _dowBadge(entity, name)
+    + `</div>`
+    + `<div class="dowp-chart" id="${chartId}"></div>`
+    + `<div class="dowp-delta"><span class="dowp-dt">${outLbl}の傾向（直近4週 vs 前4週）</span>${_dowDischargeDelta(d.discharge.delta)}</div>`
+    + `<div class="dowp-meta">週あたり ${outLbl} <b>${pwD}</b>件 ／ ${inLbl} <b>${pwA}</b>件（${DOW_WIN_LABEL[dowWin]}）。`
+    +   `棒＝曜日別の日平均人数。<b style="color:#2a9d8f">緑線＝在院指数（平日平均=100）</b>で、谷ほど週末に在院が落ちている。`
+    +   `<b>${outLbl}が金土に偏り・${inLbl}が平日に寄るほど、退院前倒し（金→月〜木）＋週末入院補充の余地</b>。`
+    +   `<span class="dowp-dn"> ${isWard ? '流出＝退院+死亡+転出／流入＝新入院+転入。' : '死亡退院・転出は除く。'}</span></div>`;
+
+  const yD = d.discharge[dowWin] || [], yA = (d.admission && d.admission[dowWin]) || [];
+  const traces = [
+    {type:'bar', name:'🚪 ' + outLbl, x:LV_WK, y:yD, marker:{color:'#e07a5f'}},
+    {type:'bar', name:'🛏️ ' + inLbl, x:LV_WK, y:yA, marker:{color:'#3d5a80'}},
+  ];
+  // 在院の谷ライン: 平均日次在院を「平日(月〜金)平均=100」に指数化して y2 に重ねる。
+  const cen = (d.census && d.census[dowWin]) || [];
+  let censusIdx = null, y2min = 70, y2max = 112;
+  if (cen.length === 7){
+    const base = (cen[0]+cen[1]+cen[2]+cen[3]+cen[4]) / 5;
+    if (base > 0){
+      censusIdx = cen.map(c => Math.round(c / base * 100));
+      const lo = Math.min(...censusIdx), hi = Math.max(...censusIdx);
+      y2min = Math.min(70, Math.floor((lo - 6) / 10) * 10);
+      y2max = Math.max(112, Math.ceil((hi + 4) / 4) * 4);
+      traces.push({
+        type:'scatter', mode:'lines+markers', name:'在院指数(平日=100)',
+        x:LV_WK, y:censusIdx, yaxis:'y2',
+        line:{color:'#2a9d8f', width:2.5}, marker:{size:5, color:'#2a9d8f'},
+        hovertemplate:'在院 %{y}（平日=100）<extra></extra>',
+      });
+    }
+  }
+  const layout = {
+    barmode:'group', height:_pH(240), margin:{l:42, r:censusIdx?44:14, t:8, b:30},
+    font:{family:'Noto Sans JP, sans-serif', size:11, color:'#5A6A82'},
+    legend:{orientation:'h', x:0, y:-0.22},
+    plot_bgcolor:'#fff', paper_bgcolor:'#fff',
+    xaxis:{type:'category'},
+    yaxis:{rangemode:'tozero', title:{text:'日平均(人)', font:{size:10}}, gridcolor:'#eef2f7'},
+    hovermode:'x unified',
+  };
+  if (censusIdx){
+    layout.yaxis2 = {
+      overlaying:'y', side:'right', range:[y2min, y2max],
+      title:{text:'在院指数(平日=100)', font:{size:9, color:'#2a9d8f'}},
+      tickfont:{size:9, color:'#2a9d8f'}, showgrid:false, zeroline:false,
+    };
+    layout.shapes = [{
+      type:'line', xref:'paper', x0:0, x1:1, yref:'y2', y0:100, y1:100,
+      line:{color:'#2a9d8f', width:1, dash:'dot'}, opacity:0.45,
+    }];
+  }
+  Plotly.newPlot(chartId, traces, layout, {responsive:true, displayModeBar:false});
+}
+
+// 部門ビューでは選択中ユニットのプロファイルを表示（PROFIT_ONLY科・小規模単位は非表示）
 function renderDischargeDow(d) {
   const wrap = document.getElementById('dischargeDowWrap');
-  const dd = d && d.discharge_dow;
-  // データなし（PROFIT_ONLY科や退院ゼロ単位）は非表示
-  if (!dd || !dd.per_week || dd.per_week <= 0) { if (wrap) wrap.style.display = 'none'; return; }
+  if (!wrap) return;
+  const entity = (d && d.ward_extra) ? 'ward' : 'dept';
+  const det = DATA.charts && DATA.charts.dow_unit_detail && DATA.charts.dow_unit_detail[entity];
+  if (!det || !det[currentUnit] || !det[currentUnit].discharge) { wrap.style.display = 'none'; return; }
   wrap.style.display = '';
-
-  const labels = ['月','火','水','木','金','土','日'];
-  const shares = dd.shares || [];
-  const counts = dd.counts || [];
-  const target = dd.target || [20,20,20,20,20,0,0];
-  // 棒の色: 月=谷(青で強調) / 土=山(橙で強調) / 他=ニュートラル
-  const colors = labels.map((_, i) => i===0 ? '#0072B2' : i===5 ? '#E69F00' : '#9AA7B8');
-
-  // バッジ
-  const badge = (label, val, sub, col) =>
-    `<span style="display:inline-flex;flex-direction:column;gap:1px;padding:5px 10px;border-radius:8px;background:${col}14;border:1px solid ${col}55;line-height:1.25">
-       <span style="font-size:10px;color:var(--mu);font-weight:700">${label}</span>
-       <span style="font-size:14px;font-weight:900;color:${col}">${val}<span style="font-size:9px;font-weight:700;color:var(--mu);margin-left:3px">${sub||''}</span></span>
-     </span>`;
-  const monCol = dd.mon_share < 15 ? '#0072B2' : '#0e7a54';
-  const satCol = dd.sat_share > 14 ? '#E69F00' : '#0e7a54';
-  document.getElementById('dischargeDowBadges').innerHTML =
-      badge('月曜シェア（谷）', dd.mon_share + '%', '▸目標↑20%', monCol)
-    + badge('土曜シェア（山）', dd.sat_share + '%', '▸目標↓', satCol)
-    + badge('再配分率', dd.redistribution + '%', '低いほど平準', '#5A6A82')
-    + badge('退院/週（総量）', dd.per_week + '名', '維持', '#5A6A82');
-
-  Plotly.newPlot('dischargeDowChart', [
-    { name:'退院シェア', x:labels, y:shares, type:'bar',
-      marker:{color:colors}, opacity:0.85,
-      text:counts.map((c,i)=>`${shares[i]}%<br>${c}名`), textposition:'outside',
-      textfont:{size:10},
-      hovertemplate:'%{x}: %{y}%（%{customdata}名）<extra></extra>', customdata:counts },
-    { name:'目標（平日均等・週末最小）', x:labels, y:target, type:'scatter',
-      mode:'lines+markers', line:{color:'#D55E00', width:2, dash:'dash'},
-      marker:{size:5, color:'#D55E00'},
-      hovertemplate:'目標 %{x}: %{y}%<extra></extra>' },
-  ], {
-    font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
-    xaxis:{gridcolor:'transparent'},
-    yaxis:{title:{text:'退院シェア(%)',font:{size:10}}, gridcolor:'#DCE1E9',
-           rangemode:'tozero', ticksuffix:'%'},
-    legend:{orientation:'h',x:0,y:-0.18,font:{size:10}},
-    margin:{l:48,r:20,t:14,b:42}, height:_pH(300),
-    plot_bgcolor:'#fff', paper_bgcolor:'#fff',
-  }, {responsive:true, displayModeBar:false});
-
-  document.getElementById('dischargeDowMeta').innerHTML =
-    `📌 これは<b>「退院曜日の付け替え」</b>指標です（早期退院＝在院短縮を促すものではありません）。`
-    + `標準アクション：<b>土曜の退院を月曜へ</b>（週末は退院準備を仕込み、月曜に実行）。`
-    + `平準化が「再配分」で進んでいるかは、<b>退院/週（${dd.per_week}名・総量）</b>と隣の<b>在院患者 推移</b>が維持されているかで確認してください。`
-    + `<span style="color:var(--mu)">（直近${dd.weeks}週・完全週のみ集計／分子は退院患者数のみ＝死亡・転出を除く）</span>`;
+  renderDowProfile(entity, currentUnit, 'dowProfileBody');
 }
 
 // 入退院バランス（フロー収支）。opts.inLabel/outLabel でバーのラベルを切替
