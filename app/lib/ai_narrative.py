@@ -126,20 +126,14 @@ LEVELING_ACTION_SYSTEM_PROMPT = """あなたは病院の病床管理を支援す
 2. ねらいは週末の在院維持＝タイミングの平準化。具体策は「金曜に集中している退院を月〜木へ分散」＋「週末（土日）の入院受け入れで空床を補充」。
 3. 在院日数の延長（退院を月曜まで遅らせる＝月曜延伸）や早期退院の促進は提案しない（禁止）。狙いはベッド回転であって延伸ではない。
 4. 診療科は患者の退院曜日と予定入院の曜日設計がレバー（床は持たない）。病棟は相乗り科の退院曜日の交通整理と週末入院の受け入れがレバー。
-5. 出力は指定 JSON のみ。前置き・説明・``` を付けない。簡潔・丁寧・事務的なトーン。
+5. 事実に含まれる対比（「〜が」「〜ものの」等）はそのまま保つ。現状（在院の落ち込み）と傾向（改善/悪化）が食い違うときは逆接でつなぎ、順接（「〜ており」等）で並べない。
+6. 出力は指定 JSON のみ。前置き・説明・``` を付けない。簡潔・丁寧・事務的なトーン。
 
 【出力スキーマ】
 {
   "body": "週末在院の状況を述べる本文 50〜80字（数値を使わない定性的記述）",
   "action": "今週の一手 40〜70字（金曜退院の平日分散＋週末入院補充。延伸は書かない）"
 }"""
-
-
-def _q_retention(r):
-    if r is None: return "不明"
-    if r >= 0.90: return "おおむね保てている"
-    if r >= 0.86: return "やや低下している"
-    return "明確に低下している"
 
 
 def _q_room(room, max_room):
@@ -149,11 +143,29 @@ def _q_room(room, max_room):
     return "小さい"
 
 
-def _q_delta(d):
-    if d is None: return "横ばい"
-    if d > 0.5: return "週末の落ち込みが拡大（悪化傾向）"
-    if d < -0.5: return "改善傾向"
-    return "横ばい"
+def _q_state_trend(retention, room_delta):
+    """週末在院の「現状（維持率レベル）」×「傾向（4週Δの向き）」を、対比の接続を
+    Python側で確定させた1つの事実文として返す。現状と傾向が食い違うケースを逆接
+    （〜が）でつなぐことで、LLMが順接で誤接続するのを防ぐ。
+    現状: good(≥.90)/mild(≥.86)/poor(<.86)/unknown。傾向: up(改善 rd<-0.5)/down(悪化 rd>0.5)/flat。
+    """
+    if retention is None:
+        return "週末在院の維持状況は不明"
+    state = "good" if retention >= 0.90 else "mild" if retention >= 0.86 else "poor"
+    trend = "up" if (room_delta is not None and room_delta < -0.5) else \
+            "down" if (room_delta is not None and room_delta > 0.5) else "flat"
+    table = {
+        ("good", "up"):   "週末も在院をおおむね保てており、さらに改善している",
+        ("good", "flat"): "週末も在院をおおむね保てている",
+        ("good", "down"): "週末も在院をおおむね保てているが、直近4週はやや崩れてきている",
+        ("mild", "up"):   "週末の在院がやや落ちるが、直近4週は改善に向かっている",
+        ("mild", "flat"): "週末の在院がやや落ちる状態が続いている",
+        ("mild", "down"): "週末の在院がやや落ち、直近4週でさらに落ち込みが拡大している",
+        ("poor", "up"):   "週末の在院が明確に落ちているが、直近4週は改善に向かっている",
+        ("poor", "flat"): "週末の在院が明確に落ちる状態が続いている",
+        ("poor", "down"): "週末の在院が明確に落ち、直近4週でさらに落ち込みが拡大している",
+    }
+    return table[(state, trend)]
 
 
 def _q_friday(dd):
@@ -183,9 +195,9 @@ def _q_weekend_adm(dd):
 def _build_leveling_prompt(unit: dict, entity: str, max_room: float, dd: Optional[dict]) -> str:
     label = "診療科" if entity == "dept" else "病棟"
     facts = [
-        f"週末在院の維持: {_q_retention(unit.get('retention'))}",
+        # 現状×傾向は逆接の接続まで含めて1事実に確定（順接での誤接続を防ぐ）
+        f"週末在院の現状と傾向: {_q_state_trend(unit.get('retention'), unit.get('room_delta_4w'))}",
         f"取り戻せる在院（のびしろ）の大きさ: {_q_room(unit.get('room_per_week', 0), max_room)}",
-        f"直近4週の傾向: {_q_delta(unit.get('room_delta_4w'))}",
     ]
     fri = _q_friday(dd)
     if fri: facts.append(f"退院の曜日: {fri}")
