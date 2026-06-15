@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_TEMPERATURE = 0.2
 DEFAULT_NUM_PREDICT = 200
 
-COMPOSITE_THRESHOLD = 90.0   # composite_rate < 90 → トリアージ対象
+PRIMARY_THRESHOLD = 90.0   # 北極星KPIの達成率 < 90 → トリアージ対象
 PRIORITY_HIGH_THRESHOLD = 80.0
 PRIORITY_MID_THRESHOLD  = 90.0
 
@@ -46,16 +46,16 @@ PRIORITY_MID_THRESHOLD  = 90.0
 # 在院患者数・退院曜日の指摘を控える（外科系の主軸は手術実績）
 SURGERY_OVERACHIEVE_RATE = 120.0
 
-# 重み
-WEIGHT_ADM    = 1.1
-WEIGHT_INP    = 1.0
-WEIGHT_OP     = 1.3
-WEIGHT_PROFIT = 0.8
+# 北極星KPI（経営目標に直結する単一指標。ランク・優先度の唯一の基準）
+#   外科系       → op  （全身麻酔手術件数）
+#   内科系・病棟 → inp （在院患者数）
+# 新入院は在院を上げるドライバー、粗利は別サブシステムが担うため、
+# いずれもランキングには用いず文脈表示のみとする。
 
 # fallback 文言（未達 KPI ごと）
 FALLBACK_SUGGESTIONS = {
-    "adm":    "新入院の目標設定・運用の再確認を推奨します",
-    "inp":    "病床利用状況・退院調整の点検を推奨します",
+    "adm":    "新入院・紹介患者の確保に向けた運用の再確認を推奨します",
+    "inp":    "在院確保に向け、新入院・紹介患者の確保を推奨します",
     "op":     "手術枠の利用状況と予約調整の確認を推奨します",
     "profit": "収益構造の再レビューを推奨します",
 }
@@ -80,6 +80,10 @@ TRIAGE_SYSTEM_PROMPT = """あなたは病院経営会議向けの要約ライタ
     新入院・紹介患者の確保である（在院日数短縮は在院を下げ逆効果）。
 11. 「全身麻酔手術が目標を大きく上回っている」旨の注記がある場合は、
     手術実績を主軸に肯定的に評価し、在院患者数や退院曜日の偏りは強く指摘しない。
+12. 各科には「目標KPI」が指定される。内科系の目標は在院患者数の増加（レバー＝
+    新入院・紹介患者の確保）、外科系の目標は全身麻酔手術件数の増加（レバー＝
+    手術枠の活用・予約調整）。suggestion はその科の目標KPIを伸ばすレバーに集中し、
+    目標でないKPIを主題にしないこと。
 
 【出力スキーマ】
 {
@@ -111,19 +115,79 @@ def _get_profit_rates(profit_monthly: Optional[pd.DataFrame]) -> dict:
         return {}
 
 
+def _dept_type(is_surgery: bool) -> tuple[str, str]:
+    """(dept_type, primary_kpi) を返す。外科系=全麻 / それ以外=在院。"""
+    return ("surgery", "op") if is_surgery else ("internal", "inp")
+
+
+def _priority_from_rate(rate: float) -> str:
+    """北極星KPIの達成率から優先度を確定する。"""
+    if rate < PRIORITY_HIGH_THRESHOLD:
+        return "high"
+    if rate < PRIORITY_MID_THRESHOLD:
+        return "mid"
+    return "low"
+
+
+def _make_entity_record(name, entity_type, is_surgery,
+                        adm_rate, adm_actual, adm_target,
+                        inp_rate, inp_actual, inp_target,
+                        op_rate, op_actual, op_target,
+                        profit_rate, ward_code=None) -> Optional[dict]:
+    """北極星KPI（外科系=op / それ以外=inp）でランクするレコードを生成。
+
+    北極星KPIの達成率が測れない場合は新入院にフォールバックし
+    （primary_is_fallback=True）、それも測れなければ None を返す。
+    新入院・粗利はランクには用いず、文脈フィールドとして保持する。
+    """
+    dept_type, primary_kpi = _dept_type(is_surgery)
+
+    primary_rate = op_rate if primary_kpi == "op" else inp_rate
+    primary_is_fallback = False
+    if primary_rate is None:
+        primary_rate = adm_rate
+        primary_is_fallback = True
+    if primary_rate is None:
+        return None   # 北極星も新入院も測れない → 対象外
+
+    return {
+        "name": name,
+        "entity_type": entity_type,
+        "dept_type": dept_type,
+        "primary_kpi": primary_kpi,
+        "primary_rate": round(primary_rate, 1),
+        "primary_is_fallback": primary_is_fallback,
+        "priority": _priority_from_rate(primary_rate),
+        "is_surgery_dept": is_surgery,
+        "adm_rate": adm_rate,
+        "adm_actual": adm_actual,
+        "adm_target": round(float(adm_target), 1) if adm_target else None,
+        "inp_rate": inp_rate,
+        "inp_actual": inp_actual,
+        "inp_target": round(float(inp_target), 1) if inp_target else None,
+        "op_rate": op_rate,
+        "op_actual": op_actual,
+        "op_target": round(float(op_target), 1) if (is_surgery and op_target) else None,
+        "profit_rate": profit_rate,
+        "adm_gap": round(float(adm_target) - adm_actual, 1) if adm_target else None,
+        "inp_gap": round(float(inp_target) - inp_actual, 1) if inp_target else None,
+        "op_gap": round(float(op_target) - op_actual, 1) if (is_surgery and op_target) else None,
+        "ward_code": ward_code,
+    }
+
+
 def score_departments(adm: pd.DataFrame, surg: pd.DataFrame,
                       targets: dict, surg_targets: dict,
                       profit_monthly: Optional[pd.DataFrame],
                       base_date: pd.Timestamp) -> list[dict]:
     """
-    全科の多KPI合成達成率を計算して返す。
+    全科を北極星KPIの達成率でスコアリングして返す。
+      外科系   → op_rate （全身麻酔手術）
+      内科系   → inp_rate（在院患者数）
+    新入院はドライバー、粗利は文脈として保持するが、ランク・優先度には用いない。
 
     Returns:
-        list of {name, composite_rate, priority,
-                 adm_rate, inp_rate, op_rate, profit_rate,
-                 adm_actual, adm_target, inp_actual, inp_target,
-                 op_actual, op_target, is_surgery_dept}
-        composite_rate 昇順（低い順）
+        list of dict（_make_entity_record のスキーマ。primary_rate 昇順）
     """
     r7_nadm = rolling7_new_admission(adm, base_date)
     r7_surg = rolling7_surgery(surg, base_date)
@@ -148,70 +212,28 @@ def score_departments(adm: pd.DataFrame, surg: pd.DataFrame,
         inp_rate    = achievement_rate(inp_actual, inp_target)
         op_rate     = achievement_rate(op_actual, op_target) if is_surgery else None
 
-        # 合成スコア計算（欠損 KPI は重みから除外）
-        weighted_sum = 0.0
-        weight_total = 0.0
-        if adm_rate is not None:
-            weighted_sum += adm_rate * WEIGHT_ADM
-            weight_total += WEIGHT_ADM
-        if inp_rate is not None:
-            weighted_sum += inp_rate * WEIGHT_INP
-            weight_total += WEIGHT_INP
-        if is_surgery and op_rate is not None:
-            weighted_sum += op_rate * WEIGHT_OP
-            weight_total += WEIGHT_OP
-        if profit_rate is not None:
-            weighted_sum += profit_rate * WEIGHT_PROFIT
-            weight_total += WEIGHT_PROFIT
+        rec = _make_entity_record(
+            name=dept, entity_type="dept", is_surgery=is_surgery,
+            adm_rate=adm_rate, adm_actual=adm_actual, adm_target=adm_target,
+            inp_rate=inp_rate, inp_actual=inp_actual, inp_target=inp_target,
+            op_rate=op_rate, op_actual=op_actual, op_target=op_target,
+            profit_rate=profit_rate,
+        )
+        if rec is not None:
+            results.append(rec)
 
-        if weight_total == 0:
-            continue
-
-        composite_rate = weighted_sum / weight_total
-
-        # priority 決定（Python 確定）
-        if composite_rate < PRIORITY_HIGH_THRESHOLD:
-            priority = "high"
-        elif composite_rate < PRIORITY_MID_THRESHOLD:
-            priority = "mid"
-        else:
-            priority = "low"
-
-        results.append({
-            "name": dept,
-            "entity_type": "dept",
-            "composite_rate": round(composite_rate, 1),
-            "priority": priority,
-            "is_surgery_dept": is_surgery,
-            "adm_rate": adm_rate,
-            "adm_actual": adm_actual,
-            "adm_target": round(float(adm_target), 1) if adm_target else None,
-            "inp_rate": inp_rate,
-            "inp_actual": inp_actual,
-            "inp_target": round(float(inp_target), 1) if inp_target else None,
-            "op_rate": op_rate,
-            "op_actual": op_actual,
-            "op_target": round(float(op_target), 1) if op_target else None,
-            "profit_rate": profit_rate,
-            "adm_gap": round(float(adm_target) - adm_actual, 1) if adm_target else None,
-            "inp_gap": round(float(inp_target) - inp_actual, 1) if inp_target else None,
-            "op_gap": round(float(op_target) - op_actual, 1) if (is_surgery and op_target) else None,
-        })
-
-    results.sort(key=lambda x: x["composite_rate"])
+    results.sort(key=lambda x: x["primary_rate"])
     return results
 
 
 def score_wards(adm: pd.DataFrame, targets: dict,
                 base_date: pd.Timestamp) -> list[dict]:
     """
-    全病棟の合成達成率を計算して返す（新入院 + 在院の2KPI）。
+    全病棟を在院患者数（北極星）の達成率でスコアリングして返す。
+    床ベースゆえ在院が北極星、新入院はそれを上げるドライバー。
 
     Returns:
-        list of {name, ward_code, entity_type, composite_rate, priority,
-                 adm_rate, inp_rate, adm_actual, adm_target,
-                 inp_actual, inp_target}
-        composite_rate 昇順（低い順）
+        list of dict（_make_entity_record のスキーマ。primary_rate 昇順）
     """
     r7_nadm = rolling7_new_admission(adm, base_date)
     inp_by_ward = daily_inpatient(adm, base_date)["by_ward"]
@@ -231,50 +253,17 @@ def score_wards(adm: pd.DataFrame, targets: dict,
         adm_rate = achievement_rate(adm_actual, adm_target)
         inp_rate = achievement_rate(inp_actual, inp_target)
 
-        weighted_sum = 0.0
-        weight_total = 0.0
-        if adm_rate is not None:
-            weighted_sum += adm_rate * WEIGHT_ADM
-            weight_total += WEIGHT_ADM
-        if inp_rate is not None:
-            weighted_sum += inp_rate * WEIGHT_INP
-            weight_total += WEIGHT_INP
+        rec = _make_entity_record(
+            name=wname, entity_type="ward", is_surgery=False,
+            adm_rate=adm_rate, adm_actual=adm_actual, adm_target=adm_target,
+            inp_rate=inp_rate, inp_actual=inp_actual, inp_target=inp_target,
+            op_rate=None, op_actual=None, op_target=None,
+            profit_rate=None, ward_code=wcode,
+        )
+        if rec is not None:
+            results.append(rec)
 
-        if weight_total == 0:
-            continue
-
-        composite_rate = weighted_sum / weight_total
-
-        if composite_rate < PRIORITY_HIGH_THRESHOLD:
-            priority = "high"
-        elif composite_rate < PRIORITY_MID_THRESHOLD:
-            priority = "mid"
-        else:
-            priority = "low"
-
-        results.append({
-            "name": wname,
-            "ward_code": wcode,
-            "entity_type": "ward",
-            "composite_rate": round(composite_rate, 1),
-            "priority": priority,
-            "is_surgery_dept": False,
-            "adm_rate": adm_rate,
-            "adm_actual": adm_actual,
-            "adm_target": round(float(adm_target), 1) if adm_target else None,
-            "inp_rate": inp_rate,
-            "inp_actual": inp_actual,
-            "inp_target": round(float(inp_target), 1) if inp_target else None,
-            "op_rate": None,
-            "op_actual": None,
-            "op_target": None,
-            "profit_rate": None,
-            "adm_gap": round(float(adm_target) - adm_actual, 1) if adm_target else None,
-            "inp_gap": round(float(inp_target) - inp_actual, 1) if inp_target else None,
-            "op_gap": None,
-        })
-
-    results.sort(key=lambda x: x["composite_rate"])
+    results.sort(key=lambda x: x["primary_rate"])
     return results
 
 
@@ -285,40 +274,40 @@ def score_wards(adm: pd.DataFrame, targets: dict,
 def pick_targets(scored: list[dict], adm: pd.DataFrame,
                  base_date: pd.Timestamp) -> list[dict]:
     """
-    composite_rate < COMPOSITE_THRESHOLD の科/病棟を抽出し、
-    facts 配列 + WoW ヒントを付与して返す。
+    primary_rate < PRIMARY_THRESHOLD の科/病棟を抽出し、北極星KPIを先頭にした
+    facts / kpi_summary と WoW ヒントを付与して返す。
     """
-    items = [s for s in scored if s["composite_rate"] < COMPOSITE_THRESHOLD]
+    items = [s for s in scored if s["primary_rate"] < PRIMARY_THRESHOLD]
 
     for i, item in enumerate(items):
         is_ward = item.get("entity_type") == "ward"
+        is_surgery = item.get("is_surgery_dept")
 
-        # facts 生成
-        facts = []
+        # 各KPIの fact 文（無ければ None）
+        adm_fact = inp_fact = op_fact = profit_fact = None
         if item["adm_rate"] is not None and item["adm_target"] is not None:
             adm_gap = item.get("adm_gap", 0) or 0
             adm_gap_str = f"・目標まであと{adm_gap:.1f}人" if adm_gap > 0 else f"・目標+{abs(adm_gap):.1f}人超過"
-            facts.append(
-                f"新入院（直近7日）: 実績{item['adm_actual']:.0f}人 / "
-                f"目標{item['adm_target']:.1f}人（達成率{item['adm_rate']:.0f}%{adm_gap_str}）"
-            )
+            adm_fact = (f"新入院（直近7日）: 実績{item['adm_actual']:.0f}人 / "
+                        f"目標{item['adm_target']:.1f}人（達成率{item['adm_rate']:.0f}%{adm_gap_str}）")
         if item["inp_rate"] is not None and item["inp_target"] is not None:
             inp_gap = item.get("inp_gap", 0) or 0
             inp_gap_str = f"・目標まであと{inp_gap:.1f}人" if inp_gap > 0 else f"・目標+{abs(inp_gap):.1f}人超過"
-            facts.append(
-                f"在院患者: 実績{item['inp_actual']:.0f}人 / "
-                f"目標{item['inp_target']:.1f}人（達成率{item['inp_rate']:.0f}%{inp_gap_str}）"
-            )
-        if (item.get("is_surgery_dept") and item["op_rate"] is not None
-                and item["op_target"] is not None):
+            inp_fact = (f"在院患者: 実績{item['inp_actual']:.0f}人 / "
+                        f"目標{item['inp_target']:.1f}人（達成率{item['inp_rate']:.0f}%{inp_gap_str}）")
+        if is_surgery and item["op_rate"] is not None and item["op_target"] is not None:
             op_gap = item.get("op_gap", 0) or 0
             op_gap_str = f"・目標まであと{op_gap:.1f}件" if op_gap > 0 else f"・目標+{abs(op_gap):.1f}件超過"
-            facts.append(
-                f"手術（直近7日）: 実績{item['op_actual']:.0f}件 / "
-                f"目標{item['op_target']:.1f}件（達成率{item['op_rate']:.0f}%{op_gap_str}）"
-            )
+            op_fact = (f"全身麻酔手術（直近7日）: 実績{item['op_actual']:.0f}件 / "
+                       f"目標{item['op_target']:.1f}件（達成率{item['op_rate']:.0f}%{op_gap_str}）")
         if item.get("profit_rate") is not None:
-            facts.append(f"粗利: 達成率{item['profit_rate']:.0f}%")
+            profit_fact = f"粗利: 達成率{item['profit_rate']:.0f}%（参考・ランク対象外）"
+
+        # 北極星KPIを先頭に並べる（粗利は末尾の文脈）
+        if is_surgery:
+            facts = [f for f in (op_fact, inp_fact, adm_fact, profit_fact) if f]
+        else:
+            facts = [f for f in (inp_fact, adm_fact, profit_fact) if f]
 
         # WoW ヒント（新入院前週比）
         wow_hint = None
@@ -337,23 +326,30 @@ def pick_targets(scored: list[dict], adm: pd.DataFrame,
         except Exception:
             pass
 
-        # KPI サマリー行（テンプレート headline 用: 達成率+差分をコンパクトに表示）
-        kpi_parts = []
+        # KPI サマリー行（テンプレート headline 用: 北極星KPIを先頭にコンパクト表示）
+        def _gap_s(gap):
+            return f"▲{gap:.1f}" if gap > 0 else f"+{abs(gap):.1f}"
+        adm_kpi = inp_kpi = op_kpi = None
         if item["adm_rate"] is not None:
-            adm_gap = item.get("adm_gap", 0) or 0
-            gap_s = f"▲{adm_gap:.1f}" if adm_gap > 0 else f"+{abs(adm_gap):.1f}"
-            kpi_parts.append(f"新入院{item['adm_rate']:.0f}%({gap_s}人)")
+            adm_kpi = f"新入院{item['adm_rate']:.0f}%({_gap_s(item.get('adm_gap', 0) or 0)}人)"
         if item["inp_rate"] is not None:
-            inp_gap = item.get("inp_gap", 0) or 0
-            gap_s = f"▲{inp_gap:.1f}" if inp_gap > 0 else f"+{abs(inp_gap):.1f}"
-            kpi_parts.append(f"在院{item['inp_rate']:.0f}%({gap_s}人)")
-        if item.get("is_surgery_dept") and item["op_rate"] is not None:
-            op_gap = item.get("op_gap", 0) or 0
-            gap_s = f"▲{op_gap:.1f}" if op_gap > 0 else f"+{abs(op_gap):.1f}"
-            kpi_parts.append(f"手術{item['op_rate']:.0f}%({gap_s}件)")
-        if item.get("profit_rate") is not None:
-            kpi_parts.append(f"粗利{item['profit_rate']:.0f}%")
-        item["kpi_summary"] = " | ".join(kpi_parts)
+            inp_kpi = f"在院{item['inp_rate']:.0f}%({_gap_s(item.get('inp_gap', 0) or 0)}人)"
+        if is_surgery and item["op_rate"] is not None:
+            op_kpi = f"全麻{item['op_rate']:.0f}%({_gap_s(item.get('op_gap', 0) or 0)}件)"
+
+        if is_surgery:
+            # 全麻が主軸。在院・新入院は達成率のみを文脈として併記
+            ctx = "・".join(
+                f"{lbl}{rate:.0f}%"
+                for lbl, rate in (("在院", item["inp_rate"]), ("新入院", item["adm_rate"]))
+                if rate is not None
+            )
+            head = op_kpi or ""
+            item["kpi_summary"] = f"{head} ｜ {ctx}" if (head and ctx) else (head or ctx)
+        else:
+            # 内科系・病棟: 在院が主軸、新入院はそれを上げるドライバー（←）
+            item["kpi_summary"] = (f"{inp_kpi} ← {adm_kpi}" if (inp_kpi and adm_kpi)
+                                   else (inp_kpi or adm_kpi or ""))
 
         # 全身麻酔手術を大幅クリアしている外科系は在院・退院曜日をうるさく言わない
         item["surgery_strong"] = bool(
@@ -388,11 +384,17 @@ def _build_triage_prompt(item: dict) -> str:
                    "手術実績を主軸に肯定的に評価し、在院患者数や退院曜日の偏りは"
                    "強く指摘しないこと。") if item.get("surgery_strong") else ""
     entity_label = item.get("entity_label", "科")
+    goal_map = {
+        "inp": "在院患者数の増加（レバー: 新入院・紹介患者の確保）",
+        "op":  "全身麻酔手術件数の増加（レバー: 手術枠の活用・予約調整）",
+    }
+    goal_line = goal_map.get(item.get("primary_kpi"), "")
     total_label = f"全{item['total_items']}{entity_label}" if "total_items" in item else f"全{item.get('total_depts', '?')}科"
     return f"""以下の確定事実を要約し、JSON を1つだけ出力してください。
 
 【{item.get('entity_label', '診療科')}】{item['name']}（下位{item['rank_from_bottom']}位 / {total_label}）
 【優先度】{item['priority']}
+【この{entity_label}の目標KPI】{goal_line}
 
 【確定事実】
 {facts_block}{wow_line}{strong_note}
@@ -444,32 +446,19 @@ def _extract_triage_json(text: str, entity_name: str = "") -> Optional[dict]:
 
 
 def _make_fallback_narrative(item: dict) -> dict:
-    """LLM 失敗時の Python 定型文 fallback（合成スコアを表に出さない）"""
-    # 未達 KPI を列挙して observation を生成
-    underfulfilled = []
-    suggestions = []
-    for fact in item["facts"]:
-        if "新入院" in fact:
-            underfulfilled.append("新入院")
-            suggestions.append(FALLBACK_SUGGESTIONS["adm"])
-        elif "在院" in fact:
-            underfulfilled.append("在院患者")
-            suggestions.append(FALLBACK_SUGGESTIONS["inp"])
-        elif "手術" in fact:
-            underfulfilled.append("手術")
-            suggestions.append(FALLBACK_SUGGESTIONS["op"])
-        elif "粗利" in fact:
-            underfulfilled.append("粗利")
-            suggestions.append(FALLBACK_SUGGESTIONS["profit"])
-
-    kpi_list = "・".join(dict.fromkeys(underfulfilled)) or "複数KPI"
-    observation = f"{kpi_list}で目標を下回っています"
-    suggestion = "、".join(dict.fromkeys(suggestions)) or "目標達成に向けた状況確認を推奨します"
+    """LLM 失敗時の Python 定型文 fallback（北極星KPI主体）"""
+    # 北極星KPIが測れずフォールバック中の科は新入院を主題にする
+    if item.get("primary_is_fallback"):
+        kpi, key = "新入院", "adm"
+    elif item.get("primary_kpi") == "op":
+        kpi, key = "全身麻酔手術", "op"
+    else:
+        kpi, key = "在院患者数", "inp"
     return {
         "priority":    item["priority"],
-        "headline":    f"{kpi_list}が目標未達",
-        "observation": observation,
-        "suggestion":  suggestion,
+        "headline":    f"{kpi}が目標未達",
+        "observation": f"{kpi}が目標を下回っています",
+        "suggestion":  FALLBACK_SUGGESTIONS[key],
     }
 
 
@@ -523,7 +512,7 @@ def narrate_triage(items: list[dict],
             item2["narrative"] = None
             status = "—"
         if not quiet:
-            print(f"    [triage] {status} {item['name']} ({item['composite_rate']:.0f}%)")
+            print(f"    [triage] {status} {item['name']} ({item['primary_rate']:.0f}%)")
         enriched.append(item2)
     return enriched
 
@@ -782,14 +771,18 @@ def build_triage_section(adm: pd.DataFrame, surg: pd.DataFrame,
     portal_ctx["triage"] に渡す dict を生成するエントリポイント。
 
     Returns:
-        {"dept": [...], "ward": [...]}
-        各リストは composite_rate < 90 の要素（composite_rate 昇順）。
+        {"dept_internal": [...], "dept_surgery": [...], "ward": [...],
+         "dept_leveling": [...], "ward_leveling": [...]}
+        各リストは primary_rate < 90 の要素（primary_rate 昇順）。
+        診療科は北極星KPIで内科系（在院）／外科系（全麻）に分割。
         各要素に priority バッジ・facts・narrative が付与済み。
     """
-    # 診療科
+    # 診療科（北極星KPIでランク → 内科系/外科系に分割）
     dept_scored = score_departments(adm, surg, targets, surg_targets, profit_monthly, base_date)
     dept_items  = pick_targets(dept_scored, adm, base_date)
     dept_items  = _narrate_items(dept_items, use_llm_narrative, model, quiet)
+    dept_internal = [d for d in dept_items if d.get("dept_type") == "internal"]
+    dept_surgery  = [d for d in dept_items if d.get("dept_type") == "surgery"]
 
     # 病棟
     ward_scored = score_wards(adm, targets, base_date)
@@ -806,5 +799,6 @@ def build_triage_section(adm: pd.DataFrame, surg: pd.DataFrame,
         lev_dept = [dict(it, narrative=_make_leveling_fallback(it)) for it in lev_dept]
         lev_ward = [dict(it, narrative=_make_leveling_fallback(it)) for it in lev_ward]
 
-    return {"dept": dept_items, "ward": ward_items,
+    return {"dept_internal": dept_internal, "dept_surgery": dept_surgery,
+            "ward": ward_items,
             "dept_leveling": lev_dept, "ward_leveling": lev_ward}

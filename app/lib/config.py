@@ -63,6 +63,22 @@ SURGERY_DISPLAY_DEPTS = {
     "心臓血管外科", "乳腺外科", "形成外科", "脳神経外科",
 }
 
+# ──────────────────────────────
+# 部門トリアージ 北極星KPI分類
+# ──────────────────────────────
+# 経営目標に直結する単一KPI（北極星）で科をランクするための分類。
+#   外科系 → 全身麻酔手術件数（op）
+#   内科系 → 在院患者数（inp）
+# 外科系は手術目標を持つ SURGERY_DISPLAY_DEPTS と一致。内科系はそれ以外の表示科。
+#
+# 【眼科】実態は手術科だが全麻目標が未整備（GA件数もほぼ無い）ため、
+#   暫定的に内科系（在院）扱い。全麻目標が整備されたら
+#   SURGERY_NORTH_STAR_DEPTS に追加して外科系へ移すこと。
+SURGERY_NORTH_STAR_DEPTS = set(SURGERY_DISPLAY_DEPTS)
+INTERNAL_NORTH_STAR_DEPTS = (
+    (NADM_DISPLAY_DEPTS | SURGERY_DISPLAY_DEPTS) - SURGERY_NORTH_STAR_DEPTS
+)
+
 # 粗利のみ存在し、入院・手術の患者データに出ない科。
 # dept.html に「粗利ページのみ」を表示するための表示集合。
 # NADM/SURGERY_DISPLAY_DEPTS には入れない（alerts/triage の新入院・手術

@@ -238,38 +238,62 @@ def build_portal_context(adm, surg, targets, surg_targets,
     # ★要注視カード（detail.html 用に維持）
     attention = _build_attention_cards(adm, surg, base_date, targets, surg_targets)
 
-    # 改善トピック: 新入院の前週同曜日比で上位3件（診療科）
-    dept_imp_candidates = []
-    for dept in NADM_DISPLAY_DEPTS:
-        s = build_daily_series(adm, "新入院患者数", group_col="診療科名", group_val=dept)
-        wow = week_over_week(s, base_date)
-        if wow is not None and wow > 0:
-            dept_imp_candidates.append({
-                "name": dept, "kpi": "admission",
-                "delta": int(wow), "compare": "前週同曜日比",
-                "href": f"dept.html#{dept}",
-            })
-    dept_imp_candidates.sort(key=lambda x: -x["delta"])
-    dept_improvement = dept_imp_candidates[:3] if dept_imp_candidates else []
+    # 改善トピック: 北極星KPIの前週比で各群上位3件（プラスのみ）
+    #   内科系 → 在院の前週同曜日比（人）
+    #   外科系 → 全麻の直近7日累計 前週比（件。単日だと週末ゼロで不安定なため7日窓）
+    #   病棟   → 在院の前週同曜日比（人）
+    def _wow_top3(cands):
+        c = [x for x in cands if x["delta"] > 0]
+        c.sort(key=lambda x: -x["delta"])
+        return c[:3]
 
-    # 改善トピック: 新入院の前週同曜日比で上位3件（病棟）
+    r7s_now  = rolling7_surgery(surg, base_date)["by_dept"]
+    r7s_prev = rolling7_surgery(surg, base_date - pd.Timedelta(days=7))["by_dept"]
+
+    dept_imp_internal, dept_imp_surgery = [], []
+    for dept in NADM_DISPLAY_DEPTS:
+        if dept in SURGERY_DISPLAY_DEPTS:
+            delta = int(r7s_now.get(dept, 0)) - int(r7s_prev.get(dept, 0))
+            if delta > 0:
+                dept_imp_surgery.append({
+                    "name": dept, "kpi": "operation",
+                    "metric_label": "全麻", "unit": "件",
+                    "delta": delta, "compare": "前週比（7日累計）",
+                    "href": f"dept.html#{dept}",
+                })
+        else:
+            s = build_daily_series(adm, "在院患者数", group_col="診療科名", group_val=dept)
+            wow = week_over_week(s, base_date)
+            if wow is not None:
+                dept_imp_internal.append({
+                    "name": dept, "kpi": "inpatient",
+                    "metric_label": "在院", "unit": "人",
+                    "delta": int(wow), "compare": "前週同曜日比",
+                    "href": f"dept.html#{dept}",
+                })
+    dept_imp_internal = _wow_top3(dept_imp_internal)
+    dept_imp_surgery  = _wow_top3(dept_imp_surgery)
+
+    # 改善トピック: 在院の前週同曜日比で上位3件（病棟）
     from .config import WARD_NAMES, WARD_HIDDEN
     ward_imp_candidates = []
     for wcode, wname in WARD_NAMES.items():
         if wcode in WARD_HIDDEN:
             continue
-        s = build_daily_series(adm, "新入院患者数_病棟", group_col="病棟コード", group_val=wcode)
+        s = build_daily_series(adm, "在院患者数", group_col="病棟コード", group_val=wcode)
         wow = week_over_week(s, base_date)
-        if wow is not None and wow > 0:
+        if wow is not None:
             ward_imp_candidates.append({
-                "name": wname, "kpi": "admission",
+                "name": wname, "kpi": "inpatient",
+                "metric_label": "在院", "unit": "人",
                 "delta": int(wow), "compare": "前週同曜日比",
                 "href": "detail.html#inpatient?axis=ward",
             })
-    ward_imp_candidates.sort(key=lambda x: -x["delta"])
-    ward_improvement = ward_imp_candidates[:3] if ward_imp_candidates else []
+    ward_improvement = _wow_top3(ward_imp_candidates)
 
-    improvement = {"dept": dept_improvement, "ward": ward_improvement}
+    improvement = {"dept_internal": dept_imp_internal,
+                   "dept_surgery": dept_imp_surgery,
+                   "ward": ward_improvement}
 
     # KPIカード情報
     # 在院は「直近7日の平日平均／休日平均」を併記（枠・バッジは平日=主目標基準）
@@ -314,7 +338,8 @@ def build_portal_context(adm, surg, targets, surg_targets,
     # その場合 LLM 計算を丸ごとスキップして二重実行を防ぐ。
     triage = (_build_triage(adm, surg, targets, surg_targets, profit_monthly, base_date)
               if include_triage
-              else {"dept": [], "ward": [], "dept_leveling": [], "ward_leveling": []})
+              else {"dept_internal": [], "dept_surgery": [], "ward": [],
+                    "dept_leveling": [], "ward_leveling": []})
 
     # ── AI アラート（後方互換：include_ai_alerts=True 時のみ。portal では使用しない）──
     ai_alerts = (_build_ai_alerts(adm, surg, targets, surg_targets, base_date)
@@ -338,7 +363,7 @@ def _build_triage(adm, surg, targets, surg_targets, profit_monthly, base_date) -
     try:
         from .triage import build_triage_section
     except ImportError:
-        return {"dept": [], "ward": []}
+        return {"dept_internal": [], "dept_surgery": [], "ward": [], "dept_leveling": [], "ward_leveling": []}
     try:
         return build_triage_section(
             adm, surg, targets, surg_targets, profit_monthly, base_date
@@ -346,7 +371,7 @@ def _build_triage(adm, surg, targets, surg_targets, profit_monthly, base_date) -
     except Exception as e:
         import logging as _logging
         _logging.getLogger(__name__).warning(f"部門トリアージ生成スキップ: {e}")
-        return {"dept": [], "ward": []}
+        return {"dept_internal": [], "dept_surgery": [], "ward": [], "dept_leveling": [], "ward_leveling": []}
 
 
 def _build_ai_alerts(adm, surg, targets, surg_targets, base_date) -> list:
