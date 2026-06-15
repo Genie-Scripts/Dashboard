@@ -102,6 +102,19 @@ pl:
 		--output   $(OUTPUT_DIR)/output/pl_projection.html
 	@echo "$(GREEN)✅ 完了: $(OUTPUT_DIR)/output/pl_projection.html$(RESET)"
 
+## 部門別レポートPDF 一括生成（ローカル印刷・配布専用）
+## 出力: dept_reports/{基準日}/診療科版_{基準日}.pdf・病棟版_{基準日}.pdf（軸ごと連結＝一括印刷用）
+## 個別PDFに分割: make reports SPLIT=on ／ 一手を定型文のみ: make reports AI=off
+.PHONY: reports
+reports:
+	@echo "$(CYAN)🖨  部門別レポートPDF 生成中...$(RESET)"
+	$(PYTHON) scripts/build_dept_reports.py \
+		--data-dir $(DATA_DIR) \
+		$(if $(filter off,$(AI)),--no-ai,) \
+		$(if $(filter on,$(SPLIT)),--split,) \
+		$(if $(DATE),--base-date $(DATE),)
+	@echo "$(GREEN)✅ 完了: dept_reports/$(RESET)"
+
 # ============================================================
 # ローカル確認
 # ============================================================

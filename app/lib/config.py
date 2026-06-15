@@ -222,6 +222,13 @@ HEATMAP_SCALE = [
 # ──────────────────────────────
 DEFAULT_DATA_DIR = "data"
 
+# ──────────────────────────────
+# 部門別レポートPDF（印刷ハンドアウト）
+# ──────────────────────────────
+# レポート用紙のレターヘッド（病院名）。空文字なら部門名のみ表示。
+# 例: REPORT_HOSPITAL_NAME = "○○総合病院"
+REPORT_HOSPITAL_NAME = ""
+
 DATA_FOLDERS = {
     "patient_data":   "patient_data",
     "patient_target": "patient_target",

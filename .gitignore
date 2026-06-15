@@ -24,6 +24,9 @@ spec/
 # Claude Code local settings
 .claude/
 
+# 部門別レポートPDF（ローカル印刷・配布専用・再生成物）
+dept_reports/
+
 # 医業収支 推計レポート（ローカル閲覧専用・公開しない）
 output/pl_projection.html
 output/pl_residuals.csv
