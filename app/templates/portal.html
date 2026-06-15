@@ -81,6 +81,13 @@
 .kc.dr{border-top:5px solid var(--dr);background:var(--dr-bg)}.kc.wr{border-top:5px solid var(--wr);background:var(--wr-bg)}.kc.ok{border-top:5px solid var(--ok);background:var(--ok-bg)}
 .kc .cta{display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding:8px 12px;background:var(--bl);border-radius:10px;font-size:13px;font-weight:800;color:var(--br);transition:background .15s}.kc:hover .cta{background:#d4e4fc}.cta-arrow{font-size:16px;font-weight:900;transition:transform .15s}.kc:hover .cta-arrow{transform:translateX(3px)}
 .lb{font-size:14px;color:var(--sub)}.sb{font-size:12px;color:var(--mu);margin-top:2px}.vl{font-size:40px;font-weight:900;line-height:1.05;margin:10px 0 6px}.gp{font-size:14px;font-weight:800;color:var(--dr-t)}
+.vl-dual{margin:10px 0 4px;display:flex;flex-direction:column;gap:6px}
+.dual-row{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.dual-lab{font-size:12px;font-weight:800;color:var(--sub);min-width:30px}
+.dual-val{font-size:26px;font-weight:900;line-height:1}
+.dual-val small{font-size:13px;font-weight:600;color:var(--sub);margin-left:1px}
+.dual-st{font-size:11px;font-weight:900}
+.dual-tgt{font-size:11px;color:var(--mu);margin-left:auto}
 /* ── 部門トリアージ ── */
 .triage-sec{background:var(--s);border:1px solid var(--ln);border-radius:var(--r);margin-bottom:16px;box-shadow:var(--sh);overflow:hidden}
 .triage-hd{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--ln)}
@@ -214,8 +221,21 @@
       <span class="st {{ card.status.css }}">{{ card.status.shape }} {{ card.status.text }}</span>
       <div class="lb">{{ card.icon }} {{ card.label }}</div>
       <div class="sb">{{ card.period }}</div>
+      {% if card.dual %}
+      <div class="vl-dual">
+        {% for d in [card.dual.wd, card.dual.hd] %}
+        <div class="dual-row">
+          <span class="dual-lab">{{ d.label }}</span>
+          <span class="dual-val">{{ d.value }}<small>人</small></span>
+          <span class="dual-st" style="color:{{ d.status.color }}">{{ d.status.shape }} {{ d.status.text }}</span>
+          <span class="dual-tgt">目標{{ d.target }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
       <div class="vl">{{ card.value }}<small style="font-size:16px;font-weight:400">{{ card.unit }}</small></div>
       <div class="gp">{% if card.gap == 0 %}目標達成！{% elif card.gap > 0 %}目標達成 (+{{ card.gap }}{{ card.gap_unit }}){% else %}目標まであと {{ -card.gap }}{{ card.gap_unit }}{% endif %}</div>
+      {% endif %}
       <div class="cta"><span>詳細を見る</span><span class="cta-arrow">›</span></div>
     </a>
     {% endfor %}

@@ -18,11 +18,11 @@
 .nav-bar{display:flex;align-items:center;gap:4px;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.12)}.nav-bar a{font-size:12px;font-weight:800;text-decoration:none;padding:5px 13px;border-radius:8px;color:#a8bdd4;transition:all .15s;border:1px solid transparent}.nav-bar a:hover{color:#fff;border-color:rgba(255,255,255,.25)}.nav-bar a.active{background:rgba(255,255,255,.18);color:#fff;border-color:rgba(255,255,255,.35)}
 .w{max-width:1280px;margin:0 auto;padding:16px 20px 48px}
 /* ★課題4: タブを大きく、数字を目立たせる */
-.tabs{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));background:var(--s);border:1px solid var(--ln);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh)}.tab{padding:16px 18px;border-right:1px solid var(--ln);cursor:pointer;transition:background .15s}.tab:last-child{border-right:none}.tab:hover{background:#f8fafc}.tab:not(.active){background:#f0f4f8;color:var(--sub)}.tab.active{background:var(--s);color:var(--ink);box-shadow:inset 0 -4px 0 var(--br),0 4px 12px rgba(14,77,164,.10)}.tab .nm{font-size:13px;font-weight:800}.tab .big{font-size:28px;font-weight:900;line-height:1.1;margin:4px 0}.tab:not(.active) .big{color:var(--sub)}.tab .per{font-size:11px;color:var(--sub);margin-top:2px}.tab .st{display:inline-block;font-size:10px;font-weight:900;padding:2px 8px;border-radius:999px;margin-left:4px;background:var(--dr-bg);color:var(--dr-t)}
+.tabs{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));background:var(--s);border:1px solid var(--ln);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh)}.tab{padding:16px 18px;border-right:1px solid var(--ln);cursor:pointer;transition:background .15s}.tab:last-child{border-right:none}.tab:hover{background:#f8fafc}.tab:not(.active){background:#f0f4f8;color:var(--sub)}.tab.active{background:var(--s);color:var(--ink);box-shadow:inset 0 -4px 0 var(--br),0 4px 12px rgba(14,77,164,.10)}.tab .nm{font-size:13px;font-weight:800}.tab .big{font-size:28px;font-weight:900;line-height:1.1;margin:4px 0}.tab .tab-dual{font-size:18px;font-weight:900}.tab .tab-unit{font-size:13px;font-weight:600;color:var(--sub);margin-left:1px}.tab:not(.active) .big{color:var(--sub)}.tab .per{font-size:11px;color:var(--sub);margin-top:2px}.tab .st{display:inline-block;font-size:10px;font-weight:900;padding:2px 8px;border-radius:999px;margin-left:4px;background:var(--dr-bg);color:var(--dr-t)}
 .sum{display:grid;grid-template-columns:1.4fr repeat(3,1fr);gap:10px;margin-top:12px}.bx{background:var(--bg);border:1px solid var(--ln);border-radius:14px;padding:12px 14px;box-shadow:0 2px 6px rgba(10,22,42,.04)}.bx h2{font-size:16px;margin:0}.bx .k{font-size:13px;color:var(--sub);font-weight:700}.bx .v{font-size:24px;font-weight:900;margin-top:4px}.bx .v.dr{color:var(--dr)}
 .bx .cmp-bar{height:4px;background:#edf2f7;border-radius:999px;overflow:hidden;margin-top:8px}.bx .cmp-fill{height:100%;border-radius:999px;transition:width .3s}.bx .cmp-fill.ok{background:var(--ok)}.bx .cmp-fill.wr{background:var(--wr)}.bx .cmp-fill.dr{background:var(--dr)}.bx .cmp-fill.mu{background:var(--mu)}.bx .cmp-meta{display:flex;justify-content:space-between;align-items:center;margin-top:3px}.bx .cmp-prev{font-size:13px;color:var(--sub);font-weight:600}.bx .cmp-dir{font-size:11px;font-weight:900;padding:2px 6px;border-radius:4px}.bx .cmp-dir.ok{background:var(--ok-bg);color:#065f42}.bx .cmp-dir.wr{background:var(--wr-bg);color:#7c3a06}.bx .cmp-dir.dr{background:var(--dr-bg);color:var(--dr-t)}.bx .cmp-dir.mu{color:var(--mu)}
 /* ★Plan-B: 実績+目標+差分 統合カード */
-.bx-main{background:var(--s);border:1px solid var(--ln);border-radius:14px;padding:14px 16px;box-shadow:0 2px 6px rgba(10,22,42,.04)}.bx-main.ok{background:var(--ok-bg)}.bx-main.wr{background:var(--wr-bg)}.bx-main.dr{background:var(--dr-bg)}.bx-main h2{font-size:14px;margin:0 0 6px;font-weight:800}.bx-main .period-note{font-size:11px;color:var(--sub);margin-bottom:4px}.bx-main .main-val{font-size:28px;font-weight:900;line-height:1.15}.bx-main .main-val.dr{color:var(--dr)}.bx-main .main-unit{font-size:14px;font-weight:400;color:var(--sub)}
+.bx-main{background:var(--s);border:1px solid var(--ln);border-radius:14px;padding:14px 16px;box-shadow:0 2px 6px rgba(10,22,42,.04)}.bx-main.ok{background:var(--ok-bg)}.bx-main.wr{background:var(--wr-bg)}.bx-main.dr{background:var(--dr-bg)}.bx-main h2{font-size:14px;margin:0 0 6px;font-weight:800}.bx-main .period-note{font-size:11px;color:var(--sub);margin-bottom:4px}.bx-main .main-val{font-size:28px;font-weight:900;line-height:1.15}.bx-main .main-val.dr{color:var(--dr)}.bx-main .main-unit{font-size:14px;font-weight:400;color:var(--sub)}.bx-main .dual-main-row{display:flex;align-items:baseline;gap:8px;margin:6px 0;flex-wrap:wrap}.bx-main .dual-main-row .main-val{margin:0}.bx-main .dual-main-lab{font-size:13px;font-weight:800;color:var(--sub);min-width:34px}.bx-main .dual-main-tgt{font-size:11px;color:var(--mu);margin-left:auto}
 .tgt-row{display:flex;align-items:center;gap:8px;margin-top:8px;padding:6px 10px;background:#f8f9fa;border-radius:10px;border:1px dashed var(--ln)}.tgt-icon{font-size:12px}.tgt-label{font-size:12px;color:var(--mu);font-weight:700}.tgt-val{font-size:14px;font-weight:800;color:var(--sub)}.gap-val{font-size:14px;font-weight:900;margin-left:auto}.gap-val.dr{color:var(--dr)}.gap-val.wr{color:var(--wr)}.gap-val.ok{color:var(--ok)}
 .prog-wrap{margin-top:6px}.prog-bar{height:6px;background:#edf2f7;border-radius:999px;overflow:hidden}.prog-fill{height:100%;border-radius:999px;transition:width .3s}.prog-fill.ok{background:var(--ok)}.prog-fill.wr{background:var(--wr)}.prog-fill.dr{background:var(--dr)}.prog-meta{display:flex;justify-content:space-between;align-items:center;margin-top:3px}.prog-pct{font-size:11px;font-weight:800}.prog-pct.dr{color:var(--dr)}.prog-pct.wr{color:var(--wr)}.prog-pct.ok{color:var(--ok)}.prog-status{font-size:9px;font-weight:800;padding:2px 7px;border-radius:5px}.prog-status.dr{background:var(--dr-bg);color:var(--dr-t)}.prog-status.wr{background:var(--wr-bg);color:#7c3a06}.prog-status.ok{background:var(--ok-bg);color:#065f42}
 /* 在院: 全日/平日/休日タブ（今年度平均カード内に配置） */
@@ -657,10 +657,14 @@ function switchDhmAdm(m) {
 // ★課題4: タブに大きい数字＋期間ラベルを明記
 function renderTabs() {
   const bd = DATA.meta.base_date;
+  const _inp = DATA.kpi.inpatient;
+  const _inpWdRate = _inp.avg_7d_wd!=null ? _inp.avg_7d_wd/_inp.target_weekday*100 : null;
+  const _inpSt = {css:stCss(_inpWdRate), shape:stShape(_inpWdRate), text:stText(_inpWdRate)};
   const tabs = [
     {id:'inpatient', icon:'🛏️', name:'在院患者',
-     big:`${DATA.kpi.inpatient.actual}人`, per:`${bd} 時点の在院数`,
-     st:DATA.kpi.inpatient.status},
+     big:`<span class="tab-dual">平日 ${_inp.avg_7d_wd} ／ 休日 ${_inp.avg_7d_hd}<span class="tab-unit">人</span></span>`,
+     per:`直近7日平均（平日／休日）`,
+     st:_inpSt},
     {id:'admission', icon:'🚪', name:'新入院',
      big:`${DATA.kpi.admission.actual_7d}人`, per:`直近7日累計`,
      st:DATA.kpi.admission.status},
@@ -997,13 +1001,16 @@ function renderSummary() {
   let main, refs;
 
   if (currentTab === 'inpatient') {
-    const dayTypeLabel = kpi.is_weekday ? '平日目標' : '休日目標';
-    const periodNote = `${DATA.meta.base_date} 時点（${dayTypeLabel} ${kpi.target}人）`;
+    // 在院は「直近7日の平日平均／休日平均」を併記（枠は平日=主目標基準）
+    const wdRate = kpi.avg_7d_wd!=null ? kpi.avg_7d_wd/kpi.target_weekday*100 : null;
+    const hdRate = kpi.avg_7d_hd!=null ? kpi.avg_7d_hd/kpi.target_holiday*100 : null;
     main = {
-      icon:'🛏️', label:'在院患者数', periodNote:periodNote,
-      actual:kpi.actual, unit:'人', targetLabel:dayTypeLabel,
-      target:kpi.target, gap:kpi.gap, gapUnit:'人',
-      rate:kpi.rate, status:kpi.status
+      icon:'🛏️', label:'在院患者数', periodNote:'直近7日平均（平日／休日）', unit:'人',
+      status:{css:stCss(wdRate), shape:stShape(wdRate), text:stText(wdRate)},
+      dual:[
+        {label:'平日', value:kpi.avg_7d_wd, target:kpi.target_weekday, rate:wdRate},
+        {label:'休日', value:kpi.avg_7d_hd, target:kpi.target_holiday, rate:hdRate},
+      ]
     };
     // 7日平均・4週平均は全日固定、今年度平均のみ全日/平日/休日切替
     const allTgt = kpi.target_allday;
@@ -1124,9 +1131,15 @@ function renderSummary() {
     ? `<span style="font-size:13px;font-weight:900;padding:4px 10px;border-radius:6px;margin-left:8px;background:${trendBg};color:${trendColor}">${kpiTrend.label}</span>`
     : '';
 
-  const mainHtml = `<div class="bx-main ${sc}">
-    <h2>${main.icon} ${main.label}${trendHtml}</h2>
-    ${main.periodNote ? `<div class="period-note">${main.periodNote}</div>` : ''}
+  const bodyHtml = main.dual ? main.dual.map(d => {
+    const dc = stCss(d.rate);
+    return `<div class="dual-main-row">
+      <span class="dual-main-lab">${d.label}</span>
+      <span class="main-val ${dc==='dr'?'dr':''}" style="font-size:26px">${d.value!=null?d.value:'—'}<span class="main-unit">人</span></span>
+      <span class="prog-status ${dc}">${stShape(d.rate)} ${stText(d.rate)}</span>
+      <span class="dual-main-tgt">目標 ${d.target}人${d.rate!=null?' ('+Math.round(d.rate)+'%)':''}</span>
+    </div>`;
+  }).join('') : `
     <div class="main-val ${sc==='dr'?'dr':''}">${main.actual}<span class="main-unit">${main.unit}</span></div>
     <div class="tgt-row">
       <span class="tgt-icon">🎯</span>
@@ -1140,7 +1153,12 @@ function renderSummary() {
         <span class="prog-pct ${sc}">${main.rate!=null?main.rate+'%':'—'}</span>
         <span class="prog-status ${sc}">${ss} ${st}</span>
       </div>
-    </div>
+    </div>`;
+
+  const mainHtml = `<div class="bx-main ${sc}">
+    <h2>${main.icon} ${main.label}${trendHtml}</h2>
+    ${main.periodNote ? `<div class="period-note">${main.periodNote}</div>` : ''}
+    ${bodyHtml}
   </div>`;
 
   const refsHtml = refs.map(r => refCardHtml(r)).join('');

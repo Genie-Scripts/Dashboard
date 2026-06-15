@@ -272,19 +272,24 @@ def build_portal_context(adm, surg, targets, surg_targets,
     improvement = {"dept": dept_improvement, "ward": ward_improvement}
 
     # KPIカード情報
+    # 在院は「直近7日の平日平均／休日平均」を併記（枠・バッジは平日=主目標基準）
+    _inp_wd, _inp_hd = kpi["inpatient_avg_7d_wd"], kpi["inpatient_avg_7d_hd"]
+    _inp_wd_rate = achievement_rate(_inp_wd, TARGET_INPATIENT_WEEKDAY)
+    _inp_hd_rate = achievement_rate(_inp_hd, TARGET_INPATIENT_HOLIDAY)
     kpi_cards = [
         {
             "id": "inpatient", "icon": KPI_ICONS["inpatient"],
-            "label": "在院患者数",
-            "period": (
-                f"{base_date.strftime('%m/%d')} 時点"
-                f"（{'平日' if kpi['inpatient_is_weekday'] else '休日'}目標"
-                f"{kpi['inpatient_target']}人）"
-            ),
+            "label": "在院患者数", "period": "直近7日平均（平日／休日）",
             "value": kpi["inpatient_actual"], "unit": "人",
             "gap": kpi["inpatient_gap"], "gap_unit": "人",
-            "status": kpi["inpatient_status"],
+            "status": status_display(_inp_wd_rate),
             "href": "detail.html#inpatient",
+            "dual": {
+                "wd": {"label": "平日", "value": _inp_wd, "target": TARGET_INPATIENT_WEEKDAY,
+                       "status": status_display(_inp_wd_rate)},
+                "hd": {"label": "休日", "value": _inp_hd, "target": TARGET_INPATIENT_HOLIDAY,
+                       "status": status_display(_inp_hd_rate)},
+            },
         },
         {
             "id": "admission", "icon": KPI_ICONS["admission"],

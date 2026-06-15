@@ -115,6 +115,26 @@ reports:
 		$(if $(DATE),--base-date $(DATE),)
 	@echo "$(GREEN)✅ 完了: dept_reports/$(RESET)"
 
+## Comedix「お知らせ・回覧板」用 週報サマリーPNG 生成（院内LAN配信・レバーB）
+## 出力: output/comedix/週報サマリー.png（資料室の同じ文書へ毎週上書き）＋ お知らせ本文.html（初回のみ貼付）
+.PHONY: comedix
+comedix:
+	@echo "$(CYAN)🖼  Comedix週報サマリーPNG 生成中...$(RESET)"
+	$(PYTHON) scripts/build_comedix_card.py \
+		--data-dir $(DATA_DIR) \
+		$(if $(DATE),--base-date $(DATE),) \
+		$(if $(REFRESH),--refresh,)
+	@echo "$(GREEN)✅ 完了: output/comedix/週報サマリー.png（一手: output/comedix/今週の一手.md）$(RESET)"
+
+## 全病院 実績まとめPDF（詳細・印刷/資料室リンク）: KPI3＋12週トレンド3枚＋病棟別/診療科別テーブル
+.PHONY: report-hospital
+report-hospital:
+	@echo "$(CYAN)📑 全病院 実績まとめPDF 生成中...$(RESET)"
+	$(PYTHON) scripts/build_hospital_report.py \
+		--data-dir $(DATA_DIR) \
+		$(if $(DATE),--base-date $(DATE),)
+	@echo "$(GREEN)✅ 完了: output/comedix/実績まとめ_<基準日>.pdf$(RESET)"
+
 # ============================================================
 # ローカル確認
 # ============================================================

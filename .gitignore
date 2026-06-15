@@ -27,6 +27,9 @@ spec/
 # 部門別レポートPDF（ローカル印刷・配布専用・再生成物）
 dept_reports/
 
+# Comedix週報サマリーPNG／全病院実績まとめPDF（ローカル再生成物・資料室へ手動アップ）
+output/comedix/
+
 # 医業収支 推計レポート（ローカル閲覧専用・公開しない）
 output/pl_projection.html
 output/pl_residuals.csv
