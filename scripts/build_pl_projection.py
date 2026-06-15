@@ -96,16 +96,26 @@ def build_one_projection(pl: pd.DataFrame,
                           label: str) -> dict:
     """1か月分の G推計・医業収支予測・予測区間をまとめた entry を返す。
 
-    粗利確報が未入力の月を複数（前月＝月末見込み + 当月＝進行中）出すため、
-    既存の単月ロジックをそのまま月ごとにループ呼びする薄いラッパー。
+    PL確報の翌月〜ドライバー月を月ごとにループ呼びする薄いラッパー。対象月の粗利が
+    確報済み（g_monthly に在る）なら、推計Gでなく**確定粗利**を使い、コストだけ推計する
+    （収支見込みの精度が上がり、公表済みの粗利と数字が食い違わない）。
     """
     g_proj, g_meta = fetch_profit_projection(adm, surg, profit_breakdown, base_date)
-    projection = project_monthly_balance(pl, delta, g_monthly,
-                                          target_month, g_override=g_proj)
+    # 対象月の粗利が確報済みか（PL未着でも粗利だけ先に確定する端境期がある）
+    g_confirmed = g_monthly[g_monthly["月"] == pd.Timestamp(target_month).normalize().replace(day=1)]
+    use_actual_g = len(g_confirmed) > 0
+    # 確定粗利があれば g_override=None で project_monthly_balance に実績Gを引かせる
+    projection = project_monthly_balance(pl, delta, g_monthly, target_month,
+                                         g_override=(None if use_actual_g else g_proj))
     pi = prediction_intervals(pl, delta, g_monthly, target_month, projection)
-    g_source = (f"粗利推計 MTDブレンド月末見込み(w={g_meta.get('mtd_blend_weight')}, anchor8)"
-                f" ×{g_meta['calibration_factor']}"
-                f"（recency補正 k12_shrink50, n={g_meta['calibration_n_months']}）")
+    if use_actual_g:
+        g_value = float(g_confirmed["G"].iloc[0])
+        g_source = "粗利データ実績（確報）／コストのみ推計"
+    else:
+        g_value = g_proj
+        g_source = (f"粗利推計 MTDブレンド月末見込み(w={g_meta.get('mtd_blend_weight')}, anchor8)"
+                    f" ×{g_meta['calibration_factor']}"
+                    f"（recency補正 k12_shrink50, n={g_meta['calibration_n_months']}）")
     return {
         "target_month": target_month,
         "base_date": base_date,
@@ -114,7 +124,8 @@ def build_one_projection(pl: pd.DataFrame,
         "g_meta": g_meta,
         "g_source": g_source,
         "label": label,
-        "g_proj": g_proj,
+        "g_proj": g_value,
+        "g_confirmed": use_actual_g,
     }
 
 
@@ -597,11 +608,12 @@ def main():
         # ダッシュボードと同一日になり G が一致する。
         base_date = last_complete_driver_date(adm, surg)
         driver_month = base_date.normalize().replace(day=1)
-        # 確定済み粗利の最終月（g_monthly = profit_breakdown 集約）の翌月〜ドライバー月を
-        # すべて予測対象に。粗利確報が未入力の月（例: 確報待ちの前月）を併記し、
-        # 粗利が確定入力されると対象から外れて自動的に当月単月へ収束する。
-        last_g_month = g_monthly["月"].max()
-        target_months = pd.date_range(last_g_month + pd.offsets.MonthBegin(1),
+        # 起点は「PL確報（医業収支の実績）の最終月」の翌月〜ドライバー月。粗利確報基準だと
+        # 粗利は確定したが PL 未着の月（粗利確定直後〜PL確報まで）が予測対象から外れ、
+        # 実績にも無いため収支見込みが空白になる。PL 基準なら、その月も「確定粗利×推計
+        # コスト」で出続け、PL確報で実績へ自動収束する（収束トリガー=PL確報）。
+        last_pl_month = pl["月"].max()
+        target_months = pd.date_range(last_pl_month + pd.offsets.MonthBegin(1),
                                       driver_month, freq="MS").tolist()
         if not target_months:
             target_months = [driver_month]
@@ -614,8 +626,13 @@ def main():
         month_end = m + pd.offsets.MonthEnd(0)
         base_date_m = min(base_date, month_end)
         is_complete = base_date_m >= month_end
-        label = ("月末時点・粗利確報待ちの推計（暫定値）" if is_complete
-                 else f"進行中・基準日 {base_date_m.strftime('%Y-%m-%d')}")
+        g_confirmed = bool((g_monthly["月"] == m).any())
+        if g_confirmed:
+            label = "粗利確定・PL確報待ち（確定粗利×推計コスト）"
+        elif is_complete:
+            label = "月末時点・粗利確報待ちの推計（暫定値）"
+        else:
+            label = f"進行中・基準日 {base_date_m.strftime('%Y-%m-%d')}"
         entry = build_one_projection(pl, delta, g_monthly, adm, surg,
                                       profit_breakdown, m, base_date_m, label)
         entries.append(entry)
