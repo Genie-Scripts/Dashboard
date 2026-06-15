@@ -30,7 +30,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP"
 .pill-conf{display:inline-block; font-size:10px; font-weight:900; color:var(--dr);
   border:1px solid #e9c2cb; background:#fdf0f2; border-radius:999px; padding:2px 9px; margin-top:3px}
 
-.kpis{display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:15px}
+.kpis{display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:9px}
 .kpi{border:1px solid var(--ln); border-radius:12px; padding:11px 13px 12px; background:var(--s);
   display:flex; flex-direction:column; gap:2px}
 .kpi.lead{border-color:#bfe3d6; background:#f4fdf9}
@@ -44,6 +44,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP"
 .delta.good{background:var(--ok-bg); color:#065f42}
 .delta.bad{background:var(--wr-bg); color:#7c3a06}
 .delta.flat{background:#f1f4f8; color:var(--mu)}
+
+.howto{display:flex; gap:8px; align-items:flex-start; margin-bottom:13px;
+  padding:8px 12px; background:#f4f7fb; border:1px solid var(--ln); border-radius:10px;
+  font-size:10.5px; line-height:1.6; color:var(--sub)}
+.howto .ic{font-size:13px; line-height:1.3}
+.howto b{font-weight:800}
+.howto .t-ret{color:var(--cen)}
+.howto .t-room{color:var(--ink)}
 
 .sec{margin-bottom:14px}
 .sec-h{display:flex; align-items:center; gap:8px; margin-bottom:7px}
@@ -135,13 +143,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP"
         <div class="k-sub">{% if s.kpi.total_retention_pct %}病院全体 {{ s.kpi.total_retention_pct }}%{% endif %}</div>
       </div>
       <div class="kpi">
-        <div class="k-lbl">逸失人日 ／ 週</div>
+        <div class="k-lbl">のびしろ ／ 週</div>
         <div class="k-val">{{ s.kpi.room }}<small>人日</small></div>
         {% if s.kpi.room_delta_dir == 'down' %}<span class="delta good">▼ {{ s.kpi.room_delta_abs }} 改善</span>
         {% elif s.kpi.room_delta_dir == 'up' %}<span class="delta bad">▲ {{ s.kpi.room_delta_abs }} 拡大</span>
         {% else %}<span class="delta flat">→ 横ばい</span>{% endif %}
         <div class="k-sub">週末に取り戻せる在院</div>
       </div>
+    </div>
+
+    <div class="howto">
+      <span class="ic">📖</span>
+      <span>平日に積み上げた在院は、週末の退院などで一時的に減り、週明けに戻る波があります。<b class="t-ret">週末在院維持率</b>＝週末も在院をどれだけ保てたか（100%に近いほど良い）。<b class="t-room">のびしろ</b>＝その週末の落ち込みを平準化すれば取り戻せる在院（人日／週）です。</span>
     </div>
 
     <div class="sec">
@@ -186,7 +199,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP"
     </div>
 
     <div class="ft">
-      <span>出典：<b>入退院クロス</b>（電子カルテ）　|　維持率＝土日平均在院 ÷ 平日平均在院　|　逸失人日＝(平日−週末)×2</span>
+      <span>出典：<b>入退院クロス</b>（電子カルテ）　|　維持率＝土日平均在院 ÷ 平日平均在院　|　のびしろ＝(平日−週末)×2</span>
       <span><b>{{ s.hospital_name or "診療ダッシュボード" }}</b>　自動生成　{{ s.generated_at }}</span>
     </div>
 
