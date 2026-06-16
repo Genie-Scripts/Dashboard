@@ -108,6 +108,9 @@
 .triage-group-label{font-size:12px;font-weight:800;color:var(--sub);padding:11px 18px 5px;background:var(--bg);border-bottom:1px solid var(--ln);letter-spacing:.02em}
 .triage-group-label .goal{color:var(--ink)}
 .triage-empty{color:var(--mu);font-size:12.5px;padding:12px 18px}
+.triage-trend{font-weight:900;font-size:13px;flex-shrink:0}
+.triage-trend.up{color:#27ae60}
+.triage-trend.down{color:#e74c3c}
 /* トリアージ行（信号機スタイル） */
 .triage-item{border-bottom:1px solid var(--ln);border-left:4px solid transparent;padding:10px 18px 10px 14px}
 .triage-item:last-child{border-bottom:none}
@@ -252,6 +255,7 @@
        onclick="event.preventDefault();toggleNarrative('{{ sfx }}');location.href='{{ item.href }}'">
       <span class="pri-dot {{ item.priority }}" aria-label="優先度 {{ item.priority }}"></span>
       <span class="triage-name">{{ item.name }}</span>
+      {% if item.trend_dir == 'down' %}<span class="triage-trend down" title="悪化傾向">↘</span>{% elif item.trend_dir == 'up' %}<span class="triage-trend up" title="改善傾向">↗</span>{% endif %}
       <button class="triage-acc-btn" id="acc-btn-{{ sfx }}"
               aria-expanded="false" aria-controls="narrative-{{ sfx }}"
               onclick="event.preventDefault();event.stopPropagation();toggleNarrative('{{ sfx }}')">▼詳細</button>
@@ -266,6 +270,7 @@
     <a class="triage-facts-row {{ item.priority }}" href="{{ item.href }}">
       <span class="pri-dot {{ item.priority }}"></span>
       <span class="triage-facts-name">{{ item.name }}</span>
+      {% if item.trend_dir == 'down' %}<span class="triage-trend down" title="悪化傾向">↘</span>{% elif item.trend_dir == 'up' %}<span class="triage-trend up" title="改善傾向">↗</span>{% endif %}
       <div class="triage-facts-body">
         {% for f in item.facts %}<span>{{ f }}</span>{% endfor %}
       </div>

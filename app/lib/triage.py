@@ -23,7 +23,7 @@ from .config import (
     WARD_NAMES, WARD_HIDDEN,
 )
 from .metrics import (
-    rolling7_new_admission, rolling7_surgery,
+    rolling7_new_admission, rolling7_surgery, rolling28_surgery_dept,
     daily_inpatient, build_daily_series, week_over_week,
     achievement_rate, discharge_dow_profile,
 )
@@ -51,6 +51,19 @@ SURGERY_OVERACHIEVE_RATE = 120.0
 #   内科系・病棟 → inp （在院患者数）
 # 新入院は在院を上げるドライバー、粗利は別サブシステムが担うため、
 # いずれもランキングには用いず文脈表示のみとする。
+
+# ── 北極星KPIのトレンド（水準 × 傾向の2軸化）──
+# 達成中でも失速・反転下降していれば早期警戒(watch)へ昇格し、
+# 未達でも改善傾向なら優先度を1段下げる。MAクロスの離散点ではなく、
+# 短期MA/長期MA の連続スプレッド(%)の符号で判定（週次観測のウィップソー回避）。
+WATCH_CEILING   = 110.0      # 早期警戒(watch)の上限。これ以上の達成率は余裕大として
+                             #   悪化傾向でも非対象（breach リスクが低いため騒がない）
+CENSUS_MA_SHORT = 7          # 在院: 短期MA(日)
+CENSUS_MA_LONG  = 28         # 在院: 長期MA(日)。7d窓で曜日季節性は除去済み
+CENSUS_TREND_PT = 3.0        # 在院: スプレッド ±3% 以上で 改善/悪化
+SURGERY_TREND_WIN     = 28   # 全麻: 直近28日 vs 前28日 の件数比
+SURGERY_TREND_PT      = 15.0 # 全麻: ±15% 以上で 改善/悪化（件数は跳ねるため広め）
+SURGERY_TREND_MIN_28D = 8    # 全麻: 直近28日が8件未満の小規模科はノイズのため非対象
 
 # fallback 文言（未達 KPI ごと）
 FALLBACK_SUGGESTIONS = {
@@ -84,6 +97,9 @@ TRIAGE_SYSTEM_PROMPT = """あなたは病院経営会議向けの要約ライタ
     新入院・紹介患者の確保）、外科系の目標は全身麻酔手術件数の増加（レバー＝
     手術枠の活用・予約調整）。suggestion はその科の目標KPIを伸ばすレバーに集中し、
     目標でないKPIを主題にしないこと。
+13. 【状況】に「悪化傾向（失速）」かつ目標達成中とある場合は、未達の挽回ではなく、
+    達成水準の維持と失速要因の点検を主題にすること。「改善傾向」かつ未達とある場合は、
+    まず改善を肯定したうえで勢いの維持・加速を促すこと。
 
 【出力スキーマ】
 {
@@ -129,16 +145,78 @@ def _priority_from_rate(rate: float) -> str:
     return "low"
 
 
+def _ma_spread(series: pd.DataFrame, base_date, short: int, long_: int) -> Optional[float]:
+    """日次系列の 短期MA vs 長期MA スプレッド(%)。
+    正=短期が中期平均を上回る（上昇）。データ不足/長期MA=0 のとき None。"""
+    if series is None or len(series) == 0:
+        return None
+
+    def _avg(days):
+        start = base_date - pd.Timedelta(days=days - 1)
+        w = series[(series["日付"] >= start) & (series["日付"] <= base_date)]
+        return float(w["値"].mean()) if len(w) >= max(3, days // 4) else None
+
+    ma_s, ma_l = _avg(short), _avg(long_)
+    if ma_s is None or ma_l is None or ma_l == 0:
+        return None
+    return (ma_s - ma_l) / ma_l * 100.0
+
+
+def _trend_dir(spread: Optional[float], pt: float) -> Optional[str]:
+    """スプレッド(%)を 改善(up)/悪化(down)/横ばい(flat) に離散化。None入力はNone。"""
+    if spread is None:
+        return None
+    if spread >= pt:
+        return "up"
+    if spread <= -pt:
+        return "down"
+    return "flat"
+
+
+def _census_trend(adm, base_date, group_col, group_val) -> tuple[Optional[float], Optional[str]]:
+    """在院患者数の 7d/28d スプレッド(%)と方向。"""
+    s = build_daily_series(adm, "在院患者数", group_col=group_col, group_val=group_val)
+    spread = _ma_spread(s, base_date, CENSUS_MA_SHORT, CENSUS_MA_LONG)
+    return spread, _trend_dir(spread, CENSUS_TREND_PT)
+
+
+def _surgery_trend(recent_28d: int, prior_28d: int) -> tuple[Optional[float], Optional[str]]:
+    """全麻の 直近28日 vs 前28日 件数比(%)と方向。
+    直近28日が小規模(<MIN)・前28日0 はノイズのため非対象(None)。"""
+    if recent_28d < SURGERY_TREND_MIN_28D or prior_28d == 0:
+        return None, None
+    spread = (recent_28d - prior_28d) / prior_28d * 100.0
+    return spread, _trend_dir(spread, SURGERY_TREND_PT)
+
+
+def _triage_status(primary_rate: float, trend_dir: Optional[str]) -> tuple[str, str]:
+    """(status_kind, priority) を返す。水準 × 傾向の2軸判定。
+    - below: 未達(<90)。rate基準で優先度。改善傾向(up)なら1段下げる
+    - watch: 達成中だが悪化傾向(down) → 早期警戒(mid)
+    - ok:    達成かつ非悪化 → 対象外(low)
+    """
+    if primary_rate < PRIMARY_THRESHOLD:
+        prio = _priority_from_rate(primary_rate)
+        if trend_dir == "up":
+            prio = _downgrade_priority(prio)   # 改善傾向は1段下げて評価
+        return "below", prio
+    if trend_dir == "down" and primary_rate < WATCH_CEILING:
+        return "watch", "mid"   # 達成中だが目標近辺で失速 → 早期警戒
+    return "ok", "low"
+
+
 def _make_entity_record(name, entity_type, is_surgery,
                         adm_rate, adm_actual, adm_target,
                         inp_rate, inp_actual, inp_target,
                         op_rate, op_actual, op_target,
-                        profit_rate, ward_code=None) -> Optional[dict]:
+                        profit_rate, ward_code=None,
+                        primary_trend=None, trend_dir=None) -> Optional[dict]:
     """北極星KPI（外科系=op / それ以外=inp）でランクするレコードを生成。
 
     北極星KPIの達成率が測れない場合は新入院にフォールバックし
     （primary_is_fallback=True）、それも測れなければ None を返す。
     新入院・粗利はランクには用いず、文脈フィールドとして保持する。
+    primary_trend / trend_dir は北極星KPIの傾向（水準×傾向の2軸化）。
     """
     dept_type, primary_kpi = _dept_type(is_surgery)
 
@@ -150,6 +228,12 @@ def _make_entity_record(name, entity_type, is_surgery,
     if primary_rate is None:
         return None   # 北極星も新入院も測れない → 対象外
 
+    # フォールバック中（北極星の目標欠損）はランク指標と傾向指標が食い違うため傾向は使わない
+    if primary_is_fallback:
+        primary_trend, trend_dir = None, None
+
+    status_kind, priority = _triage_status(primary_rate, trend_dir)
+
     return {
         "name": name,
         "entity_type": entity_type,
@@ -157,7 +241,12 @@ def _make_entity_record(name, entity_type, is_surgery,
         "primary_kpi": primary_kpi,
         "primary_rate": round(primary_rate, 1),
         "primary_is_fallback": primary_is_fallback,
-        "priority": _priority_from_rate(primary_rate),
+        "primary_trend": round(primary_trend, 1) if primary_trend is not None else None,
+        "trend_dir": trend_dir,
+        "status_kind": status_kind,
+        "improving": bool(status_kind == "below" and trend_dir == "up"),
+        "worsening": bool(trend_dir == "down"),
+        "priority": priority,
         "is_surgery_dept": is_surgery,
         "adm_rate": adm_rate,
         "adm_actual": adm_actual,
@@ -195,6 +284,9 @@ def score_departments(adm: pd.DataFrame, surg: pd.DataFrame,
     nadm_tgt = targets.get("new_admission", {}).get("dept", {})
     inp_tgt  = targets.get("inpatient", {}).get("dept", {})
     profit_rates = _get_profit_rates(profit_monthly)
+    # 全麻トレンド用: 直近28日 vs 前28日 の科別件数
+    r28_now  = rolling28_surgery_dept(surg, base_date)["by_dept"]
+    r28_prev = rolling28_surgery_dept(surg, base_date - pd.Timedelta(days=SURGERY_TREND_WIN))["by_dept"]
 
     results = []
     for dept in NADM_DISPLAY_DEPTS | SURGERY_DISPLAY_DEPTS:
@@ -212,12 +304,20 @@ def score_departments(adm: pd.DataFrame, surg: pd.DataFrame,
         inp_rate    = achievement_rate(inp_actual, inp_target)
         op_rate     = achievement_rate(op_actual, op_target) if is_surgery else None
 
+        # 北極星KPIの傾向: 外科系=全麻(第3段)、内科系=在院
+        if is_surgery:
+            primary_trend, trend_dir = _surgery_trend(
+                r28_now.get(dept, 0), r28_prev.get(dept, 0))
+        else:
+            primary_trend, trend_dir = _census_trend(adm, base_date, "診療科名", dept)
+
         rec = _make_entity_record(
             name=dept, entity_type="dept", is_surgery=is_surgery,
             adm_rate=adm_rate, adm_actual=adm_actual, adm_target=adm_target,
             inp_rate=inp_rate, inp_actual=inp_actual, inp_target=inp_target,
             op_rate=op_rate, op_actual=op_actual, op_target=op_target,
             profit_rate=profit_rate,
+            primary_trend=primary_trend, trend_dir=trend_dir,
         )
         if rec is not None:
             results.append(rec)
@@ -252,6 +352,7 @@ def score_wards(adm: pd.DataFrame, targets: dict,
 
         adm_rate = achievement_rate(adm_actual, adm_target)
         inp_rate = achievement_rate(inp_actual, inp_target)
+        primary_trend, trend_dir = _census_trend(adm, base_date, "病棟コード", wcode)
 
         rec = _make_entity_record(
             name=wname, entity_type="ward", is_surgery=False,
@@ -259,6 +360,7 @@ def score_wards(adm: pd.DataFrame, targets: dict,
             inp_rate=inp_rate, inp_actual=inp_actual, inp_target=inp_target,
             op_rate=None, op_actual=None, op_target=None,
             profit_rate=None, ward_code=wcode,
+            primary_trend=primary_trend, trend_dir=trend_dir,
         )
         if rec is not None:
             results.append(rec)
@@ -274,10 +376,10 @@ def score_wards(adm: pd.DataFrame, targets: dict,
 def pick_targets(scored: list[dict], adm: pd.DataFrame,
                  base_date: pd.Timestamp) -> list[dict]:
     """
-    primary_rate < PRIMARY_THRESHOLD の科/病棟を抽出し、北極星KPIを先頭にした
-    facts / kpi_summary と WoW ヒントを付与して返す。
+    トリアージ対象（未達 below + 達成だが悪化傾向 watch）を抽出し、北極星KPIを
+    先頭にした facts / kpi_summary と WoW ヒント・傾向タグを付与して返す。
     """
-    items = [s for s in scored if s["primary_rate"] < PRIMARY_THRESHOLD]
+    items = [s for s in scored if s.get("status_kind") in ("below", "watch")]
 
     for i, item in enumerate(items):
         is_ward = item.get("entity_type") == "ward"
@@ -351,6 +453,14 @@ def pick_targets(scored: list[dict], adm: pd.DataFrame,
             item["kpi_summary"] = (f"{inp_kpi} ← {adm_kpi}" if (inp_kpi and adm_kpi)
                                    else (inp_kpi or adm_kpi or ""))
 
+        # 傾向タグ（水準×傾向の2軸）: 達成中の悪化＝早期警戒、未達の改善＝緩和
+        if item.get("status_kind") == "watch":
+            item["kpi_summary"] += "　↘達成中だが悪化傾向"
+        elif item.get("worsening"):
+            item["kpi_summary"] += "　↘悪化傾向"
+        elif item.get("improving"):
+            item["kpi_summary"] += "　↗改善傾向"
+
         # 全身麻酔手術を大幅クリアしている外科系は在院・退院曜日をうるさく言わない
         item["surgery_strong"] = bool(
             not is_ward and item.get("is_surgery_dept")
@@ -389,6 +499,16 @@ def _build_triage_prompt(item: dict) -> str:
         "op":  "全身麻酔手術件数の増加（レバー: 手術枠の活用・予約調整）",
     }
     goal_line = goal_map.get(item.get("primary_kpi"), "")
+    if item.get("status_kind") == "watch":
+        trend_note = ("\n\n【状況】目標は達成しているが、北極星KPIが直近で悪化傾向（失速）。"
+                      "未達ではないため『挽回』ではなく、達成水準の維持と失速要因の点検を促すこと。")
+    elif item.get("improving"):
+        trend_note = ("\n\n【状況】未達だが北極星KPIは改善傾向。まず改善を肯定し、その勢いを維持・"
+                      "加速する打ち手を促すこと（現状の未達と改善傾向は逆接で繋ぐ）。")
+    elif item.get("worsening"):
+        trend_note = "\n\n【状況】北極星KPIは悪化傾向。失速の歯止めを意識した打ち手を促すこと。"
+    else:
+        trend_note = ""
     total_label = f"全{item['total_items']}{entity_label}" if "total_items" in item else f"全{item.get('total_depts', '?')}科"
     return f"""以下の確定事実を要約し、JSON を1つだけ出力してください。
 
@@ -397,7 +517,7 @@ def _build_triage_prompt(item: dict) -> str:
 【この{entity_label}の目標KPI】{goal_line}
 
 【確定事実】
-{facts_block}{wow_line}{strong_note}
+{facts_block}{wow_line}{strong_note}{trend_note}
 
 【注意】
 - priority は必ず "{item['priority']}" を出力すること（Python で再検証する）
@@ -446,7 +566,7 @@ def _extract_triage_json(text: str, entity_name: str = "") -> Optional[dict]:
 
 
 def _make_fallback_narrative(item: dict) -> dict:
-    """LLM 失敗時の Python 定型文 fallback（北極星KPI主体）"""
+    """LLM 失敗時の Python 定型文 fallback（北極星KPI主体・水準×傾向）"""
     # 北極星KPIが測れずフォールバック中の科は新入院を主題にする
     if item.get("primary_is_fallback"):
         kpi, key = "新入院", "adm"
@@ -454,6 +574,23 @@ def _make_fallback_narrative(item: dict) -> dict:
         kpi, key = "全身麻酔手術", "op"
     else:
         kpi, key = "在院患者数", "inp"
+
+    # 達成中だが悪化傾向 → 早期警戒（挽回ではなく維持・点検）
+    if item.get("status_kind") == "watch":
+        return {
+            "priority":    item["priority"],
+            "headline":    f"{kpi}が悪化傾向（達成中）",
+            "observation": f"{kpi}は目標を満たしていますが、直近で悪化傾向です",
+            "suggestion":  f"達成水準の維持に向け、{FALLBACK_SUGGESTIONS[key]}",
+        }
+    # 未達だが改善傾向 → まず肯定し勢いの維持
+    if item.get("improving"):
+        return {
+            "priority":    item["priority"],
+            "headline":    f"{kpi}は改善傾向（なお未達）",
+            "observation": f"{kpi}は目標を下回るものの、改善傾向です",
+            "suggestion":  f"この勢いを維持し、{FALLBACK_SUGGESTIONS[key]}",
+        }
     return {
         "priority":    item["priority"],
         "headline":    f"{kpi}が目標未達",
