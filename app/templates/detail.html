@@ -2027,15 +2027,20 @@ function renderChart() {
 
   const fMA28 = fAllMA28.slice(si);
 
-  // ★昨年度同期 28日移動平均（暦日・固定参照線。日種フィルタには追随しないが、種別フィルタには追随する）
-  let pPrevDates = [], pPrevVals = [];
-  const bp = (currentTab === 'admission' && admType === 'planned')   ? trend.ma28_prev_planned
-           : (currentTab === 'admission' && admType === 'emergency') ? trend.ma28_prev_emergency
-           : trend.ma28_prev;
-  if (showPrevYear && bp && bp.dates && bp.dates.length) {
-    const sip = Math.max(0, bp.dates.findIndex(d => d >= cutoff));
-    pPrevDates = bp.dates.slice(sip);
-    pPrevVals  = bp.values.slice(sip);
+  // ★昨年度同期: 昨年度の日次生データを当年線と同一の filterByDayType→calcMA28 で算出。
+  //   日種（平日/休日）・入院種別（予定/緊急）フィルタへ当年線と同条件で追随する。
+  const prevRaw = (currentTab === 'admission' && admType === 'planned')   ? trend.prev_daily_planned
+                : (currentTab === 'admission' && admType === 'emergency') ? trend.prev_daily_emergency
+                : trend.prev_daily;
+  let pPrevDates = [], pPrevVals = [], fPrevMA28 = [];
+  if (prevRaw && prevRaw.dates && prevRaw.dates.length) {
+    const fPrev = filterByDayType(prevRaw.dates, prevRaw.values||[], prevRaw.is_weekday||[]);
+    fPrevMA28 = calcMA28(fPrev.values);
+    if (showPrevYear) {
+      const sip = Math.max(0, fPrev.dates.findIndex(d => d >= cutoff));
+      pPrevDates = fPrev.dates.slice(sip);
+      pPrevVals  = fPrevMA28.slice(sip);
+    }
   }
 
   // ★日次実績（細い点線・グレー）
@@ -2095,9 +2100,9 @@ function renderChart() {
   const titles = {inpatient:'在院患者数',admission:'新入院患者数'};
   const admLabel = currentTab==='admission' && admType!=='all' ? (admType==='planned'?' ／ 予定入院':' ／ 緊急入院') : '';
   const titleBase = `📊 ${titles[currentTab]||''} ${admLabel} 推移（${pLabels[currentPeriod]}${dayLabel}）`;
-  // ★前年同期比バッジ（昨年度同期ON。28日MAの最新点で比較。種別フィルタ時は同種別の昨年度線と比較）
+  // ★前年同期比バッジ（昨年度同期ON。28日MAの最新点で比較。日種・種別フィルタは当年・前年とも同条件）
   const showBadge = showPrevYear;
-  const badge = showBadge ? yoyBadgeHtml(lastVal(fAllMA28), lastVal(bp && bp.values)) : '';
+  const badge = showBadge ? yoyBadgeHtml(lastVal(fAllMA28), lastVal(fPrevMA28)) : '';
   document.getElementById('chartTitle').innerHTML = titleBase + badge + (showTarget ? ZONE_CAP : '');
 }
 

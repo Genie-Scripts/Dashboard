@@ -732,7 +732,7 @@ function renderCharts(d) {
     document.getElementById('chartTitle3').textContent = `🔄 入退院フロー${suffix}`;
     const rawAdmTd = d.trend?.admission;
     const filtAdmTd = (admType !== 'all' && rawAdmTd && rawAdmTd[admType])
-      ? {...rawAdmTd, values: rawAdmTd[admType], ma28_prev: rawAdmTd['ma28_prev_'+admType] || rawAdmTd.ma28_prev} : rawAdmTd;
+      ? {...rawAdmTd, values: rawAdmTd[admType], prev_daily: rawAdmTd['prev_daily_'+admType] || rawAdmTd.prev_daily} : rawAdmTd;
     const admChartTarget = admType==='all' ? (d.admission.target ? d.admission.target/7 : null) : null;
     renderOneChart('chart1', filtAdmTd, admChartTarget);
     renderOneChart('chart2', d.trend?.inpatient, d.inpatient.target);
@@ -745,7 +745,7 @@ function renderCharts(d) {
 
     const rawAdmTd = d.trend?.admission;
     const filtAdmTd = (admType !== 'all' && rawAdmTd && rawAdmTd[admType])
-      ? {...rawAdmTd, values: rawAdmTd[admType], ma28_prev: rawAdmTd['ma28_prev_'+admType] || rawAdmTd.ma28_prev} : rawAdmTd;
+      ? {...rawAdmTd, values: rawAdmTd[admType], prev_daily: rawAdmTd['prev_daily_'+admType] || rawAdmTd.prev_daily} : rawAdmTd;
     const admChartTarget = admType==='all' ? (d.admission.target ? d.admission.target/7 : null) : null;
 
     document.getElementById('chartTitle1').textContent = `🚪 新入院${admSuffix} 推移${suffix}`;
@@ -888,13 +888,23 @@ function renderOneChart(elId, td, targetVal) {
   if (showDaily) { traces.push({name:'日次実績',x:ds,y:vs,type:'scatter',mode:'lines',line:{color:'#999999',width:1,dash:'dot'},opacity:0.7}); yV.push(...vs.filter(v=>v!=null)); }
   if (showMA7 && m7.length) { traces.push({name:'7日移動平均',x:ds,y:m7,type:'scatter',mode:'lines',line:{color:'#0072B2',width:2.5}}); yV.push(...m7.filter(v=>v!=null)); }
   if (showMA28 && m28.length) { traces.push({name:'28日移動平均',x:ds,y:m28,type:'scatter',mode:'lines',line:{color:'#E69F00',width:2}}); yV.push(...m28.filter(v=>v!=null)); }
-  // ★昨年度同期 28日移動平均（紫実線・固定参照線。Y軸にも収める）
-  const bp = td.ma28_prev;
-  if (showPrevYear && bp && bp.dates && bp.dates.length) {
-    const sip = Math.max(0, bp.dates.findIndex(x => x >= cutoff));
-    const pds = bp.dates.slice(sip), pvs = bp.values.slice(sip);
-    traces.push({name:'昨年度同期(28日平均)',x:pds,y:pvs,type:'scatter',mode:'lines',line:{color:'#CC79A7',width:1.8}});
-    yV.push(...pvs.filter(v=>v!=null));
+  // ★昨年度同期: 昨年度の日次生データを当年線と同一の filterByDayType→calcMA(28) で算出。
+  //   日種（平日/休日）・入院種別（予定/緊急）フィルタへ当年線と同条件で追随する（Y軸にも収める）。
+  const prevRaw = td.prev_daily;
+  let prevMA28 = [];
+  if (prevRaw && prevRaw.dates && prevRaw.dates.length) {
+    const fPrev = (prevRaw.is_weekday && prevRaw.is_weekday.length > 0)
+      ? filterByDayType(prevRaw.dates, prevRaw.values||[], prevRaw.is_weekday)
+      : {dates: prevRaw.dates, values: prevRaw.values||[]};
+    prevMA28 = calcMA(fPrev.values, 28);
+    if (showPrevYear) {
+      const sip = Math.max(0, fPrev.dates.findIndex(x => x >= cutoff));
+      const pds = fPrev.dates.slice(sip), pvs = prevMA28.slice(sip);
+      if (pds.length) {
+        traces.push({name:'昨年度同期(28日平均)',x:pds,y:pvs,type:'scatter',mode:'lines',line:{color:'#CC79A7',width:1.8}});
+        yV.push(...pvs.filter(v=>v!=null));
+      }
+    }
   }
   if (targetVal && ds.length) { traces.push({name:`目標 ${Math.round(targetVal*10)/10}`,x:[ds[0],ds[ds.length-1]],y:[targetVal,targetVal],type:'scatter',mode:'lines',line:{color:'#D55E00',width:2,dash:'dot'}}); yV.push(targetVal); }
 
@@ -913,9 +923,9 @@ function renderOneChart(elId, td, targetVal) {
     hovermode:'x unified',margin:{l:45,r:15,t:8,b:50},height:_pH(320),
     plot_bgcolor:'#fff',paper_bgcolor:'#fff',shapes
   },{responsive:true});
-  // ★前年同期比バッジ（昨年度同期ON時。新入院=chart1の種別フィルタ時は同種別の昨年度線と比較）＋ゾーン凡例
+  // ★前年同期比バッジ（昨年度同期ON時。日種・種別フィルタは当年・前年とも同条件で比較）＋ゾーン凡例
   const badgeOk = showPrevYear;
-  const badge = badgeOk ? yoyBadgeHtml(lastVal(allMA28), lastVal(td.ma28_prev && td.ma28_prev.values)) : '';
+  const badge = badgeOk ? yoyBadgeHtml(lastVal(allMA28), lastVal(prevMA28)) : '';
   setChartBadge(elId, badge + (targetVal ? ZONE_CAP : ''));
 }
 

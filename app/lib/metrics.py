@@ -610,6 +610,48 @@ def build_prevyear_ma_series(series: pd.DataFrame, base_date: pd.Timestamp,
     return {"dates": dates, "values": values}
 
 
+def build_prevyear_daily_series(series: pd.DataFrame, base_date: pd.Timestamp,
+                                offset_days: int = PREVYEAR_OFFSET_DAYS,
+                                value_col: str = "値") -> dict:
+    """前年同期の日次生データを当年度日付にアラインして返す（昨年度同期線を
+    フロント側で当年線と同一の filterByDayType→calcMA で算出するための素データ）。
+
+    build_prevyear_ma_series の事前MA版に対し、こちらは MA を取らない生の日次値を
+    返す。フロントが当年線と全く同じ計算経路（日種フィルタ→移動平均）を通すことで、
+    昨年度同期線も平日/休日フィルタ・入院種別フィルタに同条件で追随できる。
+
+    暦日に reindex（歯抜け日0埋め）して当年線と同じ連続日前提を満たす。各日付を
+    +offset_days して当年度へアライン。is_weekday は「前年実日付」の営業日判定
+    （offset=364日=52週で曜日は一致するため、差が出るのは年により移動する休日のみ。
+    前年の平日水準 vs 当年の平日水準という同条件比較になる）。
+
+    Returns:
+        {"dates": [str, ...], "values": [int, ...], "is_weekday": [bool, ...]}
+    """
+    from .config import is_operational_day
+
+    empty = {"dates": [], "values": [], "is_weekday": []}
+    if series is None or len(series) == 0:
+        return empty
+    s = series[["日付", value_col]].dropna(subset=["日付"]).sort_values("日付")
+    if len(s) == 0:
+        return empty
+
+    full_idx = pd.date_range(s["日付"].min(), s["日付"].max(), freq="D")
+    daily = s.set_index("日付")[value_col].reindex(full_idx, fill_value=0)
+
+    offset = timedelta(days=offset_days)
+    shifted_base = base_date - offset
+    daily = daily[daily.index <= shifted_base]
+    if len(daily) == 0:
+        return empty
+
+    dates = [(d + offset).strftime("%Y-%m-%d") for d in daily.index]
+    values = [int(round(float(v))) for v in daily.values]
+    is_weekday = [bool(is_operational_day(d)) for d in daily.index]  # 前年実日付基準
+    return {"dates": dates, "values": values, "is_weekday": is_weekday}
+
+
 def build_prevyear_weekly_series(series: pd.DataFrame, base_date: pd.Timestamp,
                                  sum_window: int = 7, smooth_window: int = 28,
                                  offset_days: int = PREVYEAR_OFFSET_DAYS,

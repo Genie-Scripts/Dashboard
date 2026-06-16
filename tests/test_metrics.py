@@ -21,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.lib.metrics import (  # noqa: E402
     build_prevyear_ma_series,
+    build_prevyear_daily_series,
     build_prevyear_weekly_series,
     build_biz_ma30_series,
     weekend_census_retention,
@@ -82,6 +83,44 @@ class TestPrevyearMaSeries(unittest.TestCase):
         # いずれも末尾は基準日に揃う（shifted_base がオフセットに追従するため）
         self.assertEqual(default["dates"][-1], "2026-06-03")
         self.assertEqual(cal["dates"][-1], "2026-06-03")
+
+
+class TestPrevyearDailySeries(unittest.TestCase):
+    """昨年度同期 日次生データ（フロントで当年線と同一の filterByDayType→calcMA に通す素データ）。"""
+
+    def test_empty_input(self):
+        empty = pd.DataFrame(columns=["日付", "値"])
+        self.assertEqual(build_prevyear_daily_series(empty, BASE),
+                         {"dates": [], "values": [], "is_weekday": []})
+        self.assertEqual(build_prevyear_daily_series(None, BASE),
+                         {"dates": [], "values": [], "is_weekday": []})
+
+    def test_aligns_last_date_to_base_with_raw_values(self):
+        # 系列を当年基準日まで用意 → 前年窓(<= base-364)の末尾が +364 で基準日に揃う。
+        s = _daily("2024-01-01", "2026-06-03", lambda d, i: 7)
+        out = build_prevyear_daily_series(s, BASE)
+        self.assertEqual(out["dates"][-1], "2026-06-03")
+        # 値は生値（MA未適用）でそのまま
+        self.assertTrue(all(v == 7 for v in out["values"]))
+        self.assertEqual(len(out["dates"]), len(out["values"]))
+        self.assertEqual(len(out["dates"]), len(out["is_weekday"]))
+
+    def test_weekend_always_nonoperational(self):
+        # offset=364(=52週)で曜日は保存される。出力日付が土日なら（前年実日付も土日のため）
+        # is_weekday は必ず False、という不変条件を確認。平日 True も最低1つ存在する。
+        s = _daily("2024-01-01", "2026-06-03", lambda d, i: 1)
+        out = build_prevyear_daily_series(s, BASE)
+        for d, wd in zip(out["dates"], out["is_weekday"]):
+            if pd.Timestamp(d).weekday() >= 5:
+                self.assertFalse(wd, f"{d} は土日だが平日扱い")
+        self.assertTrue(any(out["is_weekday"]))
+
+    def test_gap_days_zero_filled(self):
+        # 歯抜け日は0埋め（暦日連続を保証＝当年線と同じ連続日前提）
+        s = pd.DataFrame({"日付": pd.to_datetime(["2025-05-01", "2025-05-03"]), "値": [5, 9]})
+        out = build_prevyear_daily_series(s, BASE)
+        self.assertEqual(len(out["dates"]), 3)  # 5/1,5/2,5/3 の3日
+        self.assertEqual(out["values"], [5, 0, 9])
 
 
 class TestPrevyearWeeklySeries(unittest.TestCase):

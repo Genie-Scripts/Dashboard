@@ -26,7 +26,8 @@ from .metrics import (
     build_nurse_watch_ranking, build_nurse_load_ranking,
     rolling7_new_admission, rolling7_surgery,
     build_daily_series, build_surgery_daily_series, add_moving_average,
-    build_biz_ma30_series, build_prevyear_ma_series, build_prevyear_weekly_series,
+    build_biz_ma30_series, build_prevyear_daily_series,
+    build_prevyear_weekly_series,
     week_over_week, achievement_rate, discharge_dow_profile,
     weekend_census_retention,
 )
@@ -125,9 +126,9 @@ def _add_adm_breakdown(td: dict, planned_s: pd.DataFrame, emg_s: pd.DataFrame,
                        base_date: pd.Timestamp = None) -> dict:
     """trend dict に予定/緊急入院の内訳配列を追加（日付を key にして安全にアライン）。
 
-    base_date 指定時は種別別の昨年度同期28日暦日MA（ma28_prev_planned /
-    ma28_prev_emergency）も付与する。新入院チャートの予定/緊急フィルタ時に
-    昨年度同期線も同種別へ追随させるための比較系列（全体 ma28_prev と同定義）。
+    base_date 指定時は種別別の昨年度同期 日次生データ（prev_daily_planned /
+    prev_daily_emergency）も付与する。新入院チャートの予定/緊急フィルタ時に
+    昨年度同期線も同種別へ追随させるための比較系列（全体 prev_daily と同形式）。
     """
     p_map = ({d.strftime("%Y-%m-%d"): int(v) for d, v in zip(planned_s["日付"], planned_s["値"]) if pd.notna(v)}
              if len(planned_s) > 0 else {})
@@ -136,8 +137,8 @@ def _add_adm_breakdown(td: dict, planned_s: pd.DataFrame, emg_s: pd.DataFrame,
     td["planned"]  = [p_map.get(d, 0) for d in td["dates"]]
     td["emergency"] = [e_map.get(d, 0) for d in td["dates"]]
     if base_date is not None:
-        td["ma28_prev_planned"]   = build_prevyear_ma_series(planned_s, base_date, window=28)
-        td["ma28_prev_emergency"] = build_prevyear_ma_series(emg_s, base_date, window=28)
+        td["prev_daily_planned"]   = build_prevyear_daily_series(planned_s, base_date)
+        td["prev_daily_emergency"] = build_prevyear_daily_series(emg_s, base_date)
     return td
 
 
@@ -459,9 +460,10 @@ def build_detail_json(adm, surg, targets, surg_targets,
             "ma28": [round(v, 1) if pd.notna(v) else None for v in s.get("MA28", [])] if "MA28" in s.columns else [],
             "is_weekday": [bool(is_operational_day(d)) for d in s["日付"]],
         }
-        # ★昨年度同期 28日暦日MA（年度比較オーバーレイ／在院・新入院・部門別用）
+        # ★昨年度同期の日次生データ（在院・新入院・部門別用）。フロントが当年線と同一の
+        #   filterByDayType→calcMA で算出し、平日/休日・入院種別フィルタへ同条件で追随する。
         if prevyear and len(s) > 0:
-            d["ma28_prev"] = build_prevyear_ma_series(s, base_date, window=28)
+            d["prev_daily"] = build_prevyear_daily_series(s, base_date)
         return d
 
     adm_trend = _trend_dict(series_nadm, prevyear=True)
