@@ -2024,9 +2024,11 @@ function renderChart() {
 
   const fMA28 = fAllMA28.slice(si);
 
-  // ★昨年度同期 28日移動平均（暦日・固定参照線。日種/種別フィルタには追随しない）
+  // ★昨年度同期 28日移動平均（暦日・固定参照線。日種フィルタには追随しないが、種別フィルタには追随する）
   let pPrevDates = [], pPrevVals = [];
-  const bp = trend.ma28_prev;
+  const bp = (currentTab === 'admission' && admType === 'planned')   ? trend.ma28_prev_planned
+           : (currentTab === 'admission' && admType === 'emergency') ? trend.ma28_prev_emergency
+           : trend.ma28_prev;
   if (showPrevYear && bp && bp.dates && bp.dates.length) {
     const sip = Math.max(0, bp.dates.findIndex(d => d >= cutoff));
     pPrevDates = bp.dates.slice(sip);
@@ -2090,9 +2092,9 @@ function renderChart() {
   const titles = {inpatient:'在院患者数',admission:'新入院患者数'};
   const admLabel = currentTab==='admission' && admType!=='all' ? (admType==='planned'?' ／ 予定入院':' ／ 緊急入院') : '';
   const titleBase = `📊 ${titles[currentTab]||''} ${admLabel} 推移（${pLabels[currentPeriod]}${dayLabel}）`;
-  // ★前年同期比バッジ（昨年度同期ON かつ 種別フィルタなしのとき。28日MAの最新点で比較）
-  const showBadge = showPrevYear && (currentTab!=='admission' || admType==='all');
-  const badge = showBadge ? yoyBadgeHtml(lastVal(fAllMA28), lastVal(trend.ma28_prev && trend.ma28_prev.values)) : '';
+  // ★前年同期比バッジ（昨年度同期ON。28日MAの最新点で比較。種別フィルタ時は同種別の昨年度線と比較）
+  const showBadge = showPrevYear;
+  const badge = showBadge ? yoyBadgeHtml(lastVal(fAllMA28), lastVal(bp && bp.values)) : '';
   document.getElementById('chartTitle').innerHTML = titleBase + badge + (showTarget ? ZONE_CAP : '');
 }
 

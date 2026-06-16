@@ -457,6 +457,9 @@ def build_detail_json(adm, surg, targets, surg_targets,
 
     adm_trend = _trend_dict(series_nadm, prevyear=True)
     _add_adm_breakdown(adm_trend, series_planned_hosp, series_emg_hosp)
+    # ★種別別の昨年度同期28日暦日MA（新入院タブの予定/緊急フィルタ時の比較線用）
+    adm_trend["ma28_prev_planned"]   = build_prevyear_ma_series(series_planned_hosp, base_date, window=28)
+    adm_trend["ma28_prev_emergency"] = build_prevyear_ma_series(series_emg_hosp, base_date, window=28)
 
     # ★全麻 30平日移動平均（病院全体用）: 当年度 + 昨年度
     biz_ma30_curr = build_biz_ma30_series(surg, base_date, prev_year=False)
