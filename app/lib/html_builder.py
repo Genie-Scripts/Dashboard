@@ -121,14 +121,23 @@ def _profit_pending_months(profit_monthly, profit_base_date):
     return pend[-3:], driver_month
 
 
-def _add_adm_breakdown(td: dict, planned_s: pd.DataFrame, emg_s: pd.DataFrame) -> dict:
-    """trend dict に予定/緊急入院の内訳配列を追加（日付を key にして安全にアライン）"""
+def _add_adm_breakdown(td: dict, planned_s: pd.DataFrame, emg_s: pd.DataFrame,
+                       base_date: pd.Timestamp = None) -> dict:
+    """trend dict に予定/緊急入院の内訳配列を追加（日付を key にして安全にアライン）。
+
+    base_date 指定時は種別別の昨年度同期28日暦日MA（ma28_prev_planned /
+    ma28_prev_emergency）も付与する。新入院チャートの予定/緊急フィルタ時に
+    昨年度同期線も同種別へ追随させるための比較系列（全体 ma28_prev と同定義）。
+    """
     p_map = ({d.strftime("%Y-%m-%d"): int(v) for d, v in zip(planned_s["日付"], planned_s["値"]) if pd.notna(v)}
              if len(planned_s) > 0 else {})
     e_map = ({d.strftime("%Y-%m-%d"): int(v) for d, v in zip(emg_s["日付"], emg_s["値"]) if pd.notna(v)}
              if len(emg_s) > 0 else {})
     td["planned"]  = [p_map.get(d, 0) for d in td["dates"]]
     td["emergency"] = [e_map.get(d, 0) for d in td["dates"]]
+    if base_date is not None:
+        td["ma28_prev_planned"]   = build_prevyear_ma_series(planned_s, base_date, window=28)
+        td["ma28_prev_emergency"] = build_prevyear_ma_series(emg_s, base_date, window=28)
     return td
 
 
@@ -456,10 +465,7 @@ def build_detail_json(adm, surg, targets, surg_targets,
         return d
 
     adm_trend = _trend_dict(series_nadm, prevyear=True)
-    _add_adm_breakdown(adm_trend, series_planned_hosp, series_emg_hosp)
-    # ★種別別の昨年度同期28日暦日MA（新入院タブの予定/緊急フィルタ時の比較線用）
-    adm_trend["ma28_prev_planned"]   = build_prevyear_ma_series(series_planned_hosp, base_date, window=28)
-    adm_trend["ma28_prev_emergency"] = build_prevyear_ma_series(series_emg_hosp, base_date, window=28)
+    _add_adm_breakdown(adm_trend, series_planned_hosp, series_emg_hosp, base_date)
 
     # ★全麻 30平日移動平均（病院全体用）: 当年度 + 昨年度
     biz_ma30_curr = build_biz_ma30_series(surg, base_date, prev_year=False)
@@ -625,7 +631,7 @@ def build_detail_json(adm, surg, targets, surg_targets,
 
         dept_adm_trend = (_trend_dict(dept_nadm_series, prevyear=True) if len(dept_nadm_series) > 0
                           else {"dates": [], "values": [], "ma7": [], "ma28": []})
-        _add_adm_breakdown(dept_adm_trend, dept_planned_series, dept_emg_series)
+        _add_adm_breakdown(dept_adm_trend, dept_planned_series, dept_emg_series, base_date)
 
         # 全麻（週次合計表示）: 昨年度同期の週次合計線を付与
         if len(dept_surg_series) > 0:
@@ -716,7 +722,7 @@ def build_detail_json(adm, surg, targets, surg_targets,
 
         w_adm_trend = (_trend_dict(w_nadm_series, prevyear=True) if len(w_nadm_series) > 0
                        else {"dates": [], "values": [], "ma7": [], "ma28": []})
-        _add_adm_breakdown(w_adm_trend, w_planned_series, w_emg_series)
+        _add_adm_breakdown(w_adm_trend, w_planned_series, w_emg_series, base_date)
 
         drill[wname] = {
             "admission": {

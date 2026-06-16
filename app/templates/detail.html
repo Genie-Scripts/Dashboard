@@ -1165,7 +1165,9 @@ function renderSummary() {
   document.getElementById('summaryBar').innerHTML = mainHtml + refsHtml;
 }
 
-// ── グローバルバー: 軸 + 入院種別 (両パネル共通) ──
+// ── グローバルバー: 軸 (ランキング/チャート共通) ──
+// 入院種別は新入院チャートにしか効かないため globalBar には置かず、チャート直上の
+// chartControls（renderChartControls）に配置して適用範囲を視覚的に明確化する。
 function renderGlobalBar() {
   const isOp = currentTab === 'operation';
   const isProfit = currentTab === 'profit';
@@ -1173,13 +1175,8 @@ function renderGlobalBar() {
     ? `<span class="btn active">🩺 診療科別</span>`
     : `<span class="btn${currentAxis==='dept'?' active':''}" onclick="setAxis('dept',this)">🩺 診療科別</span>
        <span class="btn${currentAxis==='ward'?' active':''}" onclick="setAxis('ward',this)">🏥 病棟別</span>`;
-  const mkRad = (val,lbl) => `<label style="font-size:11px;font-weight:700;color:var(--sub);cursor:pointer;display:flex;align-items:center;gap:2px"><input type="radio" name="admType" value="${val}" ${admType===val?'checked':''} onchange="setAdmType('${val}')"> ${lbl}</label>`;
-  const admTypeCtrl = currentTab==='admission'
-    ? `<div class="grp"><span class="gl">入院種別</span>${mkRad('all','全体')}${mkRad('planned','予定')}${mkRad('emergency','緊急')}</div>`
-    : '';
   document.getElementById('globalBar').innerHTML = `
     <div class="grp"><span class="gl">軸</span>${axes}</div>
-    ${admTypeCtrl}
     <div class="grp" style="margin-left:auto"><span class="btn" onclick="window.print()">🖨️ 印刷</span></div>`;
 }
 
@@ -1229,7 +1226,13 @@ function renderChartControls() {
       + mkChk('m7','7日移動平均',showMA7,"toggleLine('ma7',this.checked)")
       + mkChk('m28','28日移動平均',showMA28,"toggleLine('ma28',this.checked)")
       + mkChk('py','昨年度同期',showPrevYear,"toggleLine('prev',this.checked)");
+  // 入院種別フィルタはこのチャート（新入院）専用。チャート直上に配置して適用範囲を明示。
+  const mkRad = (val,lbl) => `<label style="font-size:11px;font-weight:700;color:var(--sub);cursor:pointer;display:flex;align-items:center;gap:2px"><input type="radio" name="admType" value="${val}" ${admType===val?'checked':''} onchange="setAdmType('${val}')"> ${lbl}</label>`;
+  const admTypeCtrl = currentTab==='admission'
+    ? `<div class="grp"><span class="gl">入院種別</span>${mkRad('all','全体')}${mkRad('planned','予定')}${mkRad('emergency','緊急')}</div>`
+    : '';
   document.getElementById('chartControls').innerHTML = `
+    ${admTypeCtrl}
     <div class="grp"><span class="gl">期間</span>${periods}</div>
     <div class="grp"><span class="gl">日種</span>${dayChks}</div>
     <div class="grp"><span class="gl">描画</span>${lineChks}</div>`;

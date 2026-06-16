@@ -732,7 +732,7 @@ function renderCharts(d) {
     document.getElementById('chartTitle3').textContent = `🔄 入退院フロー${suffix}`;
     const rawAdmTd = d.trend?.admission;
     const filtAdmTd = (admType !== 'all' && rawAdmTd && rawAdmTd[admType])
-      ? {...rawAdmTd, values: rawAdmTd[admType]} : rawAdmTd;
+      ? {...rawAdmTd, values: rawAdmTd[admType], ma28_prev: rawAdmTd['ma28_prev_'+admType] || rawAdmTd.ma28_prev} : rawAdmTd;
     const admChartTarget = admType==='all' ? (d.admission.target ? d.admission.target/7 : null) : null;
     renderOneChart('chart1', filtAdmTd, admChartTarget);
     renderOneChart('chart2', d.trend?.inpatient, d.inpatient.target);
@@ -745,7 +745,7 @@ function renderCharts(d) {
 
     const rawAdmTd = d.trend?.admission;
     const filtAdmTd = (admType !== 'all' && rawAdmTd && rawAdmTd[admType])
-      ? {...rawAdmTd, values: rawAdmTd[admType]} : rawAdmTd;
+      ? {...rawAdmTd, values: rawAdmTd[admType], ma28_prev: rawAdmTd['ma28_prev_'+admType] || rawAdmTd.ma28_prev} : rawAdmTd;
     const admChartTarget = admType==='all' ? (d.admission.target ? d.admission.target/7 : null) : null;
 
     document.getElementById('chartTitle1').textContent = `🚪 新入院${admSuffix} 推移${suffix}`;
@@ -913,8 +913,8 @@ function renderOneChart(elId, td, targetVal) {
     hovermode:'x unified',margin:{l:45,r:15,t:8,b:50},height:_pH(320),
     plot_bgcolor:'#fff',paper_bgcolor:'#fff',shapes
   },{responsive:true});
-  // ★前年同期比バッジ（昨年度同期ON時。新入院=chart1は種別フィルタ中は非対称のため非表示）＋ゾーン凡例
-  const badgeOk = showPrevYear && !(elId === 'chart1' && admType !== 'all');
+  // ★前年同期比バッジ（昨年度同期ON時。新入院=chart1の種別フィルタ時は同種別の昨年度線と比較）＋ゾーン凡例
+  const badgeOk = showPrevYear;
   const badge = badgeOk ? yoyBadgeHtml(lastVal(allMA28), lastVal(td.ma28_prev && td.ma28_prev.values)) : '';
   setChartBadge(elId, badge + (targetVal ? ZONE_CAP : ''));
 }
