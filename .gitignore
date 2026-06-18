@@ -17,6 +17,8 @@ data/
 # 一時ファイル・作業ログ
 Temp/
 *.txt
+# robots.txt は公開抑制用なので追跡する（*.txt 一括除外の例外）
+!robots.txt
 
 # 仕様書・モックアップ（ローカル作業用）
 spec/

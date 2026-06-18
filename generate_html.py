@@ -154,6 +154,7 @@ def _generate_redirects(out_dir: Path):
         full_path.parent.mkdir(parents=True, exist_ok=True)
         full_path.write_text(
             f'<!DOCTYPE html><html><head>'
+            f'<meta name="robots" content="noindex, nofollow">'
             f'<meta http-equiv="refresh" content="0;url={new_url}">'
             f'<title>リダイレクト中...</title></head>'
             f'<body><p><a href="{new_url}">こちら</a>に移動しました</p></body></html>',
