@@ -23,37 +23,30 @@ error_dialog() {
 # 予期せぬエラー時に実行
 trap 'error_dialog "予期せぬエラーで停止しました。詳細は $LOG を確認してください。"' ERR
 
-# ── 0a. Ollama サーバー起動 ──
-if ! pgrep -x "ollama" > /dev/null 2>&1; then
-  echo "🦙 Ollama を起動中..." >> "$LOG"
-  ollama serve >> "$LOG" 2>&1 &
-  OLLAMA_PID=$!
-  # 起動完了を待つ（最大10秒）
-  for i in $(seq 1 10); do
-    if ollama list > /dev/null 2>&1; then
-      echo "✅ Ollama 起動完了 (PID: $OLLAMA_PID)" >> "$LOG"
-      break
-    fi
+# ── 0a. oMLX（要約LLM・OpenAI互換）の起動確認 ──
+# 要約LLMは oMLX(127.0.0.1:8000) に統一（旧 Ollama から移行）。非Docker・ホスト実行なので localhost。
+# export して python(generate_html.py / app/lib/llm.py)へ確実に渡す。
+export OMLX_BASE_URL="${OMLX_BASE_URL:-http://localhost:8000/v1}"
+export OMLX_MODEL="${OMLX_MODEL:-Llama-3.1-Swallow-8B-Instruct-v0.5}"
+# APIキーは ~/.omlx/settings.json から取得（取れなければ llm.py の既定にフォールバック）
+_omlx_key="$(python3 -c "import json,os;print(json.load(open(os.path.expanduser('~/.omlx/settings.json')))['auth']['api_key'])" 2>/dev/null || true)"
+[ -n "$_omlx_key" ] && export OMLX_API_KEY="$_omlx_key"
+
+if ! curl -s -o /dev/null --max-time 3 -H "Authorization: Bearer ${OMLX_API_KEY:-x}" "$OMLX_BASE_URL/models"; then
+  echo "🧠 oMLX を起動中..." >> "$LOG"
+  open -a oMLX >/dev/null 2>&1 || true
+  for i in $(seq 1 30); do
+    curl -s -o /dev/null --max-time 3 -H "Authorization: Bearer ${OMLX_API_KEY:-x}" "$OMLX_BASE_URL/models" && break
     sleep 1
   done
-else
-  echo "✅ Ollama はすでに起動中" >> "$LOG"
 fi
 
-# ── 0b. 必要モデルの存在確認・自動pull ──
-# app/lib/ai_narrative.py の DEFAULT_MODEL と一致させる（環境変数で上書き可）
-# export して python(generate_html.py)へ確実に渡す（旧llm-jpはOllama0.30系で動作不能）
-export OLLAMA_MODEL="${OLLAMA_MODEL:-MedAIBase/MedGemma1.5:4b}"
-if ! ollama list 2>/dev/null | awk 'NR>1 {print $1}' | grep -qx "$OLLAMA_MODEL"; then
-  echo "📥 モデル '$OLLAMA_MODEL' が未取得 — pullします..." >> "$LOG"
-  notify "モデル取得中: $OLLAMA_MODEL" "Ollama"
-  if ollama pull "$OLLAMA_MODEL" >> "$LOG" 2>&1; then
-    echo "✅ モデル取得完了: $OLLAMA_MODEL" >> "$LOG"
-  else
-    echo "⚠️  モデル取得失敗 — AI生成はスキップされます" >> "$LOG"
-  fi
+# ── 0b. モデル存在確認（oMLX はローカルのモデルファイル前提＝自動pull は無し）──
+if curl -s --max-time 5 -H "Authorization: Bearer ${OMLX_API_KEY:-x}" "$OMLX_BASE_URL/models" | grep -q "\"$OMLX_MODEL\""; then
+  echo "✅ oMLX 準備済: $OMLX_MODEL" >> "$LOG"
 else
-  echo "✅ モデル準備済: $OLLAMA_MODEL" >> "$LOG"
+  echo "⚠️  oMLX 未起動 or モデル '$OMLX_MODEL' 未取得 — AI生成はスキップされます" >> "$LOG"
+  notify "oMLX/モデル未確認: AI生成はスキップ" "$OMLX_MODEL"
 fi
 
 # ── 0. ディレクトリ移動と環境有効化 ──
@@ -90,7 +83,7 @@ fi
 # ── 2. ソースコード + 生成HTML をステージ ──
 # 注: output/pl_projection.html は公開しない方針のため git add しない
 # さきほど設定した .gitignore により .venv や data/ は自動で除外されます
-git add .gitignore generate_html.py portal.html detail.html dept.html \
+git add .gitignore robots.txt generate_html.py portal.html detail.html dept.html \
         app/templates/ app/lib/ 2>/dev/null || true
 
 # ── 3. 変更がなければスキップ ──
