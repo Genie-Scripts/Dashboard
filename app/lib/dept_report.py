@@ -190,13 +190,18 @@ def _unit_surg_weekly_series(surg, base_date, dept) -> dict:
     s = ser.set_index("日付")["値"]
     weekly = s.rolling("7D").sum()                    # 直近7日(暦日窓) rolling 合計＝件/週
     ma28 = weekly.rolling(28, min_periods=1).mean()   # 28データ点(営業日)の移動平均
-    vmap = dict(zip(s.index, ma28.round(1).to_numpy()))
+    vmap = dict(zip(s.index, ma28.round(1).to_numpy()))  # 当年線＝手術日のみ(疎・据え置き)
+    # 前年同期(d−364)は手術日の疎な系列だと去年の手術日にほぼ一致せず線が途切れる。
+    # MAを暦日連続に補間した系列で引き、線をつなぐ（当年線の算出は変えない）。
+    ma_daily = (ma28.reindex(pd.date_range(s.index.min(), s.index.max(), freq="D"))
+                .interpolate(method="time").ffill().bfill())
+    dmap = dict(zip(ma_daily.index, ma_daily.round(1).to_numpy()))
     idx = list(s.index)
     start = base_date - timedelta(days=WEEKS * 7 - 1)
     cur_dates = [d for d in idx if start <= d <= base_date]
     cur = [round(vmap[d], 1) for d in cur_dates]
-    prev = [round(vmap[d - timedelta(days=PREVYEAR_DAYS)], 1)
-            if (d - timedelta(days=PREVYEAR_DAYS)) in vmap else None for d in cur_dates]
+    prev = [round(dmap[d - timedelta(days=PREVYEAR_DAYS)], 1)
+            if (d - timedelta(days=PREVYEAR_DAYS)) in dmap else None for d in cur_dates]
     return {"dates": [d.strftime("%m/%d") for d in cur_dates], "cur": cur, "prev": prev}
 
 

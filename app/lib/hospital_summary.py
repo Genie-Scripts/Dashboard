@@ -299,7 +299,10 @@ def render_trend_svg(data: dict, ref: float, ref_label: str, unit: str,
         return ""
     W, H, L, R, T, B = 760, height, 50, 700, 24, height - 42
     lo, hi = min(pts_all), max(pts_all)
-    pad = max((hi - lo) * 0.18, 2)
+    # パディングは実績変化に追従させる。絶対値2固定だと新入院（〜数件/日）など
+    # 小さい指標で変動が潰れる（例: 実測3〜4.5でも軸が1〜7に広がる）ので、
+    # データ幅(0.18)を主、系列規模(0.04)を下限にして、平らな指標は平らに見せる。
+    pad = max((hi - lo) * 0.18, abs(hi) * 0.04, 0.05)
     y0, y1 = lo - pad, hi + pad
     n = len(cur)
 
@@ -322,9 +325,6 @@ def render_trend_svg(data: dict, ref: float, ref_label: str, unit: str,
         fill = OK_FILL if (a + b) / 2 >= ref else WR_FILL
         el.append(f'<polygon points="{X(i):.1f},{Y(a):.1f} {X(i+1):.1f},{Y(b):.1f} '
                   f'{X(i+1):.1f},{yr:.1f} {X(i):.1f},{yr:.1f}" fill="{fill}"/>')
-    # 目標線（ゾーンの上に描画）
-    el.append(f'<line x1="{L}" y1="{yr:.1f}" x2="{R}" y2="{yr:.1f}" stroke="#9aa7b4" stroke-width="1.2" stroke-dasharray="5 4"/>')
-    el.append(f'<text x="{R+4:.1f}" y="{yr+3.5:.1f}" font-size="10.5" fill="#9aa7b4" font-weight="700">{ref_label}</text>')
 
     def path(vals, stroke, w, dash=False):
         seg, started = [], False
@@ -341,6 +341,9 @@ def render_trend_svg(data: dict, ref: float, ref_label: str, unit: str,
 
     el.append(path(prev, PREV, 1.7))   # 前年同期＝グレー実線（破線廃止・色と太さで当年と区別）
     el.append(path(cur, color, 2.6))
+    # 目標線はデータ線の上に描く（手前に置くと当年/前年の太線に覆われ破線が切れ切れに見える）
+    el.append(f'<line x1="{L}" y1="{yr:.1f}" x2="{R}" y2="{yr:.1f}" stroke="#9aa7b4" stroke-width="1.2" stroke-dasharray="5 4"/>')
+    el.append(f'<text x="{R+4:.1f}" y="{yr+3.5:.1f}" font-size="10.5" fill="#9aa7b4" font-weight="700">{ref_label}</text>')
     # 端ラベル
     el.append(f'<text x="{X(0):.1f}" y="{B+15:.1f}" font-size="10" fill="{SUB}" text-anchor="middle">{dates[0]}</text>')
     el.append(f'<text x="{X(n-1):.1f}" y="{B+15:.1f}" font-size="10" fill="{SUB}" text-anchor="middle">{dates[-1]}</text>')
