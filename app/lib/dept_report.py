@@ -7,7 +7,7 @@ profit_monthly)から、診療科版・病棟版それぞれ「1部門=1コン�
   グラフ5パーツ A.在院 B.新入院 C.全麻手術 D.粗利 E.曜日プロファイル を、ユニット種別ごとの
   優先順で配置する。優先1位=全幅ヒーロー、以降は読み順(=優先順)で半幅2列、⭐一手が端を埋める。
     外科系診療科: C, D, E, B, A   内科系診療科: A, D, B, E   病棟: A(病床利用率), B, E
-  - トレンドは当年線＋前年同期(点線)＋目標/定員(破線)＋達成率バッジ(緑≥100/橙<100)。
+  - トレンドは当年線＋前年同期(点線)＋目標(破線。病棟=目標利用率)＋達成率バッジ(緑≥100/橙<100)。
   - 粗利は診療科のみ・月次cadence(確報ベース)。病棟は粗利/手術なし。種別=SURGERY_DISPLAY_DEPTS。
   - SVGはバッチPDF化のJS実行を避け Python 側で静的描画（render_trend_svg / _render_dow_svg）。
 """
@@ -23,7 +23,7 @@ from .config import SURGERY_DISPLAY_DEPTS
 from .metrics import (
     weekend_census_retention, rolling7_inpatient_avg,
     rolling7_new_admission, rolling7_surgery,
-    build_daily_series,
+    build_daily_series, build_surgery_daily_series,
 )
 from .charts import build_dow_unit_detail, _dow_unit_candidates
 from .ai_narrative import (
@@ -48,9 +48,10 @@ C_INK = "#5f7084"
 # グラフパーツ（A-E）の色・アイコン・窓ラベル
 PART_COL = {"A": "#2a9d8f", "B": "#3d5a80", "C": "#2b6cb0", "D": "#bf8a2e"}
 PART_ICON = {"A": "🛏", "B": "➕", "C": "🔪", "D": "💴", "E": "📊"}
-# 窓ラベルは公開版ダッシュボードと同方式（在院/新入院/手術=7日移動平均）。
-PART_WIN = {"A": "12週・7日移動平均", "B": "12週・7日移動平均（件/日）",
-            "C": "12週・7日移動平均（件/日）", "D": "12か月・月次（確報ベース）",
+# 窓ラベルは公開版ダッシュボード（dept.html 既定線）と同方式。
+#   在院/新入院＝日次系列の28日移動平均、手術＝週次合計(件/週)の28日移動平均。
+PART_WIN = {"A": "12週・28日移動平均", "B": "12週・28日移動平均（件/日）",
+            "C": "12週・28日移動平均（件/週）", "D": "12か月・月次（確報ベース）",
             "E": "曜日別 日平均（直近8週）"}
 
 # 種別ごとの表示優先順（上＝主役＝全幅ヒーロー）
@@ -174,20 +175,29 @@ def _unit_ma_series(adm, col, base_date, group_col, group_val, window, agg) -> d
     return _ma_from_daily(s, base_date, window, agg)
 
 
-def _unit_surg_ma7_series(surg, base_date, dept) -> dict:
-    """指定診療科の全麻・7日移動平均（件/日）・直近12週＋前年同期。
+def _unit_surg_weekly_series(surg, base_date, dept) -> dict:
+    """指定診療科の全麻・週次合計(件/週)の28日移動平均・直近12週＋前年同期。
 
-    公開版ダッシュボードの診療科ドリル（_trend_dict の ma7）と同方式。手術なし日は
-    0 埋めで暦日を連続化してから 7日移動平均（KPIの rolling7_surgery と同じ7暦日窓）。
+    公開版ダッシュボード dept.html の診療科手術チャート（renderSurgeryChart の既定線
+    ＝28日移動平均）と同方式。build_surgery_daily_series は営業日のみの疎な系列なので、
+    直近7日（暦日窓）rolling 合計＝件/週 → 28データ点（営業日）の移動平均。前年同期は
+    同系列の date−PREVYEAR_DAYS を引く（昨年度同期 週次合計の28日平滑に相当）。
     """
-    sd = surg[(surg["実施診療科"] == dept) & surg["全麻"]]
-    daily = sd.groupby("手術実施日").size()
-    if daily.empty:
+    ser = build_surgery_daily_series(surg, ga_only=True, dept=dept)
+    if ser is None or len(ser) == 0:
         return {"dates": [], "cur": [], "prev": []}
-    idx = pd.date_range(daily.index.min(), base_date, freq="D")
-    daily = daily.reindex(idx, fill_value=0)
-    ser = pd.DataFrame({"日付": idx, "値": daily.to_numpy()})
-    return _ma_from_daily(ser, base_date, 7, "mean")
+    ser = ser[ser["日付"] <= base_date].sort_values("日付")
+    s = ser.set_index("日付")["値"]
+    weekly = s.rolling("7D").sum()                    # 直近7日(暦日窓) rolling 合計＝件/週
+    ma28 = weekly.rolling(28, min_periods=1).mean()   # 28データ点(営業日)の移動平均
+    vmap = dict(zip(s.index, ma28.round(1).to_numpy()))
+    idx = list(s.index)
+    start = base_date - timedelta(days=WEEKS * 7 - 1)
+    cur_dates = [d for d in idx if start <= d <= base_date]
+    cur = [round(vmap[d], 1) for d in cur_dates]
+    prev = [round(vmap[d - timedelta(days=PREVYEAR_DAYS)], 1)
+            if (d - timedelta(days=PREVYEAR_DAYS)) in vmap else None for d in cur_dates]
+    return {"dates": [d.strftime("%m/%d") for d in cur_dates], "cur": cur, "prev": prev}
 
 
 def _unit_profit_series(profit_monthly, name, base_date,
@@ -290,6 +300,30 @@ def _fallback_move(unit: dict, dd: Optional[dict], entity: str) -> dict:
     return {"body": body, "action": action}
 
 
+def _surg_highlight(sv, surg_tgt, surg_series) -> Optional[str]:
+    """外科系の一手に添える全麻ハイライト1行（数値駆動・AI不要）。
+    直近7日累計(件/週) vs 週次目標＋28日線の方向＋目標までの差を1行に。"""
+    if not surg_tgt:
+        return None
+    rate = round((sv or 0) / surg_tgt * 100)
+    cur = [v for v in (surg_series.get("cur") or []) if v is not None] if surg_series else []
+    if len(cur) >= 2:
+        prior = cur[max(0, len(cur) - 21)]   # ≒4週前（営業日換算で約20点）
+        pct = (cur[-1] - prior) / abs(prior) * 100 if prior else 0
+        trend = "上昇" if pct > 5 else "低下" if pct < -5 else "横ばい"
+    else:
+        trend = "—"
+    gap = surg_tgt - (sv or 0)
+    if gap > 0.5:
+        gap_phrase = f"あと約{gap:.0f}件/週で目標"
+    elif gap < -0.5:
+        gap_phrase = f"目標を{-gap:.0f}件/週上回る"
+    else:
+        gap_phrase = "ほぼ目標どおり"
+    return (f"全麻：直近7日 {sv:g}件／週目標{surg_tgt:g}（{rate}%）。"
+            f"28日線は{trend}／{gap_phrase}")
+
+
 # ════════════════════════════════════════════════════════════
 # チャート組立（描画はヒーロー/半幅の高さ確定後）
 # ════════════════════════════════════════════════════════════
@@ -314,7 +348,8 @@ def _build_parts(adm, surg, base_date, entity, name, code, dd, r7_inp, r7_nadm,
                  r7_surg, targets, surg_targets, profit_series) -> dict:
     """利用可能なグラフパーツ {A,B,C,D,E} を作る（無いものは欠落）。
 
-    在院/新入院/手術の窓は公開版ダッシュボードと統一（7日移動平均、KPIは直近7日）。
+    トレンド線は公開版ダッシュボード dept.html の既定（28日移動平均）と統一。
+    手術は週次合計(件/週)の28日移動平均・目標は週次目標そのもの。KPIは直近7日。
     """
     is_ward = entity == "ward"
     by = "by_ward" if is_ward else "by_dept"
@@ -324,40 +359,46 @@ def _build_parts(adm, surg, base_date, entity, name, code, dd, r7_inp, r7_nadm,
     r7 = r7_inp[by].get(code)
     inp_tgt = targets.get("inpatient", {}).get(tgt_axis, {}).get(code)
 
-    # A: 在院（病棟は病床利用率 = 在院7日MA ÷ 稼働床 ×100）
+    # A: 在院（28日移動平均）。病棟は病床利用率 = 在院28日MA ÷ 稼働床 ×100。
+    #    基準線は定員100%でなく「目標利用率＝日平均在院目標 ÷ 病床数 ×100」。
     if is_ward:
         beds = targets.get("inpatient", {}).get("ward_beds", {}).get(code)
-        cen = _unit_ma_series(adm, "在院患者数", base_date, "病棟コード", code, 7, "mean")
+        cen = _unit_ma_series(adm, "在院患者数", base_date, "病棟コード", code, 28, "mean")
         if beds:
             scale = lambda v: round(v / beds * 100, 1) if v is not None else None
             cen = {**cen, "cur": [scale(v) for v in cen["cur"]], "prev": [scale(v) for v in cen["prev"]]}
             util_now = _rate(r7, beds)
-            badge = (f"対定員 {util_now:g}%", "ok" if (util_now or 0) >= 90 else "wr") if util_now else None
-            parts["A"] = _trend_part("A", "病床利用率", cen, 100, "定員100%", "%", badge)
+            tgt_util = round(inp_tgt / beds * 100, 1) if inp_tgt else None
+            ref = tgt_util if tgt_util is not None else 100
+            ref_label = f"目標 {tgt_util:g}%" if tgt_util is not None else "定員100%"
+            badge = ((f"対定員 {util_now:g}%",
+                      "ok" if (tgt_util is None or util_now >= tgt_util) else "wr")
+                     if util_now else None)
+            parts["A"] = _trend_part("A", "病床利用率", cen, ref, ref_label, "%", badge)
     else:
-        s = _unit_ma_series(adm, "在院患者数", base_date, "診療科名", name, 7, "mean")
+        s = _unit_ma_series(adm, "在院患者数", base_date, "診療科名", name, 28, "mean")
         parts["A"] = _trend_part("A", "在院患者数", s, inp_tgt or 0, f"目標{inp_tgt:g}" if inp_tgt else "",
                                  "人", _ach_badge(r7, inp_tgt))
 
-    # B: 新入院（7日移動平均=件/日、目標=週次÷7。KPI/バッジは直近7日累計）。軸で列が変わる
+    # B: 新入院（28日移動平均=件/日、目標=週次÷7。KPI/バッジは直近7日累計）。軸で列が変わる
     na = r7_nadm[by].get(code)
     na_tgt = targets.get("new_admission", {}).get(tgt_axis, {}).get(code)
     daily_na_tgt = round(na_tgt / 7, 1) if na_tgt else 0
     b_col = "新入院患者数_病棟" if is_ward else "新入院患者数"
     b_grp, b_val = ("病棟コード", code) if is_ward else ("診療科名", name)
-    bs = _unit_ma_series(adm, b_col, base_date, b_grp, b_val, 7, "mean")
+    bs = _unit_ma_series(adm, b_col, base_date, b_grp, b_val, 28, "mean")
     parts["B"] = _trend_part("B", "新入院患者数", bs, daily_na_tgt,
                              f"目標{daily_na_tgt:g}" if daily_na_tgt else "", "件/日",
                              _ach_badge(na, na_tgt))
 
-    # C: 全麻手術（外科系診療科のみ）。7日移動平均=件/日、目標=週次÷7。バッジは直近7日累計
+    # C: 全麻手術（外科系診療科のみ）。公開版 dept.html と統一＝週次合計(件/週)の28日移動平均、
+    #    目標線は週次目標そのもの（flat）。KPI/バッジは直近7日累計(件/週) vs 週次目標。
     if not is_ward and name in SURGERY_DISPLAY_DEPTS:
-        cs = _unit_surg_ma7_series(surg, base_date, name)
+        cs = _unit_surg_weekly_series(surg, base_date, name)
         surg_tgt = surg_targets.get(name) if isinstance(surg_targets, dict) else None
-        daily_tgt = round(surg_tgt / 7, 1) if surg_tgt else 0
         sv = r7_surg["by_dept"].get(name, 0)
-        parts["C"] = _trend_part("C", "全身麻酔手術", cs, daily_tgt,
-                                 f"目標{daily_tgt:g}" if daily_tgt else "", "件/日",
+        parts["C"] = _trend_part("C", "全身麻酔手術", cs, surg_tgt or 0,
+                                 f"目標{surg_tgt:g}" if surg_tgt else "", "件/週",
                                  _ach_badge(sv, surg_tgt))
 
     # D: 粗利（診療科のみ・確報＋当月見込み）
@@ -438,11 +479,14 @@ def _kpi_band(type_key, entity, name, code, dd, r7_inp, r7_nadm, r7_surg,
                 prof_kpi, inp_kpi(False), nadm_kpi]
     if type_key == "internal":
         return [inp_kpi(True), prof_kpi, nadm_kpi, ret_kpi]
-    # ward
+    # ward（lead=病床利用率も目標利用率との達成で色付け）
     beds = targets.get("inpatient", {}).get("ward_beds", {}).get(code)
     util = _rate(r7, beds)
+    tgt_util = round(inp_tgt / beds * 100, 1) if (inp_tgt and beds) else None
+    util_tgt = (f"目標 {tgt_util:g}%・{beds:g}床" if tgt_util is not None
+                else (f"稼働 {beds:g}床" if beds else None))
     return [_kpi("病床利用率", "直近7日平均", _fmt(util, 1), "%", lead=True,
-                 tgt=f"稼働 {beds:g}床" if beds else None),
+                 tgt=util_tgt, ok=(_ok(util, tgt_util) if tgt_util is not None else None)),
             inp_kpi(False), nadm_kpi, ret_kpi]
 
 
@@ -511,6 +555,15 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
                                                       estimators, adm, surg))
             parts = _build_parts(adm, surg, base_date, entity, name, code, dd,
                                  r7_inp, r7_nadm, r7_surg, targets, surg_targets, profit_series)
+
+            # 外科系は「一手」に全麻ハイライト1行を常設（週末ならし本文＋全麻の数値）
+            if type_key == "surgical":
+                c_part = parts.get("C")
+                sline = _surg_highlight(r7_surg["by_dept"].get(name, 0),
+                                        surg_targets.get(name) if isinstance(surg_targets, dict) else None,
+                                        c_part.get("_data") if c_part else None)
+                if sline:
+                    move = {**move, "surg_line": sline}
 
             # 優先順にチャートを並べ、利用可能なものだけ採用
             ordered = [parts[k] for k in TYPE_ORDER[type_key] if k in parts and parts[k]]

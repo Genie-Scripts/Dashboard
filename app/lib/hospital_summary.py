@@ -23,6 +23,7 @@ from .config import (
 
 # ── 配色（dashboard と一致）──
 INK, SUB, LINE, PREV = "#1f2d3d", "#5a6b7b", "#2b6cb0", "#b9c2cd"
+OK_FILL, WR_FILL = "rgba(14,122,84,0.13)", "rgba(180,83,9,0.13)"  # 達成ゾーン塗り（目標超=緑/目標割=橙）
 WEEKS = 12
 PREVYEAR_DAYS = 364   # 52週=曜日合わせ
 
@@ -313,6 +314,15 @@ def render_trend_svg(data: dict, ref: float, ref_label: str, unit: str,
         el.append(f'<line x1="{L}" y1="{yy:.1f}" x2="{R}" y2="{yy:.1f}" stroke="#eef2f7"/>')
         el.append(f'<text x="{L-7:.1f}" y="{yy+3.5:.1f}" font-size="10.5" fill="#9aa7b4" text-anchor="end">{v:.0f}</text>')
     yr = Y(ref)
+    # 達成ゾーン: cur線とref線の間を、区間ごとに 目標超=緑 / 目標割=橙 で塗る
+    for i in range(n - 1):
+        a, b = cur[i], cur[i + 1]
+        if a is None or b is None:
+            continue
+        fill = OK_FILL if (a + b) / 2 >= ref else WR_FILL
+        el.append(f'<polygon points="{X(i):.1f},{Y(a):.1f} {X(i+1):.1f},{Y(b):.1f} '
+                  f'{X(i+1):.1f},{yr:.1f} {X(i):.1f},{yr:.1f}" fill="{fill}"/>')
+    # 目標線（ゾーンの上に描画）
     el.append(f'<line x1="{L}" y1="{yr:.1f}" x2="{R}" y2="{yr:.1f}" stroke="#9aa7b4" stroke-width="1.2" stroke-dasharray="5 4"/>')
     el.append(f'<text x="{R+4:.1f}" y="{yr+3.5:.1f}" font-size="10.5" fill="#9aa7b4" font-weight="700">{ref_label}</text>')
 
@@ -329,7 +339,7 @@ def render_trend_svg(data: dict, ref: float, ref_label: str, unit: str,
         d = f' stroke-dasharray="4 3"' if dash else ""
         return f'<path d="{" ".join(seg)}" fill="none" stroke="{stroke}" stroke-width="{w}" stroke-linejoin="round"{d}/>'
 
-    el.append(path(prev, PREV, 1.8, dash=True))
+    el.append(path(prev, PREV, 1.7))   # 前年同期＝グレー実線（破線廃止・色と太さで当年と区別）
     el.append(path(cur, color, 2.6))
     # 端ラベル
     el.append(f'<text x="{X(0):.1f}" y="{B+15:.1f}" font-size="10" fill="{SUB}" text-anchor="middle">{dates[0]}</text>')
@@ -340,6 +350,12 @@ def render_trend_svg(data: dict, ref: float, ref_label: str, unit: str,
         yy = Y(cur[j_last])
         el.append(f'<circle cx="{X(j_last):.1f}" cy="{yy:.1f}" r="4" fill="{color}"/>')
         el.append(f'<text x="{X(j_last):.1f}" y="{yy-9:.1f}" font-size="12.5" fill="{color}" text-anchor="end" font-weight="900">{cur[j_last]:.1f}</text>')
+    # 前年同期の端マーカー＋数値（ラベルは点の下＝当年ラベルと分離）
+    p_last = next((i for i in range(n - 1, -1, -1) if prev[i] is not None), None)
+    if p_last is not None:
+        yyp = Y(prev[p_last])
+        el.append(f'<circle cx="{X(p_last):.1f}" cy="{yyp:.1f}" r="3" fill="{PREV}"/>')
+        el.append(f'<text x="{X(p_last):.1f}" y="{yyp+13:.1f}" font-size="10" fill="{SUB}" text-anchor="end" font-weight="700">{prev[p_last]:.1f}</text>')
     # 当月見込み（点線＋中空マーカー）
     if proj is not None and j_last is not None:
         xp, yp = X(n - 1), Y(proj)

@@ -42,8 +42,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP"
 .kpi .k-val small{font-size:11px; font-weight:800; color:var(--sub); margin-left:1px}
 .kpi.lead .k-val{color:var(--cen)}
 .kpi .k-tgt{font-size:9.5px; font-weight:800; color:var(--mu)}
-.kpi .k-tgt.ok{color:var(--ok)}
-.kpi .k-tgt.wr{color:var(--wr)}
+/* 達成アピールは目標文字でなく「実績値の色」＋「左枠ステータス帯」で表現 */
+.kpi .k-val.ok{color:var(--ok)}
+.kpi .k-val.wr{color:var(--wr)}
+.kpi.ach-ok{border-left:4px solid var(--ok)}
+.kpi.ach-wr{border-left:4px solid var(--wr)}
 
 .prio{display:flex; gap:6px; align-items:center; margin-bottom:8px; font-size:9.5px; color:var(--sub)}
 .prio b{font-weight:800; color:var(--ink)}
@@ -88,6 +91,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP"
   background:#fff; border:1px dashed #b6d6c8; border-radius:8px}
 .move-act .arw{color:var(--ok); font-weight:900; font-size:12px}
 .move-act .txt{font-size:10.5px; font-weight:800; color:#0b5e41; line-height:1.55}
+.move-surg{margin-top:8px; padding-top:7px; border-top:1px dashed #b6d6c8;
+  font-size:10px; font-weight:800; color:#0b5e41; line-height:1.5}
 
 .ft{display:flex; justify-content:space-between; align-items:center; margin-top:9px;
   padding-top:6px; border-top:1px solid var(--ln); font-size:8.5px; color:var(--mu)}
@@ -125,6 +130,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP"
     <span class="ai">AI要約／院内データ</span></div>
   <div class="move-body">{{ m.body }}</div>
   <div class="move-act"><span class="arw">▶</span><span class="txt">{{ m.action }}</span></div>
+  {% if m.surg_line %}<div class="move-surg">🔪 {{ m.surg_line }}</div>{% endif %}
 </div>
 {% endmacro %}
 
@@ -148,11 +154,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP"
 
     <div class="kpis">
       {% for k in s.kpis %}
-      <div class="kpi{% if k.lead %} lead{% endif %}">
+      <div class="kpi{% if k.lead %} lead{% endif %}{% if k.ok %} ach-ok{% elif k.ok is not none %} ach-wr{% endif %}">
         <div class="k-lbl">{{ k.label }} <span>{{ k.sub }}</span></div>
         <div class="k-row">
-          <span class="k-val">{{ k.val }}{% if k.unit %}<small>{{ k.unit }}</small>{% endif %}</span>
-          {% if k.tgt %}<span class="k-tgt{% if k.ok %} ok{% elif k.ok is not none %} wr{% endif %}">{{ k.tgt }}</span>{% endif %}
+          <span class="k-val{% if k.ok %} ok{% elif k.ok is not none %} wr{% endif %}">{{ k.val }}{% if k.unit %}<small>{{ k.unit }}</small>{% endif %}</span>
+          {% if k.tgt %}<span class="k-tgt">{{ k.tgt }}</span>{% endif %}
         </div>
       </div>
       {% endfor %}
