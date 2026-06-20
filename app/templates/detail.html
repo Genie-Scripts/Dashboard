@@ -314,6 +314,47 @@ body.chart-fs-lock{overflow:hidden}
   .dowp-head{flex-direction:column;align-items:stretch}
   .dowp-badge{align-self:flex-start}
 }
+/* ── 印刷（A4 横向き・画面レイアウト維持／操作系UIを除去しライト配色化） ── */
+@page{ size:A4 landscape; margin:10mm }
+@media print{
+  /* (1) ダークモードでも常にライト配色で印刷 */
+  :root,[data-theme="dark"]{
+    --bg:#fff; --s:#fff; --ink:#1a2332; --sub:#5f7084; --mu:#9daab8; --ln:#dfe5ed;
+    --br:#0e4da4; --bl:#eef4fd; --bd:#0a3671; --sh:none;
+  }
+  body{ background:#fff; -webkit-print-color-adjust:exact; print-color-adjust:exact }
+  /* (1b) アニメ/トランジション無効化（fadeIn/drillIn が途中状態で刷り込まれるのを防止） */
+  *,*::before,*::after{ animation:none !important; transition:none !important }
+  /* (2) チャート/データ以外の操作系・オーバーレイを除去 */
+  .fab, .bottom-nav, .sheet, .sheet-backdrop,
+  .chart-fs-btn, .dm-btn, .nav-bar, .role, .act,
+  .pnl-ctrl, .global-bar, .bsubtabs, .inp-dt-tabs,
+  .rank-toggle, .mc-caret{ display:none !important }
+  /* (3) 紺スティッキーヘッダ → ライトな印刷バナー（タイトル＋基準日のみ残す） */
+  .hdr{ position:static; background:#fff; color:var(--ink); box-shadow:none;
+        border-bottom:2px solid var(--ink); padding:6px 0 8px }
+  .hdr .title{ color:var(--ink) }
+  .hdr .meta{ color:var(--sub) }
+  .badge{ background:var(--bl); color:var(--br) }
+  /* (4) パネルの影/角丸ノイズを抑え、カード単位で改ページ割れを防止 */
+  .pnl, .cpnl, .bx, .bx-main, .kc, .mc, .tab, .dr-body, .dr-head{
+        box-shadow:none !important; break-inside:avoid }
+  .tabs{ box-shadow:none }
+  /* (5) 印刷可能領域を一杯に使う（横向き＝グリッド維持のまま広げる） */
+  .w{ max-width:none; margin:0; padding:0 }
+  /* (5b) 印刷ビューポートが狭くてもモバイル折返しさせず、横向きで画面の多段グリッドを維持 */
+  .sum{ display:grid !important; grid-template-columns:1.4fr repeat(3,1fr) !important; overflow:visible !important }
+  .sum>*{ flex:none !important }
+  .tabs{ display:grid !important; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)) !important; overflow:visible !important }
+  .main{ grid-template-columns:1.15fr .85fr !important }
+  .kpi-row{ grid-template-columns:repeat(3,1fr) !important }
+  .mp-grid{ grid-template-columns:repeat(4,1fr) !important }
+  .charts-container.layout-2plus1,.charts-container.layout-2x2{ grid-template-columns:1fr 1fr !important }
+  .charts-container.layout-3{ grid-template-columns:repeat(3,1fr) !important }
+  /* (5c) モバイル折りたたみ（達成状況ランキング等）を印刷では常に展開 */
+  .mc-collapsed .mc-body{ display:block !important }
+  a{ color:inherit; text-decoration:none }
+}
 </style>
 </head>
 <body>
@@ -2710,6 +2751,16 @@ function closeDrill() {
   window.addEventListener('resize',function(){clearTimeout(rt);rt=setTimeout(applyLayout,150);});
   document.addEventListener('DOMContentLoaded',applyLayout);
   if(document.readyState!=='loading')applyLayout();
+  // 印刷時に Plotly チャートを用紙幅へ追従（responsive はウィンドウ resize にしか反応しないため）
+  function _resizePlotsForPrint(){
+    if(!window.Plotly) return;
+    document.querySelectorAll('.js-plotly-plot').forEach(function(el){
+      try{ window.Plotly.Plots.resize(el); }catch(e){}
+    });
+  }
+  window.addEventListener('beforeprint',_resizePlotsForPrint);
+  window.addEventListener('afterprint',_resizePlotsForPrint);
+  try{ window.matchMedia('print').addEventListener('change',_resizePlotsForPrint); }catch(e){}
 })();
 </script>
 </body>

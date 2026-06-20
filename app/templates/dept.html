@@ -13,6 +13,7 @@
 [data-theme="dark"] .gc .st.mu{background:#2a3a50}
 [data-theme="dark"] .dept-sel option{background:#1a2738;color:var(--ink)}
 .dm-btn{background:transparent;border:1px solid rgba(255,255,255,.25);border-radius:8px;color:#a8bdd4;font-size:14px;padding:4px 9px;cursor:pointer;transition:all .15s;font-family:inherit;line-height:1}.dm-btn:hover{color:#fff;border-color:rgba(255,255,255,.5)}
+.act{color:#a8bdd4;text-decoration:none;font-size:12px}.act:hover{color:#fff}
 *{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
 
 /* ── Header ── */
@@ -176,6 +177,41 @@ body.chart-fs-lock{overflow:hidden}
 .dowp-dn{color:var(--mu)}
 .dowp-meta{font-size:11px;color:var(--sub);line-height:1.65;margin-top:6px}
 .dowp-meta b{color:var(--ink);font-weight:800}
+/* ── 印刷（A4 横向き・画面レイアウト維持／操作系UIを除去しライト配色化） ── */
+@page{ size:A4 landscape; margin:10mm }
+@media print{
+  /* (1) ダークモードでも常にライト配色で印刷 */
+  :root,[data-theme="dark"]{
+    --bg:#fff; --s:#fff; --ink:#1a2332; --sub:#5f7084; --mu:#9daab8; --ln:#dfe5ed;
+    --br:#0e4da4; --bl:#eef4fd; --bd:#0a3671; --sh:none;
+  }
+  body{ background:#fff; -webkit-print-color-adjust:exact; print-color-adjust:exact }
+  /* (1b) アニメ/トランジション無効化（fadeIn が opacity:0 のまま刷り込まれるのを防止） */
+  *,*::before,*::after{ animation:none !important; transition:none !important }
+  .dashboard,.landing{ opacity:1 !important; transform:none !important }
+  /* (2) チャート/データ以外の操作系・オーバーレイを除去 */
+  .fab, .sheet, .sheet-backdrop,
+  .chart-fs-btn, .dm-btn, .nav-bar, .back, .dept-sel, .act,
+  .tb{ display:none !important }
+  /* (3) 紺スティッキーヘッダ → ライトな印刷バナー（タイトル＋基準日のみ残す） */
+  .hdr{ position:static; background:#fff; color:var(--ink); box-shadow:none;
+        border-bottom:2px solid var(--ink); padding:6px 0 8px }
+  .hdr .title{ color:var(--ink) }
+  .hdr .meta{ color:var(--sub) }
+  .badge{ background:var(--bl); color:var(--br) }
+  /* (4) パネルの影/角丸ノイズを抑え、カード単位で改ページ割れを防止 */
+  .cpnl, .kc, .mc, .bx, .gc, .dr-body, .dr-head{
+        box-shadow:none !important; break-inside:avoid }
+  /* (5) 印刷可能領域を一杯に使う（横向き＝グリッド維持のまま広げる） */
+  .w{ max-width:none; margin:0; padding:0 }
+  /* (5b) 印刷ビューポートが狭くてもモバイル折返しさせず、横向きで画面の多段グリッドを維持 */
+  .kpi-row{ grid-template-columns:repeat(3,1fr) !important }
+  .charts-container.layout-2plus1,.charts-container.layout-2x2{ grid-template-columns:1fr 1fr !important }
+  .charts-container.layout-3{ grid-template-columns:repeat(3,1fr) !important }
+  /* (5c) モバイル折りたたみセクションを印刷では常に展開 */
+  .mc-collapsed .mc-body{ display:block !important }
+  a{ color:inherit; text-decoration:none }
+}
 </style>
 </head>
 <body>
@@ -189,6 +225,7 @@ body.chart-fs-lock{overflow:hidden}
     <span class="title" id="pageTitle">📊 部門ダッシュボード</span>
   </div>
   <div class="right">
+    <a class="act" href="#" onclick="window.print();return false">🖨️ 印刷</a>
     <select class="dept-sel" id="deptSelect" onchange="onSelectChange(this.value)" style="display:none"></select>
     <span class="meta">📅 {{ base_date }}</span>
     <button class="dm-btn" onclick="toggleDarkMode()">🌙</button>
@@ -689,7 +726,8 @@ function renderToolbar() {
     <div class="grp"><span class="gl">期間</span>${periods}</div>
     <div class="grp"><span class="gl">日種</span>${dayChks}</div>
     <div class="grp"><span class="gl">描画</span>${lineChks}</div>
-    <div class="grp"><span class="gl">入院種別</span>${admTypeCtrl}</div>`;
+    <div class="grp"><span class="gl">入院種別</span>${admTypeCtrl}</div>
+    <div class="grp" style="margin-left:auto"><span class="btn" onclick="window.print()">🖨️ 印刷</span></div>`;
 }
 
 function setPeriod(p, btn) {
@@ -1638,6 +1676,16 @@ window.addEventListener('hashchange', () => {
   window.addEventListener('resize',function(){clearTimeout(rt);rt=setTimeout(applyLayout,150);});
   document.addEventListener('DOMContentLoaded',applyLayout);
   if(document.readyState!=='loading')applyLayout();
+  // 印刷時に Plotly チャートを用紙幅へ追従（responsive はウィンドウ resize にしか反応しないため）
+  function _resizePlotsForPrint(){
+    if(!window.Plotly) return;
+    document.querySelectorAll('.js-plotly-plot').forEach(function(el){
+      try{ window.Plotly.Plots.resize(el); }catch(e){}
+    });
+  }
+  window.addEventListener('beforeprint',_resizePlotsForPrint);
+  window.addEventListener('afterprint',_resizePlotsForPrint);
+  try{ window.matchMedia('print').addEventListener('change',_resizePlotsForPrint); }catch(e){}
 })();
 </script>
 </body>
