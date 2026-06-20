@@ -95,16 +95,16 @@ def main():
 
     # ── データ読込（generate_html を流用）──
     from generate_html import load_and_preprocess
-    adm, surg, targets, surg_targets, _pm, base_date, _ = \
+    adm, surg, targets, surg_targets, profit_monthly, base_date, profit_breakdown = \
         load_and_preprocess(args.data_dir, args.base_date, no_validate=False)
     generated_at = datetime.now()
 
     # ── コンテキスト構築（AI一手は全ユニット）──
     log(f"レポート構築中… axes={axes} AI={'OFF' if args.no_ai else 'ON(全ユニット)'}")
     contexts = build_dept_report_contexts(
-        adm, surg, targets, surg_targets, base_date, generated_at,
+        adm, surg, targets, surg_targets, profit_monthly, base_date, generated_at,
         hospital_name=args.hospital_name, with_ai=not args.no_ai,
-        axes=axes, quiet=args.quiet,
+        axes=axes, quiet=args.quiet, profit_breakdown=profit_breakdown,
     )
     if args.only:
         contexts = [c for c in contexts if c["unit"] == args.only]

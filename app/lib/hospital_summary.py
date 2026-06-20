@@ -287,12 +287,16 @@ def render_kpi_cards(kpi: dict) -> str:
 
 
 def render_trend_svg(data: dict, ref: float, ref_label: str, unit: str,
-                     window_label: str, color: str = LINE) -> str:
+                     window_label: str, color: str = LINE, height: int = 210,
+                     proj: float = None) -> str:
+    """トレンドSVG。proj を渡すと cur 末尾スロットへ点線＋中空マーカー（当月見込み）を描く。"""
     dates, cur, prev = data["dates"], data["cur"], data["prev"]
     pts_all = [v for v in cur if v is not None] + [v for v in prev if v is not None] + [ref]
+    if proj is not None:
+        pts_all.append(proj)
     if not pts_all:
         return ""
-    W, H, L, R, T, B = 760, 210, 50, 700, 24, 168
+    W, H, L, R, T, B = 760, height, 50, 700, 24, height - 42
     lo, hi = min(pts_all), max(pts_all)
     pad = max((hi - lo) * 0.18, 2)
     y0, y1 = lo - pad, hi + pad
@@ -330,11 +334,19 @@ def render_trend_svg(data: dict, ref: float, ref_label: str, unit: str,
     # 端ラベル
     el.append(f'<text x="{X(0):.1f}" y="{B+15:.1f}" font-size="10" fill="{SUB}" text-anchor="middle">{dates[0]}</text>')
     el.append(f'<text x="{X(n-1):.1f}" y="{B+15:.1f}" font-size="10" fill="{SUB}" text-anchor="middle">{dates[-1]}</text>')
-    last = next((v for v in reversed(cur) if v is not None), None)
-    if last is not None:
-        yy = Y(last)
-        el.append(f'<circle cx="{X(n-1):.1f}" cy="{yy:.1f}" r="4" fill="{color}"/>')
-        el.append(f'<text x="{X(n-1):.1f}" y="{yy-9:.1f}" font-size="12.5" fill="{color}" text-anchor="end" font-weight="900">{last:.1f}</text>')
+    # 確報の端マーカー（cur の最後の非None＝見込みスロットがある場合はその手前）
+    j_last = next((i for i in range(n - 1, -1, -1) if cur[i] is not None), None)
+    if j_last is not None:
+        yy = Y(cur[j_last])
+        el.append(f'<circle cx="{X(j_last):.1f}" cy="{yy:.1f}" r="4" fill="{color}"/>')
+        el.append(f'<text x="{X(j_last):.1f}" y="{yy-9:.1f}" font-size="12.5" fill="{color}" text-anchor="end" font-weight="900">{cur[j_last]:.1f}</text>')
+    # 当月見込み（点線＋中空マーカー）
+    if proj is not None and j_last is not None:
+        xp, yp = X(n - 1), Y(proj)
+        el.append(f'<path d="M{X(j_last):.1f} {Y(cur[j_last]):.1f} L{xp:.1f} {yp:.1f}" '
+                  f'fill="none" stroke="{color}" stroke-width="2.2" stroke-dasharray="2 3" opacity="0.85"/>')
+        el.append(f'<circle cx="{xp:.1f}" cy="{yp:.1f}" r="4.2" fill="#fff" stroke="{color}" stroke-width="2"/>')
+        el.append(f'<text x="{xp:.1f}" y="{yp-9:.1f}" font-size="11.5" fill="{color}" text-anchor="end" font-weight="900">{proj:g}</text>')
     # 凡例
     el.append(f'<text x="{R}" y="14" font-size="10" fill="{PREV}" text-anchor="end">― 前年同期</text>')
     return f'<svg viewBox="0 0 {W} {H}" width="100%" style="display:block">' + "".join(el) + "</svg>"

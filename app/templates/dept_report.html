@@ -3,105 +3,94 @@
 <head>
 <meta name="robots" content="noindex, nofollow">
 <meta charset="UTF-8">
-<title>入退院バランス レポート{% if sheets|length == 1 %} — {{ sheets[0].unit }}（{{ sheets[0].axis_label }}）{% endif %}</title>
+<title>部門レポート{% if sheets|length == 1 %} — {{ sheets[0].unit }}（{{ sheets[0].type_label }}）{% endif %}</title>
 <style>
 :root{
   --ink:#1a2332; --sub:#5f7084; --mu:#9daab8; --ln:#dfe5ed; --bg:#f6f8fb; --s:#fff;
   --ok:#0e7a54; --ok-bg:#ecfdf5; --wr:#b45309; --wr-bg:#fef7ee; --dr:#c4314b;
-  --out:#e07a5f; --in:#3d5a80; --cen:#2a9d8f;
+  --cen:#2a9d8f; --in:#3d5a80;
 }
-*{box-sizing:border-box;margin:0;padding:0}
+*{box-sizing:border-box; margin:0; padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
   background:var(--bg); color:var(--ink); -webkit-font-smoothing:antialiased; line-height:1.5}
 .sheet{width:190mm; min-height:277mm; margin:0 auto; background:var(--s);
-  padding:13mm 13mm 10mm; display:flex; flex-direction:column}
+  padding:11mm 11mm 8mm; display:flex; flex-direction:column}
 /* 連結時は各レポートを1ページに分割（一括印刷用） */
 .sheet + .sheet{ break-before:page; page-break-before:always }
 
-.letterhead{font-size:11px; font-weight:800; color:var(--sub); text-align:right; margin-bottom:4px}
+.letterhead{font-size:11px; font-weight:800; color:var(--sub); text-align:right; margin-bottom:3px}
 .hd{display:flex; align-items:flex-end; justify-content:space-between;
-  border-bottom:2.5px solid var(--ink); padding-bottom:9px; margin-bottom:14px}
-.hd-l{display:flex; align-items:baseline; gap:11px}
-.hd-dept{font-size:25px; font-weight:900; letter-spacing:.5px}
-.hd-axis{font-size:11px; font-weight:800; color:var(--in); background:#eef2f9;
+  border-bottom:2.5px solid var(--ink); padding-bottom:7px; margin-bottom:9px}
+.hd-l{display:flex; align-items:baseline; gap:10px}
+.hd-dept{font-size:23px; font-weight:900; letter-spacing:.5px}
+.hd-axis{font-size:10.5px; font-weight:800; color:var(--in); background:#eef2f9;
   border:1px solid #d3deef; border-radius:6px; padding:2px 8px; position:relative; top:-3px}
-.hd-title{font-size:13px; font-weight:800; color:var(--sub)}
-.hd-r{text-align:right; font-size:11px; color:var(--sub); line-height:1.7}
+.hd-title{font-size:12.5px; font-weight:800; color:var(--sub)}
+.hd-r{text-align:right; font-size:10px; color:var(--sub); line-height:1.55}
 .hd-r b{color:var(--ink); font-weight:800}
-.pill-conf{display:inline-block; font-size:10px; font-weight:900; color:var(--dr);
-  border:1px solid #e9c2cb; background:#fdf0f2; border-radius:999px; padding:2px 9px; margin-top:3px}
+.pill-conf{display:inline-block; font-size:9.5px; font-weight:900; color:var(--dr);
+  border:1px solid #e9c2cb; background:#fdf0f2; border-radius:999px; padding:1px 8px; margin-top:2px}
 
-.kpis{display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:9px}
-.kpi{border:1px solid var(--ln); border-radius:12px; padding:11px 13px 12px; background:var(--s);
-  display:flex; flex-direction:column; gap:2px}
+.kpis{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:8px}
+.kpi{border:1px solid var(--ln); border-radius:10px; padding:9px 11px 10px;
+  display:flex; flex-direction:column; gap:1px; position:relative}
 .kpi.lead{border-color:#bfe3d6; background:#f4fdf9}
-.kpi .k-lbl{font-size:10.5px; font-weight:800; color:var(--sub)}
-.kpi .k-val{font-size:27px; font-weight:900; line-height:1.05; letter-spacing:-.5px}
-.kpi .k-val small{font-size:13px; font-weight:800; color:var(--sub); margin-left:2px}
-.kpi .k-sub{font-size:10px; color:var(--mu); font-weight:700}
+.kpi .k-lbl{font-size:9.5px; font-weight:800; color:var(--sub)}
+.kpi .k-lbl span{font-weight:700; color:var(--mu); font-size:8.5px}
+.kpi .k-row{display:flex; align-items:baseline; gap:6px; flex-wrap:wrap}
+.kpi .k-val{font-size:24px; font-weight:900; line-height:1.05; letter-spacing:-.5px}
+.kpi .k-val small{font-size:11px; font-weight:800; color:var(--sub); margin-left:1px}
 .kpi.lead .k-val{color:var(--cen)}
-.delta{display:inline-flex; align-items:center; gap:3px; font-size:10px; font-weight:900;
-  border-radius:5px; padding:1px 6px; align-self:flex-start; margin-top:2px}
-.delta.good{background:var(--ok-bg); color:#065f42}
-.delta.bad{background:var(--wr-bg); color:#7c3a06}
-.delta.flat{background:#f1f4f8; color:var(--mu)}
+.kpi .k-tgt{font-size:9.5px; font-weight:800; color:var(--mu)}
+.kpi .k-tgt.ok{color:var(--ok)}
+.kpi .k-tgt.wr{color:var(--wr)}
 
-.howto{display:flex; gap:8px; align-items:flex-start; margin-bottom:13px;
-  padding:8px 12px; background:#f4f7fb; border:1px solid var(--ln); border-radius:10px;
-  font-size:10.5px; line-height:1.6; color:var(--sub)}
-.howto .ic{font-size:13px; line-height:1.3}
-.howto b{font-weight:800}
-.howto .t-ret{color:var(--cen)}
-.howto .t-room{color:var(--ink)}
+.prio{display:flex; gap:6px; align-items:center; margin-bottom:8px; font-size:9.5px; color:var(--sub)}
+.prio b{font-weight:800; color:var(--ink)}
+.prio .ord{font-size:9px; font-weight:900; color:var(--in); background:#eef2f9;
+  border:1px solid #d3deef; border-radius:5px; padding:1px 6px}
+.prio .tail{margin-left:auto; color:var(--mu)}
 
-.sec{margin-bottom:14px}
-.sec-h{display:flex; align-items:center; gap:8px; margin-bottom:7px}
-.sec-h .ico{font-size:15px}
-.sec-h .ttl{font-size:14px; font-weight:900}
-.sec-h .sub{font-size:11px; color:var(--sub); font-weight:700; margin-left:auto}
-.legend{display:flex; gap:14px; font-size:11px; font-weight:800; color:var(--sub); margin:2px 0 4px 2px}
-.legend i{display:inline-block; width:11px; height:11px; border-radius:3px; margin-right:4px; vertical-align:-1px}
-.legend .ln{width:16px; height:0; border-top:2.5px solid var(--cen); margin-right:5px; vertical-align:3px}
-.chart-wrap{border:1px solid var(--ln); border-radius:12px; padding:10px 8px 4px; background:var(--s)}
-.read{font-size:10.5px; color:var(--sub); line-height:1.65; margin-top:6px; padding:8px 11px;
-  background:var(--bg); border:1px solid var(--ln); border-radius:8px}
-.read b{color:var(--ink); font-weight:800}
+.grid{display:flex; flex-direction:column; gap:9px; flex:1}
+.hero-wrap{flex:1.25; display:flex; flex-direction:column}
+.move-wrap{flex:.7; display:flex; flex-direction:column}
+.row{display:grid; grid-template-columns:1fr 1fr; gap:9px; flex:1}
 
-.move{border:1px solid #cfe0d8; border-left:5px solid var(--ok); border-radius:12px;
-  background:linear-gradient(180deg,#f4fdf9,#fff); padding:13px 16px 14px}
-.move-h{display:flex; align-items:center; gap:7px; margin-bottom:7px}
-.move-h .star{font-size:16px}
-.move-h .ttl{font-size:14px; font-weight:900; color:#0b5e41}
-.move-h .ai{font-size:9px; font-weight:800; color:var(--mu); border:1px solid var(--ln);
-  border-radius:999px; padding:1px 7px; margin-left:auto}
-.move-body{font-size:12px; line-height:1.7; color:var(--ink)}
+.card{border:1px solid var(--ln); border-radius:11px; padding:9px 11px 6px;
+  background:var(--s); display:flex; flex-direction:column}
+.card.hero{border-color:#cdd8e6}
+.card-h{display:flex; align-items:center; gap:6px; margin-bottom:2px}
+.card-h .pr{font-size:8px; font-weight:900; color:#fff; background:var(--in);
+  border-radius:4px; padding:1px 5px}
+.card-h .ttl{font-size:11.5px; font-weight:900}
+.badge{font-size:9px; font-weight:900; border-radius:999px; padding:1px 7px; margin-left:auto}
+.badge.ok{background:var(--ok-bg); color:#065f42; border:1px solid #bfe3d6}
+.badge.wr{background:var(--wr-bg); color:#7c3a06; border:1px solid #f1d9bd}
+.badge.muted{background:#f1f4f8; color:var(--mu); border:1px solid var(--ln)}
+.cnote{font-size:8.5px; color:var(--mu); font-weight:700; margin:1px 0 0 2px}
+.svgwrap{flex:1; display:flex; align-items:center}
+.svgwrap svg{width:100%}
+.dow-legend{display:flex; gap:9px; font-size:9px; font-weight:800; color:var(--sub); margin:1px 0 2px 2px}
+.dow-legend i{display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:3px; vertical-align:-1px}
+.dow-legend .ln{width:13px; height:0; border-top:2.5px solid var(--cen); margin-right:4px; vertical-align:3px}
+
+.move{border:1px solid #cfe0d8; border-left:5px solid var(--ok); border-radius:11px;
+  background:linear-gradient(180deg,#f4fdf9,#fff); padding:10px 13px 11px;
+  display:flex; flex-direction:column; justify-content:center}
+.move-h{display:flex; align-items:center; gap:6px; margin-bottom:5px}
+.move-h .star{font-size:15px}
+.move-h .ttl{font-size:12.5px; font-weight:900; color:#0b5e41}
+.move-h .ai{font-size:8px; font-weight:800; color:var(--mu); border:1px solid var(--ln);
+  border-radius:999px; padding:1px 6px; margin-left:auto}
+.move-body{font-size:10.5px; line-height:1.6; color:var(--ink)}
 .move-body b{font-weight:900}
-.move-act{display:flex; align-items:flex-start; gap:8px; margin-top:9px; padding:9px 12px;
-  background:#fff; border:1px dashed #b6d6c8; border-radius:9px}
-.move-act .arw{color:var(--ok); font-weight:900; font-size:13px; line-height:1.5}
-.move-act .txt{font-size:12px; font-weight:800; color:#0b5e41; line-height:1.6}
+.move-act{display:flex; align-items:flex-start; gap:7px; margin-top:8px; padding:8px 10px;
+  background:#fff; border:1px dashed #b6d6c8; border-radius:8px}
+.move-act .arw{color:var(--ok); font-weight:900; font-size:12px}
+.move-act .txt{font-size:10.5px; font-weight:800; color:#0b5e41; line-height:1.55}
 
-.summary{margin-top:13px}
-.s-cap{font-size:11px; font-weight:900; color:var(--sub); margin-bottom:5px}
-.s-cap span{font-weight:700; color:var(--mu); font-size:10px}
-.s-band{display:grid; grid-template-columns:repeat(4,1fr);
-  border:1px solid var(--ln); border-radius:11px; overflow:hidden; background:var(--s)}
-.chip{padding:8px 12px; border-right:1px solid var(--ln)}
-.chip:last-child{border-right:none}
-.chip.muted{background:#fafbfc}
-.c-lbl{font-size:10px; font-weight:800; color:var(--sub)}
-.c-lbl span{font-weight:700; color:var(--mu); font-size:9px}
-.c-val{font-size:18px; font-weight:900; line-height:1.2; margin-top:1px}
-.c-val small{font-size:10px; color:var(--sub); font-weight:800; margin-left:1px}
-.chip.muted .c-val{color:var(--mu)}
-.c-rate{font-size:10px; font-weight:900; color:var(--sub); background:#f1f4f8;
-  border-radius:4px; padding:1px 5px; margin-left:3px; vertical-align:2px}
-.c-rate.ok{background:var(--ok-bg); color:#065f42}
-.c-rate.wr{background:var(--wr-bg); color:#7c3a06}
-.c-tgt{font-size:9.5px; color:var(--mu); font-weight:700; margin-top:1px}
-
-.ft{display:flex; justify-content:space-between; align-items:center; margin-top:auto;
-  padding-top:8px; border-top:1px solid var(--ln); font-size:9.5px; color:var(--mu)}
+.ft{display:flex; justify-content:space-between; align-items:center; margin-top:9px;
+  padding-top:6px; border-top:1px solid var(--ln); font-size:8.5px; color:var(--mu)}
 .ft b{color:var(--sub); font-weight:800}
 
 @page{ size:A4 portrait; margin:0 }
@@ -109,6 +98,36 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP"
 </style>
 </head>
 <body>
+
+{% macro card(c, hero=false) %}
+<div class="card{% if hero %} hero{% endif %}">
+  <div class="card-h">
+    <span class="pr">優先{{ c.priority }}</span>
+    <span class="ttl">{{ c.icon }} {{ c.name }}</span>
+    {% if c.badge %}<span class="badge {{ c.badge[1] }}">{{ c.badge[0] }}</span>{% endif %}
+  </div>
+  {% if c.is_dow %}
+  <div class="dow-legend">
+    <span><i style="background:#e07a5f"></i>退院/退出</span>
+    <span><i style="background:#3d5a80"></i>入院/流入</span>
+    <span><i class="ln"></i>在院指数(平日=100)</span>
+  </div>
+  {% endif %}
+  <div class="svgwrap">{{ c.svg | safe }}</div>
+  {% if c.note %}<div class="cnote">{{ c.note }}</div>{% endif %}
+</div>
+{% endmacro %}
+
+{% macro movecard(m) %}
+<div class="move">
+  <div class="move-h"><span class="star">⭐️</span>
+    <span class="ttl">この期間の一手</span>
+    <span class="ai">AI要約／院内データ</span></div>
+  <div class="move-body">{{ m.body }}</div>
+  <div class="move-act"><span class="arw">▶</span><span class="txt">{{ m.action }}</span></div>
+</div>
+{% endmacro %}
+
 {% for s in sheets %}
   <div class="sheet">
 
@@ -117,90 +136,47 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP"
     <div class="hd">
       <div class="hd-l">
         <div class="hd-dept">{{ s.unit }}</div>
-        <span class="hd-axis">{{ s.axis_label }}</span>
-        <div class="hd-title">入退院バランス レポート</div>
+        <span class="hd-axis">{{ s.type_label }}</span>
+        <div class="hd-title">{{ s.subtitle }}</div>
       </div>
       <div class="hd-r">
-        集計期間 <b>直近8週</b>（{{ s.period_start }}〜{{ s.period_end }}）<br>
+        集計 <b>直近12週／12か月</b><br>
         基準日 <b>{{ s.base_date }}</b>　発行 {{ s.generated_at }}<br>
         <span class="pill-conf">院内限り</span>
       </div>
     </div>
 
     <div class="kpis">
-      <div class="kpi">
-        <div class="k-lbl">平日 平均在院</div>
-        <div class="k-val">{{ s.kpi.weekday_avg }}<small>人</small></div>
-        <div class="k-sub">月〜金の平均</div>
-      </div>
-      <div class="kpi">
-        <div class="k-lbl">週末 平均在院</div>
-        <div class="k-val">{{ s.kpi.weekend_avg }}<small>人</small></div>
-        <div class="k-sub">平日比 −{{ s.kpi.weekend_gap }} 人</div>
-      </div>
-      <div class="kpi lead">
-        <div class="k-lbl">週末 在院維持率</div>
-        <div class="k-val">{{ s.kpi.retention_pct if s.kpi.retention_pct is not none else "—" }}<small>%</small></div>
-        <div class="k-sub">{% if s.kpi.total_retention_pct %}病院全体 {{ s.kpi.total_retention_pct }}%{% endif %}</div>
-      </div>
-      <div class="kpi">
-        <div class="k-lbl">のびしろ ／ 週</div>
-        <div class="k-val">{{ s.kpi.room }}<small>人日</small></div>
-        {% if s.kpi.room_delta_dir == 'down' %}<span class="delta good">▼ {{ s.kpi.room_delta_abs }} 改善</span>
-        {% elif s.kpi.room_delta_dir == 'up' %}<span class="delta bad">▲ {{ s.kpi.room_delta_abs }} 拡大</span>
-        {% else %}<span class="delta flat">→ 横ばい</span>{% endif %}
-        <div class="k-sub">週末に取り戻せる在院</div>
-      </div>
-    </div>
-
-    <div class="howto">
-      <span class="ic">📖</span>
-      <span>平日に積み上げた在院は、週末の退院などで一時的に減り、週明けに戻る波があります。<b class="t-ret">週末在院維持率</b>＝週末も在院をどれだけ保てたか（100%に近いほど良い）。<b class="t-room">のびしろ</b>＝その週末の落ち込みを平準化すれば取り戻せる在院（人日／週）です。</span>
-    </div>
-
-    <div class="sec">
-      <div class="sec-h">
-        <span class="ico">📊</span>
-        <span class="ttl">曜日プロファイル ― {{ s.out_lbl }}・{{ s.in_lbl }}と在院の谷</span>
-        <span class="sub">曜日別 日平均（直近8週）</span>
-      </div>
-      <div class="legend">
-        <span><i style="background:var(--out)"></i>{{ s.out_lbl }}（人/日）</span>
-        <span><i style="background:var(--in)"></i>{{ s.in_lbl }}（人/日）</span>
-        <span><i class="ln"></i>在院指数（平日平均=100）</span>
-      </div>
-      <div class="chart-wrap">{{ s.chart_svg | safe }}</div>
-      <div class="read">{{ s.read | safe }}</div>
-    </div>
-
-    <div class="move">
-      <div class="move-h">
-        <span class="star">⭐️</span>
-        <span class="ttl">この期間の一手</span>
-        <span class="ai">AI要約 ／ 院内データに基づく提案</span>
-      </div>
-      <div class="move-body">{{ s.move.body }}</div>
-      <div class="move-act">
-        <span class="arw">▶</span>
-        <span class="txt">{{ s.move.action }}</span>
-      </div>
-    </div>
-
-    <div class="summary">
-      <div class="s-cap">部門サマリ <span>― 参考（粗利を除く・診療科タイプで項目可変）</span></div>
-      <div class="s-band">
-        {% for c in s.summary %}
-        <div class="chip{{ ' muted' if c.muted }}">
-          <div class="c-lbl">{{ c.label }} <span>{{ c.sub }}</span></div>
-          <div class="c-val">{{ c.val }}{% if c.unit %}<small>{{ c.unit }}</small>{% endif %}{% if c.rate %}<span class="c-rate{% if c.rate_cls %} {{ c.rate_cls }}{% endif %}">{{ c.rate }}</span>{% endif %}</div>
-          <div class="c-tgt">{{ c.tgt }}</div>
+      {% for k in s.kpis %}
+      <div class="kpi{% if k.lead %} lead{% endif %}">
+        <div class="k-lbl">{{ k.label }} <span>{{ k.sub }}</span></div>
+        <div class="k-row">
+          <span class="k-val">{{ k.val }}{% if k.unit %}<small>{{ k.unit }}</small>{% endif %}</span>
+          {% if k.tgt %}<span class="k-tgt{% if k.ok %} ok{% elif k.ok is not none %} wr{% endif %}">{{ k.tgt }}</span>{% endif %}
         </div>
-        {% endfor %}
       </div>
+      {% endfor %}
+    </div>
+
+    <div class="prio">
+      <span class="ord">表示優先順</span><b>{{ s.prio_text }}</b>
+      <span class="tail">＝種別で構成・序列が変わる（上＝主役）</span>
+    </div>
+
+    <div class="grid">
+      <div class="hero-wrap">{{ card(s.charts[0], true) }}</div>
+      {% set rest = s.charts[1:] %}
+      {% for i in range(0, rest|length, 2) %}
+        <div class="row">
+          {{ card(rest[i]) }}
+          {% if i + 1 < rest|length %}{{ card(rest[i+1]) }}{% else %}{{ movecard(s.move) }}{% endif %}
+        </div>
+      {% endfor %}
+      {% if rest|length % 2 == 0 %}<div class="move-wrap">{{ movecard(s.move) }}</div>{% endif %}
     </div>
 
     <div class="ft">
-      <span>出典：<b>入退院クロス</b>（電子カルテ）　|　維持率＝土日平均在院 ÷ 平日平均在院　|　のびしろ＝(平日−週末)×2</span>
+      <span>出典：入退院クロス（電カル）／手術台帳／月次粗利　|　維持率＝土日平均在院÷平日平均在院　|　粗利＝確報ベース</span>
       <span><b>{{ s.hospital_name or "診療ダッシュボード" }}</b>　自動生成　{{ s.generated_at }}</span>
     </div>
 

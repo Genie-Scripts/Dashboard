@@ -286,6 +286,98 @@ def _daily_rolling_drivers(adm: pd.DataFrame,
     return {"biz_roll": biz_roll, "by_dept": by_dept}
 
 
+def project_dept_monthend(estimators: Dict[str, Any],
+                          adm: pd.DataFrame,
+                          surg: pd.DataFrame,
+                          base_date,
+                          dept: str,
+                          *,
+                          profit_monthly: Optional[pd.DataFrame] = None,
+                          recency_k: int = 3,
+                          recency_clip: tuple = (0.85, 1.15),
+                          min_n: int = 6) -> Optional[Dict[str, Any]]:
+    """診療科の「当月（最新確報月の翌月）月末見込み粗利（百万円）」を直近の診療実績から推計。
+
+    既存の per-dept 推計器 estimators（fit_profit_estimators の出力）を使い、当月ドライバーを
+    **MTD実績 + 残日数×直近30日ラン・レート**で月末まで外挿して _predict_kpis で粗利を予測。
+    直近 recency_k 確報月の actual/予測比の中央値（クリップ）で recency 補正し、確報系列との
+    連続性を確保する。入院式の品質が低い科（r2 None / n<min_n）は None（見込を出さない）。
+
+    Returns: {"month": pd.Timestamp, "value": 百万円, "factor": float, "r2": float, "n": int} | None
+    """
+    if not estimators or dept not in estimators:
+        return None
+    est = estimators[dept]
+    ny = est.get("nyuin", {})
+    if ny.get("r2") is None or (ny.get("n") or 0) < min_n:
+        return None
+
+    base_date = pd.Timestamp(base_date).normalize()
+    # 見込対象月 = 最新確報月 + 1（profit_monthly が無ければ base_date の月）
+    proj_month = _month_floor(base_date)
+    if profit_monthly is not None and len(profit_monthly):
+        sub = profit_monthly[profit_monthly["診療科名"] == dept]
+        if len(sub):
+            latest_conf = _month_floor(pd.to_datetime(sub["月"]).max())
+            proj_month = _month_floor(latest_conf + pd.DateOffset(months=1))
+
+    month_end = proj_month + pd.offsets.MonthEnd(0)
+    obs_end = min(base_date, month_end)
+    if obs_end < proj_month:
+        return None  # 当月のドライバーがまだ無い
+
+    def _row(df):
+        r = df[df["診療科名"] == dept]
+        return r.iloc[0] if len(r) else None
+
+    elapsed = (obs_end - proj_month).days + 1
+    m = _row(_window_drivers_daily(adm, surg, obs_end, elapsed))
+    if m is None:
+        return None
+    r = _row(_window_drivers_daily(adm, surg, obs_end, 30))
+    src, span_days = (r, 30) if r is not None else (m, max(elapsed, 1))
+    biz_span = src["営業日数"] or 1
+
+    rem_cal = max(0, (month_end - obs_end).days)
+    rem_biz = sum(1 for d in pd.date_range(obs_end + pd.Timedelta(days=1), month_end, freq="D")
+                  if is_operational_day(d))
+    drv = {
+        "営業日数": biz_days_in_month(proj_month),
+        "純在院延べ": m["純在院延べ"] + rem_cal * (src["純在院延べ"] / span_days),
+        "新入院":   m["新入院"]   + rem_cal * (src["新入院"]   / span_days),
+        "入院手術件数": m["入院手術件数"] + rem_biz * (src["入院手術件数"] / biz_span),
+        "外来手術件数": m["外来手術件数"] + rem_biz * (src["外来手術件数"] / biz_span),
+    }
+    pred = _predict_kpis(est, drv)["total"]  # 千円
+    if pred <= 0:
+        return None
+
+    # recency アンカー: 直近 k 確報月の actual / in-sample予測 の中央値（クリップ）
+    factor = 1.0
+    if profit_monthly is not None and len(profit_monthly):
+        sub = profit_monthly[profit_monthly["診療科名"] == dept].copy()
+        sub["月"] = pd.to_datetime(sub["月"]).apply(_month_floor)
+        months = sorted(sub["月"].unique())[-recency_k:]
+        amap = dict(zip(sub["月"], sub["粗利"]))
+        drv_m = _aggregate_monthly_drivers(adm, surg, list(months))
+        ratios = []
+        for mm in months:
+            row = drv_m[(drv_m["診療科名"] == dept) & (drv_m["月"] == mm)]
+            act = amap.get(mm)
+            if row.empty or not act or act <= 0:
+                continue
+            rr = row.iloc[0]
+            pm_pred = _predict_kpis(est, {k: rr[k] for k in
+                ("営業日数", "純在院延べ", "新入院", "入院手術件数", "外来手術件数")})["total"]
+            if pm_pred and pm_pred > 0:
+                ratios.append(float(act) / pm_pred)
+        if ratios:
+            factor = float(min(max(float(np.median(ratios)), recency_clip[0]), recency_clip[1]))
+
+    return {"month": proj_month, "value": round(pred * factor / 1000.0, 1),
+            "factor": round(factor, 4), "r2": ny.get("r2"), "n": ny.get("n")}
+
+
 # ────────────────────────────────────────────────────
 # 公開関数
 # ────────────────────────────────────────────────────
