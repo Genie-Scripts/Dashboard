@@ -37,6 +37,10 @@ WK = ["月", "火", "水", "木", "金", "土", "日"]
 WEEKS = 12
 PREVYEAR_DAYS = 364   # 52週=曜日合わせ
 
+# 前年同期に比較可能なデータがない病棟（再編・新規開棟）＝前年同期線を出さない。
+#   ICU(04B)/HCU(04D)は業務実態が一般病棟と異なり前年比較が成り立たず、8階B(08B)は2025年開棟。
+NO_PREVYEAR_WARDS = {"04B", "04D", "08B"}
+
 # 配色（dept.html renderDowProfile / hospital_summary と一致）
 C_OUT = "#e07a5f"   # 退院/流出
 C_IN  = "#3d5a80"   # 入院/流入
@@ -46,7 +50,9 @@ C_AX  = "#9daab8"
 C_INK = "#5f7084"
 
 # グラフパーツ（A-E）の色・アイコン・窓ラベル
-PART_COL = {"A": "#2a9d8f", "B": "#3d5a80", "C": "#2b6cb0", "D": "#bf8a2e"}
+# 当年実績線は中立ブルー1色に統一する。緑/オレンジは達成表現（網掛け・目標線・バッジ）専用とし、
+# 線色が「成績」に見える誤読を避ける（種別はカード見出しのアイコン＋タイトルで識別）。
+PART_LINE = "#2b6cb0"
 PART_ICON = {"A": "🛏", "B": "➕", "C": "🔪", "D": "💴", "E": "📊"}
 # 窓ラベルは公開版ダッシュボード（dept.html 既定線）と同方式。
 #   在院/新入院＝日次系列の28日移動平均、手術＝週次合計(件/週)の28日移動平均。
@@ -329,6 +335,33 @@ def _surg_highlight(sv, surg_tgt, surg_series) -> Optional[str]:
             f"28日線は{trend}／{gap_phrase}")
 
 
+def _util_highlight(util_now, tgt_util, beds, util_series) -> Optional[str]:
+    """病棟の一手に添える病床利用率ハイライト1行（数値駆動・AI不要）。
+    直近7日平均の対定員利用率 vs 目標利用率＋28日線の方向＋目標までの差を1行に。"""
+    if util_now is None:
+        return None
+    cur = [v for v in (util_series.get("cur") or []) if v is not None] if util_series else []
+    if len(cur) >= 2:
+        prior = cur[max(0, len(cur) - 28)]   # ≒4週前（病床利用率＝在院28日MAの日次系列なので28点前）
+        pct = (cur[-1] - prior) / abs(prior) * 100 if prior else 0
+        trend = "上昇" if pct > 2 else "低下" if pct < -2 else "横ばい"
+    else:
+        trend = "—"
+    tgt_txt = f"目標{tgt_util:g}%" if tgt_util is not None else "目標未設定"
+    beds_txt = f"・{beds:g}床" if beds else ""
+    gap_phrase = ""
+    if tgt_util is not None:
+        gap = tgt_util - util_now
+        if gap > 1:
+            gap_phrase = f"／あと約{gap:.0f}ポイントで目標"
+        elif gap < -1:
+            gap_phrase = f"／目標を{-gap:.0f}ポイント上回る"
+        else:
+            gap_phrase = "／ほぼ目標どおり"
+    return (f"病床利用率：直近7日平均 {util_now:g}%（{tgt_txt}{beds_txt}）。"
+            f"28日線は{trend}{gap_phrase}")
+
+
 # ════════════════════════════════════════════════════════════
 # チャート組立（描画はヒーロー/半幅の高さ確定後）
 # ════════════════════════════════════════════════════════════
@@ -338,7 +371,7 @@ def _trend_part(kind, name, series, ref, ref_label, unit, badge, note="") -> Opt
         return None
     return {"kind": kind, "icon": PART_ICON[kind], "name": name, "badge": badge, "note": note,
             "is_dow": False, "_data": series, "_ref": ref, "_ref_label": ref_label,
-            "_unit": unit, "_win": PART_WIN[kind], "_color": PART_COL[kind]}
+            "_unit": unit, "_win": PART_WIN[kind], "_color": PART_LINE}
 
 
 def _dow_part(dd) -> Optional[dict]:
@@ -423,6 +456,12 @@ def _build_parts(adm, surg, base_date, entity, name, code, dd, r7_inp, r7_nadm,
     e = _dow_part(dd)
     if e:
         parts["E"] = e
+
+    # ICU/HCU/8階B は前年同期に比較可能なデータがない → 前年同期線を出さない
+    if is_ward and code in NO_PREVYEAR_WARDS:
+        for p in parts.values():
+            if p and not p["is_dow"] and p.get("_data"):
+                p["_data"]["prev"] = [None] * len(p["_data"]["cur"])
     return parts
 
 
@@ -569,6 +608,17 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
                                         c_part.get("_data") if c_part else None)
                 if sline:
                     move = {**move, "surg_line": sline}
+            # 病棟は「一手」に病床利用率ハイライト1行を常設
+            elif type_key == "ward":
+                a_part = parts.get("A")
+                w_beds = targets.get("inpatient", {}).get("ward_beds", {}).get(code)
+                w_inp_tgt = targets.get("inpatient", {}).get("ward", {}).get(code)
+                w_util = _rate(r7_inp["by_ward"].get(code), w_beds)
+                w_tgt_util = round(w_inp_tgt / w_beds * 100, 1) if (w_inp_tgt and w_beds) else None
+                uline = _util_highlight(w_util, w_tgt_util, w_beds,
+                                        a_part.get("_data") if a_part else None)
+                if uline:
+                    move = {**move, "util_line": uline}
 
             # 優先順にチャートを並べ、利用可能なものだけ採用
             ordered = [parts[k] for k in TYPE_ORDER[type_key] if k in parts and parts[k]]

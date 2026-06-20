@@ -34,13 +34,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP"
 .kpis{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:8px}
 .kpi{border:1px solid var(--ln); border-radius:10px; padding:9px 11px 10px;
   display:flex; flex-direction:column; gap:1px; position:relative}
-.kpi.lead{border-color:#bfe3d6; background:#f4fdf9}
+/* 最優先KPI＝中立強調。緑背景は「未達でも達成済みに見える」ため廃止し、
+   優先度は「最優先」タグ＋中立枠/影で表現。緑/オレンジは達成（実績値の色＋左帯）専用。 */
+.kpi.lead{border-color:#c2cedd; box-shadow:0 1px 5px rgba(43,108,176,.10)}
 .kpi .k-lbl{font-size:9.5px; font-weight:800; color:var(--sub)}
 .kpi .k-lbl span{font-weight:700; color:var(--mu); font-size:8.5px}
+.kpi .k-lbl .k-lead{font-size:8px; font-weight:900; color:var(--in); background:#eef2f9;
+  border:1px solid #d3deef; border-radius:4px; padding:0 4px; margin-right:3px}
 .kpi .k-row{display:flex; align-items:baseline; gap:6px; flex-wrap:wrap}
 .kpi .k-val{font-size:24px; font-weight:900; line-height:1.05; letter-spacing:-.5px}
 .kpi .k-val small{font-size:11px; font-weight:800; color:var(--sub); margin-left:1px}
-.kpi.lead .k-val{color:var(--cen)}
 .kpi .k-tgt{font-size:9.5px; font-weight:800; color:var(--mu)}
 /* 達成アピールは目標文字でなく「実績値の色」＋「左枠ステータス帯」で表現 */
 .kpi .k-val.ok{color:var(--ok)}
@@ -94,7 +97,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP"
 .move-surg{margin-top:8px; padding-top:7px; border-top:1px dashed #b6d6c8;
   font-size:10px; font-weight:800; color:#0b5e41; line-height:1.5}
 
-.ft{display:flex; justify-content:space-between; align-items:center; margin-top:9px;
+.chartkey{margin-top:9px; padding-top:6px; border-top:1px solid var(--ln);
+  font-size:8.5px; color:var(--sub); font-weight:700; display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+.chartkey .ck{display:inline-flex; align-items:center; gap:4px}
+.chartkey .ck i{display:inline-block; width:13px; height:0; vertical-align:middle}
+.chartkey .ck b{display:inline-block; width:11px; height:9px; border-radius:2px}
+.chartkey .note{color:var(--mu); font-weight:700}
+.ft{display:flex; justify-content:space-between; align-items:center; margin-top:6px;
   padding-top:6px; border-top:1px solid var(--ln); font-size:8.5px; color:var(--mu)}
 .ft b{color:var(--sub); font-weight:800}
 
@@ -131,6 +140,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP"
   <div class="move-body">{{ m.body }}</div>
   <div class="move-act"><span class="arw">▶</span><span class="txt">{{ m.action }}</span></div>
   {% if m.surg_line %}<div class="move-surg">🔪 {{ m.surg_line }}</div>{% endif %}
+  {% if m.util_line %}<div class="move-surg">🛏 {{ m.util_line }}</div>{% endif %}
 </div>
 {% endmacro %}
 
@@ -155,7 +165,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP"
     <div class="kpis">
       {% for k in s.kpis %}
       <div class="kpi{% if k.lead %} lead{% endif %}{% if k.ok %} ach-ok{% elif k.ok is not none %} ach-wr{% endif %}">
-        <div class="k-lbl">{{ k.label }} <span>{{ k.sub }}</span></div>
+        <div class="k-lbl">{% if k.lead %}<span class="k-lead">最優先</span>{% endif %}{{ k.label }} <span>{{ k.sub }}</span></div>
         <div class="k-row">
           <span class="k-val{% if k.ok %} ok{% elif k.ok is not none %} wr{% endif %}">{{ k.val }}{% if k.unit %}<small>{{ k.unit }}</small>{% endif %}</span>
           {% if k.tgt %}<span class="k-tgt">{{ k.tgt }}</span>{% endif %}
@@ -179,6 +189,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP"
         </div>
       {% endfor %}
       {% if rest|length % 2 == 0 %}<div class="move-wrap">{{ movecard(s.move) }}</div>{% endif %}
+    </div>
+
+    <div class="chartkey">
+      <span class="ck"><i style="border-top:2.6px solid #2b6cb0"></i>当年実績</span>
+      <span class="ck"><i style="border-top:1.7px solid #b9c2cd"></i>前年同期</span>
+      <span class="ck"><i style="border-top:1.6px dashed #9aa7b4"></i>目標</span>
+      <span class="ck"><b style="background:rgba(14,122,84,.20)"></b>目標超</span>
+      <span class="ck"><b style="background:rgba(180,83,9,.20)"></b>目標割</span>
+      <span class="note">※網掛けが達成状況。線の色は指標の区別で、成績ではありません。</span>
     </div>
 
     <div class="ft">

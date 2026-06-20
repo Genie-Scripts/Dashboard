@@ -366,8 +366,9 @@ def render_trend_svg(data: dict, ref: float, ref_label: str, unit: str,
                   f'fill="none" stroke="{color}" stroke-width="2.2" stroke-dasharray="2 3" opacity="0.85"/>')
         el.append(f'<circle cx="{xp:.1f}" cy="{yp:.1f}" r="4.2" fill="#fff" stroke="{color}" stroke-width="2"/>')
         el.append(f'<text x="{xp:.1f}" y="{yp-9:.1f}" font-size="11.5" fill="{color}" text-anchor="end" font-weight="900">{proj:g}</text>')
-    # 凡例
-    el.append(f'<text x="{R}" y="14" font-size="10" fill="{PREV}" text-anchor="end">― 前年同期</text>')
+    # 凡例（前年同期線がある時だけ。比較データなしの病棟で誤解を招かないよう抑止）
+    if any(v is not None for v in prev):
+        el.append(f'<text x="{R}" y="14" font-size="10" fill="{PREV}" text-anchor="end">― 前年同期</text>')
     return f'<svg viewBox="0 0 {W} {H}" width="100%" style="display:block">' + "".join(el) + "</svg>"
 
 
