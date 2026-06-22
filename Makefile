@@ -126,6 +126,18 @@ comedix:
 		$(if $(REFRESH),--refresh,)
 	@echo "$(GREEN)✅ 完了: output/comedix/週報サマリー.png（一手: output/comedix/今週の一手.md）$(RESET)"
 
+## Comedix「お知らせ・回覧板」用 単一HTML週報 生成（直貼り・画像不要・インラインstyleのみ）
+## 出力: output/comedix/単一HTML週報.html（お知らせ HTMLソースモードへ毎週貼付）。一手は 今週の一手.md を共有
+.PHONY: comedix-html
+comedix-html:
+	@echo "$(CYAN)📰 Comedix単一HTML週報 生成中...$(RESET)"
+	$(PYTHON) scripts/build_comedix_html.py \
+		--data-dir $(DATA_DIR) \
+		$(if $(DATE),--base-date $(DATE),) \
+		$(if $(REFRESH),--refresh,) \
+		$(if $(ALL_TRENDS),--with-all-trends,)
+	@echo "$(GREEN)✅ 完了: output/comedix/単一HTML週報.html（一手: output/comedix/今週の一手.md）$(RESET)"
+
 ## 全病院 実績まとめPDF（詳細・印刷/資料室リンク）: KPI3＋12週トレンド3枚＋病棟別/診療科別テーブル
 .PHONY: report-hospital
 report-hospital:
