@@ -80,6 +80,17 @@ else
   echo "⚠️  pl_projection.html 生成に失敗（デプロイは継続）" >> "$LOG"
 fi
 
+# ── 1c. 部門ダッシュボード 自己完結HTML（院内LAN配信用・git には載せない）──
+# Comedix資料室へ手動アップする単一ファイル: Plotly同梱・他ページナビ非表示・日付入り和名
+# （部門ダッシュボード_YYYY-MM-DD.html）。出力先 output/selfcontained/ は .gitignore 済みのため
+# git add されず公開リポには出ない。失敗してもデプロイ（github.io配信）は継続。
+echo "🏥 部門ダッシュボード(自己完結)生成中..." >> "$LOG"
+if python scripts/build_selfcontained.py --profile dept-standalone >> "$LOG" 2>&1; then
+  echo "✅ 部門ダッシュボード(自己完結)生成完了 → output/selfcontained/" >> "$LOG"
+else
+  echo "⚠️  部門ダッシュボード(自己完結)生成に失敗（デプロイは継続）" >> "$LOG"
+fi
+
 # ── 2. ソースコード + 生成HTML をステージ ──
 # 注: output/pl_projection.html は公開しない方針のため git add しない
 # さきほど設定した .gitignore により .venv や data/ は自動で除外されます

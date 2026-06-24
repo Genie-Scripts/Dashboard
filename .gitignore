@@ -51,3 +51,6 @@ output/profit_projection_backtest_daily.csv
 # 外来件数×外来粗利 バックテスト成果物（ローカル分析用・自動再生成）
 output/outpatient_profit_backtest.json
 output/outpatient_profit_backtest_monthly.csv
+
+# 自己完結HTML（オフライン/Comedix資料室配信用・ローカル再生成物・公開しない）
+output/selfcontained/
