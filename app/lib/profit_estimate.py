@@ -698,18 +698,26 @@ def build_hybrid_payload(profit_breakdown: pd.DataFrame,
         models = fit_hybrid_models_auto(prof_long, surg_k,
                                           test_months=test_months,
                                           min_count=min_count)
-        # ── weak hybrid demote ──
+        # ── 手術モデル allowlist（業務定義で固定）──
+        # 手術を評価する科は「全麻目標を持つ外科系＋眼科」(PROFIT_SURGERY_DEPTS)に固定。
+        # allowlist 外（内科系）は手術件数モデルを使わず在院ベース(ratio_fallback)へ。
+        # ヒューリスティック(_hybrid_beats_ratio)だと、わずかな手術にOLSが張り付いた科を
+        # 誤って手術モデル採用し、当月に手術が無いと月末見込みが0へ崩落する（血液内科）。
+        from .config import PROFIT_SURGERY_DEPTS
+        demoted = [d for d in models if d not in PROFIT_SURGERY_DEPTS]
+        # ── weak hybrid demote（allowlist 内のみ）──
         # 各 dept で「NNLS/件数OLS の test_months MAPE」vs「ratio_fallback の同 MAPE」を
         # 比較し、ratio が勝ったら fit_models から外して後段の fit_ratio_fallback に流す。
-        # 救急科のように手術データは存在するが粗利の主因が在院数の科を自動検出する。
+        # 形成外科のように手術科でも入院粗利の主因が在院数の科を自動検出する。
         if not adm_monthly_pre.empty:
-            demoted = []
             for dept, rec in list(models.items()):
+                if dept in demoted:
+                    continue
                 if not _hybrid_beats_ratio(rec, prof_long, surg_k, adm_monthly_pre, dept, kind):
                     demoted.append(dept)
-            for dept in demoted:
-                del models[dept]
-            demoted_log[kind] = demoted
+        for dept in demoted:
+            del models[dept]
+        demoted_log[kind] = demoted
         fit_models[kind] = models
 
         for dept, rec in models.items():
