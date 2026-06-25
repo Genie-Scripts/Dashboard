@@ -110,7 +110,7 @@ def build_html(ctx, headline, body, width):
 </style></head><body><div class="wrap">
   <div style="border-bottom:2px solid #2b5797;padding-bottom:8px;margin-bottom:14px">
     <div style="font-size:12px;color:{SUB};letter-spacing:1px">{title}全職員向け 週報</div>
-    <div style="font-size:19px;font-weight:800">病院全体KPI　<span style="font-size:13px;color:{SUB};font-weight:600">{period}</span></div>
+    <div style="font-size:19px;font-weight:700">病院全体KPI　<span style="font-size:13px;color:{SUB};font-weight:600">{period}</span></div>
   </div>
   {hero}
   <div style="margin:14px 0 0">{kpis}</div>

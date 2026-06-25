@@ -112,10 +112,10 @@ def render_kpi_cards_inline(kpi: dict) -> str:
         vtxt = "—" if v is None else f"{v:.1f}"
         rate = metrics.achievement_rate(v, tgt) if v is not None else None
         return (f'<div style="display:flex;align-items:baseline;gap:8px;margin:4px 0 0">'
-                f'<span style="font-size:12px;font-weight:800;color:{SUB};min-width:30px">{name}</span>'
+                f'<span style="font-size:12px;font-weight:600;color:{SUB};min-width:30px">{name}</span>'
                 f'<span style="font-size:22px;font-weight:900;line-height:1">{vtxt}'
                 f'<span style="font-size:12px;font-weight:600;color:{SUB}">人</span></span>'
-                f'<span style="font-size:11px;font-weight:800;color:{sd["color"]}">{sd["shape"]}{sd["text"]}</span>'
+                f'<span style="font-size:11px;font-weight:600;color:{sd["color"]}">{sd["shape"]}{sd["text"]}</span>'
                 f'<span style="font-size:11px;color:#9aa7b4;margin-left:auto">目標{tgt:g}</span></div>'
                 + bar(rate, sd["color"]))
 
@@ -182,7 +182,7 @@ def render_dept_table_inline(rows: list) -> str:
             f'<th style="{S_TH}">退院再配分率</th>'
             f'<th style="{S_TH}">全麻 <span style="{S_SUB}">実/目</span></th></tr>')
     body, cur_type, i = [], None, 0
-    grp = "font-size:11px;color:#41618a;font-weight:800;background:#eef3fb;text-align:left"
+    grp = "font-size:11px;color:#41618a;font-weight:600;background:#eef3fb;text-align:left"
     for r in rows:
         if r["type"] != cur_type:
             cur_type = r["type"]

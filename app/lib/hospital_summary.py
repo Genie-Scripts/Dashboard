@@ -50,7 +50,7 @@ BASE_CSS = """
   .ht tr:nth-child(even) td{background:#fcfdfe;}
   .legend{font-size:11px;color:#5a6b7b;margin:6px 0 2px;}
   .legend i{display:inline-block;width:11px;height:11px;border-radius:3px;vertical-align:-1px;margin:0 3px 0 10px;}
-  .grp{font-size:11px;color:#41618a;font-weight:800;background:#eef3fb;}
+  .grp{font-size:11px;color:#41618a;font-weight:600;background:#eef3fb;}
 """
 
 
@@ -241,7 +241,7 @@ def render_hero(headline: str, body: str, chips: list) -> str:
         f'<div style="background:linear-gradient(135deg,#2b6cb0,#1f4e85);color:#fff;'
         f'border-radius:14px;padding:16px 20px;box-shadow:0 2px 8px rgba(31,78,133,.25)">'
         f'<div style="font-size:12px;letter-spacing:2px;opacity:.85;font-weight:700">📣 今週の一手</div>'
-        f'<div style="font-size:23px;font-weight:900;margin:3px 0 6px">{headline}</div>'
+        f'<div style="font-size:23px;font-weight:700;margin:3px 0 6px">{headline}</div>'
         f'<div style="font-size:14px;line-height:1.6;opacity:.96">{body}</div>'
         f'<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:11px">{chip_html}</div></div>'
     )
@@ -256,10 +256,10 @@ def render_kpi_cards(kpi: dict) -> str:
     def dual_row(lab, v, tgt, sd):
         vtxt = "—" if v is None else f"{v:.1f}"
         return (f'<div style="display:flex;align-items:baseline;gap:8px;margin:3px 0">'
-                f'<span style="font-size:12px;font-weight:800;color:{SUB};min-width:30px">{lab}</span>'
+                f'<span style="font-size:12px;font-weight:600;color:{SUB};min-width:30px">{lab}</span>'
                 f'<span style="font-size:23px;font-weight:900;line-height:1">{vtxt}'
                 f'<span style="font-size:12px;font-weight:600;color:{SUB}">人</span></span>'
-                f'<span style="font-size:11px;font-weight:800;color:{sd["color"]}">{sd["shape"]}{sd["text"]}</span>'
+                f'<span style="font-size:11px;font-weight:600;color:{sd["color"]}">{sd["shape"]}{sd["text"]}</span>'
                 f'<span style="font-size:11px;color:#9aa7b4;margin-left:auto">目標{tgt:g}</span></div>')
 
     inp_card = (

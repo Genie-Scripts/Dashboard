@@ -68,7 +68,7 @@ def _headline_banner(hl: dict) -> str:
     bg = {"danger": "#fdf0f2", "warn": "#fef7ee", "ok": "#ecfdf5"}.get(lvl, "#f6f8fb")
     bd = {"danger": "#c4314b", "warn": "#b45309", "ok": "#0e7a54"}.get(lvl, "#9daab8")
     return (f'<div style="background:{bg};border-left:5px solid {bd};padding:10px 14px;border-radius:8px;margin:12px 0">'
-            f'<div style="font-size:15px;font-weight:800">{hl.get("icon","")} {hl.get("text","")}</div>'
+            f'<div style="font-size:15px;font-weight:700">{hl.get("icon","")} {hl.get("text","")}</div>'
             f'<div style="font-size:12px;color:{SUB};margin-top:3px">{hl.get("detail","")}</div></div>')
 
 
@@ -98,7 +98,7 @@ def build_html(ctx) -> str:
 
     head = (f'<div style="border-bottom:2px solid #2b5797;padding-bottom:8px;margin-bottom:6px">'
             f'<div style="font-size:12px;color:{SUB};letter-spacing:1px">{title}　全病院 実績まとめ</div>'
-            f'<div style="font-size:20px;font-weight:800">病院全体KPI　'
+            f'<div style="font-size:20px;font-weight:700">病院全体KPI　'
             f'<span style="font-size:13px;color:{SUB};font-weight:600">{period}・基準日 {bd:%Y-%m-%d}</span></div></div>')
 
     p1 = page(head + f'<div style="margin-top:10px">{kpis}</div>' + banner

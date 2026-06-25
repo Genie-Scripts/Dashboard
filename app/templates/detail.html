@@ -356,6 +356,27 @@ body.chart-fs-lock{overflow:hidden}
   a{ color:inherit; text-decoration:none }
 }
 </style>
+<style>
+/* ── 日本語タイポ調整 v1 (2026-06-25) ───────────────────────────
+   日本語の見出し/科名/病棟名/ラベル/ナビ等の太字(800/900)を 600/700 に下げ、
+   小サイズでの線潰れを解消。数字系クラス(.vl/.val/.num/.*-val/.big/.pct/
+   .prog-pct/.triage-trend 等)は列挙から除外し太字(視認の錨)を維持する。
+   !important で複合セレクタ・インライン・JS生成の太字も上書き。 */
+:root{--jp-head:700;--jp-text:600}
+h4{font-weight:var(--jp-head)!important}
+.title,.sheet-title,.hd-title,.sec-title,.triage-hd-title,.dr-head,.mp-head,
+.hd-dept,.hd-axis,.card-h .ttl,.move-h .ttl,.letterhead,.pnl h3,.kc h3,
+.cpnl h4,.bsub,.lv-bd,.dhm-sub{
+  font-weight:var(--jp-head)!important;letter-spacing:.01em;font-feature-settings:"palt" 1}
+.triage-name,.nm,.gc .nm,.tab .nm,.lv-nm,.lv-card-nm,.lv-card-model,.imp-name,
+.dept-sel,.nav-bar a,.nav a,.role a,.back,.btn,.badge,.sb-text,.triage-group-label,
+.triage-tab-l1,.sheet-sec-label,.sheet-close,.k-lbl,.k-tgt,.dow-legend,.rank-toggle,
+.inp-dt-tab,.lv-seg button,.gl,.lv-dowt,.lv-outlbl,.lv-ld,.lv-aitag,.kc .cta,
+.move-act .txt,.move-h .ai,.pill-conf,.hybrid-table th,.hybrid-table .badge-nnls,
+.hybrid-table .badge-ols{font-weight:var(--jp-text)!important}
+.kc .st,.gc .st,.tab .st,.mp-st,.kc .prog-st,.prog-status,.stl,.gp,.dual-st{
+  font-weight:var(--jp-head)!important}
+</style>
 </head>
 <body>
 <header class="hdr">
