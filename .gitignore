@@ -41,6 +41,9 @@ output/comedix/
 output/pl_projection.html
 output/pl_residuals.csv
 
+# KPIスナップショット（データ由来・自動再生成・公開しない）
+output/last_kpi.json
+
 # 粗利推計 recency 補正キャッシュ（データ由来・自動再生成）
 output/g_calib_cache.json
 
