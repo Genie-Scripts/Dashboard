@@ -262,16 +262,66 @@ def compute_wow_diffs(current: dict, prior: dict) -> list[str]:
 # LLM ナラティブ
 # ════════════════════════════════════════
 
+def _holiday_fact(base_date: str, prior_date: str) -> str:
+    """今週(base_date)・前回保存時(prior_date)の各7日窓の祝日有無を確定事実テキスト化。
+
+    評価方針は「祝日・連休が含まれる場合は言及」と促すが、LLM は暦を知らないため
+    祝日の無い週でも連休・祝日を幻覚的に持ち出す。実際の祝日有無を事実として渡し、
+    無ければ「言及しない」と明示してこれを封じる（数値・事実を渡すハルシネーション封じ）。
+    jpholiday 未導入・日付不正は空文字（無害縮退）。
+    """
+    try:
+        import jpholiday
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"暦の事実生成スキップ（jpholiday 未導入）: {e}")
+        return ""
+
+    def _span(label: str, end_str: str):
+        try:
+            end = pd.Timestamp(end_str)
+            if pd.isna(end):
+                return None
+        except Exception:  # noqa: BLE001
+            return None
+        start = end - timedelta(days=6)
+        hols, d = [], start
+        while d <= end:
+            name = jpholiday.is_holiday_name(d.date())
+            if name:
+                hols.append(f"{d.month}月{d.day}日（{name}）")
+            d += timedelta(days=1)
+        return label, start, end, hols
+
+    cur = _span("今週", base_date)
+    prev = _span("前回保存時", prior_date)
+    spans = [s for s in (cur, prev) if s is not None]
+    if not spans:
+        return ""
+    if all(not s[3] for s in spans):
+        wlabels = "・".join(f"{s[0]}（{s[1].month}/{s[1].day}〜{s[2].month}/{s[2].day}）" for s in spans)
+        return ("【暦の事実】" + f"{wlabels}に祝日はありません。"
+                "祝日・連休・ゴールデンウィーク・お盆・年末年始による増減には一切言及しないこと。")
+    lines = ["【暦の事実】"]
+    for label, start, end, hols in spans:
+        win = f"{start.month}/{start.day}〜{end.month}/{end.day}"
+        lines.append(f"{label}（{win}）の祝日: " + ("、".join(hols) if hols else "なし") + "。")
+    lines.append("ここに挙げた祝日がある場合のみその影響に言及してよい。"
+                 "挙がっていない週に祝日・連休があるかのように書かないこと。")
+    return " ".join(lines)
+
+
 def _build_user_prompt(diffs: list[str], base_date: str, prior_date: str) -> str:
     from .eval_rules import build_weekly_context
     body = "\n".join(f"- {d}" for d in diffs)
+    holiday = _holiday_fact(base_date, prior_date)
+    holiday_block = f"\n\n{holiday}" if holiday else ""
     context = build_weekly_context()
     context_block = f"\n\n{context}" if context else ""
     return f"""以下は病院KPIの今週（{base_date}基準）と前回保存時（{prior_date}基準）の確定差分です。
 この変化を臨床管理の観点で150字以内にまとめ、JSON を1つだけ出力してください。
 
 【確定差分】
-{body}
+{body}{holiday_block}
 {context_block}
 【注意】
 - 差分事実にない数値・原因・人物を補わない
