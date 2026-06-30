@@ -447,6 +447,9 @@ def build_detail_json(adm, surg, targets, surg_targets,
     series_emg_hosp      = build_daily_series(adm, "緊急入院患者数")
 
     series_surg = build_surgery_daily_series(surg)
+    if len(series_surg) > 0:
+        full_idx = pd.date_range(series_surg["日付"].min(), base_date, freq="D")
+        series_surg = series_surg.set_index("日付").reindex(full_idx, fill_value=0).reset_index().rename(columns={"index": "日付"})
     series_surg = add_moving_average(series_surg, 7)
 
     # ★平日/休日フラグを追加
@@ -608,6 +611,9 @@ def build_detail_json(adm, surg, targets, surg_targets,
         # ── 診療科別推移データ（手術）: 手術対象科のみ ──
         if is_surgery_dept:
             dept_surg_series = build_surgery_daily_series(surg, ga_only=True, dept=dept)
+            if len(dept_surg_series) > 0:
+                full_idx = pd.date_range(dept_surg_series["日付"].min(), base_date, freq="D")
+                dept_surg_series = dept_surg_series.set_index("日付").reindex(full_idx, fill_value=0).reset_index().rename(columns={"index": "日付"})
             dept_surg_series = add_moving_average(dept_surg_series, 7)
         else:
             dept_surg_series = pd.DataFrame(columns=["日付", "値"])
