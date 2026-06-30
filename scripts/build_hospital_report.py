@@ -6,7 +6,7 @@ A4縦で:
   P1 = ヘッダ＋portal準拠KPI3＋ヘッドライン＋今週の一手
   P2 = 12週トレンド3枚（在院7日MA／新入院 週次ラン／全麻 30営業平日MA・前年同期線つき）
   P3 = 病棟別テーブル（在院 実/目・病床利用率・入退院フロー・週末在院維持率）
-  P4 = 診療科別テーブル（在院・新入院・入退院フロー・退院再配分率・全麻／タイプ別）
+  P4 = 診療科別テーブル（在院・新入院・入退院フロー・全麻・粗利予測達成率／タイプ別）
 PDF化は headless Chrome --print-to-pdf（build_dept_reports を踏襲・JS不要）。
 
   python scripts/build_hospital_report.py [--base-date YYYY-MM-DD] [--keep-html]
@@ -107,7 +107,7 @@ def build_html(ctx) -> str:
               + f'<div class="tb">{t_inp}</div><div class="tb">{t_adm}</div><div class="tb">{t_op}</div>')
     p3 = page('<div class="sec">🛏 病棟別 実績（在院・病床利用率・入退院フロー・週末在院維持率）</div>'
               + ward + legend)
-    p4 = page('<div class="sec">🩺 診療科別 実績（在院・新入院・入退院フロー・退院再配分率・全麻）</div>'
+    p4 = page('<div class="sec">🩺 診療科別 実績（在院・新入院・入退院フロー・全麻・粗利予測達成率）</div>'
               + dept + legend, last=True)
 
     return f"""<!doctype html><html lang="ja"><head><meta charset="utf-8"><style>
@@ -134,9 +134,11 @@ def main():
 
     from generate_html import load_and_preprocess
     log("データ読込・前処理中（load_and_preprocess）...")
-    adm, surg, targets, surg_targets, _pm, base_date, _ = \
+    adm, surg, targets, surg_targets, profit_monthly, base_date, profit_breakdown = \
         load_and_preprocess(args.data_dir, args.base_date, no_validate=False)
-    ctx = hs.build_summary_context(adm, surg, targets, surg_targets, base_date)
+    ctx = hs.build_summary_context(adm, surg, targets, surg_targets, base_date,
+                                   profit_monthly=profit_monthly,
+                                   profit_breakdown=profit_breakdown)
 
     html = build_html(ctx)
     out_dir = Path(args.output_dir)

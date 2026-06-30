@@ -19,18 +19,22 @@ from typing import Optional
 
 import pandas as pd
 
-from .config import SURGERY_DISPLAY_DEPTS
+from .config import (
+    SURGERY_DISPLAY_DEPTS,
+    TARGET_INPATIENT_ALLDAY, TARGET_ADMISSION_WEEKLY, TARGET_GA_DAILY,
+)
 from .metrics import (
     weekend_census_retention, rolling7_inpatient_avg,
     rolling7_new_admission, rolling7_surgery,
     build_daily_series, build_surgery_daily_series,
+    build_kpi_summary, dow_event_profile,
 )
 from .charts import build_dow_unit_detail, _dow_unit_candidates
 from .ai_narrative import (
     narrate_leveling_actions,
     _q_friday, _q_weekend_adm, _q_state_trend,
 )
-from .hospital_summary import render_trend_svg
+from .hospital_summary import render_trend_svg, _ma_series, _surg_series
 from .profit_estimate import fit_profit_estimators, project_dept_monthend
 
 WK = ["月", "火", "水", "木", "金", "土", "日"]
@@ -655,3 +659,159 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
                 "move": move,
             })
     return contexts
+
+
+# ════════════════════════════════════════════════════════════
+# 病院全体サマリ（1ページ目）── 内科系/外科系の構成を1枚に集約
+#   KPI4枚（在院・新入院・全麻・粗利）＋ A在院 B新入院 C全麻 D粗利 E曜日 の5チャート。
+#   「この期間の一手」は載せない（move=None → テンプレ側で非表示）。
+# ════════════════════════════════════════════════════════════
+def _hospital_profit_series(profit_monthly, base_date) -> Optional[dict]:
+    """病院全体の月次粗利（百万円）・直近12か月＋前年同期。目標=月次目標の合計。"""
+    if profit_monthly is None or len(profit_monthly) == 0:
+        return None
+    by_month = profit_monthly.groupby("月")
+    gp = by_month["粗利"].sum()
+    gt = by_month["月次目標"].sum(min_count=1)
+    base_m = base_date.to_period("M").to_timestamp()
+    months = [m for m in gp.index if m <= base_m]
+    if not months:
+        return None
+    months = sorted(months)[-WEEKS:]
+    cur = [round(gp[m] / 1000, 1) for m in months]
+    prev = [round(gp[m - pd.DateOffset(years=1)] / 1000, 1)
+            if (m - pd.DateOffset(years=1)) in gp.index else None for m in months]
+    last = months[-1]
+    tgt = gt.get(last)
+    ref = round(tgt / 1000, 1) if pd.notna(tgt) else 0
+    rate = round(gp[last] / tgt * 100, 1) if (pd.notna(tgt) and tgt) else None
+    return {"dates": [m.strftime("%-m月") for m in months], "cur": cur, "prev": prev,
+            "ref": ref, "rate": rate, "latest": last.strftime("%Y年%-m月")}
+
+
+def _hospital_dow(adm, base_date) -> dict:
+    """病院全体（診療科ビュー）の曜日別 日平均（退院・新入院・在院）＝直近8週。"""
+    out = {}
+    for met, col in (("discharge", "退院患者数"), ("admission", "新入院患者数"),
+                     ("census", "在院患者数")):
+        p = dow_event_profile(adm, base_date, col, group_col="診療科名",
+                              group_val=None, weeks=8)
+        w = p["weeks"] or 1
+        out[met] = [round(c / w, 1) for c in p["counts"]]
+    return out
+
+
+def build_hospital_overview_context(adm, surg, targets, surg_targets, profit_monthly,
+                                    base_date, generated_at, *, hospital_name: str = "",
+                                    profit_breakdown=None) -> dict:
+    """病院全体サマリ（dept_report.html 1シート）のコンテキスト。move は載せない。"""
+    kpi = build_kpi_summary(adm, surg, base_date, targets, surg_targets)
+    charts: list = []
+
+    def add(kind, name, series, ref, ref_label, unit, win, badge, note=""):
+        if not series or not series.get("cur") or all(v is None for v in series["cur"]):
+            return
+        charts.append({"kind": kind, "icon": PART_ICON[kind], "name": name, "badge": badge,
+                       "note": note, "is_dow": False, "_data": series, "_ref": ref,
+                       "_ref_label": ref_label, "_unit": unit, "_win": win, "_color": PART_LINE})
+
+    # A 在院（28日移動平均・全日目標）
+    add("A", "在院患者数", _ma_series(adm, "在院患者数", base_date, 28, "mean"),
+        TARGET_INPATIENT_ALLDAY, f"目標{TARGET_INPATIENT_ALLDAY:g}", "人",
+        "12週・28日移動平均", _ach_badge(kpi["inpatient_avg_7d"], TARGET_INPATIENT_ALLDAY))
+
+    # B 新入院（28日移動平均=件/日・目標=週次÷7）
+    daily_na_tgt = round(TARGET_ADMISSION_WEEKLY / 7, 1)
+    add("B", "新入院患者数", _ma_series(adm, "新入院患者数", base_date, 28, "mean"),
+        daily_na_tgt, f"目標{daily_na_tgt:g}", "件/日", "12週・28日移動平均（件/日）",
+        _ach_badge(kpi["admission_actual_7d"], TARGET_ADMISSION_WEEKLY))
+
+    # C 全麻（病院全体KPIと統一＝30営業平日移動平均・件/日）
+    add("C", "全身麻酔手術", _surg_series(surg, base_date),
+        TARGET_GA_DAILY, f"目標{TARGET_GA_DAILY:g}", "件/日", "12週・30営業平日移動平均（件/日）",
+        _ach_badge(kpi["operation_daily_avg"], TARGET_GA_DAILY))
+
+    # D 粗利（病院全体・確報ベース）
+    ps = _hospital_profit_series(profit_monthly, base_date)
+    prof_latest = None
+    if ps:
+        prof_latest = next((v for v in reversed(ps["cur"]) if v is not None), None)
+        rate = ps["rate"]
+        badge = ((f"達成率 {rate:g}%", "ok" if rate >= 100 else "wr")
+                 if rate is not None else None)
+        add("D", "粗利", ps, ps["ref"], f"目標{ps['ref']:g}" if ps["ref"] else "",
+            "百万円", "12か月・月次（確報ベース）", badge,
+            note=f"確報ベース・最新 {ps['latest']}")
+
+    # E 曜日プロファイル（病院全体）
+    dd = _hospital_dow(adm, base_date)
+    if any(dd["discharge"]) or any(dd["admission"]):
+        charts.append({"kind": "E", "icon": PART_ICON["E"], "name": "曜日プロファイル",
+                       "badge": None, "note": "", "is_dow": True,
+                       "svg": _render_dow_svg(dd["discharge"], dd["admission"], dd["census"])})
+
+    # SVG 描画（ヒーロー=256・以降=232）
+    for i, p in enumerate(charts):
+        if not p["is_dow"]:
+            p["svg"] = render_trend_svg(p["_data"], p["_ref"], p["_ref_label"],
+                                        p["_unit"], p["_win"], color=p["_color"],
+                                        height=256 if i == 0 else 232)
+        p["priority"] = i + 1
+
+    # KPI 4枚
+    inp_v = kpi["inpatient_avg_7d"]
+    prof_rate = ps["rate"] if ps else None
+    kpis = [
+        _kpi("在院患者数", "直近7日平均", _fmt(inp_v, 1), "人", lead=True,
+             tgt=f"目標 {TARGET_INPATIENT_ALLDAY:g}", ok=_ok(inp_v, TARGET_INPATIENT_ALLDAY)),
+        _kpi("新入院", "直近7日累計", _fmt(kpi["admission_actual_7d"]), "件",
+             tgt=f"目標 {TARGET_ADMISSION_WEEKLY:g}/週",
+             ok=_ok(kpi["admission_actual_7d"], TARGET_ADMISSION_WEEKLY)),
+        _kpi("全身麻酔手術", "直近7平日平均", _fmt(kpi["operation_daily_avg"], 1), "件/日",
+             tgt=f"目標 {TARGET_GA_DAILY:g}", ok=_ok(kpi["operation_daily_avg"], TARGET_GA_DAILY)),
+        _kpi("粗利", "確報・最新月", _fmt(prof_latest, 1), "百万円",
+             tgt=(f"目標 {ps['ref']:g}" if (ps and ps["ref"]) else None),
+             ok=(prof_rate >= 100) if prof_rate is not None else None),
+    ]
+
+    return {
+        "axis": "hospital", "type_key": "hospital",
+        "type_label": "全体サマリ", "subtitle": "病院全体パフォーマンスサマリ",
+        "prio_text": "A 在院 → B 新入院 → C 全麻 → D 粗利 → E 曜日",
+        "order": 0, "unit": hospital_name or "病院全体",
+        "hospital_name": hospital_name,
+        "base_date": base_date.strftime("%Y/%m/%d"),
+        "generated_at": generated_at.strftime("%Y/%m/%d"),
+        "kpis": kpis, "charts": charts, "move": None,
+    }
+
+
+def render_summary_table_pages(adm, surg, targets, surg_targets, base_date, *,
+                               hospital_name: str = "", profit_monthly=None,
+                               profit_breakdown=None) -> list:
+    """病院全体サマリの 2・3 ページ目（病棟別／診療科別テーブル）の HTML 断片。
+
+    実績まとめPDF（build_hospital_report）の P3/P4 と同一の共通部品を使う。
+    返値は extra_pages（dept_report.html）にそのまま渡せる HTML 文字列のリスト。
+    """
+    from . import hospital_summary as hs
+    ctx = hs.build_summary_context(adm, surg, targets, surg_targets, base_date,
+                                   profit_monthly=profit_monthly,
+                                   profit_breakdown=profit_breakdown)
+    legend = hs.render_legend()
+    title = hospital_name or "全病院"
+    bd = base_date
+
+    def head(sub):
+        return (f'<div style="border-bottom:2px solid #2b5797;padding-bottom:8px;margin-bottom:8px">'
+                f'<div style="font-size:12px;color:{hs.SUB};letter-spacing:1px">{title}　全病院 実績まとめ</div>'
+                f'<div style="font-size:18px;font-weight:700">{sub}'
+                f'<span style="font-size:12px;color:{hs.SUB};font-weight:600">　基準日 {bd:%Y-%m-%d}</span></div></div>')
+
+    ward = (head("病棟別 実績")
+            + '<div class="sec">🛏 病棟別 実績（在院・病床利用率・入退院フロー・週末在院維持率）</div>'
+            + hs.render_ward_table(ctx["ward_rows"]) + legend)
+    dept = (head("診療科別 実績")
+            + '<div class="sec">🩺 診療科別 実績（在院・新入院・入退院フロー・全麻・粗利予測達成率）</div>'
+            + hs.render_dept_table(ctx["dept_rows"]) + legend)
+    return [ward, dept]

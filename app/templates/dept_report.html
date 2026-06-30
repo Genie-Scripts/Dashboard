@@ -130,6 +130,12 @@ h4{font-weight:var(--jp-head)!important}
 .kc .st,.gc .st,.tab .st,.mp-st,.kc .prog-st,.prog-status,.stl,.gp,.dual-st{
   font-weight:var(--jp-head)!important}
 </style>
+{% if table_css %}<style>
+/* 病院全体サマリ 2・3ページ目（病棟/診療科テーブル）用 ── hospital_summary.BASE_CSS */
+{{ table_css }}
+.sheet-table{justify-content:flex-start}
+.sheet-table .sec{margin-top:4px}
+</style>{% endif %}
 </head>
 <body>
 
@@ -205,10 +211,10 @@ h4{font-weight:var(--jp-head)!important}
       {% for i in range(0, rest|length, 2) %}
         <div class="row">
           {{ card(rest[i]) }}
-          {% if i + 1 < rest|length %}{{ card(rest[i+1]) }}{% else %}{{ movecard(s.move) }}{% endif %}
+          {% if i + 1 < rest|length %}{{ card(rest[i+1]) }}{% elif s.move %}{{ movecard(s.move) }}{% endif %}
         </div>
       {% endfor %}
-      {% if rest|length % 2 == 0 %}<div class="move-wrap">{{ movecard(s.move) }}</div>{% endif %}
+      {% if rest|length % 2 == 0 and s.move %}<div class="move-wrap">{{ movecard(s.move) }}</div>{% endif %}
     </div>
 
     <div class="chartkey">
@@ -226,6 +232,10 @@ h4{font-weight:var(--jp-head)!important}
     </div>
 
   </div>
+{% endfor %}
+
+{% for ep in extra_pages|default([]) %}
+  <div class="sheet sheet-table">{{ ep | safe }}</div>
 {% endfor %}
 </body>
 </html>

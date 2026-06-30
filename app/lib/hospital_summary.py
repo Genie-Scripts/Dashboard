@@ -166,8 +166,45 @@ def build_hero_text(adm, surg, surg_targets, base_date) -> dict:
 # ════════════════════════════════════════════════════════════
 # データ組立
 # ════════════════════════════════════════════════════════════
-def build_summary_context(adm, surg, targets, surg_targets, base_date) -> dict:
+def _dept_profit_proj(profit_monthly, estimators, adm, surg, base_date, dept) -> Optional[dict]:
+    """診療科の当月見込み（暫定）粗利 ÷ 月次目標 ＝ 粗利予測達成率（％）。
+
+    見込みは profit_estimate.project_dept_monthend（診療実績ベースの月末外挿）。
+    目標は最新確報月の月次目標（dept_report の粗利チャート基準線と同一定義）。
+    見込みを出せない科（入院式の品質が低い・データ不足）は None → 表は「—」。
+    """
+    if profit_monthly is None or len(profit_monthly) == 0 or not estimators:
+        return None
+    from .profit_estimate import project_dept_monthend
+    p = project_dept_monthend(estimators, adm, surg, base_date, dept,
+                              profit_monthly=profit_monthly)
+    if not p:
+        return None
+    sub = profit_monthly[profit_monthly["診療科名"] == dept].sort_values("月")
+    base_m = pd.Timestamp(base_date).to_period("M").to_timestamp()
+    rows = sub[sub["月"] <= base_m]
+    rows = rows if len(rows) else sub
+    if rows.empty:
+        return None
+    tgt = rows.iloc[-1]["月次目標"]
+    if pd.isna(tgt) or not tgt:
+        return None
+    proj_m, tgt_m = p["value"], tgt / 1000   # ともに百万円
+    return {"rate": round(proj_m / tgt_m * 100, 1), "proj": proj_m, "tgt": tgt_m}
+
+
+def build_summary_context(adm, surg, targets, surg_targets, base_date,
+                          profit_monthly=None, profit_breakdown=None) -> dict:
     kpi = metrics.build_kpi_summary(adm, surg, base_date, targets, surg_targets)
+
+    # 粗利予測達成率（診療科テーブル右端）用 per-dept 推計器を1回だけフィット
+    estimators = {}
+    if profit_breakdown is not None and len(profit_breakdown):
+        try:
+            from .profit_estimate import fit_profit_estimators
+            estimators = fit_profit_estimators(profit_breakdown, adm, surg)
+        except Exception:
+            estimators = {}
 
     trends = {
         "inpatient": _ma_series(adm, "在院患者数", base_date, 7, "mean"),
@@ -219,7 +256,10 @@ def build_summary_context(adm, surg, targets, surg_targets, base_date) -> dict:
             "nadm_rate": na.get("達成率") if na else None,
             "surg_actual": sg.get("実績") if sg else None, "surg_target": sg.get("週目標") if sg else None,
             "surg_rate": sg.get("達成率") if sg else None,
+            # redist は Comedix 単一HTML週報（build_comedix_html）が引き続き使用。
+            # PDF の診療科テーブル（render_dept_table）では粗利予測達成率に差し替え済み。
             "redist": prof.get("redistribution"),
+            "profit_proj": _dept_profit_proj(profit_monthly, estimators, adm, surg, base_date, dept),
             "flow": flow_d.get(dept, {"in": 0, "out": 0, "net": 0}),
         })
 
@@ -392,6 +432,9 @@ def _flow_cell(fl: dict) -> str:
 def render_ward_table(rows: list) -> str:
     head = ('<tr><th>病棟</th><th>在院<span class="sub">実/目</span></th><th>病床利用率</th>'
             '<th>入退院フロー<span class="sub">直近7日</span></th><th>週末在院維持率</th></tr>')
+    # 列幅を固定（入退院フロー列だけが内容で広がるのを防ぎ、データ4列を等幅に）
+    cols = ('<colgroup><col style="width:18%">'
+            + '<col style="width:20.5%">' * 4 + '</colgroup>')
     body = []
     for r in rows:
         ex = r["exempt"]
@@ -407,13 +450,28 @@ def render_ward_table(rows: list) -> str:
             + _cell(sd, f'{util}{util_sub}')
             + _flow_cell(r["flow"])
             + _cell(rsd, ret) + '</tr>')
-    return f'<table class="ht"><thead>{head}</thead><tbody>{"".join(body)}</tbody></table>'
+    return (f'<table class="ht" style="table-layout:fixed">{cols}'
+            f'<thead>{head}</thead><tbody>{"".join(body)}</tbody></table>')
+
+
+def _proj_cell(pj: Optional[dict]) -> str:
+    """粗利予測達成率セル。pj={'rate','proj','tgt'}（百万円）or None → 「—」。"""
+    if not pj or pj.get("rate") is None:
+        return _cell(status_display(None), "—")
+    sd = status_display(pj["rate"])
+    return (f'<td style="background:{sd["bg"]};color:{sd["color"]}">'
+            f'<span style="font-weight:700">{pj["rate"]:.0f}%</span>'
+            f'<br><span class="sub">{pj["proj"]:.0f}/{pj["tgt"]:.0f}</span></td>')
 
 
 def render_dept_table(rows: list) -> str:
     head = ('<tr><th>診療科</th><th>在院<span class="sub">実/目</span></th>'
             '<th>新入院<span class="sub">実/目</span></th><th>入退院フロー<span class="sub">直近7日</span></th>'
-            '<th>退院再配分率</th><th>全麻<span class="sub">実/目</span></th></tr>')
+            '<th>全麻<span class="sub">実/目</span></th>'
+            '<th>粗利予測達成率<span class="sub">見込/目標</span></th></tr>')
+    # 列幅を固定（入退院フロー列だけが内容で広がるのを防ぎ、データ5列を等幅に）
+    cols = ('<colgroup><col style="width:16%">'
+            + '<col style="width:16.8%">' * 5 + '</colgroup>')
     body, cur_type = [], None
     for r in rows:
         if r["type"] != cur_type:
@@ -421,17 +479,16 @@ def render_dept_table(rows: list) -> str:
             body.append(f'<tr><td class="grp" colspan="6">{cur_type}系</td></tr>')
         ex = r["exempt"]
         med = (r["type"] == "内科")
-        dsd = _redist_sd(r["redist"], ex)
-        rd = "—" if r["redist"] is None else f'{r["redist"]:.0f}%'
         body.append(
             f'<tr><td class="nm">{r["name"]}{" ※" if ex else ""}</td>'
             + _ach(r["inp_actual"], r["inp_target"], r["inp_rate"], _sd(r["inp_rate"], ex), emphasize=med)
             + _ach(r["nadm_actual"], r["nadm_target"], r["nadm_rate"], _sd(r["nadm_rate"], ex), emphasize=med)
             + _flow_cell(r["flow"])
-            + _cell(dsd, rd)
             + _ach(r["surg_actual"], r["surg_target"], r["surg_rate"], _sd(r["surg_rate"], ex), emphasize=not med)
+            + _proj_cell(r.get("profit_proj"))
             + '</tr>')
-    return f'<table class="ht"><thead>{head}</thead><tbody>{"".join(body)}</tbody></table>'
+    return (f'<table class="ht" style="table-layout:fixed">{cols}'
+            f'<thead>{head}</thead><tbody>{"".join(body)}</tbody></table>')
 
 
 def render_legend() -> str:

@@ -125,9 +125,8 @@ def main():
     individual = args.split or bool(args.only)   # --only/--split は個別出力
     counts = {"pdf": 0, "html": 0}
 
-    def emit(sheets, pdf_path):
-        """1つ以上のシートを1つのHTML→PDFに（連結時はシート間で改ページ）。"""
-        html = tmpl.render(sheets=sheets)
+    def emit_html(html, pdf_path, pages):
+        """完成HTMLを1つのPDFへ（keep-html/Chrome無し時はHTMLも残す）。"""
         if args.keep_html or not chrome:
             pdf_path.parent.mkdir(parents=True, exist_ok=True)
             pdf_path.with_suffix(".html").write_text(html, encoding="utf-8")
@@ -142,9 +141,13 @@ def main():
             if ok:
                 counts["pdf"] += 1
                 if not args.quiet:
-                    log(f"{pdf_path.relative_to(out_root)}（{len(sheets)}ページ）", "ok")
+                    log(f"{pdf_path.relative_to(out_root)}（{pages}ページ）", "ok")
             else:
                 log(f"PDF生成失敗: {pdf_path.name}", "warn")
+
+    def emit(sheets, pdf_path):
+        """1つ以上のシートを1つのHTML→PDFに（連結時はシート間で改ページ）。"""
+        emit_html(tmpl.render(sheets=sheets), pdf_path, len(sheets))
 
     date_str = base_date.strftime("%Y-%m-%d")
     if individual:
@@ -158,6 +161,22 @@ def main():
                             key=lambda c: c["order"])
             if sheets:
                 emit(sheets, out_root / f"{AXIS_DIR[ax]}版_{date_str}.pdf")
+
+    # ── 病院全体サマリ 3ページPDF（常に追加出力。確認用の --only/--limit 時は省略）──
+    if not (args.only or args.limit):
+        from app.lib import hospital_summary as hs
+        from app.lib.dept_report import (build_hospital_overview_context,
+                                         render_summary_table_pages)
+        log("病院全体サマリ（3ページ）を生成中…")
+        hosp_ctx = build_hospital_overview_context(
+            adm, surg, targets, surg_targets, profit_monthly, base_date, generated_at,
+            hospital_name=args.hospital_name, profit_breakdown=profit_breakdown)
+        extra = render_summary_table_pages(
+            adm, surg, targets, surg_targets, base_date,
+            hospital_name=args.hospital_name, profit_monthly=profit_monthly,
+            profit_breakdown=profit_breakdown)
+        hosp_html = tmpl.render(sheets=[hosp_ctx], extra_pages=extra, table_css=hs.BASE_CSS)
+        emit_html(hosp_html, out_root / f"病院全体サマリ_{date_str}.pdf", 3)
 
     print(f"\n{'='*52}")
     print(f"  部門別レポート生成完了 — {generated_at.strftime('%Y/%m/%d %H:%M')}")
