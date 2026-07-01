@@ -392,6 +392,25 @@ def _select_action_topic(type_key: str, room: float, max_room: float,
     return topic if scores[topic] >= ACTION_TOPIC_MIN_SCORE else "leveling"
 
 
+def _ma_window_trend(cur: list, prior_end: int, pt: float) -> str:
+    """MA系列(cur, 末尾=直近)の直近7点平均 vs 「prior_end点前」を終点とする7点平均の
+    変化率(%)を 上昇/低下/横ばい に離散化する（トリアージの7d/28dスプレッドと同じ
+    "窓平均 vs 窓平均" 方式）。単一点同士の比較（旧方式）は局所的なブレの影響を
+    受けやすいため、窓平均に揃えてノイズを抑える。"""
+    if len(cur) < prior_end:
+        return "—"
+    recent = sum(cur[-7:]) / 7
+    prior = sum(cur[-prior_end:-(prior_end - 7)]) / 7
+    if not prior:
+        return "横ばい"
+    pct = (recent - prior) / abs(prior) * 100
+    if pct > pt:
+        return "上昇"
+    if pct < -pt:
+        return "低下"
+    return "横ばい"
+
+
 def _surg_highlight(sv, surg_tgt, surg_series) -> Optional[str]:
     """外科系の一手に添える全麻ハイライト1行（数値駆動・AI不要）。
     直近7日累計(件/週) vs 週次目標＋28日線の方向＋目標までの差を1行に。"""
@@ -399,12 +418,7 @@ def _surg_highlight(sv, surg_tgt, surg_series) -> Optional[str]:
         return None
     rate = round((sv or 0) / surg_tgt * 100)
     cur = [v for v in (surg_series.get("cur") or []) if v is not None] if surg_series else []
-    if len(cur) >= 2:
-        prior = cur[max(0, len(cur) - 21)]   # ≒4週前（営業日換算で約20点）
-        pct = (cur[-1] - prior) / abs(prior) * 100 if prior else 0
-        trend = "上昇" if pct > 5 else "低下" if pct < -5 else "横ばい"
-    else:
-        trend = "—"
+    trend = _ma_window_trend(cur, prior_end=28, pt=5)   # ≒4週前を終点とする窓（営業日換算）
     gap = surg_tgt - (sv or 0)
     if gap > 0.5:
         gap_phrase = f"あと約{gap:.0f}件/週で目標"
@@ -422,12 +436,7 @@ def _util_highlight(util_now, tgt_util, beds, util_series) -> Optional[str]:
     if util_now is None:
         return None
     cur = [v for v in (util_series.get("cur") or []) if v is not None] if util_series else []
-    if len(cur) >= 2:
-        prior = cur[max(0, len(cur) - 28)]   # ≒4週前（病床利用率＝在院28日MAの日次系列なので28点前）
-        pct = (cur[-1] - prior) / abs(prior) * 100 if prior else 0
-        trend = "上昇" if pct > 2 else "低下" if pct < -2 else "横ばい"
-    else:
-        trend = "—"
+    trend = _ma_window_trend(cur, prior_end=35, pt=2)   # ≒4週前を終点とする窓（在院28日MAの日次系列）
     tgt_txt = f"目標{tgt_util:g}%" if tgt_util is not None else "目標未設定"
     beds_txt = f"・{beds:g}床" if beds else ""
     gap_phrase = ""
