@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>部門別レポートPDF ご利用マニュアル</title>
+<style>
+  :root{
+    --ink:#1a2332; --sub:#5f7084; --mu:#9daab8; --ln:#dfe5ed; --bg:#f6f8fb; --s:#fff;
+    --ok:#0e7a54; --ok-bg:#ecfdf5; --wr:#b45309; --wr-bg:#fef7ee; --in:#3d5a80; --acc:#2b6cb0;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP",sans-serif;
+       line-height:1.7}
+  .wrap{max-width:880px;margin:0 auto;padding:28px 24px 80px}
+  header.top{border-bottom:3px solid var(--ink);padding-bottom:14px;margin-bottom:22px}
+  header.top h1{font-size:26px;margin:0 0 6px;letter-spacing:.5px}
+  header.top .sub{color:var(--sub);font-size:14px}
+  nav.toc{background:var(--s);border:1px solid var(--ln);border-radius:10px;
+          padding:14px 20px;margin-bottom:28px}
+  nav.toc h2{font-size:13px;color:var(--sub);margin:0 0 8px;letter-spacing:1px}
+  nav.toc ol{margin:0;padding-left:20px;columns:2;column-gap:24px}
+  nav.toc li{font-size:13.5px;margin-bottom:4px}
+  nav.toc a{color:var(--acc);text-decoration:none}
+  nav.toc a:hover{text-decoration:underline}
+  section{margin-bottom:34px}
+  h2{font-size:19px;border-left:5px solid var(--acc);padding-left:10px;margin:0 0 12px}
+  h3{font-size:15px;color:var(--in);margin:20px 0 8px}
+  p{margin:0 0 10px}
+  .card{background:var(--s);border:1px solid var(--ln);border-radius:10px;padding:14px 18px;margin:10px 0}
+  table{border-collapse:collapse;width:100%;font-size:13.5px;margin:10px 0}
+  th,td{border:1px solid var(--ln);padding:6px 10px;text-align:left;vertical-align:top}
+  th{background:#eef2f9;font-weight:700;color:var(--in)}
+  tr:nth-child(even) td{background:#fbfcfe}
+  code, .cmd{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+       background:#eef1f5;border:1px solid var(--ln);border-radius:5px;
+       padding:1px 6px;font-size:12.5px}
+  pre{background:#1a2332;color:#e6edf7;border-radius:10px;padding:14px 16px;
+      overflow-x:auto;font-size:12.5px;line-height:1.6}
+  pre code{background:none;border:none;color:inherit;padding:0}
+  .badge{display:inline-block;font-size:11px;font-weight:800;border-radius:999px;
+         padding:2px 9px;margin-left:6px}
+  .badge.ok{background:var(--ok-bg);color:#065f42;border:1px solid #bfe3d6}
+  .badge.wr{background:var(--wr-bg);color:#7c3a06;border:1px solid #f1d9bd}
+  .badge.new{background:#eef2f9;color:var(--in);border:1px solid #d3deef}
+  .note{background:#fffaf0;border:1px solid #f1e0b8;border-radius:8px;
+        padding:10px 14px;font-size:13px;color:#6b5215}
+  .warn{background:var(--wr-bg);border:1px solid #f1d9bd;border-radius:8px;
+        padding:10px 14px;font-size:13px;color:#7c3a06}
+  ul{margin:6px 0 10px;padding-left:22px}
+  li{margin-bottom:4px}
+  .chip{display:inline-block;background:#eef2f9;color:var(--in);border:1px solid #d3deef;
+        border-radius:6px;padding:1px 8px;font-size:12px;font-weight:700;margin-right:4px}
+  .rev{font-size:13px}
+  .rev .d{font-weight:800;color:var(--in)}
+  footer{color:var(--mu);font-size:12px;border-top:1px solid var(--ln);padding-top:14px;margin-top:40px}
+  @media print{
+    body{background:#fff}
+    nav.toc{break-inside:avoid}
+    section{break-inside:avoid-page}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <h1>部門別レポートPDF ご利用マニュアル</h1>
+  <div class="sub">診療科版・病棟版・病院全体サマリ（<code>build_reports.sh</code> / <code>scripts/build_dept_reports.py</code>）</div>
+</header>
+
+<nav class="toc">
+  <h2>目次</h2>
+  <ol>
+    <li><a href="#overview">1. これは何か</a></li>
+    <li><a href="#outputs">2. 生成される3つのPDF</a></li>
+    <li><a href="#run">3. 実行方法</a></li>
+    <li><a href="#anatomy">4. 各ページの見方</a></li>
+    <li><a href="#move">5. 「この期間の一手」の仕組み</a></li>
+    <li><a href="#ai">6. AI（一手の自動生成）について</a></li>
+    <li><a href="#trouble">7. トラブルシューティング</a></li>
+    <li><a href="#history">8. 改訂履歴</a></li>
+  </ol>
+</nav>
+
+<section id="overview">
+  <h2>1. これは何か</h2>
+  <p>
+    診療ダッシュボード本体（<code>generate_html.py</code> が作るWeb版）とは別立ての、
+    <b>院内配布・印刷用のPDFレポート</b>を生成する仕組みです。月1〜2回、部門会議や
+    ミーティングでの配布を想定しています。
+  </p>
+  <p>
+    在院・新入院・全身麻酔手術・粗利・週末の入退院バランスを、部門ごと（診療科／病棟）に
+    A4 1枚へまとめ、あわせて病院全体のサマリも自動生成します。
+  </p>
+</section>
+
+<section id="outputs">
+  <h2>2. 生成される3つのPDF</h2>
+  <table>
+    <tr><th>ファイル</th><th>内容</th><th>ページ数の目安</th></tr>
+    <tr>
+      <td><code>診療科版_{基準日}.pdf</code></td>
+      <td>診療科ごとに1ページ（全診療科を連結・一括印刷用）</td>
+      <td>約20ページ</td>
+    </tr>
+    <tr>
+      <td><code>病棟版_{基準日}.pdf</code></td>
+      <td>病棟ごとに1ページ（全病棟を連結・一括印刷用）</td>
+      <td>約17ページ</td>
+    </tr>
+    <tr>
+      <td><code>病院全体サマリ_{基準日}.pdf</code></td>
+      <td>1ページ目=KPI＋グラフ／2ページ目=病棟別実績表／3ページ目=診療科別実績表</td>
+      <td>3ページ</td>
+    </tr>
+  </table>
+  <p>出力先は <code>dept_reports/{基準日}/</code> です。<code>--split</code> を付けると、
+     部門ごとの個別PDF（<code>{基準日}/診療科/{診療科名}.pdf</code> など）に分割されます。</p>
+</section>
+
+<section id="run">
+  <h2>3. 実行方法</h2>
+  <h3>ダブルクリック実行（AppleScript/Automator）</h3>
+  <p><code>build_reports.sh</code> をダブルクリック、または Automator から呼び出します。
+     oMLX（一手のAI要約）が未起動なら自動で起動を試みます。</p>
+
+  <h3>コマンドライン（<code>make</code>）</h3>
+  <pre><code># 既定（軸ごと連結＋AI一手）
+make reports
+
+# 一手を定型文のみ（oMLX不要・高速）
+make reports AI=off
+
+# 部門ごとの個別PDFに分割
+make reports SPLIT=on
+
+# 基準日を指定
+make reports DATE=2026-05-31</code></pre>
+
+  <h3>直接実行（オプション詳細）</h3>
+  <pre><code>python scripts/build_dept_reports.py [オプション]</code></pre>
+  <table>
+    <tr><th>オプション</th><th>説明</th></tr>
+    <tr><td><code>--data-dir DIR</code></td><td>データディレクトリ（既定: <code>data</code>）</td></tr>
+    <tr><td><code>--output-dir DIR</code></td><td>出力先（既定: <code>dept_reports</code>）</td></tr>
+    <tr><td><code>--base-date YYYY-MM-DD</code></td><td>基準日を指定（既定: データ最終日）</td></tr>
+    <tr><td><code>--axes dept,ward</code></td><td>診療科版・病棟版のどちらか/両方（既定: 両方）</td></tr>
+    <tr><td><code>--no-ai</code></td><td>「この期間の一手」をAI生成せず定型文のみにする</td></tr>
+    <tr><td><code>--only 診療科名</code></td><td>特定の1部門だけ生成（確認・動作確認用）</td></tr>
+    <tr><td><code>--limit N</code></td><td>先頭N件のみ生成（確認用）</td></tr>
+    <tr><td><code>--split</code></td><td>部門ごとの個別PDFに分割</td></tr>
+    <tr><td><code>--keep-html</code></td><td>PDF化前の中間HTMLも出力先に残す</td></tr>
+    <tr><td><code>--quiet</code> / <code>-q</code></td><td>進捗ログを抑制</td></tr>
+  </table>
+  <div class="note">
+    <b>Chromeが必要です</b>：PDF化には headless Chrome（または Chromium / Edge）の
+    <code>--print-to-pdf</code> を使用します。見つからない場合は HTML のみ出力されます。
+  </div>
+</section>
+
+<section id="anatomy">
+  <h2>4. 各ページの見方</h2>
+
+  <h3>4.1 KPIカード</h3>
+  <p>診療科・病棟は4枚、<b>病院全体サマリは5枚</b>（在院患者数・新入院・全身麻酔手術・粗利・
+     <span class="chip">週末在院維持率</span><span class="badge new">NEW</span>）。
+     カード左の色帯・実績値の色が達成状況を表します。</p>
+  <table>
+    <tr><th>色</th><th>意味</th></tr>
+    <tr><td>緑（達成）</td><td>目標達成（達成率100%以上）</td></tr>
+    <tr><td>橙（接近）</td><td>目標に接近（90〜100%未満）</td></tr>
+    <tr><td>赤（未達）</td><td>目標未達（90%未満）</td></tr>
+    <tr><td>グレー（—）</td><td>目標未設定、または <b>※色評価の対象外</b>（業務実態が一般部門と異なる科・病棟）</td></tr>
+  </table>
+  <p><b>週末在院維持率</b>＝土日平均在院 ÷ 平日平均在院。目標93%。病院全体サマリのKPIカードと、
+     病棟別／診療科別の実績表に表示されます。</p>
+
+  <h3>4.2 グラフ A〜E（優先順位で配置）</h3>
+  <p>部門の種別ごとに、優先度の高い順で配置が変わります（優先1位=全幅ヒーロー表示）。</p>
+  <table>
+    <tr><th>種別</th><th>優先順</th></tr>
+    <tr><td>外科系診療科</td><td>全麻手術 → 粗利 → 曜日プロファイル → 新入院 → 在院</td></tr>
+    <tr><td>内科系診療科</td><td>在院 → 粗利 → 新入院 → 曜日プロファイル</td></tr>
+    <tr><td>病棟</td><td>病床利用率 → 新入院 → 曜日プロファイル</td></tr>
+  </table>
+  <ul>
+    <li>実線＝当年実績、グレー線＝前年同期、破線＝目標（病棟は目標利用率）</li>
+    <li>網掛け（緑/橙）は目標超/目標割の区間を表す。<b>線の色そのものは成績ではない</b></li>
+    <li><b>粗利チャートは確報の末尾に、点線＋中空マーカーで「当月見込み」を接続</b>
+        <span class="badge new">NEW</span>（実績が確定するのは翌月20日ごろのため、
+        直近月は診療実績ベースの推計値を暫定表示）</li>
+  </ul>
+
+  <h3>4.3 病院全体サマリ 2・3ページ目（実績表）</h3>
+  <p>病棟別・診療科別の実績を一覧表で表示します。診療科別テーブルの右端は
+     「粗利予測達成率」＝当月見込み粗利 ÷ 目標です。</p>
+  <div class="note">
+    ICU・HCUも通常どおり色評価の対象です<span class="badge new">NEW</span>（以前は
+    業務実態の違いを理由に評価対象外＝グレー表示でしたが、目標・実績が揃っており
+    評価可能なため、2026-07-01 に対象へ含めました）。<br>
+    ※眼科は業務プロファイルが未整備のため、引き続き色評価の対象外です。
+  </div>
+</section>
+
+<section id="move">
+  <h2>5. 「この期間の一手」の仕組み</h2>
+  <p>
+    各部門ページの右下（またはグラフの空きコマ）に、AIまたは定型文による
+    「今週/この期間の一手」を1件表示します。
+    <span class="badge new">2026-07-01 リニューアル</span>
+  </p>
+
+  <h3>5.1 3トピックから自動選択</h3>
+  <p>以前は「週末在院の平準化（病床管理）」一辺倒でしたが、現在は下記3トピックのうち
+     <b>目標未達が最も大きいもの</b>を自動選択します。</p>
+  <table>
+    <tr><th>トピック</th><th>対象</th><th>レバー（提案の方向性）</th></tr>
+    <tr><td>病床平準化</td><td>診療科・病棟</td><td>金曜集中の退院を平日へ分散／週末入院で空床補充</td></tr>
+    <tr><td>新入院</td><td>診療科・病棟</td><td>地域医療連携の強化／予定入院枠の調整</td></tr>
+    <tr><td>全麻手術</td><td>外科系診療科のみ</td><td>手術枠の稼働確認／執刀医との症例調整</td></tr>
+  </table>
+  <p>目立った不足が無い部門は、従来どおり「病床平準化」を既定（在院が良好なら現状維持の
+     定型文）にします。</p>
+
+  <h3>5.2 救命救急センター系病棟（4階A・4階C）は専用文言</h3>
+  <div class="note">
+    <b>4階A病棟・4階C病棟は緊急入院・院内転棟が中心</b>で、他病棟のような
+    「予定入院の曜日調整」「地域医療連携（紹介元）への働きかけ」という業務前提が
+    成り立ちません。この2病棟だけ、トピックの選び方（平準化 or 新入院、どちらの
+    不足が大きいか）は共通ロジックのまま、<b>文言だけ専用に差し替え</b>ています
+    （転棟・転出判断の迅速化、週末含めた受け入れ体制・当直の維持、など）。
+  </div>
+</section>
+
+<section id="ai">
+  <h2>6. AI（一手の自動生成）について</h2>
+  <p>
+    要約LLMには oMLX（OpenAI互換ローカルAPI・Llama-3.1-Swallow-8B）を使用します。
+    oMLXが未起動、またはAPI呼び出しに失敗した場合は、<b>自動的に定型文へフォールバック</b>
+    します（レポート生成自体は止まりません）。
+  </p>
+  <h3>ハルシネーション対策</h3>
+  <p>LLMに数値の計算や事実の創作をさせないよう、次の対策を二重に行っています。</p>
+  <ul>
+    <li><b>プロンプト設計</b>：LLMには定性語（例:「目標を明確に下回っている」）だけを事実として渡し、
+        具体的な数値・原因・傾向は一切与えない。数値の再引用・新しい理由づけを禁止する指示を明記。</li>
+    <li><b>機械的ガード</b>（プロンプト指示だけに頼らない）：生成された本文・アクションに
+        <ul>
+          <li>半角・全角数字が含まれる</li>
+          <li>与えていない傾向・原因を示す語（「傾向」「稼働率」「逼迫」等）が含まれる</li>
+          <li>危険な提案（在院日数の延長＝「延伸」「早期退院」等）が含まれる</li>
+          <li>異常に長い（暴走出力）</li>
+        </ul>
+        のいずれかに該当する場合は<b>棄却して定型文にフォールバック</b>します。
+    </li>
+  </ul>
+  <div class="warn">
+    このガードは完全ではありません（未知の言い回しでの創作までは検知できません）。
+    それでも数値の捏造や、与えていない傾向・原因の主張は高い確率で検知して棄却します。
+  </div>
+</section>
+
+<section id="trouble">
+  <h2>7. トラブルシューティング</h2>
+  <table>
+    <tr><th>症状</th><th>対処</th></tr>
+    <tr><td>PDFが生成されずHTMLだけ出る</td><td>Google Chrome / Chromium / Edge のいずれかをインストールしてください。</td></tr>
+    <tr><td>「この期間の一手」が定型文ばかりになる</td><td>oMLXが起動しているか確認（<code>build_reports.sh</code>は自動起動を試みます）。ハルシネーション棄却が多いだけの場合もあり、異常ではありません。</td></tr>
+    <tr><td>生成が遅い</td><td>AI一手はユニットごとに逐次LLM呼び出しを行うため、部門数が多いと数分かかります。急ぐ場合は <code>--no-ai</code> を使用してください。</td></tr>
+    <tr><td>特定の1部門だけ確認したい</td><td><code>--only 診療科名</code> で該当部門のみ・高速に個別出力できます（病院全体サマリは省略されます）。</td></tr>
+  </table>
+</section>
+
+<section id="history">
+  <h2>8. 改訂履歴</h2>
+  <div class="rev">
+    <p><span class="d">2026-07-01</span><br>
+      ・病院全体サマリPDF: 粗利KPI/チャートを「当月見込み」表示に変更（点線接続）。<br>
+      ・週末在院維持率をKPIカードへ追加（目標93%）。5枚レイアウトに対応。<br>
+      ・診療科別実績表の「粗利予測達成率」の欠落を修正（ダッシュボードと同一の推計パイプラインに統一）。<br>
+      ・ICU・HCUを色評価の対象に追加（従来は対象外）。<br>
+      ・全PDFのカード見出し・見出しアイコンを削除し、業務向けのシンプルな表記に変更。<br>
+      ・「この期間の一手」を3トピック（病床平準化／新入院／全麻）から自動選択する方式に刷新。<br>
+      ・4階A・4階C病棟（救命救急センター系）専用の一手文言を追加。<br>
+      ・AI生成文へのハルシネーション対策（機械的ガード）を新設・強化。
+    </p>
+  </div>
+</section>
+
+<footer>
+  部門別レポートPDF（<code>scripts/build_dept_reports.py</code>）内部ドキュメント。院内限り。
+</footer>
+
+</div>
+</body>
+</html>

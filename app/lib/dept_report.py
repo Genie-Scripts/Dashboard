@@ -20,7 +20,7 @@ from typing import Optional
 import pandas as pd
 
 from .config import (
-    SURGERY_DISPLAY_DEPTS,
+    SURGERY_DISPLAY_DEPTS, EMERGENCY_WARDS,
     TARGET_INPATIENT_ALLDAY, TARGET_ADMISSION_WEEKLY, TARGET_GA_DAILY,
     TARGET_WEEKEND_RETENTION,
 )
@@ -33,6 +33,7 @@ from .metrics import (
 from .charts import build_dow_unit_detail, _dow_unit_candidates
 from .ai_narrative import (
     narrate_leveling_actions, narrate_admission_action, narrate_surgery_action,
+    narrate_emergency_leveling_action, narrate_emergency_admission_action,
     _q_friday, _q_weekend_adm, _q_state_trend, _q_target_gap,
 )
 from .hospital_summary import render_trend_svg, _ma_series, _surg_series
@@ -332,6 +333,25 @@ def _fallback_move_surgery(state: Optional[str]) -> dict:
                 "action": "現状の手術枠運用を維持しましょう。"}
     return {"body": f"全身麻酔手術は直近で{state or '目標を下回っている'}状況です。",
             "action": "手術枠の稼働状況を確認し、執刀医と症例の積み増しを調整しましょう。"}
+
+
+def _fallback_move_emergency_leveling(unit: dict) -> dict:
+    """救命救急系病棟(4A/4C)向け・週末在院トピックの定型文。"""
+    room = unit.get("room_per_week", 0) or 0
+    if room <= 0.5:
+        return {"body": "週末も平日とほぼ同じ在院を保てています。今の受け入れ体制が手本になっています。",
+                "action": "現状維持。週末も平日と同水準の受け入れ体制を継続しましょう。"}
+    return {"body": "週末は在院がやや落ち込みやすい状況です。",
+            "action": "転棟・転出（下り搬送）の判断を迅速化し、週末の受け入れ余地を確保しましょう。"}
+
+
+def _fallback_move_emergency_admission(state: Optional[str]) -> dict:
+    """救命救急系病棟(4A/4C)向け・新規受け入れトピックの定型文。"""
+    if state and "達成" in state:
+        return {"body": "緊急入院・転棟の受け入れは直近で目標水準を確保できています。",
+                "action": "現状の受け入れ体制を維持しましょう。"}
+    return {"body": f"緊急入院・転棟の受け入れは直近で{state or '目標を下回っている'}状況です。",
+            "action": "後方病床との調整や病床運用の見直しにより、受け入れ余地の確保を検討しましょう。"}
 
 
 # ════════════════════════════════════════════════════════════
@@ -668,7 +688,19 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
             topic = _select_action_topic(type_key, room, max_room,
                                          na_gap, na_tgt_gap, sv_gap, surg_tgt_gap)
 
-            if topic == "admission":
+            # 救命救急センター系病棟(4A/4C)は「予定入院」「地域医療連携」という業務前提が
+            # 成り立たないため、トピック(leveling/admission)は共通ロジックで選びつつ、
+            # 文言だけ専用プロンプト/定型文（narrate_emergency_*）に差し替える。
+            if entity == "ward" and code in EMERGENCY_WARDS:
+                if topic == "admission":
+                    move = ((with_ai and narrate_emergency_admission_action(
+                                name, na_gap, na_tgt_gap, quiet=quiet))
+                            or _fallback_move_emergency_admission(_q_target_gap(na_gap, na_tgt_gap)))
+                else:
+                    move = ((with_ai and narrate_emergency_leveling_action(
+                                name, ret, u.get("room_delta_4w"), quiet=quiet))
+                            or _fallback_move_emergency_leveling(u))
+            elif topic == "admission":
                 move = ((with_ai and narrate_admission_action(name, entity, na_gap, na_tgt_gap,
                                                                quiet=quiet))
                         or _fallback_move_admission(_q_target_gap(na_gap, na_tgt_gap)))

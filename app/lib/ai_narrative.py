@@ -342,11 +342,12 @@ def narrate_leveling_actions(weekend_leveling: dict,
 # 選ばれたトピックを事実→文章化するだけ＝計算・トピック選定はしない）。
 #
 # この2トピックは _q_target_gap の「達成度（静的な水準）」しか事実として渡さない
-# ＝傾向（増加/減少/改善/悪化）や原因は一切与えていない。実地テストで「紹介患者数が
-# 減少傾向にあります」のように与えていない傾向・原因を補う出力を確認したため、
-# 「傾向」を含む出力は事実にない主張として機械的に棄却する（数字チェックだけでは
-# 検知できないハルシネーションのための追加ガード）。
-_ADMISSION_BANNED = ("診断", "処方", "投与", "術式", "手術を追加", "傾向")
+# ＝傾向（増加/減少/改善/悪化）・病床稼働率・原因は一切与えていない。実地テストで
+# 「紹介患者数が減少傾向にあります」「病床稼働率が高く、受け入れ余地が限られています」
+# のように与えていない傾向・状況を補う出力を確認したため、これらを事実にない主張
+# として機械的に棄却する（数字チェックだけでは検知できないハルシネーションの追加ガード）。
+_ADMISSION_BANNED = ("診断", "処方", "投与", "術式", "手術を追加", "傾向",
+                    "稼働", "占有率", "逼迫", "余地が限られ")
 _SURGERY_BANNED = ("診断", "処方", "投与", "術式を追加", "傾向")
 
 ADMISSION_ACTION_SYSTEM_PROMPT = """あなたは病院経営を支援する要約ライターです。各部門の「新入院（週間の入院受け入れ）」の状況への“今週の一手”を、与えられた事実だけから日本語で書きます。以下を厳守してください。
@@ -450,6 +451,123 @@ def narrate_surgery_action(dept_name: str, sv, surg_tgt,
         logger.warning(f"oMLX 呼び出し失敗 (surgery {dept_name}): {e}")
     if not quiet:
         print(f"    [AI] {'✓' if result else '—'} surgery dept:{dept_name}")
+    return result
+
+
+# ────────────────────────────────────
+# 救命救急センター系病棟（4階A/4階C）専用の「今週の一手」
+# ────────────────────────────────────
+# これらの病棟は緊急入院・院内転棟が中心で、他病棟のような
+# 「予定入院の曜日調整」「地域医療連携（紹介元）への働きかけ」という業務前提が
+# 成り立たない（需要は救急搬送・院内緊急転棟が中心で予約的にコントロールできない）。
+# レバーを「転棟・転出（下り搬送）判断の迅速化による受け入れ余地の確保」
+# 「週末含めた受け入れ体制（病床運用）の維持」に置き換えた専用プロンプトを使う
+# （トピック選定＝ leveling/admission のどちらが大きいかの判定自体は共通ロジックを流用し、
+# 文言だけをこの病棟向けに差し替える）。
+_EMERGENCY_LEVELING_BANNED = ("延伸", "早期退院", "予定入院", "紹介")
+_EMERGENCY_ADMISSION_BANNED = ("予定入院", "紹介", "地域医療連携", "傾向",
+                              "稼働", "占有率", "逼迫", "余地が限られ")
+
+EMERGENCY_LEVELING_SYSTEM_PROMPT = """あなたは病院の病床管理を支援する要約ライターです。救命救急センター系病棟（緊急入院・院内転棟が中心で予定入院はほぼ無い病棟）の「週末（土日）に在院が落ち込む状況」への“今週の一手”を、与えられた事実だけから日本語で書きます。以下を厳守してください。
+
+【厳守事項】
+1. 与えられた事実のみを使う。新しい数値・原因・固有名を足さない。本文に数値を再引用しない（定性語のみ使う）。
+2. この病棟は緊急入院・院内転棟が中心で「予定入院」「地域医療連携（紹介元）」は存在しない。それらは絶対に提案しない。
+3. ねらいは週末も受け入れ体制を維持し在院を保つこと。具体策は「転棟・転出（下り搬送）判断を迅速化して受け入れ余地を確保する」「週末の受け入れ体制（病床運用・当直）を平日と同水準に保つ」など、運用面の一般的な対応にとどめる。
+4. 在院日数の延長や早期退院の促進は提案しない（禁止）。
+5. 出力は指定 JSON のみ。前置き・説明・``` を付けない。簡潔・丁寧・事務的なトーン。
+
+【出力スキーマ】
+{
+  "body": "週末在院の状況を述べる本文 50〜80字（数値を使わない定性的記述）",
+  "action": "今週の一手 40〜70字（転棟判断の迅速化・週末受け入れ体制の維持。予定入院/紹介は書かない）"
+}"""
+
+EMERGENCY_ADMISSION_SYSTEM_PROMPT = """あなたは病院経営を支援する要約ライターです。救命救急センター系病棟（緊急入院・院内転棟が中心で予定入院・紹介受け入れという概念が無い病棟）の「新規受け入れ（緊急入院・転棟）」の状況への“今週の一手”を、与えられた事実だけから日本語で書きます。以下を厳守してください。
+
+【厳守事項】
+1. 与えられた事実のみを使う。新しい数値・原因・固有名を足さない。本文に数値を再引用しない（定性語のみ使う）。
+2. この病棟は緊急入院・院内転棟が中心で「予定入院」「地域医療連携（紹介元）」は存在しない。それらは絶対に提案しない。
+3. ねらいは受け入れ件数（緊急入院・転棟）を目標水準へ近づけること。具体策は「後方病床（転棟・転出先）との調整による受け入れ余地の確保」「病床運用（当直含む）の見直し」など、運用面の一般的な対応にとどめる。
+4. 特定の疾患・術式・患者を名指しした医療行為の指示はしない（臨床判断はしない）。
+5. 出力は指定 JSON のみ。前置き・説明・``` を付けない。簡潔・丁寧・事務的なトーン。
+
+【出力スキーマ】
+{
+  "body": "受け入れ状況を述べる本文 50〜80字（数値を使わない定性的記述）",
+  "action": "今週の一手 40〜70字（後方病床調整・病床運用見直し等。予定入院/紹介/具体的な数値は書かない）"
+}"""
+
+
+def _build_emergency_leveling_prompt(ward_name: str, state: str) -> str:
+    return f"""以下の事実から、病棟「{ward_name}」（救命救急センター系・緊急入院/院内転棟が中心）の“今週の一手”を JSON で1つだけ出力してください。
+
+【対象】病棟: {ward_name}（救命救急センター系）
+【週末(土日)在院の状況】
+- {state}
+
+【書き方】
+- body=週末在院の状況の要約（数値を使わない定性的記述）。
+- action=今週の一手（転棟・転出判断の迅速化、週末受け入れ体制の維持）。予定入院・紹介は書かない。
+- JSON 以外（```・前置き・末尾コメント）を出力しない。"""
+
+
+def _build_emergency_admission_prompt(ward_name: str, state: str) -> str:
+    return f"""以下の事実から、病棟「{ward_name}」（救命救急センター系・緊急入院/院内転棟が中心）の新規受け入れに関する“今週の一手”を JSON で1つだけ出力してください。
+
+【対象】病棟: {ward_name}（救命救急センター系）
+【新規受け入れ（緊急入院・転棟、直近7日）の状況】
+- {state}
+
+【書き方】
+- body=受け入れ状況の要約（数値を使わない定性的記述）。
+- action=今週の一手（後方病床との調整、病床運用の見直しなど）。予定入院・紹介・具体的な数値は書かない。
+- JSON 以外（```・前置き・末尾コメント）を出力しない。"""
+
+
+def narrate_emergency_leveling_action(ward_name: str, retention, room_delta,
+                                      model: str = DEFAULT_MODEL,
+                                      temperature: float = DEFAULT_TEMPERATURE,
+                                      quiet: bool = False) -> Optional[dict]:
+    """救命救急系病棟(4A/4C)向け・週末在院トピックの「今週の一手」を生成する。"""
+    state = _q_state_trend(retention, room_delta)
+    result = None
+    try:
+        content = chat_json(
+            system=EMERGENCY_LEVELING_SYSTEM_PROMPT,
+            user=_build_emergency_leveling_prompt(ward_name, state),
+            model=model, temperature=temperature, max_tokens=DEFAULT_NUM_PREDICT,
+        )
+        parsed = _extract_body_action(content)
+        result = parsed if _is_hallucination_free(parsed, banned=_EMERGENCY_LEVELING_BANNED) else None
+    except Exception as e:
+        logger.warning(f"oMLX 呼び出し失敗 (emergency-leveling ward:{ward_name}): {e}")
+    if not quiet:
+        print(f"    [AI] {'✓' if result else '—'} emergency-leveling ward:{ward_name}")
+    return result
+
+
+def narrate_emergency_admission_action(ward_name: str, na, na_tgt,
+                                       model: str = DEFAULT_MODEL,
+                                       temperature: float = DEFAULT_TEMPERATURE,
+                                       quiet: bool = False) -> Optional[dict]:
+    """救命救急系病棟(4A/4C)向け・新規受け入れトピックの「今週の一手」を生成する。"""
+    state = _q_target_gap(na, na_tgt)
+    if state is None:
+        return None
+    result = None
+    try:
+        content = chat_json(
+            system=EMERGENCY_ADMISSION_SYSTEM_PROMPT,
+            user=_build_emergency_admission_prompt(ward_name, state),
+            model=model, temperature=temperature, max_tokens=DEFAULT_NUM_PREDICT,
+        )
+        parsed = _extract_body_action(content)
+        result = parsed if _is_hallucination_free(parsed, banned=_EMERGENCY_ADMISSION_BANNED) else None
+    except Exception as e:
+        logger.warning(f"oMLX 呼び出し失敗 (emergency-admission ward:{ward_name}): {e}")
+    if not quiet:
+        print(f"    [AI] {'✓' if result else '—'} emergency-admission ward:{ward_name}")
     return result
 
 

@@ -167,14 +167,26 @@ def main():
         from app.lib import hospital_summary as hs
         from app.lib.dept_report import (build_hospital_overview_context,
                                          render_summary_table_pages)
+        from app.lib.profit_estimate import (compute_calibrated_profit_projection,
+                                             last_complete_driver_date)
         log("病院全体サマリ（3ページ）を生成中…")
+        # 粗利予測は adm/surg 両方が揃う最終日で行う（本番ダッシュボードと同じ日で揃える）
+        profit_base_date = last_complete_driver_date(adm, surg) or base_date
+        profit_projection = None
+        if profit_breakdown is not None and len(profit_breakdown):
+            try:
+                profit_projection = compute_calibrated_profit_projection(
+                    profit_breakdown, surg, adm, profit_base_date)
+            except Exception:
+                profit_projection = None
         hosp_ctx = build_hospital_overview_context(
             adm, surg, targets, surg_targets, profit_monthly, base_date, generated_at,
-            hospital_name=args.hospital_name, profit_breakdown=profit_breakdown)
+            hospital_name=args.hospital_name, profit_breakdown=profit_breakdown,
+            profit_projection=profit_projection)
         extra = render_summary_table_pages(
             adm, surg, targets, surg_targets, base_date,
             hospital_name=args.hospital_name, profit_monthly=profit_monthly,
-            profit_breakdown=profit_breakdown)
+            profit_breakdown=profit_breakdown, profit_projection=profit_projection)
         hosp_html = tmpl.render(sheets=[hosp_ctx], extra_pages=extra, table_css=hs.BASE_CSS)
         emit_html(hosp_html, out_root / f"病院全体サマリ_{date_str}.pdf", 3)
 
