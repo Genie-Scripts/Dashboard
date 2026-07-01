@@ -123,6 +123,42 @@
 
 <section id="run">
   <h2>3. 実行方法</h2>
+
+  <h3>3.0 関連する.shファイル（このリポジトリ全体の位置づけ）</h3>
+  <p>リポジトリ直下には3つのシェルスクリプトがあり、それぞれ役割が異なります。
+     <b>このマニュアルの対象は <code>build_reports.sh</code> だけ</b>です。他の2つは
+     診療ダッシュボード本体（Web版）の運用スクリプトで、部門別レポートPDFの生成には
+     関与しません。</p>
+  <table>
+    <tr><th>ファイル</th><th>役割</th><th>実行タイミング</th></tr>
+    <tr>
+      <td><code>pull.sh</code></td>
+      <td>作業開始時に GitHub から最新コードを取得し、<code>requirements.txt</code>の
+          変更をライブラリへ同期する</td>
+      <td>作業を始める前に手動実行</td>
+    </tr>
+    <tr>
+      <td><code>deploy.sh</code></td>
+      <td>診療ダッシュボード<b>本体（Web版）</b>をビルド（<code>generate_html.py</code>・
+          医業収支推計・自己完結HTMLを生成）し、コミット→GitHub Pagesへプッシュする。
+          <code>git log</code> に残る「<code>Dashboard update: 日時 [M5-Pro]</code>」の
+          コミットはこのスクリプトによるもの（定期実行の自動化あり）</td>
+      <td>作業終了時、または定期実行</td>
+    </tr>
+    <tr>
+      <td><code>build_reports.sh</code><span class="badge new">このマニュアルの対象</span></td>
+      <td>部門別レポートPDF（診療科版／病棟版／病院全体サマリ）だけを生成する。
+          <code>deploy.sh</code>とは独立しており、<b>手動でダブルクリック実行</b>する
+          運用（月1〜2回）</td>
+      <td>部門会議・配布の前に手動実行</td>
+    </tr>
+  </table>
+  <div class="note">
+    <code>build_reports.sh</code>は<code>deploy.sh</code>の自動コミット/プッシュには
+    含まれません。PDF生成のみを行い、<b>git へのコミットは行いません</b>
+    （<code>dept_reports/</code>はローカル出力専用）。
+  </div>
+
   <h3>ダブルクリック実行（AppleScript/Automator）</h3>
   <p><code>build_reports.sh</code> をダブルクリック、または Automator から呼び出します。
      oMLX（一手のAI要約）が未起動なら自動で起動を試みます。</p>
@@ -285,7 +321,10 @@ make reports DATE=2026-05-31</code></pre>
       ・全PDFのカード見出し・見出しアイコンを削除し、業務向けのシンプルな表記に変更。<br>
       ・「この期間の一手」を3トピック（病床平準化／新入院／全麻）から自動選択する方式に刷新。<br>
       ・4階A・4階C病棟（救命救急センター系）専用の一手文言を追加。<br>
-      ・AI生成文へのハルシネーション対策（機械的ガード）を新設・強化。
+      ・AI生成文へのハルシネーション対策（機械的ガード）を新設・強化。<br>
+      ・本マニュアル（<code>docs/dept_reports_manual.html</code>）を新規作成。
+      関連する <code>pull.sh</code> / <code>deploy.sh</code> / <code>build_reports.sh</code>
+      の役割の違いを追記。
     </p>
   </div>
 </section>
