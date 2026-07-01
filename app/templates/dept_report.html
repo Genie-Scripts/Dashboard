@@ -32,6 +32,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP"
   border:1px solid #e9c2cb; background:#fdf0f2; border-radius:999px; padding:1px 8px; margin-top:2px}
 
 .kpis{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:8px}
+.kpis.kpis-5{grid-template-columns:repeat(5,1fr)}
+.kpis.kpis-5 .k-lbl{font-size:8.8px}
+.kpis.kpis-5 .k-val{font-size:21px}
 .kpi{border:1px solid var(--ln); border-radius:10px; padding:9px 11px 10px;
   display:flex; flex-direction:column; gap:1px; position:relative}
 /* 最優先KPI＝中立強調。緑背景は「未達でも達成済みに見える」ため廃止し、
@@ -84,7 +87,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP"
   background:linear-gradient(180deg,#f4fdf9,#fff); padding:10px 13px 11px;
   display:flex; flex-direction:column; justify-content:center}
 .move-h{display:flex; align-items:center; gap:6px; margin-bottom:5px}
-.move-h .star{font-size:15px}
 .move-h .ttl{font-size:12.5px; font-weight:900; color:#0b5e41}
 .move-h .ai{font-size:8px; font-weight:800; color:var(--mu); border:1px solid var(--ln);
   border-radius:999px; padding:1px 6px; margin-left:auto}
@@ -143,7 +145,7 @@ h4{font-weight:var(--jp-head)!important}
 <div class="card{% if hero %} hero{% endif %}">
   <div class="card-h">
     <span class="pr">優先{{ c.priority }}</span>
-    <span class="ttl">{{ c.icon }} {{ c.name }}</span>
+    <span class="ttl">{{ c.name }}</span>
     {% if c.badge %}<span class="badge {{ c.badge[1] }}">{{ c.badge[0] }}</span>{% endif %}
   </div>
   {% if c.is_dow %}
@@ -160,13 +162,13 @@ h4{font-weight:var(--jp-head)!important}
 
 {% macro movecard(m) %}
 <div class="move">
-  <div class="move-h"><span class="star">⭐️</span>
+  <div class="move-h">
     <span class="ttl">この期間の一手</span>
     <span class="ai">AI要約／院内データ</span></div>
   <div class="move-body">{{ m.body }}</div>
   <div class="move-act"><span class="arw">▶</span><span class="txt">{{ m.action }}</span></div>
-  {% if m.surg_line %}<div class="move-surg">🔪 {{ m.surg_line }}</div>{% endif %}
-  {% if m.util_line %}<div class="move-surg">🛏 {{ m.util_line }}</div>{% endif %}
+  {% if m.surg_line %}<div class="move-surg">{{ m.surg_line }}</div>{% endif %}
+  {% if m.util_line %}<div class="move-surg">{{ m.util_line }}</div>{% endif %}
 </div>
 {% endmacro %}
 
@@ -188,7 +190,7 @@ h4{font-weight:var(--jp-head)!important}
       </div>
     </div>
 
-    <div class="kpis">
+    <div class="kpis{% if s.kpis|length == 5 %} kpis-5{% endif %}">
       {% for k in s.kpis %}
       <div class="kpi{% if k.lead %} lead{% endif %}{% if k.ok %} ach-ok{% elif k.ok is not none %} ach-wr{% endif %}">
         <div class="k-lbl">{% if k.lead %}<span class="k-lead">最優先</span>{% endif %}{{ k.label }} <span>{{ k.sub }}</span></div>

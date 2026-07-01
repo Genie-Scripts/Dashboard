@@ -22,6 +22,7 @@ import pandas as pd
 from .config import (
     SURGERY_DISPLAY_DEPTS,
     TARGET_INPATIENT_ALLDAY, TARGET_ADMISSION_WEEKLY, TARGET_GA_DAILY,
+    TARGET_WEEKEND_RETENTION,
 )
 from .metrics import (
     weekend_census_retention, rolling7_inpatient_avg,
@@ -31,8 +32,8 @@ from .metrics import (
 )
 from .charts import build_dow_unit_detail, _dow_unit_candidates
 from .ai_narrative import (
-    narrate_leveling_actions,
-    _q_friday, _q_weekend_adm, _q_state_trend,
+    narrate_leveling_actions, narrate_admission_action, narrate_surgery_action,
+    _q_friday, _q_weekend_adm, _q_state_trend, _q_target_gap,
 )
 from .hospital_summary import render_trend_svg, _ma_series, _surg_series
 from .profit_estimate import fit_profit_estimators, project_dept_monthend
@@ -53,11 +54,11 @@ C_LN  = "#eef2f7"
 C_AX  = "#9daab8"
 C_INK = "#5f7084"
 
-# グラフパーツ（A-E）の色・アイコン・窓ラベル
+# グラフパーツ（A-E）の色・窓ラベル
 # 当年実績線は中立ブルー1色に統一する。緑/オレンジは達成表現（網掛け・目標線・バッジ）専用とし、
-# 線色が「成績」に見える誤読を避ける（種別はカード見出しのアイコン＋タイトルで識別）。
+# 線色が「成績」に見える誤読を避ける（種別はカード見出しのタイトル文言で識別。
+# アイコンは業務向け表示として2026-07-01に廃止）。
 PART_LINE = "#2b6cb0"
-PART_ICON = {"A": "🛏", "B": "➕", "C": "🔪", "D": "💴", "E": "📊"}
 # 窓ラベルは公開版ダッシュボード（dept.html 既定線）と同方式。
 #   在院/新入院＝日次系列の28日移動平均、手術＝週次合計(件/週)の28日移動平均。
 PART_WIN = {"A": "12週・28日移動平均", "B": "12週・28日移動平均（件/日）",
@@ -315,6 +316,62 @@ def _fallback_move(unit: dict, dd: Optional[dict], entity: str) -> dict:
     return {"body": body, "action": action}
 
 
+def _fallback_move_admission(state: Optional[str]) -> dict:
+    """新入院トピックの定型文（oMLX未起動/ハルシネーション棄却時）。"""
+    if state and "達成" in state:
+        return {"body": "新入院は直近で目標水準を確保できています。",
+                "action": "現状の受け入れ体制を維持しましょう。"}
+    return {"body": f"新入院は直近で{state or '目標を下回っている'}状況です。",
+            "action": "地域医療連携での紹介受け入れ強化や、予定入院枠の調整を検討しましょう。"}
+
+
+def _fallback_move_surgery(state: Optional[str]) -> dict:
+    """全麻トピックの定型文（oMLX未起動/ハルシネーション棄却時）。"""
+    if state and "達成" in state:
+        return {"body": "全身麻酔手術は直近で目標水準を確保できています。",
+                "action": "現状の手術枠運用を維持しましょう。"}
+    return {"body": f"全身麻酔手術は直近で{state or '目標を下回っている'}状況です。",
+            "action": "手術枠の稼働状況を確認し、執刀医と症例の積み増しを調整しましょう。"}
+
+
+# ════════════════════════════════════════════════════════════
+# 「この期間の一手」トピック選定（病床平準化に限定しない）
+# ════════════════════════════════════════════════════════════
+# 病床平準化ののびしろ(room_per_week)だけを常に採用すると、新入院/全麻の方が
+# 明確に不足している部門でも「現状維持」の定型文で埋まってしまう。3トピックの
+# 目標未達の大きさを比べ、最も目立つものを一手のトピックに選ぶ。
+ACTION_TOPIC_MIN_SCORE = 0.12   # これ未満の不足差はノイズ扱い→病床平準化を既定にする
+
+
+def _admission_gap_score(na, na_tgt) -> float:
+    if not na_tgt or na is None:
+        return 0.0
+    return max(0.0, 1.0 - na / na_tgt)
+
+
+def _surgery_gap_score(sv, surg_tgt) -> float:
+    if not surg_tgt or sv is None:
+        return 0.0
+    return max(0.0, 1.0 - sv / surg_tgt)
+
+
+def _select_action_topic(type_key: str, room: float, max_room: float,
+                         na, na_tgt, sv, surg_tgt) -> str:
+    """"leveling"(病床平準化) / "admission"(新入院) / "surgery"(全麻・外科系のみ) の
+    うち、目標未達が最も大きいトピックを選ぶ。leveling は room_per_week を全ユニット中
+    の相対値、admission/surgery は目標比の絶対的な不足率で評価する（スケールが完全には
+    揃わないが、いずれも0〜1の「どれだけ気にすべきか」の目安として扱う）。
+    目立った不足が無ければ leveling を既定にする（room<=0.5 なら _fallback_move が
+    「現状維持」の定型文を返す）。
+    """
+    scores = {"leveling": (room / max_room) if max_room else 0.0,
+              "admission": _admission_gap_score(na, na_tgt)}
+    if type_key == "surgical":
+        scores["surgery"] = _surgery_gap_score(sv, surg_tgt)
+    topic = max(scores, key=scores.get)
+    return topic if scores[topic] >= ACTION_TOPIC_MIN_SCORE else "leveling"
+
+
 def _surg_highlight(sv, surg_tgt, surg_series) -> Optional[str]:
     """外科系の一手に添える全麻ハイライト1行（数値駆動・AI不要）。
     直近7日累計(件/週) vs 週次目標＋28日線の方向＋目標までの差を1行に。"""
@@ -373,7 +430,7 @@ def _trend_part(kind, name, series, ref, ref_label, unit, badge, note="") -> Opt
     """A/B/C/D 共通のトレンドパーツ仕様。series が空なら None。"""
     if not series or not series.get("cur") or all(v is None for v in series["cur"]):
         return None
-    return {"kind": kind, "icon": PART_ICON[kind], "name": name, "badge": badge, "note": note,
+    return {"kind": kind, "name": name, "badge": badge, "note": note,
             "is_dow": False, "_data": series, "_ref": ref, "_ref_label": ref_label,
             "_unit": unit, "_win": PART_WIN[kind], "_color": PART_LINE}
 
@@ -382,7 +439,7 @@ def _dow_part(dd) -> Optional[dict]:
     if not dd:
         return None
     svg = _render_dow_svg(dd["discharge"]["w8"], dd["admission"]["w8"], dd["census"]["w8"])
-    return {"kind": "E", "icon": PART_ICON["E"], "name": "曜日プロファイル", "badge": None,
+    return {"kind": "E", "name": "曜日プロファイル", "badge": None,
             "note": "", "is_dow": True, "svg": svg}
 
 
@@ -577,7 +634,12 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
         total_ret = total.get("retention")
         total_ret_pct = round(total_ret * 100, 1) if total_ret else None
 
-        # AI一手は「のびしろのあるユニット」に限定（room>0.5）。
+        # AI一手（病床平準化）は「のびしろのあるユニット」に限定（room>0.5）。
+        # トピックが新入院/全麻に決まるユニットでは後段で別途AI生成するため無駄にはならない
+        # （病床平準化が結局のトピックに選ばれるユニットのために、ここで先に一括生成する）。
+        max_room = max((u.get("room_per_week", 0) or 0 for u in wl["units"]), default=1) or 1
+        by_gap = "by_ward" if entity == "ward" else "by_dept"
+        tgt_axis_gap = "ward" if entity == "ward" else "dept"
         n_ai = sum(1 for u in wl["units"] if (u.get("room_per_week", 0) or 0) > 0.5)
         if with_ai and n_ai:
             narrate_leveling_actions({entity: wl}, {entity: det}, top_n=n_ai, quiet=quiet)
@@ -587,8 +649,6 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
             code = name2code.get(name, name)
             dd = det.get(name)
             room = u.get("room_per_week", 0) or 0
-            move = (_fallback_move(u, dd, entity) if room <= 0.5
-                    else (u.get("narrative") or _fallback_move(u, dd, entity)))
             ret = u.get("retention")
 
             if entity == "ward":
@@ -597,6 +657,27 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
                 type_key = "surgical"
             else:
                 type_key = "internal"
+
+            # 「この期間の一手」は 病床平準化／新入院／全麻(外科系のみ) のうち最も目標未達が
+            # 大きいトピックを選ぶ（病床管理一辺倒にしない）。
+            na_gap = r7_nadm[by_gap].get(code)
+            na_tgt_gap = targets.get("new_admission", {}).get(tgt_axis_gap, {}).get(code)
+            sv_gap = r7_surg["by_dept"].get(name, 0) if type_key == "surgical" else None
+            surg_tgt_gap = (surg_targets.get(name)
+                           if (type_key == "surgical" and isinstance(surg_targets, dict)) else None)
+            topic = _select_action_topic(type_key, room, max_room,
+                                         na_gap, na_tgt_gap, sv_gap, surg_tgt_gap)
+
+            if topic == "admission":
+                move = ((with_ai and narrate_admission_action(name, entity, na_gap, na_tgt_gap,
+                                                               quiet=quiet))
+                        or _fallback_move_admission(_q_target_gap(na_gap, na_tgt_gap)))
+            elif topic == "surgery":
+                move = ((with_ai and narrate_surgery_action(name, sv_gap, surg_tgt_gap, quiet=quiet))
+                        or _fallback_move_surgery(_q_target_gap(sv_gap, surg_tgt_gap)))
+            else:
+                move = (_fallback_move(u, dd, entity) if room <= 0.5
+                        else (u.get("narrative") or _fallback_move(u, dd, entity)))
 
             profit_series = (None if entity == "ward"
                              else _unit_profit_series(profit_monthly, name, base_date,
@@ -666,8 +747,13 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
 #   KPI4枚（在院・新入院・全麻・粗利）＋ A在院 B新入院 C全麻 D粗利 E曜日 の5チャート。
 #   「この期間の一手」は載せない（move=None → テンプレ側で非表示）。
 # ════════════════════════════════════════════════════════════
-def _hospital_profit_series(profit_monthly, base_date) -> Optional[dict]:
-    """病院全体の月次粗利（百万円）・直近12か月＋前年同期。目標=月次目標の合計。"""
+def _hospital_profit_series(profit_monthly, base_date, profit_projection=None) -> Optional[dict]:
+    """病院全体の月次粗利（百万円）・直近12か月＋前年同期。目標=月次目標の合計。
+
+    profit_projection（profit_estimate.compute_calibrated_profit_projection の戻り値。
+    ダッシュボード/PLレポートと同一の hybrid+recency補正 pipeline）があれば、確報の
+    末尾に **当月見込みスロット** を1つ足す（proj=百万円。実線は確報で止め、点線で見込みへ）。
+    """
     if profit_monthly is None or len(profit_monthly) == 0:
         return None
     by_month = profit_monthly.groupby("月")
@@ -681,12 +767,25 @@ def _hospital_profit_series(profit_monthly, base_date) -> Optional[dict]:
     cur = [round(gp[m] / 1000, 1) for m in months]
     prev = [round(gp[m - pd.DateOffset(years=1)] / 1000, 1)
             if (m - pd.DateOffset(years=1)) in gp.index else None for m in months]
+    dates = [m.strftime("%-m月") for m in months]
     last = months[-1]
     tgt = gt.get(last)
     ref = round(tgt / 1000, 1) if pd.notna(tgt) else 0
     rate = round(gp[last] / tgt * 100, 1) if (pd.notna(tgt) and tgt) else None
-    return {"dates": [m.strftime("%-m月") for m in months], "cur": cur, "prev": prev,
-            "ref": ref, "rate": rate, "latest": last.strftime("%Y年%-m月")}
+
+    proj = proj_month = None
+    if profit_projection and profit_projection.get("hospital_million") is not None:
+        pm = profit_projection["month"]
+        if pm not in months:
+            dates.append(f"{pm.strftime('%-m月')}(見込)")
+            cur.append(None)
+            prev.append(round(gp[pm - pd.DateOffset(years=1)] / 1000, 1)
+                        if (pm - pd.DateOffset(years=1)) in gp.index else None)
+            proj = profit_projection["hospital_million"]
+            proj_month = pm
+
+    return {"dates": dates, "cur": cur, "prev": prev, "ref": ref, "rate": rate,
+            "latest": last.strftime("%Y年%-m月"), "proj": proj, "proj_month": proj_month}
 
 
 def _hospital_dow(adm, base_date) -> dict:
@@ -703,15 +802,20 @@ def _hospital_dow(adm, base_date) -> dict:
 
 def build_hospital_overview_context(adm, surg, targets, surg_targets, profit_monthly,
                                     base_date, generated_at, *, hospital_name: str = "",
-                                    profit_breakdown=None) -> dict:
-    """病院全体サマリ（dept_report.html 1シート）のコンテキスト。move は載せない。"""
+                                    profit_breakdown=None, profit_projection=None) -> dict:
+    """病院全体サマリ（dept_report.html 1シート）のコンテキスト。move は載せない。
+
+    profit_projection: profit_estimate.compute_calibrated_profit_projection の戻り値
+    （病院全体・診療科別の当月見込み粗利＝ダッシュボードと同一 pipeline）。渡すと粗利KPI/
+    チャートが「確報の最新月」でなく「当月見込み」で達成率を表示する。
+    """
     kpi = build_kpi_summary(adm, surg, base_date, targets, surg_targets)
     charts: list = []
 
     def add(kind, name, series, ref, ref_label, unit, win, badge, note=""):
         if not series or not series.get("cur") or all(v is None for v in series["cur"]):
             return
-        charts.append({"kind": kind, "icon": PART_ICON[kind], "name": name, "badge": badge,
+        charts.append({"kind": kind, "name": name, "badge": badge,
                        "note": note, "is_dow": False, "_data": series, "_ref": ref,
                        "_ref_label": ref_label, "_unit": unit, "_win": win, "_color": PART_LINE})
 
@@ -731,22 +835,32 @@ def build_hospital_overview_context(adm, surg, targets, surg_targets, profit_mon
         TARGET_GA_DAILY, f"目標{TARGET_GA_DAILY:g}", "件/日", "12週・30営業平日移動平均（件/日）",
         _ach_badge(kpi["operation_daily_avg"], TARGET_GA_DAILY))
 
-    # D 粗利（病院全体・確報ベース）
-    ps = _hospital_profit_series(profit_monthly, base_date)
-    prof_latest = None
+    # D 粗利（病院全体・確報＋当月見込み）
+    ps = _hospital_profit_series(profit_monthly, base_date, profit_projection=profit_projection)
+    prof_latest = prof_disp = prof_rate = None
+    prof_sub = "確報・最新月"
     if ps:
         prof_latest = next((v for v in reversed(ps["cur"]) if v is not None), None)
-        rate = ps["rate"]
-        badge = ((f"達成率 {rate:g}%", "ok" if rate >= 100 else "wr")
-                 if rate is not None else None)
+        if ps.get("proj") is not None and ps["ref"]:
+            prof_disp = ps["proj"]
+            prof_rate = round(ps["proj"] / ps["ref"] * 100, 1)
+            prof_sub = "当月見込み"
+            badge = (f"見込み達成率 {prof_rate:g}%", "ok" if prof_rate >= 100 else "wr")
+            note = (f"実線=確報(最新{ps['latest']})／"
+                    f"点線={ps['proj_month'].strftime('%-m月')}は診療実績ベースの見込（暫定）")
+        else:
+            prof_disp = prof_latest
+            prof_rate = ps["rate"]
+            badge = ((f"達成率 {prof_rate:g}%", "ok" if prof_rate >= 100 else "wr")
+                     if prof_rate is not None else None)
+            note = f"確報ベース・最新 {ps['latest']}"
         add("D", "粗利", ps, ps["ref"], f"目標{ps['ref']:g}" if ps["ref"] else "",
-            "百万円", "12か月・月次（確報ベース）", badge,
-            note=f"確報ベース・最新 {ps['latest']}")
+            "百万円", "12か月・月次（確報＋当月見込み）", badge, note=note)
 
     # E 曜日プロファイル（病院全体）
     dd = _hospital_dow(adm, base_date)
     if any(dd["discharge"]) or any(dd["admission"]):
-        charts.append({"kind": "E", "icon": PART_ICON["E"], "name": "曜日プロファイル",
+        charts.append({"kind": "E", "name": "曜日プロファイル",
                        "badge": None, "note": "", "is_dow": True,
                        "svg": _render_dow_svg(dd["discharge"], dd["admission"], dd["census"])})
 
@@ -755,12 +869,17 @@ def build_hospital_overview_context(adm, surg, targets, surg_targets, profit_mon
         if not p["is_dow"]:
             p["svg"] = render_trend_svg(p["_data"], p["_ref"], p["_ref_label"],
                                         p["_unit"], p["_win"], color=p["_color"],
-                                        height=256 if i == 0 else 232)
+                                        height=256 if i == 0 else 232,
+                                        proj=p["_data"].get("proj"))
         p["priority"] = i + 1
 
-    # KPI 4枚
+    # 週末在院維持率（病院全体・病棟ベース＝ hospital_summary.build_hero_text と同一定義）
+    wr = weekend_census_retention(adm, base_date, entity="ward")
+    ret = wr.get("total", {}).get("retention")
+    ret_pct = round(ret * 100, 1) if ret is not None else None
+
+    # KPI 5枚
     inp_v = kpi["inpatient_avg_7d"]
-    prof_rate = ps["rate"] if ps else None
     kpis = [
         _kpi("在院患者数", "直近7日平均", _fmt(inp_v, 1), "人", lead=True,
              tgt=f"目標 {TARGET_INPATIENT_ALLDAY:g}", ok=_ok(inp_v, TARGET_INPATIENT_ALLDAY)),
@@ -769,9 +888,11 @@ def build_hospital_overview_context(adm, surg, targets, surg_targets, profit_mon
              ok=_ok(kpi["admission_actual_7d"], TARGET_ADMISSION_WEEKLY)),
         _kpi("全身麻酔手術", "直近7平日平均", _fmt(kpi["operation_daily_avg"], 1), "件/日",
              tgt=f"目標 {TARGET_GA_DAILY:g}", ok=_ok(kpi["operation_daily_avg"], TARGET_GA_DAILY)),
-        _kpi("粗利", "確報・最新月", _fmt(prof_latest, 1), "百万円",
+        _kpi("粗利", prof_sub, _fmt(prof_disp, 1), "百万円",
              tgt=(f"目標 {ps['ref']:g}" if (ps and ps["ref"]) else None),
              ok=(prof_rate >= 100) if prof_rate is not None else None),
+        _kpi("週末在院維持率", "直近8週・土日/平日", _fmt(ret_pct, 1), "%",
+             tgt=f"目標 {TARGET_WEEKEND_RETENTION:g}", ok=_ok(ret_pct, TARGET_WEEKEND_RETENTION)),
     ]
 
     return {
@@ -788,16 +909,20 @@ def build_hospital_overview_context(adm, surg, targets, surg_targets, profit_mon
 
 def render_summary_table_pages(adm, surg, targets, surg_targets, base_date, *,
                                hospital_name: str = "", profit_monthly=None,
-                               profit_breakdown=None) -> list:
+                               profit_breakdown=None, profit_projection=None) -> list:
     """病院全体サマリの 2・3 ページ目（病棟別／診療科別テーブル）の HTML 断片。
 
     実績まとめPDF（build_hospital_report）の P3/P4 と同一の共通部品を使う。
     返値は extra_pages（dept_report.html）にそのまま渡せる HTML 文字列のリスト。
+    profit_projection: profit_estimate.compute_calibrated_profit_projection の戻り値。
+    渡すと診療科テーブルの「粗利予測達成率」がダッシュボードと同一の hybrid+recency補正
+    値になる（未指定時は従来のOLS単独推計＝project_dept_monthend にフォールバック）。
     """
     from . import hospital_summary as hs
     ctx = hs.build_summary_context(adm, surg, targets, surg_targets, base_date,
                                    profit_monthly=profit_monthly,
-                                   profit_breakdown=profit_breakdown)
+                                   profit_breakdown=profit_breakdown,
+                                   profit_projection=profit_projection)
     legend = hs.render_legend()
     title = hospital_name or "全病院"
     bd = base_date
@@ -809,9 +934,9 @@ def render_summary_table_pages(adm, surg, targets, surg_targets, base_date, *,
                 f'<span style="font-size:12px;color:{hs.SUB};font-weight:600">　基準日 {bd:%Y-%m-%d}</span></div></div>')
 
     ward = (head("病棟別 実績")
-            + '<div class="sec">🛏 病棟別 実績（在院・病床利用率・入退院フロー・週末在院維持率）</div>'
+            + '<div class="sec">病棟別 実績（在院・病床利用率・入退院フロー・週末在院維持率）</div>'
             + hs.render_ward_table(ctx["ward_rows"]) + legend)
     dept = (head("診療科別 実績")
-            + '<div class="sec">🩺 診療科別 実績（在院・新入院・入退院フロー・全麻・粗利予測達成率）</div>'
+            + '<div class="sec">診療科別 実績（在院・新入院・入退院フロー・全麻・粗利予測達成率）</div>'
             + hs.render_dept_table(ctx["dept_rows"]) + legend)
     return [ward, dept]

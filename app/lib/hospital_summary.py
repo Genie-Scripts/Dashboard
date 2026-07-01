@@ -28,7 +28,8 @@ WEEKS = 12
 PREVYEAR_DAYS = 364   # 52週=曜日合わせ
 
 # 色スケール対象外（業務実態が一般病棟/一般科と異なる＝誤読を避けるためミュート）
-COLOR_EXEMPT_WARDS = {"04B", "04D"}   # ICU / HCU
+# ICU/HCU(04B/04D)は目標・実績が揃っており評価可能なため対象外から除外（2026-07-01）。
+COLOR_EXEMPT_WARDS: set = set()
 COLOR_EXEMPT_DEPTS = {"眼科"}          # memory: profile 未整備
 
 BASE_CSS = """
@@ -166,19 +167,17 @@ def build_hero_text(adm, surg, surg_targets, base_date) -> dict:
 # ════════════════════════════════════════════════════════════
 # データ組立
 # ════════════════════════════════════════════════════════════
-def _dept_profit_proj(profit_monthly, estimators, adm, surg, base_date, dept) -> Optional[dict]:
+def _dept_profit_proj(profit_monthly, estimators, adm, surg, base_date, dept,
+                      profit_projection=None) -> Optional[dict]:
     """診療科の当月見込み（暫定）粗利 ÷ 月次目標 ＝ 粗利予測達成率（％）。
 
-    見込みは profit_estimate.project_dept_monthend（診療実績ベースの月末外挿）。
-    目標は最新確報月の月次目標（dept_report の粗利チャート基準線と同一定義）。
-    見込みを出せない科（入院式の品質が低い・データ不足）は None → 表は「—」。
+    見込みは profit_projection（compute_calibrated_profit_projection・ダッシュボード/PL
+    レポートと同じ hybrid+recency補正 pipeline）を優先し、無ければ従来の
+    profit_estimate.project_dept_monthend（診療実績ベースのOLS月末外挿・フォールバック
+    無し）へ後方互換フォールバックする。目標は最新確報月の月次目標（dept_report の
+    粗利チャート基準線と同一定義）。見込みを出せない科はNone → 表は「—」。
     """
-    if profit_monthly is None or len(profit_monthly) == 0 or not estimators:
-        return None
-    from .profit_estimate import project_dept_monthend
-    p = project_dept_monthend(estimators, adm, surg, base_date, dept,
-                              profit_monthly=profit_monthly)
-    if not p:
+    if profit_monthly is None or len(profit_monthly) == 0:
         return None
     sub = profit_monthly[profit_monthly["診療科名"] == dept].sort_values("月")
     base_m = pd.Timestamp(base_date).to_period("M").to_timestamp()
@@ -189,12 +188,25 @@ def _dept_profit_proj(profit_monthly, estimators, adm, surg, base_date, dept) ->
     tgt = rows.iloc[-1]["月次目標"]
     if pd.isna(tgt) or not tgt:
         return None
-    proj_m, tgt_m = p["value"], tgt / 1000   # ともに百万円
+    tgt_m = tgt / 1000   # 百万円
+
+    proj_m = (profit_projection.get("dept_million", {}).get(dept)
+              if profit_projection else None)
+    if proj_m is None:
+        if not estimators:
+            return None
+        from .profit_estimate import project_dept_monthend
+        p = project_dept_monthend(estimators, adm, surg, base_date, dept,
+                                  profit_monthly=profit_monthly)
+        if not p:
+            return None
+        proj_m = p["value"]
     return {"rate": round(proj_m / tgt_m * 100, 1), "proj": proj_m, "tgt": tgt_m}
 
 
 def build_summary_context(adm, surg, targets, surg_targets, base_date,
-                          profit_monthly=None, profit_breakdown=None) -> dict:
+                          profit_monthly=None, profit_breakdown=None,
+                          profit_projection=None) -> dict:
     kpi = metrics.build_kpi_summary(adm, surg, base_date, targets, surg_targets)
 
     # 粗利予測達成率（診療科テーブル右端）用 per-dept 推計器を1回だけフィット
@@ -259,7 +271,8 @@ def build_summary_context(adm, surg, targets, surg_targets, base_date,
             # redist は Comedix 単一HTML週報（build_comedix_html）が引き続き使用。
             # PDF の診療科テーブル（render_dept_table）では粗利予測達成率に差し替え済み。
             "redist": prof.get("redistribution"),
-            "profit_proj": _dept_profit_proj(profit_monthly, estimators, adm, surg, base_date, dept),
+            "profit_proj": _dept_profit_proj(profit_monthly, estimators, adm, surg, base_date, dept,
+                                             profit_projection=profit_projection),
             "flow": flow_d.get(dept, {"in": 0, "out": 0, "net": 0}),
         })
 

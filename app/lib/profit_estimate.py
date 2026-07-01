@@ -1368,6 +1368,47 @@ def apply_recency_calibration(meta: Dict[str, Any],
     }
 
 
+def compute_calibrated_profit_projection(profit_breakdown: pd.DataFrame,
+                                          surg: pd.DataFrame,
+                                          adm: Optional[pd.DataFrame],
+                                          base_date,
+                                          cache_path=None,
+                                          calibrate: bool = True) -> Optional[Dict[str, Any]]:
+    """病院全体＋診療科別の当月見込み粗利（百万円・recency補正済み）を1回の hybrid
+    pipeline で確定する。build_hybrid_payload → apply_recency_calibration と同じ経路
+    （html_builder.build_detail_json / scripts/build_pl_projection.py と共用）なので、
+    ダッシュボード（dept.html）や PL レポートと同一の値になる。
+
+    診療科別は values_blend_total（= 病院 G と同方式の MTD ブレンド）の末尾に病院と
+    同一の calibration_factor を掛けて求める。allowlist外の科はモデル内の
+    ratio_fallback で埋まるため、OLSのみの旧実装（project_dept_monthend）と違い
+    r2 学習失敗科でも欠落しない。
+
+    Returns None（推計不可）or:
+      {"month": pd.Timestamp, "hospital_million": float,
+       "dept_million": {dept: 百万円}, "calibration_factor": float}
+    """
+    if profit_breakdown is None or len(profit_breakdown) == 0:
+        return None
+    if surg is None or len(surg) == 0:
+        return None
+    base_date = pd.Timestamp(base_date).normalize()
+    payload = build_hybrid_payload(profit_breakdown=profit_breakdown, surg=surg,
+                                    base_date=base_date, adm=adm)
+    if not payload:
+        return None
+    cal = apply_recency_calibration(payload.get("meta") or {}, profit_breakdown, surg, adm,
+                                    base_date, cache_path=cache_path, calibrate=calibrate)
+    cf = cal["calibration_factor"]
+    dept_million: Dict[str, float] = {}
+    for dept, ser in (payload.get("series_by_dept") or {}).items():
+        vals = [v for v in (ser.get("values_blend_total") or []) if v is not None]
+        if vals:
+            dept_million[dept] = round(vals[-1] * cf, 2)
+    return {"month": _month_floor(base_date), "hospital_million": cal["g_million"],
+            "dept_million": dept_million, "calibration_factor": cf}
+
+
 def blend_and_calibrate_series(hospital_series: Dict[str, Any],
                                factor: float,
                                anchor: int = MTD_BLEND_ANCHOR) -> Dict[str, Any]:

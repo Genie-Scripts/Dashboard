@@ -18,6 +18,7 @@ alerts.py が返した「確定事実」を受け取り、ローカルLLMで
 from __future__ import annotations
 import json
 import logging
+import re
 from typing import Optional
 
 from .llm import DEFAULT_MODEL, chat_json
@@ -119,6 +120,7 @@ def _narrate_one(alert: dict, model: str, temperature: float) -> Optional[dict]:
 # ────────────────────────────────────
 # ねらい＝週末(土日)の在院維持＝タイミングの平準化。金曜に集中した退院を平日へ
 # 分散し、週末入院で空床を補充する（ベッド回転）。在院日数の延長＝月曜延伸は禁止。
+_LEVELING_BANNED = ("延伸", "早期退院")   # 危険な提案の機械的ブロック（プロンプト指示の二重化）
 LEVELING_ACTION_SYSTEM_PROMPT = """あなたは病院の病床管理を支援する要約ライターです。各部門の「週末（土日）に在院が落ち込む状況」への“今週の一手”を、与えられた事実だけから日本語で書きます。以下を厳守してください。
 
 【厳守事項】
@@ -141,6 +143,20 @@ def _q_room(room, max_room):
     if frac >= 0.66: return "大きい"
     if frac >= 0.33: return "中程度"
     return "小さい"
+
+
+def _q_target_gap(actual, target) -> Optional[str]:
+    """「実績 ÷ 目標」の達成度を定性語へ（新入院・全麻など「高いほど良い」指標に共通）。
+    数値そのものは返さない（LLMプロンプト/定型文の両方から使う "事実" はこの定性語のみ）。
+    """
+    if not target or actual is None:
+        return None
+    ratio = actual / target
+    if ratio >= 1.0:
+        return "目標を達成している"
+    if ratio >= 0.85:
+        return "目標をやや下回っている"
+    return "目標を明確に下回っている"
 
 
 def _q_state_trend(retention, room_delta):
@@ -245,6 +261,37 @@ def _extract_body_action(text: str) -> Optional[dict]:
     return {"body": str(obj["body"]).strip(), "action": str(obj["action"]).strip()}
 
 
+# ────────────────────────────────────
+# ハルシネーション対策（プロンプト指示だけに頼らない機械的ガード）
+# ────────────────────────────────────
+# 事実プロンプトは定性語のみで構成しているため、出力に半角/全角数字が
+# 混ざる＝具体的な数値を勝手に補った(ハルシネーション)強いシグナルとして棄却する。
+_DIGIT_RE = re.compile(r"[0-9０-９]")
+_MAX_TEXT_LEN = 400   # 想定外の長文出力（暴走）も棄却
+
+
+def _is_hallucination_free(obj: Optional[dict], banned: tuple = ()) -> bool:
+    """{body, action} が安全か機械的に検査する。
+
+    1. 空/欠落は不可（呼び出し側で None 扱い）
+    2. 数字（具体的な数値の再引用・捏造）を含んだら不可
+    3. トピック固有の禁止フレーズ（安全でない提案）を含んだら不可
+    4. 極端な長文（暴走出力）は不可
+    """
+    if not obj:
+        return False
+    text = "".join(str(v) for v in obj.values())
+    if not text.strip():
+        return False
+    if _DIGIT_RE.search(text):
+        return False
+    if any(p in text for p in banned):
+        return False
+    if len(text) > _MAX_TEXT_LEN:
+        return False
+    return True
+
+
 def narrate_leveling_actions(weekend_leveling: dict,
                              dow_unit_detail: Optional[dict] = None,
                              top_n: int = 6,
@@ -275,13 +322,135 @@ def narrate_leveling_actions(weekend_leveling: dict,
                     user=_build_leveling_prompt(u, entity, max_room, det.get(u["name"])),
                     model=model, temperature=temperature, max_tokens=DEFAULT_NUM_PREDICT,
                 )
-                u["narrative"] = _extract_body_action(content)
+                parsed = _extract_body_action(content)
+                u["narrative"] = (parsed if _is_hallucination_free(parsed, banned=_LEVELING_BANNED)
+                                  else None)
             except Exception as e:
                 logger.warning(f"oMLX 呼び出し失敗 (leveling {entity}:{u['name']}): {e}")
                 u["narrative"] = None
             if not quiet:
                 print(f"    [AI] {'✓' if u.get('narrative') else '—'} leveling {entity}:{u['name']}")
     return weekend_leveling
+
+
+# ────────────────────────────────────
+# 新入院／全麻の「今週の一手」（病床平準化以外のトピック）
+# ────────────────────────────────────
+# 部門レポートの「この期間の一手」は従来、週末在院の平準化（病床管理）一辺倒だった。
+# 平準化ののびしろが小さい部門では、新入院や全麻(外科系)など他の目標未達を
+# 拾って一手にする（dept_report._select_action_topic がトピックを選定し、ここは
+# 選ばれたトピックを事実→文章化するだけ＝計算・トピック選定はしない）。
+#
+# この2トピックは _q_target_gap の「達成度（静的な水準）」しか事実として渡さない
+# ＝傾向（増加/減少/改善/悪化）や原因は一切与えていない。実地テストで「紹介患者数が
+# 減少傾向にあります」のように与えていない傾向・原因を補う出力を確認したため、
+# 「傾向」を含む出力は事実にない主張として機械的に棄却する（数字チェックだけでは
+# 検知できないハルシネーションのための追加ガード）。
+_ADMISSION_BANNED = ("診断", "処方", "投与", "術式", "手術を追加", "傾向")
+_SURGERY_BANNED = ("診断", "処方", "投与", "術式を追加", "傾向")
+
+ADMISSION_ACTION_SYSTEM_PROMPT = """あなたは病院経営を支援する要約ライターです。各部門の「新入院（週間の入院受け入れ）」の状況への“今週の一手”を、与えられた事実だけから日本語で書きます。以下を厳守してください。
+
+【厳守事項】
+1. 与えられた事実のみを使う。新しい数値・原因・固有名を足さない。本文に数値を再引用しない（定性語のみ使う）。
+2. ねらいは新入院（週間の入院受け入れ件数）を目標水準へ近づけること。具体策は「地域医療連携（紹介元）への働きかけ強化」「予定入院枠の繰り上げ・前倒しの検討」など、運用面の一般的な対応にとどめる。
+3. 特定の疾患・術式・患者を名指しした医療行為の指示はしない（臨床判断はしない）。
+4. 出力は指定 JSON のみ。前置き・説明・``` を付けない。簡潔・丁寧・事務的なトーン。
+
+【出力スキーマ】
+{
+  "body": "新入院の状況を述べる本文 50〜80字（数値を使わない定性的記述）",
+  "action": "今週の一手 40〜70字（運用面の対応のみ。臨床判断・具体的な数値は書かない）"
+}"""
+
+SURGERY_ACTION_SYSTEM_PROMPT = """あなたは病院経営を支援する要約ライターです。各診療科の「全身麻酔手術件数」の状況への“今週の一手”を、与えられた事実だけから日本語で書きます。以下を厳守してください。
+
+【厳守事項】
+1. 与えられた事実のみを使う。新しい数値・原因・固有名を足さない。本文に数値を再引用しない（定性語のみ使う）。
+2. ねらいは全身麻酔手術件数を目標水準へ近づけること。具体策は「手術枠の稼働状況の確認」「執刀医との症例調整」など、運用面の一般的な対応にとどめる。
+3. 特定の疾患・術式・患者を名指しした医療行為の指示はしない（臨床判断はしない）。
+4. 出力は指定 JSON のみ。前置き・説明・``` を付けない。簡潔・丁寧・事務的なトーン。
+
+【出力スキーマ】
+{
+  "body": "全身麻酔手術の状況を述べる本文 50〜80字（数値を使わない定性的記述）",
+  "action": "今週の一手 40〜70字（運用面の対応のみ。臨床判断・具体的な数値は書かない）"
+}"""
+
+
+def _build_admission_prompt(unit_name: str, entity: str, state: str) -> str:
+    label = "診療科" if entity == "dept" else "病棟"
+    return f"""以下の事実から、{label}「{unit_name}」の新入院に関する“今週の一手”を JSON で1つだけ出力してください。
+
+【対象】{label}: {unit_name}
+【新入院（直近7日）の状況】
+- {state}
+
+【書き方】
+- body=新入院の状況の要約（数値を使わない定性的記述）。
+- action=今週の一手（地域医療連携の強化、予定入院枠の調整など運用面の対応）。
+- JSON 以外（```・前置き・末尾コメント）を出力しない。"""
+
+
+def _build_surgery_prompt(dept_name: str, state: str) -> str:
+    return f"""以下の事実から、診療科「{dept_name}」の全身麻酔手術に関する“今週の一手”を JSON で1つだけ出力してください。
+
+【対象】診療科: {dept_name}
+【全身麻酔手術（直近7日）の状況】
+- {state}
+
+【書き方】
+- body=全身麻酔手術の状況の要約（数値を使わない定性的記述）。
+- action=今週の一手（手術枠の稼働確認、執刀医との症例調整など運用面の対応）。
+- JSON 以外（```・前置き・末尾コメント）を出力しない。"""
+
+
+def narrate_admission_action(unit_name: str, entity: str, na, na_tgt,
+                             model: str = DEFAULT_MODEL,
+                             temperature: float = DEFAULT_TEMPERATURE,
+                             quiet: bool = False) -> Optional[dict]:
+    """新入院トピックの「今週の一手」を1ユニット分生成する（oMLX未起動/棄却時は None）。"""
+    state = _q_target_gap(na, na_tgt)
+    if state is None:
+        return None
+    result = None
+    try:
+        content = chat_json(
+            system=ADMISSION_ACTION_SYSTEM_PROMPT,
+            user=_build_admission_prompt(unit_name, entity, state),
+            model=model, temperature=temperature, max_tokens=DEFAULT_NUM_PREDICT,
+        )
+        parsed = _extract_body_action(content)
+        result = parsed if _is_hallucination_free(parsed, banned=_ADMISSION_BANNED) else None
+    except Exception as e:
+        logger.warning(f"oMLX 呼び出し失敗 (admission {entity}:{unit_name}): {e}")
+    if not quiet:
+        print(f"    [AI] {'✓' if result else '—'} admission {entity}:{unit_name}")
+    return result
+
+
+def narrate_surgery_action(dept_name: str, sv, surg_tgt,
+                          model: str = DEFAULT_MODEL,
+                          temperature: float = DEFAULT_TEMPERATURE,
+                          quiet: bool = False) -> Optional[dict]:
+    """全麻トピックの「今週の一手」を1ユニット分生成する（oMLX未起動/棄却時は None）。"""
+    state = _q_target_gap(sv, surg_tgt)
+    if state is None:
+        return None
+    result = None
+    try:
+        content = chat_json(
+            system=SURGERY_ACTION_SYSTEM_PROMPT,
+            user=_build_surgery_prompt(dept_name, state),
+            model=model, temperature=temperature, max_tokens=DEFAULT_NUM_PREDICT,
+        )
+        parsed = _extract_body_action(content)
+        result = parsed if _is_hallucination_free(parsed, banned=_SURGERY_BANNED) else None
+    except Exception as e:
+        logger.warning(f"oMLX 呼び出し失敗 (surgery {dept_name}): {e}")
+    if not quiet:
+        print(f"    [AI] {'✓' if result else '—'} surgery dept:{dept_name}")
+    return result
 
 
 def narrate_alerts(alerts: list[dict],
