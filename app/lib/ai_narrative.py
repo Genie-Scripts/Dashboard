@@ -18,6 +18,7 @@ alerts.py が返した「確定事実」を受け取り、ローカルLLMで
 from __future__ import annotations
 import json
 import logging
+import os
 import re
 import zlib
 from collections import Counter
@@ -134,7 +135,7 @@ LEVELING_ACTION_SYSTEM_PROMPT = """あなたは病院の病床管理を支援す
 3. 在院日数の延長（退院を月曜まで遅らせる＝月曜延伸）や早期退院の促進は提案しない（禁止）。狙いはベッド回転であって延伸ではない。
 4. 診療科は患者の退院曜日と予定入院の曜日設計がレバー（床は持たない）。病棟は相乗り科の退院曜日の交通整理と週末入院の受け入れがレバー。
 5. 事実に含まれる対比（「〜が」「〜ものの」等）はそのまま保つ。現状（在院の落ち込み）と傾向（改善/悪化）が食い違うときは逆接でつなぎ、順接（「〜ており」等）で並べない。
-6. 事実が多いときは、最も特徴的な2〜3点に絞って本文をまとめる（全部を羅列しない）。
+6. 事実が多いときは、最も特徴的な2〜3点に絞って本文をまとめる（全部を羅列しない）。「前回レポートとの比較」が与えられた場合は、その変化（特に改善）を前向きに織り込む。与えられていない場合は前回に言及しない。
 7. 【出力例】は言い回しの参考。例文の文をそのまま写さず、与えられた事実の言葉を言い換えて本文を組み立てる。
 8. 出力は指定 JSON のみ。前置き・説明・``` を付けない。簡潔・丁寧・事務的なトーン。
 
@@ -252,15 +253,23 @@ def _q_yoy(cur, prev) -> Optional[str]:
     return "前年同期と同水準で推移している"
 
 
+def _q_ret_level(retention) -> Optional[str]:
+    """週末在院維持率のレベル（good ≥.90 / mild ≥.86 / poor）。_q_state_trend と
+    差分ナラティブ（前回レポート比較のバケット遷移）が同じ境界を共有する。"""
+    if retention is None:
+        return None
+    return "good" if retention >= 0.90 else "mild" if retention >= 0.86 else "poor"
+
+
 def _q_state_trend(retention, room_delta):
     """週末在院の「現状（維持率レベル）」×「傾向（4週Δの向き）」を、対比の接続を
     Python側で確定させた1つの事実文として返す。現状と傾向が食い違うケースを逆接
     （〜が）でつなぐことで、LLMが順接で誤接続するのを防ぐ。
     現状: good(≥.90)/mild(≥.86)/poor(<.86)/unknown。傾向: up(改善 rd<-0.5)/down(悪化 rd>0.5)/flat。
     """
-    if retention is None:
+    state = _q_ret_level(retention)
+    if state is None:
         return "週末在院の維持状況は不明"
-    state = "good" if retention >= 0.90 else "mild" if retention >= 0.86 else "poor"
     trend = "up" if (room_delta is not None and room_delta < -0.5) else \
             "down" if (room_delta is not None and room_delta > 0.5) else "flat"
     table = {
@@ -388,7 +397,8 @@ def _leveling_levers(entity: str, latewk: Optional[dict], adm: Optional[dict],
 
 
 def _build_leveling_prompt(unit: dict, entity: str, max_room: float, dd: Optional[dict],
-                           peer: Optional[str] = None) -> str:
+                           peer: Optional[str] = None,
+                           delta: Optional[str] = None) -> str:
     label = "診療科" if entity == "dept" else "病棟"
     facts = [
         # 現状×傾向は逆接の接続まで含めて1事実に確定（順接での誤接続を防ぐ）
@@ -404,6 +414,7 @@ def _build_leveling_prompt(unit: dict, entity: str, max_room: float, dd: Optiona
     thin = _q_thin_latewk_adm(dd)
     if thin: facts.append(f"平日の入院の谷: 週末前の{thin}の予定入院が薄い")
     if peer: facts.append(f"同種の{label}の中での週末在院の維持: {peer}に位置する")
+    if delta: facts.append(f"前回レポートとの比較: {delta}")
     facts_block = "\n".join(f"- {f}" for f in facts)
     # レバーは事実に適応：週後半集中なら退院分散、補充が弱ければ週末入院強化を主にする
     disperse, refill, mode = _leveling_levers(entity, latewk, adm, thin)
@@ -508,6 +519,44 @@ def _unit_allow(name: str) -> tuple:
 
 RETRY_TEMPERATURE = 0.2   # 再試行は堅い方へ寄せる（棄却はサンプリング起因が多い）
 
+# ────────────────────────────────────
+# 意味整合の第2パス検査（②-1）
+# ────────────────────────────────────
+# 数字/禁止語ガードでは検知できない「意味の歪み」クラス（例:「落ち込みが拡大」→
+# 「在院が拡大傾向」の反転圧縮、崩れた文）を、生成後にもう1度LLMで検査する。
+# fail-open 設計＝検査自体の失敗（モデル未取得等）は採択を妨げない（QA停止で全滅させない）。
+# AI_NARRATIVE_JUDGE=0 で無効化。OMLX_JUDGE_MODEL で生成と別モデルの検査も可。
+JUDGE_ENABLED = os.environ.get("AI_NARRATIVE_JUDGE", "1") != "0"
+JUDGE_MODEL = os.environ.get("OMLX_JUDGE_MODEL", "") or None   # None=生成と同じモデル
+
+JUDGE_SYSTEM_PROMPT = """あなたは検査員です。【資料】（事実と書き方の指示）と【要約】（body/action）を比べ、次の2点だけを検査します。
+(a) 要約が資料に無い事実・数値・固有名を足していないか
+(b) 資料の事実の方向（改善/悪化・達成/未達・集中/平準・上回る/下回る）を逆にしていないか
+言い換え・省略・文体・トーンは問題にしません。action が資料のレバーの範囲の一般的な運用対応であることは許容します。
+出力は {"ok": true} または {"ok": false, "reason": "簡潔な理由"} のJSONのみ。前置きを付けない。"""
+
+
+def _judge_consistency(user_prompt: str, obj: dict, seed: int,
+                       model: str, tag: str) -> bool:
+    """採択候補 {body, action} が与えた事実と矛盾しないか第2パスで検査する。
+
+    資料には生成プロンプトの事実部分のみを渡す（【書き方】以降の生成指示を含めると
+    検査員がそれに引きずられて判定を誤ることを実験で確認済み）。"""
+    material = user_prompt.split("【書き方】")[0].strip()
+    try:
+        content = chat_json(
+            system=JUDGE_SYSTEM_PROMPT,
+            user=(f"【資料】\n{material}\n\n【要約】\nbody: {obj['body']}\n"
+                  f"action: {obj['action']}\n\nJSONで判定してください。"),
+            model=model, temperature=0.0, max_tokens=120, seed=seed)
+        s, e = content.find("{"), content.rfind("}")
+        verdict = json.loads(content[s:e + 1]) if (s >= 0 and e > s) else {}
+        return bool(verdict.get("ok", True))
+    except Exception as exc:
+        logger.warning(f"judge 呼び出し失敗 ({tag}): {exc}")
+        REJECT_STATS["judge_err"] += 1
+        return True   # fail-open
+
 
 def _generate_checked(tag: str, system: str, user: str, banned: tuple,
                       allow: tuple = (), model: str = DEFAULT_MODEL,
@@ -544,6 +593,11 @@ def _generate_checked(tag: str, system: str, user: str, banned: tuple,
         parsed = _extract_body_action(content)
         reason = _rejection_reason(parsed, banned=banned, allow=allow)
         if reason is None:
+            # 機械ガード通過後、意味整合の第2パス（②-1）。矛盾判定なら再試行→fallback。
+            if JUDGE_ENABLED and not _judge_consistency(
+                    user, parsed, base_seed + 101 + attempt, JUDGE_MODEL or model, tag):
+                REJECT_STATS["judge"] += 1
+                continue
             result = {**parsed, "src": "ai"}
             REJECT_STATS["ok@retry" if attempt else "ok"] += 1
             break
@@ -559,7 +613,8 @@ def narrate_leveling_actions(weekend_leveling: dict,
                              model: str = DEFAULT_MODEL,
                              temperature: float = DEFAULT_TEMPERATURE,
                              quiet: bool = False,
-                             peers: Optional[dict] = None) -> dict:
+                             peers: Optional[dict] = None,
+                             deltas: Optional[dict] = None) -> dict:
     """週末のびしろ payload の各エンティティについて、のびしろ上位 top_n ユニットに
     `narrative`={body, action}（or None）を付与する（破壊的更新して返す）。
 
@@ -568,6 +623,8 @@ def narrate_leveling_actions(weekend_leveling: dict,
     - 数値はフロント（KPI/ランキング/曜日棒）が表示し、LLM は定性的な一手のみ。
     - peers: ユニット名→同種内の相対位置（上位/中位/下位）。部門レポート（診療科軸）
       だけが渡す。ポータル（html_builder）は従来どおり未指定＝peer事実なし。
+    - deltas: ユニット名→前回レポート比較の事実文（①差分ナラティブ・部門レポートのみ）。
+      渡さないユニットは「前回」を禁止語にする（捏造ガードの連動緩和）。
     """
     if not weekend_leveling:
         return weekend_leveling
@@ -580,12 +637,15 @@ def narrate_leveling_actions(weekend_leveling: dict,
         det = (dow_unit_detail or {}).get(entity, {}) or {}
         targets = sorted(units, key=lambda u: u.get("room_per_week", 0), reverse=True)[:top_n]
         for u in targets:
+            delta = (deltas or {}).get(u["name"])
+            banned = _LEVELING_BANNED if delta else _LEVELING_BANNED + ("前回",)
             u["narrative"] = _generate_checked(
                 f"leveling {entity}:{u['name']}",
                 system=LEVELING_ACTION_SYSTEM_PROMPT,
                 user=_build_leveling_prompt(u, entity, max_room, det.get(u["name"]),
-                                            peer=(peers or {}).get(u["name"])),
-                banned=_LEVELING_BANNED, allow=_unit_allow(u["name"]),
+                                            peer=(peers or {}).get(u["name"]),
+                                            delta=delta),
+                banned=banned, allow=_unit_allow(u["name"]),
                 model=model, temperature=temperature, quiet=quiet)
     return weekend_leveling
 
@@ -660,22 +720,20 @@ SURGERY_ACTION_SYSTEM_PROMPT = """あなたは病院経営を支援する要約�
 {"body":"全身麻酔手術は目標を達成し、足元でも堅調に推移しています。","action":"現状の手術枠運用を維持し、稼働の平準化に留意しましょう。"}"""
 
 
-def _facts_lines(state: str, peer: Optional[str], peer_label: str,
-                 yoy: Optional[str] = None) -> str:
-    """state に加え、同種科内の相対位置(peer)・前年同期比較(yoy)があれば事実として並べる。"""
-    lines = [f"- {state}"]
-    if peer:
-        lines.append(f"- {peer_label}の中では{peer}に位置する")
-    if yoy:
-        lines.append(f"- 前年同期との比較: {yoy}")
-    return "\n".join(lines)
-
-
 def _build_admission_prompt(unit_name: str, entity: str, state: str,
                             peer: Optional[str] = None,
-                            yoy: Optional[str] = None) -> str:
+                            yoy: Optional[str] = None,
+                            delta: Optional[str] = None,
+                            mix: Optional[str] = None,
+                            holiday: Optional[str] = None) -> str:
     label = "診療科" if entity == "dept" else "病棟"
-    facts = _facts_lines(state, peer, "同種の診療科", yoy=yoy)
+    lines = [f"- {state}"]
+    if peer:    lines.append(f"- 同種の診療科の中では{peer}に位置する")
+    if yoy:     lines.append(f"- 前年同期との比較: {yoy}")
+    if delta:   lines.append(f"- 前回レポートとの比較: {delta}")
+    if mix:     lines.append(f"- 入院の内訳: {mix}")
+    if holiday: lines.append(f"- 補足: {holiday}")
+    facts = "\n".join(lines)
     return f"""以下の事実から、{label}「{unit_name}」の新入院に関する“今週の一手”を JSON で1つだけ出力してください。
 
 【対象】{label}: {unit_name}
@@ -683,14 +741,25 @@ def _build_admission_prompt(unit_name: str, entity: str, state: str,
 {facts}
 
 【書き方】
-- body=新入院の状況の要約（数値を使わない定性的記述）。相対位置・前年同期比較が与えられていれば軽く織り込んでよい（目標未達でも前年を上回るなら、その点は前向きに触れる）。
+- body=新入院の状況の要約（数値を使わない定性的記述）。相対位置・前年同期比較・前回レポート比較が与えられていれば軽く織り込んでよい（目標未達でも前年や前回を上回るなら、その点は前向きに触れる）。
+- 「入院の内訳」が与えられていれば、actionのレバー選びに反映する（緊急中心の部門に紹介・予定枠の一般論を当てない）。
+- 「補足」に祝日の記載があれば、水準の低さを断定的に責めず、その影響に軽く触れてよい。
 - action=今週の一手（地域医療連携の強化、予定入院枠の調整など運用面の対応）。
 - JSON 以外（```・前置き・末尾コメント）を出力しない。"""
 
 
 def _build_surgery_prompt(dept_name: str, state: str, peer: Optional[str] = None,
-                          yoy: Optional[str] = None) -> str:
-    facts = _facts_lines(state, peer, "外科系の診療科", yoy=yoy)
+                          yoy: Optional[str] = None,
+                          delta: Optional[str] = None,
+                          or_load: Optional[str] = None,
+                          holiday: Optional[str] = None) -> str:
+    lines = [f"- {state}"]
+    if peer:    lines.append(f"- 外科系の診療科の中では{peer}に位置する")
+    if yoy:     lines.append(f"- 前年同期との比較: {yoy}")
+    if delta:   lines.append(f"- 前回レポートとの比較: {delta}")
+    if or_load: lines.append(f"- 手術室全体の稼働: {or_load}")
+    if holiday: lines.append(f"- 補足: {holiday}")
+    facts = "\n".join(lines)
     return f"""以下の事実から、診療科「{dept_name}」の全身麻酔手術に関する“今週の一手”を JSON で1つだけ出力してください。
 
 【対象】診療科: {dept_name}
@@ -698,13 +767,17 @@ def _build_surgery_prompt(dept_name: str, state: str, peer: Optional[str] = None
 {facts}
 
 【書き方】
-- body=全身麻酔手術の状況の要約（数値を使わない定性的記述）。相対位置・前年同期比較が与えられていれば軽く織り込んでよい（目標未達でも前年を上回るなら、その点は前向きに触れる）。
+- body=全身麻酔手術の状況の要約（数値を使わない定性的記述）。相対位置・前年同期比較・前回レポート比較が与えられていれば軽く織り込んでよい（目標未達でも前年や前回を上回るなら、その点は前向きに触れる）。
+- 「手術室全体の稼働」が与えられていれば、actionに反映する（空きがあるなら症例の積み増し、埋まっているなら枠の調整・効率化）。
+- 「補足」に祝日の記載があれば、水準の低さを断定的に責めず、その影響に軽く触れてよい。
 - action=今週の一手（手術枠の稼働確認、執刀医との症例調整など運用面の対応）。
 - JSON 以外（```・前置き・末尾コメント）を出力しない。"""
 
 
 def narrate_admission_action(unit_name: str, entity: str, na, na_tgt, trend: Optional[str] = None,
                              peer: Optional[str] = None, yoy: Optional[str] = None,
+                             delta: Optional[str] = None, mix: Optional[str] = None,
+                             holiday: Optional[str] = None,
                              model: str = DEFAULT_MODEL,
                              temperature: float = DEFAULT_TEMPERATURE,
                              quiet: bool = False) -> Optional[dict]:
@@ -715,6 +788,8 @@ def narrate_admission_action(unit_name: str, entity: str, na, na_tgt, trend: Opt
     1つの事実文に確定する。方向語（改善/悪化）を渡した場合のみ禁止語の "傾向" を解除する。
     peer: 同種科内の相対位置（上位/中位/下位・診療科軸のみ）。
     yoy: 前年同期比較（_q_yoy の確定文・BチャートのCur/prevから）。
+    delta: 前回レポート比較（①差分ナラティブ）。mix: 予定/緊急の内訳（①-2）。
+    holiday: 連休文脈（①-4）。いずれも渡さない場合は対応語を禁止語にする（連動緩和）。
     """
     state = _q_target_gap_trend(na, na_tgt, trend)
     if state is None:
@@ -724,16 +799,23 @@ def narrate_admission_action(unit_name: str, entity: str, na, na_tgt, trend: Opt
         # 「傾向」と同じ連動緩和: 前年比較を事実として渡していないのに「前年」を書いたら捏造
         # （ICU=NO_PREVYEAR_WARDSで「前年同期と比較するとほぼ同程度」の実例を観測）
         banned = banned + ("前年",)
+    if delta is None:
+        banned = banned + ("前回",)
+    if holiday is None:
+        banned = banned + ("祝日", "連休")
     return _generate_checked(
         f"admission {entity}:{unit_name}",
         system=ADMISSION_ACTION_SYSTEM_PROMPT,
-        user=_build_admission_prompt(unit_name, entity, state, peer=peer, yoy=yoy),
+        user=_build_admission_prompt(unit_name, entity, state, peer=peer, yoy=yoy,
+                                     delta=delta, mix=mix, holiday=holiday),
         banned=banned, allow=_unit_allow(unit_name),
         model=model, temperature=temperature, quiet=quiet)
 
 
 def narrate_surgery_action(dept_name: str, sv, surg_tgt, trend: Optional[str] = None,
                           peer: Optional[str] = None, yoy: Optional[str] = None,
+                          delta: Optional[str] = None, or_load: Optional[str] = None,
+                          holiday: Optional[str] = None,
                           model: str = DEFAULT_MODEL,
                           temperature: float = DEFAULT_TEMPERATURE,
                           quiet: bool = False) -> Optional[dict]:
@@ -743,6 +825,8 @@ def narrate_surgery_action(dept_name: str, sv, surg_tgt, trend: Optional[str] = 
     narrate_admission_action と同じレベル×傾向の連動緩和を適用する。
     peer: 外科系診療科内の相対位置（上位/中位/下位）。
     yoy: 前年同期比較（_q_yoy の確定文・CチャートのCur/prevから）。
+    delta: 前回レポート比較（①差分ナラティブ）。or_load: 手術室全体の稼働（①-3）。
+    holiday: 連休文脈（①-4）。前回/祝日は渡さない場合に禁止語へ（連動緩和）。
     """
     state = _q_target_gap_trend(sv, surg_tgt, trend)
     if state is None:
@@ -750,10 +834,15 @@ def narrate_surgery_action(dept_name: str, sv, surg_tgt, trend: Optional[str] = 
     banned = _SURGERY_BANNED_TREND_OK if trend in ("上昇", "低下") else _SURGERY_BANNED
     if yoy is None:
         banned = banned + ("前年",)   # narrate_admission_action と同じ連動緩和
+    if delta is None:
+        banned = banned + ("前回",)
+    if holiday is None:
+        banned = banned + ("祝日", "連休")
     return _generate_checked(
         f"surgery dept:{dept_name}",
         system=SURGERY_ACTION_SYSTEM_PROMPT,
-        user=_build_surgery_prompt(dept_name, state, peer=peer, yoy=yoy),
+        user=_build_surgery_prompt(dept_name, state, peer=peer, yoy=yoy,
+                                   delta=delta, or_load=or_load, holiday=holiday),
         banned=banned, allow=_unit_allow(dept_name),
         model=model, temperature=temperature, quiet=quiet)
 
@@ -768,10 +857,11 @@ def narrate_surgery_action(dept_name: str, sv, surg_tgt, trend: Optional[str] = 
 # 「週末含めた受け入れ体制（病床運用）の維持」に置き換えた専用プロンプトを使う
 # （トピック選定＝ leveling/admission のどちらが大きいかの判定自体は共通ロジックを流用し、
 # 文言だけをこの病棟向けに差し替える）。
-# 「前年」= 救急系にも前年比較の事実は渡さない＝出たら捏造（連動緩和の対象外・常時禁止）
-_EMERGENCY_LEVELING_BANNED = ("延伸", "早期退院", "予定入院", "紹介", "前年")
+# 「前年」「前回」= 救急系には前年比較・前回レポート比較の事実を渡さない＝出たら捏造
+# （連動緩和の対象外・常時禁止）
+_EMERGENCY_LEVELING_BANNED = ("延伸", "早期退院", "予定入院", "紹介", "前年", "前回")
 _EMERGENCY_ADMISSION_BANNED_BASE = ("予定入院", "紹介", "地域医療連携",
-                                   "稼働", "占有率", "逼迫", "余地が限られ", "前年")
+                                   "稼働", "占有率", "逼迫", "余地が限られ", "前年", "前回")
 _EMERGENCY_ADMISSION_BANNED = _EMERGENCY_ADMISSION_BANNED_BASE + ("傾向",)
 _EMERGENCY_ADMISSION_BANNED_TREND_OK = _EMERGENCY_ADMISSION_BANNED_BASE
 
@@ -920,6 +1010,8 @@ def _build_hospital_summary_prompt(facts: list[str], lever: str) -> str:
 def narrate_hospital_summary(facts: list[str], lever: str,
                              leader: Optional[str] = None,
                              extra_banned: tuple = (),
+                             has_delta: bool = False,
+                             has_holiday: bool = False,
                              model: str = DEFAULT_MODEL,
                              temperature: float = DEFAULT_TEMPERATURE,
                              quiet: bool = False) -> Optional[dict]:
@@ -932,14 +1024,21 @@ def narrate_hospital_summary(facts: list[str], lever: str,
     leader: 事実に含めた牽引部門名（2-3・褒める方向のみ）。病棟名の数字を許容するため
     allow に渡す。extra_banned: **leader 以外の全部門名**（渡していない部門名を書いたら
     捏造として棄却＝固有名禁止の連動緩和。「傾向」「前年」と同じパターン）。
+    has_delta/has_holiday: 前回レポート比較・祝日補足を事実に含めたか（含めない場合は
+    「前回」「祝日」「連休」を禁止語にする連動緩和）。
     """
     if not facts:
         return None
+    banned = _HOSPITAL_SUMMARY_BANNED + tuple(extra_banned)
+    if not has_delta:
+        banned = banned + ("前回",)
+    if not has_holiday:
+        banned = banned + ("祝日", "連休")
     return _generate_checked(
         "hospital-summary",
         system=HOSPITAL_SUMMARY_SYSTEM_PROMPT,
         user=_build_hospital_summary_prompt(facts, lever),
-        banned=_HOSPITAL_SUMMARY_BANNED + tuple(extra_banned),
+        banned=banned,
         allow=_unit_allow(leader or ""),
         model=model, temperature=temperature, quiet=quiet)
 

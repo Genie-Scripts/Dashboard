@@ -13,8 +13,10 @@ profit_monthly)から、診療科版・病棟版それぞれ「1部門=1コン�
 """
 from __future__ import annotations
 
+import json
 import math
 from datetime import timedelta
+from pathlib import Path
 from typing import Optional
 
 import pandas as pd
@@ -30,6 +32,7 @@ from .metrics import (
     build_daily_series, build_surgery_daily_series,
     build_kpi_summary, dow_event_profile,
     build_dept_ranking, build_surgery_ranking,
+    daily_or_utilization,
 )
 from .charts import build_dow_unit_detail, _dow_unit_candidates
 from .ai_narrative import (
@@ -38,6 +41,7 @@ from .ai_narrative import (
     narrate_hospital_summary,
     _q_latewk_discharge, _q_weekend_adm, _q_census_dip, _q_thin_latewk_adm,
     _leveling_levers, _q_state_trend, _q_target_gap, _q_target_gap_trend, _q_yoy,
+    _gap_level_tier, _q_ret_level,
 )
 from .hospital_summary import render_trend_svg, _ma_series, _surg_series
 from .profit_estimate import fit_profit_estimators, project_dept_monthend
@@ -554,6 +558,211 @@ def _util_highlight(util_now, tgt_util, beds, util_series) -> Optional[str]:
 
 
 # ════════════════════════════════════════════════════════════
+# ① 新情報系の事実quantizer（予定/緊急内訳・OR稼働・連休文脈）
+# ════════════════════════════════════════════════════════════
+def _q_planned_mix(adm, base_date, dept_name) -> Optional[str]:
+    """新入院に占める予定入院の割合（直近4完全週 vs 前4週・診療科軸のみ）。
+
+    予定=「入院患者数」列・新入院=予定+緊急（preprocess）。実データ較正(2026-07-02):
+    Δは概ね±10pt内に分布し、実変化はリウマチ−31pt/皮膚−20pt/消化器−16pt等。
+    直近4週の新入院20件未満は None（小規模ノイズ）。トピックのレバー選び
+    （緊急中心の科に紹介・予定枠の一般論を当てない）のための事実。"""
+    monday = base_date - timedelta(days=base_date.weekday())
+    d = adm[(adm["科_表示"]) & (adm["診療科名"] == dept_name)]
+
+    def _share(lo, hi):
+        w = d[(d["日付"] >= lo) & (d["日付"] <= hi)]
+        na = w["新入院患者数"].sum()
+        return ((w["入院患者数"].sum() / na) if na else None), na
+
+    cur, n_cur = _share(monday - timedelta(days=28), monday - timedelta(days=1))
+    prev, _ = _share(monday - timedelta(days=56), monday - timedelta(days=29))
+    if cur is None or n_cur < 20:
+        return None
+    if prev is not None:
+        dlt = (cur - prev) * 100
+        if dlt <= -10:
+            return "新入院に占める予定入院の割合が下がってきている（緊急への依存が増えている）"
+        if dlt >= 10:
+            return "新入院に占める予定入院の割合が持ち直してきている"
+    if cur < 0.30:
+        return "新入院は緊急入院が中心（予定入院は少ない）"
+    return None
+
+
+def _q_or_load(surg, base_date) -> Optional[str]:
+    """手術室全体の直近10営業日平均稼働率→3段階の定性文（全麻トピック共通の文脈）。
+    実データ較正(2026-07-02): 平均69.9%・範囲56〜78%。空きがあれば「症例の積み増し」、
+    埋まっていれば「枠の調整・効率化」へ action を向けるための事実。"""
+    biz = sorted(d for d in surg[surg["平日"]]["手術実施日"].unique()
+                 if pd.Timestamp(d) <= base_date)[-10:]
+    if len(biz) < 5:
+        return None
+    u = [daily_or_utilization(surg, pd.Timestamp(d)) for d in biz]
+    avg = sum(u) / len(u)
+    if avg >= 85:
+        return "手術室全体の枠はほぼ埋まっている"
+    if avg >= 70:
+        return "手術室全体の稼働はおおむね高いが、空き枠もある"
+    return "手術室全体の稼働には余裕がある（空き枠がある）"
+
+
+def _q_holiday_week(adm, base_date) -> Optional[str]:
+    """直近7日窓に祝日（暦上の平日だが営業日でない日＝GW/年末年始含む）を含むか。
+    含む週の未達を科の不調と誤読させないためのフェアネス文脈（①-4）。"""
+    w = adm[(adm["日付"] > base_date - timedelta(days=7)) & (adm["日付"] <= base_date)]
+    if len(w) == 0:
+        return None
+    days = w.groupby("日付")["平日"].first()
+    hol = [d for d, biz in days.items() if d.weekday() < 5 and not biz]
+    return "集計期間に祝日を含む（予定入院や手術は構造的に少なくなりやすい）" if hol else None
+
+
+# ════════════════════════════════════════════════════════════
+# ① 差分ナラティブ（前回レポート比較・バケット遷移のみ・悪化は控えめ）
+# ════════════════════════════════════════════════════════════
+# 週1〜2回更新でも比較の地平を約4週に固定する（近接比較はローリング窓の重複で
+# ノイズが支配的になり、境界フリップの「鞭打ち」で信頼を損なう）。言及は量子化
+# バケットの遷移のみ＝バケット幅が自然なヒステリシスとして働く。文はすべて
+# Python生成・数字なし（「約4週前」も数字を含むため「前回レポート時点」と表現）。
+_GAP_ORDER = {"poor": 0, "mild": 1, "close": 2, "met": 3, "exceed": 4}
+_RET_ORDER = {"poor": 0, "mild": 1, "good": 2}
+_LATEWK_ORDER = {"flat": 0, "mild": 1, "strong": 2}   # 大=集中が強い（悪い向き）
+_WADM_ORDER = {"none": 0, "limited": 1, "some": 2}    # 大=補充がある（良い向き）
+
+
+def _gap_delta_fact(label: str, prev, cur) -> Optional[tuple]:
+    """結果指標（新入院/全麻/病院KPI）のバケット遷移→(改善フラグ, 事実文)。
+    改善は1段階から言及、悪化は「達成圏からの転落 or 2段階以上」だけ言及
+    （職員発信トーン・境界ノイズの抑制）。"""
+    if prev not in _GAP_ORDER or cur not in _GAP_ORDER:
+        return None
+    d = _GAP_ORDER[cur] - _GAP_ORDER[prev]
+    if d >= 1:
+        if _GAP_ORDER[cur] >= _GAP_ORDER["met"] and _GAP_ORDER[prev] < _GAP_ORDER["met"]:
+            return (True, f"{label}は前回レポート時点の未達から、目標水準に到達した")
+        return (True, f"{label}は、前回レポート時点より改善している")
+    if d <= -2 or (_GAP_ORDER[prev] >= _GAP_ORDER["met"] and _GAP_ORDER[cur] <= _GAP_ORDER["mild"]):
+        return (False, f"{label}は、前回レポート時点から明確に低下している")
+    return None
+
+
+# 差分事実の次元 → それが自然に属する一手トピック（topic整合の優先付け用）。
+# leveling=週末平準化の原因/結果、admission=新入院、surgery=全麻。
+_DELTA_DIM_TOPIC = {"latewk": "leveling", "wadm": "leveling", "thin": "leveling",
+                    "ret": "leveling", "na": "admission", "surg": "surgery"}
+
+
+def _delta_facts(prev: Optional[dict], cur: dict) -> list:
+    """アンカー時点の状態タグ prev と現在 cur を比べ、(改善フラグ, 次元, 事実文) の候補を返す。
+
+    並び＝原因事実（退院集中/週末補充/薄い曜日/維持率）→結果指標（新入院/全麻）。
+    原因事実が先なのは、前回レポートの推奨レバーが動いたかのフィードバック
+    （「前回課題とした金曜集中が緩和」）こそ差分ナラティブ固有の価値のため。"""
+    if not prev:
+        return []
+    out = []
+    lp, lc = prev.get("latewk"), cur.get("latewk")
+    if lp in _LATEWK_ORDER and lc in _LATEWK_ORDER:
+        if lp == "strong" and _LATEWK_ORDER[lc] < _LATEWK_ORDER["strong"]:
+            out.append((True, "latewk", "前回レポートで課題とした週後半への退院集中は、前回時点より緩和している"))
+        elif lp == "mild" and lc == "flat":
+            out.append((True, "latewk", "退院曜日の偏りは、前回レポート時点より平準化してきている"))
+        elif lp != "strong" and lc == "strong":
+            out.append((False, "latewk", "退院の週後半への集中は、前回レポート時点より強まっている"))
+    wp, wc = prev.get("wadm"), cur.get("wadm")
+    if wp in _WADM_ORDER and wc in _WADM_ORDER:
+        if _WADM_ORDER[wc] > _WADM_ORDER[wp] and wp != "some":
+            out.append((True, "wadm", "前回レポートで乏しかった週末入院の補充は、前回時点より改善している"))
+        elif wc == "none" and wp != "none":
+            out.append((False, "wadm", "週末入院の補充は、前回レポート時点より弱まっている"))
+    if prev.get("thin") in ("木曜", "金曜") and cur.get("thin") is None:
+        out.append((True, "thin", "前回レポートで薄かった週末前の予定入院の谷は、解消してきている"))
+    rp, rc = prev.get("ret"), cur.get("ret")
+    if rp in _RET_ORDER and rc in _RET_ORDER:
+        if _RET_ORDER[rc] > _RET_ORDER[rp]:
+            out.append((True, "ret", "週末在院の維持は、前回レポート時点より改善している"))
+        elif _RET_ORDER[rp] - _RET_ORDER[rc] >= 2:
+            out.append((False, "ret", "週末在院の維持は、前回レポート時点から明確に低下している"))
+    for label, key in (("新入院", "na"), ("全身麻酔手術", "surg")):
+        g = _gap_delta_fact(label, prev.get(key), cur.get(key))
+        if g:
+            out.append((g[0], key, g[1]))
+    return out
+
+
+def _pick_delta(prev: Optional[dict], cur: dict, topic: Optional[str] = None) -> Optional[str]:
+    """候補から1件だけ選ぶ（事実過載を防ぐ）。優先順:
+      1. 選定トピックに次元が一致する改善（コメント本体と噛み合う前向きな変化）
+      2. 他次元の改善（前回比の良い知らせ＝士気・フェアネス。褒める方向は他トピックでも歓迎）
+      3. 選定トピックに一致する悪化（議論中のレバーそのものの後退＝載せる価値がある）
+    他次元の悪化は載せない（admissionコメントに週末補充の後退が混じる等の非連続・
+    名指し批判的トーンを避ける＝職員発信の思想）。topic=None は全次元を「一致」扱い。"""
+    cands = _delta_facts(prev, cur)
+    if not cands:
+        return None
+    on = [c for c in cands if topic is None or _DELTA_DIM_TOPIC.get(c[1]) == topic]
+    off = [c for c in cands if c not in on]
+    for imp, _dim, text in on:            # 1. on-topic 改善
+        if imp:
+            return text
+    for imp, _dim, text in off:           # 2. off-topic 改善
+        if imp:
+            return text
+    for imp, _dim, text in on:            # 3. on-topic 悪化
+        if not imp:
+            return text
+    return None
+
+
+# ── 事実スナップショット（差分ナラティブの状態アーカイブ・dept_reports/_state/） ──
+def _select_anchor_date(dates: list, base_date) -> Optional[pd.Timestamp]:
+    """アンカー基準日の選定: 21日以上古い候補から、42日以内の同曜日を優先しつつ
+    28日（=ちょうど4週・曜日が揃い7日窓の曜日構成バイアスが消える）に最も近いもの。
+    候補が無ければ None（初回導入時は差分言及なしで静かに立ち上がる）。"""
+    cands = [d for d in dates if (base_date - d).days >= 21]
+    if not cands:
+        return None
+    same_wd = [d for d in cands
+               if d.weekday() == base_date.weekday() and (base_date - d).days <= 42]
+    pool = same_wd or cands
+    return min(pool, key=lambda d: (abs((base_date - d).days - 28), (base_date - d).days))
+
+
+def load_delta_anchor(state_dir, base_date) -> Optional[dict]:
+    """_state/facts_*.json から差分ナラティブのアンカー（前回状態）を読む。"""
+    p = Path(state_dir)
+    if not p.is_dir():
+        return None
+    snaps = {}
+    for f in p.glob("facts_*.json"):
+        try:
+            snaps[pd.Timestamp(f.stem[len("facts_"):])] = f
+        except ValueError:
+            continue
+    d = _select_anchor_date(list(snaps), base_date)
+    if d is None:
+        return None
+    try:
+        data = json.loads(snaps[d].read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    data["_anchor_date"] = f"{d:%Y-%m-%d}"
+    return data
+
+
+def save_facts_snapshot(state_dir, base_date, units: dict, hospital: dict) -> Path:
+    """今回の量子化状態タグを保存する（同一基準日は上書き＝再ビルドで増殖しない）。"""
+    p = Path(state_dir)
+    p.mkdir(parents=True, exist_ok=True)
+    out = p / f"facts_{base_date:%Y-%m-%d}.json"
+    out.write_text(json.dumps({"base_date": f"{base_date:%Y-%m-%d}",
+                               "units": units, "hospital": hospital},
+                              ensure_ascii=False, indent=1), encoding="utf-8")
+    return out
+
+
+# ════════════════════════════════════════════════════════════
 # チャート組立（描画はヒーロー/半幅の高さ確定後）
 # ════════════════════════════════════════════════════════════
 def _trend_part(kind, name, series, ref, ref_label, unit, badge, note="") -> Optional[dict]:
@@ -734,13 +943,23 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
                                base_date: pd.Timestamp, generated_at,
                                *, hospital_name: str = "", with_ai: bool = True,
                                axes=("dept", "ward"), quiet: bool = False,
-                               profit_breakdown: pd.DataFrame = None) -> list:
-    """診療科版・病棟版それぞれの 1部門=1コンテキスト を返す（PDF描画用）。"""
+                               profit_breakdown: pd.DataFrame = None,
+                               delta_anchor: Optional[dict] = None) -> list:
+    """診療科版・病棟版それぞれの 1部門=1コンテキスト を返す（PDF描画用）。
+
+    delta_anchor: load_delta_anchor の戻り値（約4週前の量子化状態）。渡すと各ユニットの
+    一手に「前回レポートとの比較」事実が加わる。各コンテキストには "_state"（今回の
+    状態タグ）が付き、CLI 側が save_facts_snapshot で次回以降のアンカーとして保存する。
+    """
     period_start = (base_date - timedelta(days=WEEKS * 7 - 1)).strftime("%Y/%m/%d")
     period_end = base_date.strftime("%Y/%m/%d")
     r7_inp = rolling7_inpatient_avg(adm, base_date)
     r7_nadm = rolling7_new_admission(adm, base_date)
     r7_surg = rolling7_surgery(surg, base_date)
+    # ①-3/①-4: ビルド単位の共通事実（全麻トピックのOR稼働・連休フェアネス文脈）
+    or_fact = _q_or_load(surg, base_date)
+    holiday_fact = _q_holiday_week(adm, base_date)
+    anchor_units = (delta_anchor or {}).get("units", {})
 
     # 粗利の当月見込み（暫定）用 per-dept 推計器を1回だけフィット
     estimators = {}
@@ -781,9 +1000,44 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
                 tk = "surgical" if u["name"] in SURGERY_DISPLAY_DEPTS else "internal"
                 lev_peers[u["name"]] = _peer_tier(u["name"], ret_map,
                                                   _same_type_names(ret_map, tk))
+        # ① 差分ナラティブ: 各ユニットの量子化状態タグと「前回レポート比較」1文を先に確定
+        # （narrate_leveling_actions がバッチで先に走るため deltas を前渡しする）。
+        unit_meta = {}
+        for u in wl["units"]:
+            name0 = u["name"]
+            code0 = name2code.get(name0, name0)
+            dd0 = det.get(name0)
+            tk0 = ("ward" if entity == "ward"
+                   else "surgical" if name0 in SURGERY_DISPLAY_DEPTS else "internal")
+            na0 = r7_nadm[by_gap].get(code0)
+            na_tgt0 = targets.get("new_admission", {}).get(tgt_axis_gap, {}).get(code0)
+            sv0 = r7_surg["by_dept"].get(name0, 0) if tk0 == "surgical" else None
+            sv_tgt0 = (surg_targets.get(name0)
+                       if (tk0 == "surgical" and isinstance(surg_targets, dict)) else None)
+            na_level0 = _q_target_gap(na0, na_tgt0)
+            sv_level0 = _q_target_gap(sv0, sv_tgt0) if tk0 == "surgical" else None
+            tags = {
+                "na": _gap_level_tier(na_level0) if na_level0 else None,
+                "surg": _gap_level_tier(sv_level0) if sv_level0 else None,
+                "ret": _q_ret_level(u.get("retention")),
+                "latewk": (_q_latewk_discharge(dd0) or {}).get("level"),
+                "wadm": (_q_weekend_adm(dd0) or {}).get("level"),
+                "thin": _q_thin_latewk_adm(dd0),
+            }
+            is_em0 = entity == "ward" and code0 in EMERGENCY_WARDS
+            unit_meta[name0] = {
+                "tags": tags,
+                "anchor": None if is_em0 else anchor_units.get(f"{entity}:{name0}"),
+            }
+        # leveling バッチは leveling トピック整合の差分を渡す（topic が admission/surgery に
+        # 決まるユニットの narration は後で破棄され、per-unit で topic 整合の差分を採り直す）。
+        lev_deltas = {n: _pick_delta(m["anchor"], m["tags"], topic="leveling")
+                      for n, m in unit_meta.items()}
+        lev_deltas = {n: d for n, d in lev_deltas.items() if d}
+
         if with_ai and n_ai:
             narrate_leveling_actions({entity: wl}, {entity: det}, top_n=n_ai, quiet=quiet,
-                                     peers=lev_peers)
+                                     peers=lev_peers, deltas=lev_deltas)
 
         # P2-b: 同種科内の相対位置(上位/中位/下位)用の達成率マップ（診療科軸のみ・1回）。
         # 新入院＝タイプ別に、全麻＝外科系内で比較する（テーブルと同じ ranking helper を再利用）。
@@ -856,10 +1110,16 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
             surg_peer = (_peer_tier(name, peer_surg, list(peer_surg.keys()))
                          if type_key == "surgical" else None)
 
+            # ① 差分ナラティブ: 選定トピックに次元が一致する差分を優先して1文に確定
+            # （leveling は上のバッチと同じ選び方に一致・admission/surgery は topic整合を採り直す）。
+            is_emergency = entity == "ward" and code in EMERGENCY_WARDS
+            d_txt = (None if is_emergency
+                     else _pick_delta(unit_meta[name]["anchor"], unit_meta[name]["tags"],
+                                      topic=topic))
+
             # 救命救急センター系病棟(4A/4C)は「予定入院」「地域医療連携」という業務前提が
             # 成り立たないため、トピック(leveling/admission)は共通ロジックで選びつつ、
             # 文言だけ専用プロンプト/定型文（narrate_emergency_*）に差し替える。
-            is_emergency = entity == "ward" and code in EMERGENCY_WARDS
             if is_emergency:
                 if topic == "admission":
                     move = ((with_ai and narrate_emergency_admission_action(
@@ -870,23 +1130,32 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
                                 name, ret, u.get("room_delta_4w"), quiet=quiet))
                             or _fallback_move_emergency_leveling(u))
             elif topic == "admission":
+                mix = _q_planned_mix(adm, base_date, name) if entity == "dept" else None
                 move = ((with_ai and narrate_admission_action(name, entity, na_gap, na_tgt_gap,
                                                                trend=na_trend, peer=na_peer,
-                                                               yoy=na_yoy, quiet=quiet))
+                                                               yoy=na_yoy, delta=d_txt,
+                                                               mix=mix, holiday=holiday_fact,
+                                                               quiet=quiet))
                         or _fallback_move_admission(na_state, peer=na_peer))
             elif topic == "surgery":
                 move = ((with_ai and narrate_surgery_action(name, sv_gap, surg_tgt_gap,
                                                              trend=surg_trend, peer=surg_peer,
-                                                             yoy=surg_yoy, quiet=quiet))
+                                                             yoy=surg_yoy, delta=d_txt,
+                                                             or_load=or_fact, holiday=holiday_fact,
+                                                             quiet=quiet))
                         or _fallback_move_surgery(surg_state, peer=surg_peer))
             else:
                 move = (_fallback_move(u, dd, entity) if room <= 0.5
                         else (u.get("narrative") or _fallback_move(u, dd, entity)))
 
+            # ① 差分ナラティブ: AI経路はプロンプトで織り込み済み。定型文経路は決定論で1文追記。
+            if d_txt and move.get("src") != "ai" and move.get("body"):
+                move = {**move, "body": move["body"].rstrip() + " " + d_txt + "。"}
+
             # 計測用メタ（テンプレは参照しない）: topic=選定トピック、src=ai(採択)/tpl(定型文)。
             # scripts/report_comment_diversity.py が fallback 率・重複率を axis×topic で集計する。
             move = {**move, "topic": ("emergency-" if is_emergency else "") + topic,
-                    "src": move.get("src", "tpl")}
+                    "src": move.get("src", "tpl"), "delta": d_txt}
 
             # P3: 未達が複数ある科は、主トピックの一手に加えて副トピックを本文へ軽く併記
             # （actionは主トピックに集中）。救命救急系は語彙が異なるため対象外。
@@ -939,6 +1208,7 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
                              targets, surg_targets, profit_series, ret, total_ret_pct)
 
             contexts.append({
+                "_state": unit_meta[name]["tags"],   # 差分ナラティブ用（CLIがスナップショット保存）
                 "axis": entity,
                 "type_key": type_key,
                 "type_label": TYPE_LABEL[type_key],
@@ -1057,7 +1327,8 @@ def _fallback_move_hospital(topic: str, state: Optional[str], ret: Optional[floa
 def build_hospital_overview_context(adm, surg, targets, surg_targets, profit_monthly,
                                     base_date, generated_at, *, hospital_name: str = "",
                                     profit_breakdown=None, profit_projection=None,
-                                    with_ai: bool = True, quiet: bool = False) -> dict:
+                                    with_ai: bool = True, quiet: bool = False,
+                                    delta_anchor: Optional[dict] = None) -> dict:
     """病院全体サマリ（dept_report.html 1シート）のコンテキスト。
 
     profit_projection: profit_estimate.compute_calibrated_profit_projection の戻り値
@@ -1228,14 +1499,38 @@ def build_hospital_overview_context(adm, surg, targets, surg_targets, profit_mon
     all_names = set(dept_ratio) | set(surg_ratio) | {u["name"] for u in wr.get("units", [])}
     other_names = tuple(sorted(all_names - {leader})) if leader else tuple(sorted(all_names))
 
+    # ① 差分ナラティブ（病院全体）: 3トピックの達成度バケットを状態として保存し、
+    # アンカー（約4週前）との遷移を主トピックについてのみ言及（単一ユニットと同じ保守則）。
+    def _h_tier(v, t):
+        level = _q_target_gap(v, t)
+        return _gap_level_tier(level) if level else None
+
+    h_tags = {"leveling": _h_tier(ret_pct, TARGET_WEEKEND_RETENTION),
+              "admission": _h_tier(kpi["admission_actual_7d"], TARGET_ADMISSION_WEEKLY),
+              "surgery": _h_tier(kpi["operation_daily_avg"], TARGET_GA_DAILY)}
+    prev_h = (delta_anchor or {}).get("hospital") or {}
+    g = _gap_delta_fact(_HOSPITAL_TOPIC_LABEL[h_topic], prev_h.get(h_topic), h_tags.get(h_topic))
+    h_delta = g[1] if g else None
+    holiday_fact = _q_holiday_week(adm, base_date)
+    if h_delta:
+        facts.append(f"前回レポートとの比較: {h_delta}")
+    if holiday_fact:
+        facts.append(f"補足: {holiday_fact}")
+
     move = ((with_ai and narrate_hospital_summary(facts, _HOSPITAL_LEVERS[h_topic],
                                                   leader=leader, extra_banned=other_names,
+                                                  has_delta=bool(h_delta),
+                                                  has_holiday=bool(holiday_fact),
                                                   quiet=quiet))
            or _fallback_move_hospital(h_topic, h_primary_state, ret,
                                       leader=leader, leader_label=leader_label if leader else None))
-    move = {**move, "topic": h_topic, "src": move.get("src", "tpl"), "leader": leader}
+    if h_delta and move.get("src") != "ai" and move.get("body"):
+        move = {**move, "body": move["body"].rstrip() + " " + h_delta + "。"}
+    move = {**move, "topic": h_topic, "src": move.get("src", "tpl"), "leader": leader,
+            "delta": h_delta}
 
     return {
+        "_state": h_tags,   # 差分ナラティブ用（CLIがスナップショット保存）
         "axis": "hospital", "type_key": "hospital",
         "type_label": "全体サマリ", "subtitle": "病院全体パフォーマンスサマリ",
         "prio_text": "A 在院 → B 新入院 → C 全麻 → D 粗利 → E 曜日",

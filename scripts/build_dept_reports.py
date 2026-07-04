@@ -99,12 +99,22 @@ def main():
         load_and_preprocess(args.data_dir, args.base_date, no_validate=False)
     generated_at = datetime.now()
 
+    # ── 差分ナラティブ用アンカー（約4週前の量子化状態）──
+    from app.lib.dept_report import load_delta_anchor, save_facts_snapshot
+    state_dir = Path(args.output_dir) / "_state"
+    anchor = load_delta_anchor(state_dir, base_date)
+    if anchor:
+        log(f"差分ナラティブ: アンカー {anchor['_anchor_date']} と比較")
+    else:
+        log("差分ナラティブ: アンカーなし（21日以上前のスナップショット未蓄積）")
+
     # ── コンテキスト構築（AI一手は全ユニット）──
     log(f"レポート構築中… axes={axes} AI={'OFF' if args.no_ai else 'ON(全ユニット)'}")
     contexts = build_dept_report_contexts(
         adm, surg, targets, surg_targets, profit_monthly, base_date, generated_at,
         hospital_name=args.hospital_name, with_ai=not args.no_ai,
         axes=axes, quiet=args.quiet, profit_breakdown=profit_breakdown,
+        delta_anchor=anchor,
     )
     if args.only:
         contexts = [c for c in contexts if c["unit"] == args.only]
@@ -182,13 +192,22 @@ def main():
         hosp_ctx = build_hospital_overview_context(
             adm, surg, targets, surg_targets, profit_monthly, base_date, generated_at,
             hospital_name=args.hospital_name, profit_breakdown=profit_breakdown,
-            profit_projection=profit_projection, with_ai=not args.no_ai, quiet=args.quiet)
+            profit_projection=profit_projection, with_ai=not args.no_ai, quiet=args.quiet,
+            delta_anchor=anchor)
         extra = render_summary_table_pages(
             adm, surg, targets, surg_targets, base_date,
             hospital_name=args.hospital_name, profit_monthly=profit_monthly,
             profit_breakdown=profit_breakdown, profit_projection=profit_projection)
         hosp_html = tmpl.render(sheets=[hosp_ctx], extra_pages=extra, table_css=hs.BASE_CSS)
         emit_html(hosp_html, out_root / f"病院全体サマリ_{date_str}.pdf", 3)
+
+        # ── 事実スナップショット保存（次回以降の差分ナラティブのアンカー材料）──
+        # --only/--limit の部分ビルドでは保存しない（不完全な状態を残さない）
+        units_state = {f"{c['axis']}:{c['unit']}": c["_state"]
+                       for c in contexts if c.get("_state")}
+        snap = save_facts_snapshot(state_dir, base_date, units_state,
+                                   hosp_ctx.get("_state") or {})
+        log(f"事実スナップショット保存: {snap.relative_to(Path(args.output_dir))}")
 
     if not args.no_ai:
         from app.lib.ai_narrative import REJECT_STATS

@@ -258,6 +258,138 @@ class TestNadmHighlight(unittest.TestCase):
         self.assertIsNone(_nadm_highlight(20, 0, None))
 
 
+class TestDeltaNarrative(unittest.TestCase):
+    """① 差分ナラティブ: バケット遷移のみ言及・改善優先・悪化は保守的。"""
+
+    def test_cause_improvement_has_priority(self):
+        from app.lib.dept_report import _pick_delta
+        prev = {"latewk": "strong", "wadm": "none", "na": "mild", "ret": "mild", "thin": "金曜"}
+        cur = {"latewk": "mild", "wadm": "none", "na": "met", "ret": "mild", "thin": "金曜"}
+        # 原因事実（退院集中の緩和）が結果指標（新入院の到達）より優先される
+        self.assertIn("退院集中", _pick_delta(prev, cur))
+
+    def test_outcome_reach_target(self):
+        from app.lib.dept_report import _pick_delta
+        prev = {"na": "mild"}
+        cur = {"na": "met"}
+        self.assertEqual(_pick_delta(prev, cur), "新入院は前回レポート時点の未達から、目標水準に到達した")
+
+    def test_deterioration_conservative(self):
+        from app.lib.dept_report import _delta_facts
+        # 1段階の低下（close→mild・met未満から）は言及しない（境界ノイズ抑制）
+        self.assertEqual(_delta_facts({"na": "close"}, {"na": "mild"}), [])
+        # 達成圏からの転落は言及する
+        out = _delta_facts({"na": "met"}, {"na": "mild"})
+        self.assertEqual(len(out), 1)
+        self.assertFalse(out[0][0])          # 改善フラグ
+        self.assertEqual(out[0][1], "na")    # 次元
+        self.assertIn("明確に低下", out[0][2])
+
+    def test_topic_matched_delta_preferred(self):
+        from app.lib.dept_report import _pick_delta
+        # admissionトピックでは、平準化改善(latewk)より新入院(na)の差分を優先
+        prev = {"latewk": "strong", "na": "poor"}
+        cur = {"latewk": "flat", "na": "met"}
+        self.assertIn("新入院", _pick_delta(prev, cur, topic="admission"))
+        self.assertIn("退院集中", _pick_delta(prev, cur, topic="leveling"))
+
+    def test_offtopic_deterioration_suppressed(self):
+        from app.lib.dept_report import _pick_delta
+        # admissionトピックで、on-topic(na)は変化なし・off-topicの悪化(wadm)のみ→載せない
+        prev = {"na": "poor", "wadm": "some"}
+        cur = {"na": "poor", "wadm": "none"}
+        self.assertIsNone(_pick_delta(prev, cur, topic="admission"))
+        # 同じ悪化でも leveling トピックなら on-topic なので載せる
+        self.assertIsNotNone(_pick_delta(prev, cur, topic="leveling"))
+
+    def test_offtopic_improvement_allowed(self):
+        from app.lib.dept_report import _pick_delta
+        # leveling トピックで平準化は変化なし・新入院が改善→前向きな他次元は載せる
+        prev = {"latewk": "mild", "na": "poor"}
+        cur = {"latewk": "mild", "na": "met"}
+        self.assertIn("新入院", _pick_delta(prev, cur, topic="leveling"))
+
+    def test_no_change_or_no_anchor(self):
+        from app.lib.dept_report import _pick_delta
+        tags = {"na": "met", "latewk": "flat", "wadm": "some", "ret": "good", "thin": None}
+        self.assertIsNone(_pick_delta(tags, tags))   # 同一状態→言及なし
+        self.assertIsNone(_pick_delta(None, tags))   # アンカーなし→静かに無効
+
+    def test_thin_resolution(self):
+        from app.lib.dept_report import _pick_delta
+        self.assertIn("解消", _pick_delta({"thin": "金曜"}, {"thin": None}))
+
+    def test_texts_digit_free(self):
+        import re
+        from app.lib.dept_report import _delta_facts
+        prev = {"latewk": "strong", "wadm": "none", "thin": "金曜",
+                "ret": "poor", "na": "poor", "surg": "met"}
+        cur = {"latewk": "flat", "wadm": "some", "thin": None,
+               "ret": "good", "na": "met", "surg": "poor"}
+        for _imp, _dim, text in _delta_facts(prev, cur):
+            self.assertIsNone(re.search(r"[0-9０-９]", text), text)
+
+
+class TestAnchorSelection(unittest.TestCase):
+    def _d(self, s):
+        import pandas as pd
+        return pd.Timestamp(s)
+
+    def test_min_age_and_target(self):
+        from app.lib.dept_report import _select_anchor_date
+        base = self._d("2026-07-02")
+        # 21日未満(6/29,6/25)は除外。残り 6/8(24日前)と6/1(31日前)では28日に近い6/1
+        dates = [self._d(x) for x in ("2026-06-29", "2026-06-25", "2026-06-08", "2026-06-01")]
+        self.assertEqual(_select_anchor_date(dates, base), self._d("2026-06-01"))
+
+    def test_same_weekday_preferred(self):
+        from app.lib.dept_report import _select_anchor_date
+        base = self._d("2026-07-02")   # 木曜
+        # 6/4(木・28日前・同曜日) が 6/5(金・27日前=28日により近い…同距離でない) より優先
+        dates = [self._d("2026-06-05"), self._d("2026-06-04")]
+        self.assertEqual(_select_anchor_date(dates, base), self._d("2026-06-04"))
+
+    def test_none_when_all_recent(self):
+        from app.lib.dept_report import _select_anchor_date
+        base = self._d("2026-07-02")
+        self.assertIsNone(_select_anchor_date([self._d("2026-06-20")], base))
+
+
+class TestNewInfoQuantizers(unittest.TestCase):
+    def _adm(self, rows):
+        import pandas as pd
+        return pd.DataFrame(rows)
+
+    def test_holiday_week(self):
+        import pandas as pd
+        from app.lib.dept_report import _q_holiday_week
+        base = pd.Timestamp("2026-05-07")
+        rows = [{"日付": pd.Timestamp("2026-05-04"), "平日": False},   # 月曜の祝日
+                {"日付": pd.Timestamp("2026-05-07"), "平日": True}]
+        self.assertIn("祝日", _q_holiday_week(self._adm(rows), base))
+        rows2 = [{"日付": pd.Timestamp("2026-07-01"), "平日": True},
+                 {"日付": pd.Timestamp("2026-06-28"), "平日": False}]  # 日曜は祝日扱いしない
+        self.assertIsNone(_q_holiday_week(self._adm(rows2), pd.Timestamp("2026-07-02")))
+
+    def test_planned_mix(self):
+        import pandas as pd
+        from app.lib.dept_report import _q_planned_mix
+        base = pd.Timestamp("2026-07-02")
+        monday = base - pd.Timedelta(days=base.weekday())
+        rows = []
+        # 前4週=予定中心(8割)、直近4週=予定が細る(2割)・件数は十分(週10件)
+        for w in range(8):
+            for i in range(10):
+                d = monday - pd.Timedelta(days=56) + pd.Timedelta(days=w * 7 + (i % 5))
+                recent = d >= monday - pd.Timedelta(days=28)
+                planned = 1 if (i < (2 if recent else 8)) else 0
+                rows.append({"日付": d, "診療科名": "テスト科", "科_表示": True,
+                             "入院患者数": planned, "緊急入院患者数": 1 - planned,
+                             "新入院患者数": 1})
+        out = _q_planned_mix(self._adm(rows), base, "テスト科")
+        self.assertIn("下がってきている", out)
+
+
 class TestExtractBodyAction(unittest.TestCase):
     def test_json_with_surrounding_noise(self):
         text = '出力します。{"body": "状況です。", "action": "対応します。"} 以上'
