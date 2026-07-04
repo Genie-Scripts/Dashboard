@@ -182,13 +182,18 @@ def main():
         hosp_ctx = build_hospital_overview_context(
             adm, surg, targets, surg_targets, profit_monthly, base_date, generated_at,
             hospital_name=args.hospital_name, profit_breakdown=profit_breakdown,
-            profit_projection=profit_projection)
+            profit_projection=profit_projection, with_ai=not args.no_ai, quiet=args.quiet)
         extra = render_summary_table_pages(
             adm, surg, targets, surg_targets, base_date,
             hospital_name=args.hospital_name, profit_monthly=profit_monthly,
             profit_breakdown=profit_breakdown, profit_projection=profit_projection)
         hosp_html = tmpl.render(sheets=[hosp_ctx], extra_pages=extra, table_css=hs.BASE_CSS)
         emit_html(hosp_html, out_root / f"病院全体サマリ_{date_str}.pdf", 3)
+
+    if not args.no_ai:
+        from app.lib.ai_narrative import REJECT_STATS
+        if REJECT_STATS:
+            log(f"AI一手 採択/棄却内訳: {dict(REJECT_STATS)}")
 
     print(f"\n{'='*52}")
     print(f"  部門別レポート生成完了 — {generated_at.strftime('%Y/%m/%d %H:%M')}")

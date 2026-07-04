@@ -29,12 +29,15 @@ from .metrics import (
     rolling7_new_admission, rolling7_surgery,
     build_daily_series, build_surgery_daily_series,
     build_kpi_summary, dow_event_profile,
+    build_dept_ranking, build_surgery_ranking,
 )
 from .charts import build_dow_unit_detail, _dow_unit_candidates
 from .ai_narrative import (
     narrate_leveling_actions, narrate_admission_action, narrate_surgery_action,
     narrate_emergency_leveling_action, narrate_emergency_admission_action,
-    _q_friday, _q_weekend_adm, _q_state_trend, _q_target_gap,
+    narrate_hospital_summary,
+    _q_latewk_discharge, _q_weekend_adm, _q_census_dip, _q_thin_latewk_adm,
+    _leveling_levers, _q_state_trend, _q_target_gap, _q_target_gap_trend, _q_yoy,
 )
 from .hospital_summary import render_trend_svg, _ma_series, _surg_series
 from .profit_estimate import fit_profit_estimators, project_dept_monthend
@@ -282,12 +285,16 @@ def _ach_badge(actual, target, prefix="達成率 "):
 # この期間の一手（oMLX未起動時の定型フォールバック・データ適応）
 # ════════════════════════════════════════════════════════════
 def _fallback_move(unit: dict, dd: Optional[dict], entity: str) -> dict:
-    """narrate_leveling_actions が None（oMLX未起動/失敗）のときの定型文。"""
+    """narrate_leveling_actions が None（oMLX未起動/失敗）のときの定型文。
+
+    2026-07: AI率95%になり出番は減ったが、oMLX停止時に全部門が同一文へ縮退しないよう
+    事実の語彙（週後半集中の曜日名・補充3段階・ディップの形）で組み合わせ分岐する。
+    レバー文は _leveling_levers（LLMプロンプトと共通）から取り、文言の乖離を防ぐ。"""
     state = _q_state_trend(unit.get("retention"), unit.get("room_delta_4w"))
-    fri = _q_friday(dd)
+    latewk = _q_latewk_discharge(dd)
     adm = _q_weekend_adm(dd)
-    fri_strong = bool(fri) and "強い" in fri
-    adm_weak = bool(adm) and "乏しい" in adm
+    dip = _q_census_dip(dd)
+    thin = _q_thin_latewk_adm(dd)
     room = unit.get("room_per_week", 0) or 0
 
     if room <= 0.5:
@@ -296,42 +303,63 @@ def _fallback_move(unit: dict, dd: Optional[dict], entity: str) -> dict:
         return {"body": body, "action": action}
 
     causes = []
-    if fri_strong:
-        causes.append("退院が金曜に集中し")
-    if adm_weak:
-        causes.append("週末の入院補充が乏しく")
+    if latewk and latewk["level"] == "strong":
+        causes.append(f"退院が{latewk['days']}に強く集中し")
+    elif latewk and latewk["level"] == "mild":
+        causes.append(f"退院が{latewk['days']}に寄り")
+    if adm and adm["level"] == "none":
+        causes.append("週末の入院補充がほとんどなく")
+    elif adm and adm["level"] == "limited":
+        causes.append("週末の入院補充も限られ")
     if causes:
         body = "".join(c if i == 0 else "、" + c for i, c in enumerate(causes)) \
-               + "、週末に在院が落ち込みやすい構造です。タイミングの平準化で取り戻せる余地があります。"
+               + "、週末に在院が落ち込みやすい構造です。"
     else:
         body = f"{state}。週末のタイミングを少し整えると、平日に積み上げた在院を保ちやすくなります。"
+    if dip:
+        body += f"{dip}形です。"
 
-    disperse = "金曜に寄った退院を月〜木へ少し分散" if entity == "dept" else "相乗り科の金曜退院を平日へ分散"
-    refill = "予定入院を週後半〜週末へ寄せて空床を補充" if entity == "dept" else "週末の入院受け入れを強化して空床を補充"
-    if fri_strong and not adm_weak:
+    disperse, refill, mode = _leveling_levers(entity, latewk, adm, thin)
+    if mode == "disperse":
         action = f"{disperse}（退院の平準化を主に）。在院日数は延ばさず、回転で取り戻す。"
-    elif adm_weak and not fri_strong:
+    elif mode == "refill":
         action = f"{refill}（週末入院での補充を主に）。"
     else:
-        action = f"{disperse}し、あわせて{refill}。"
+        action = f"{disperse}。あわせて{refill}。"
     return {"body": body, "action": action}
 
 
-def _fallback_move_admission(state: Optional[str]) -> dict:
-    """新入院トピックの定型文（oMLX未起動/ハルシネーション棄却時）。"""
-    if state and "達成" in state:
-        return {"body": "新入院は直近で目標水準を確保できています。",
+# 「達成しているが直近は鈍化」を素通しで「現状維持」に丸めると、傾向を渡した意味が
+# 消えて事実と反する安心を伝えてしまう。定型文（oMLX未起動時のみ使用）でもこのケースは
+# 分けて注意喚起する。達成側の判定は5段階（達成/大きく上回る）を両方拾う（"上回" or "達成"）。
+def _is_met(state: Optional[str]) -> bool:
+    return bool(state) and ("達成" in state or "上回" in state)
+
+
+def _fallback_move_admission(state: Optional[str], peer: Optional[str] = None) -> dict:
+    """新入院トピックの定型文（oMLX未起動/ハルシネーション棄却時）。peer=同種科内の相対位置。"""
+    lead = f"同種の診療科では{peer}ながら、" if peer else ""
+    if _is_met(state) and "鈍って" in state:
+        return {"body": f"{lead}新入院は{state}状況です。",
+                "action": "受け入れ体制を維持しつつ、直近の受け入れ状況を注視しましょう。"}
+    if _is_met(state):
+        return {"body": f"{lead}新入院は直近で目標水準を確保できています。",
                 "action": "現状の受け入れ体制を維持しましょう。"}
-    return {"body": f"新入院は直近で{state or '目標を下回っている'}状況です。",
+    # state 自体が「直近は〜」の傾向を含むため接頭辞「直近で」は付けない（重複回避）
+    return {"body": f"{lead}新入院は{state or '目標を下回っている'}状況です。",
             "action": "地域医療連携での紹介受け入れ強化や、予定入院枠の調整を検討しましょう。"}
 
 
-def _fallback_move_surgery(state: Optional[str]) -> dict:
-    """全麻トピックの定型文（oMLX未起動/ハルシネーション棄却時）。"""
-    if state and "達成" in state:
-        return {"body": "全身麻酔手術は直近で目標水準を確保できています。",
+def _fallback_move_surgery(state: Optional[str], peer: Optional[str] = None) -> dict:
+    """全麻トピックの定型文（oMLX未起動/ハルシネーション棄却時）。peer=同種科内の相対位置。"""
+    lead = f"外科系の診療科では{peer}ながら、" if peer else ""
+    if _is_met(state) and "鈍って" in state:
+        return {"body": f"{lead}全身麻酔手術は{state}状況です。",
+                "action": "手術枠の運用を維持しつつ、直近の稼働状況を注視しましょう。"}
+    if _is_met(state):
+        return {"body": f"{lead}全身麻酔手術は直近で目標水準を確保できています。",
                 "action": "現状の手術枠運用を維持しましょう。"}
-    return {"body": f"全身麻酔手術は直近で{state or '目標を下回っている'}状況です。",
+    return {"body": f"{lead}全身麻酔手術は{state or '目標を下回っている'}状況です。",
             "action": "手術枠の稼働状況を確認し、執刀医と症例の積み増しを調整しましょう。"}
 
 
@@ -347,10 +375,13 @@ def _fallback_move_emergency_leveling(unit: dict) -> dict:
 
 def _fallback_move_emergency_admission(state: Optional[str]) -> dict:
     """救命救急系病棟(4A/4C)向け・新規受け入れトピックの定型文。"""
-    if state and "達成" in state:
+    if _is_met(state) and "鈍って" in state:
+        return {"body": f"緊急入院・転棟の受け入れは{state}状況です。",
+                "action": "受け入れ体制を維持しつつ、直近の受け入れ状況を注視しましょう。"}
+    if _is_met(state):
         return {"body": "緊急入院・転棟の受け入れは直近で目標水準を確保できています。",
                 "action": "現状の受け入れ体制を維持しましょう。"}
-    return {"body": f"緊急入院・転棟の受け入れは直近で{state or '目標を下回っている'}状況です。",
+    return {"body": f"緊急入院・転棟の受け入れは{state or '目標を下回っている'}状況です。",
             "action": "後方病床との調整や病床運用の見直しにより、受け入れ余地の確保を検討しましょう。"}
 
 
@@ -376,20 +407,69 @@ def _surgery_gap_score(sv, surg_tgt) -> float:
 
 
 def _select_action_topic(type_key: str, room: float, max_room: float,
-                         na, na_tgt, sv, surg_tgt) -> str:
+                         na, na_tgt, sv, surg_tgt):
     """"leveling"(病床平準化) / "admission"(新入院) / "surgery"(全麻・外科系のみ) の
-    うち、目標未達が最も大きいトピックを選ぶ。leveling は room_per_week を全ユニット中
-    の相対値、admission/surgery は目標比の絶対的な不足率で評価する（スケールが完全には
-    揃わないが、いずれも0〜1の「どれだけ気にすべきか」の目安として扱う）。
+    うち、目標未達が最も大きいトピックを主トピックに選ぶ。leveling は room_per_week を
+    全ユニット中の相対値、admission/surgery は目標比の絶対的な不足率で評価する（スケールが
+    完全には揃わないが、いずれも0〜1の「どれだけ気にすべきか」の目安として扱う）。
     目立った不足が無ければ leveling を既定にする（room<=0.5 なら _fallback_move が
     「現状維持」の定型文を返す）。
+
+    戻り値=(primary, secondary, scores)。secondary=主以外でスコア最大かつ
+    ACTION_TOPIC_MIN_SCORE 以上のトピック（無ければ None）。複数指標が未達の科で
+    「主トピックの一手＋副トピックを本文で軽く併記」する P3(トンネル視野の解消)に使う。
     """
     scores = {"leveling": (room / max_room) if max_room else 0.0,
               "admission": _admission_gap_score(na, na_tgt)}
     if type_key == "surgical":
         scores["surgery"] = _surgery_gap_score(sv, surg_tgt)
-    topic = max(scores, key=scores.get)
-    return topic if scores[topic] >= ACTION_TOPIC_MIN_SCORE else "leveling"
+    top = max(scores, key=scores.get)
+    primary = top if scores[top] >= ACTION_TOPIC_MIN_SCORE else "leveling"
+    sec = {k: v for k, v in scores.items() if k != primary and v >= ACTION_TOPIC_MIN_SCORE}
+    secondary = max(sec, key=sec.get) if sec else None
+    return primary, secondary, scores
+
+
+# ── P2-b: 同種科内の相対位置（上位/中位/下位・診療科軸のみ） ──
+def _peer_tier(name: str, ratio_map: dict, peer_names: list) -> Optional[str]:
+    """peer_names(同種科)の達成率(実績/目標)で name の位置を 上位/中位/下位 に離散化。
+    比較母数が3科未満、または達成率不明なら None（“分かってる人が書いた感”を出す事実）。
+
+    3-3: 境界(1/3・2/3)の±0.06は**緩衝帯＝None**（peerに言及しない）。定期配布で
+    境界付近の科が毎月「中位↔下位」とブレるのが不自然なため、階級をまたぐには
+    緩衝帯の幅ぶんの実変化を要するようにする（状態ファイル無しのヒステリシス代替）。"""
+    ranked = sorted((n for n in peer_names if ratio_map.get(n) is not None),
+                    key=lambda n: ratio_map[n], reverse=True)
+    if name not in ranked or len(ranked) < 3:
+        return None
+    frac = ranked.index(name) / (len(ranked) - 1)
+    if frac <= 0.28:
+        return "上位"
+    if frac < 0.40:
+        return None      # 上位/中位の緩衝帯
+    if frac <= 0.61:
+        return "中位"
+    if frac < 0.73:
+        return None      # 中位/下位の緩衝帯
+    return "下位"
+
+
+def _same_type_names(ratio_map: dict, type_key: str) -> list:
+    """ratio_map のうち type_key(surgical/internal) が一致する診療科名。"""
+    return [n for n in ratio_map
+            if ("surgical" if n in SURGERY_DISPLAY_DEPTS else "internal") == type_key]
+
+
+# ── P3: 副トピックを本文へ併記する決定論クローズ（actionは主トピックに集中） ──
+def _secondary_clause(topic: Optional[str], na_state: Optional[str],
+                      surg_state: Optional[str]) -> Optional[str]:
+    if topic == "admission" and na_state:
+        return f"あわせて、新入院も{na_state}状況です。"
+    if topic == "surgery" and surg_state:
+        return f"あわせて、全身麻酔手術も{surg_state}状況です。"
+    if topic == "leveling":
+        return "あわせて、週末在院の維持にも改善余地があります。"
+    return None
 
 
 def _ma_window_trend(cur: list, prior_end: int, pt: float) -> str:
@@ -409,6 +489,27 @@ def _ma_window_trend(cur: list, prior_end: int, pt: float) -> str:
     if pct < -pt:
         return "低下"
     return "横ばい"
+
+
+def _nadm_highlight(na, na_tgt, na_series) -> Optional[str]:
+    """内科系の一手に添える新入院ハイライト1行（数値駆動・AI不要・Tier2-2）。
+    外科=_surg_highlight・病棟=_util_highlight と同型で、直近7日累計(件/週) vs 週次目標
+    ＋28日線の方向＋目標までの差を1行に。「改善余地」の抽象語を数字で接地する。"""
+    if not na_tgt:
+        return None
+    na = na or 0
+    rate = round(na / na_tgt * 100)
+    cur = [v for v in (na_series.get("cur") or []) if v is not None] if na_series else []
+    trend = _ma_window_trend(cur, prior_end=28, pt=5)   # ≒4週前を終点とする窓（28日MAの日次系列）
+    gap = na_tgt - na
+    if gap > 0.5:
+        gap_phrase = f"あと約{gap:.0f}件/週で目標"
+    elif gap < -0.5:
+        gap_phrase = f"目標を{-gap:.0f}件/週上回る"
+    else:
+        gap_phrase = "ほぼ目標どおり"
+    return (f"新入院：直近7日 {na:g}件／週目標{na_tgt:g}（{rate}%）。"
+            f"28日線は{trend}／{gap_phrase}")
 
 
 def _surg_highlight(sv, surg_tgt, surg_series) -> Optional[str]:
@@ -670,8 +771,30 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
         by_gap = "by_ward" if entity == "ward" else "by_dept"
         tgt_axis_gap = "ward" if entity == "ward" else "dept"
         n_ai = sum(1 for u in wl["units"] if (u.get("room_per_week", 0) or 0) > 0.5)
+        # 1-1(f): 週末在院の維持(retention)の同種科内相対位置（診療科軸のみ・P2-bと同じ中立トーン）。
+        # LLMプロンプトの事実にのみ使う（fallbackには入れず、文の複雑化を避ける）。
+        lev_peers = {}
+        if entity == "dept":
+            ret_map = {u["name"]: u["retention"] for u in wl["units"]
+                       if u.get("retention") is not None}
+            for u in wl["units"]:
+                tk = "surgical" if u["name"] in SURGERY_DISPLAY_DEPTS else "internal"
+                lev_peers[u["name"]] = _peer_tier(u["name"], ret_map,
+                                                  _same_type_names(ret_map, tk))
         if with_ai and n_ai:
-            narrate_leveling_actions({entity: wl}, {entity: det}, top_n=n_ai, quiet=quiet)
+            narrate_leveling_actions({entity: wl}, {entity: det}, top_n=n_ai, quiet=quiet,
+                                     peers=lev_peers)
+
+        # P2-b: 同種科内の相対位置(上位/中位/下位)用の達成率マップ（診療科軸のみ・1回）。
+        # 新入院＝タイプ別に、全麻＝外科系内で比較する（テーブルと同じ ranking helper を再利用）。
+        peer_nadm, peer_surg = {}, {}
+        if entity == "dept":
+            for r in build_dept_ranking(adm, base_date, targets, "new_admission").to_dict("records"):
+                if r.get("目標") and r.get("実績") is not None:
+                    peer_nadm[r["診療科"]] = r["実績"] / r["目標"]
+            for r in build_surgery_ranking(surg, base_date, surg_targets, period="7").to_dict("records"):
+                if r.get("週目標") and r.get("実績") is not None:
+                    peer_surg[r["診療科"]] = r["実績"] / r["週目標"]
 
         for u in wl["units"]:
             name = u["name"]
@@ -694,37 +817,83 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
             sv_gap = r7_surg["by_dept"].get(name, 0) if type_key == "surgical" else None
             surg_tgt_gap = (surg_targets.get(name)
                            if (type_key == "surgical" and isinstance(surg_targets, dict)) else None)
-            topic = _select_action_topic(type_key, room, max_room,
-                                         na_gap, na_tgt_gap, sv_gap, surg_tgt_gap)
+            topic, secondary, _scores = _select_action_topic(type_key, room, max_room,
+                                                             na_gap, na_tgt_gap, sv_gap, surg_tgt_gap)
+
+            # parts（グラフA-E）はチャート描画だけでなく、新入院(B)/全麻(C)の一手にも使う。
+            # narrate_* より先に組み立て、既存の28日MA系列からトレンド（水準×傾向の第2軸）を
+            # 取り出す（新規計算を増やさず既存系列を再利用＝チャートの線と一手の説明を一致させる）。
+            profit_series = (None if entity == "ward"
+                             else _unit_profit_series(profit_monthly, name, base_date,
+                                                      estimators, adm, surg))
+            parts = _build_parts(adm, surg, base_date, entity, name, code, dd,
+                                 r7_inp, r7_nadm, r7_surg, targets, surg_targets, profit_series)
+
+            def _trend_of(part_key):
+                p = parts.get(part_key)
+                cur = [v for v in ((p.get("_data") or {}).get("cur") or []) if v is not None] if p else []
+                return _ma_window_trend(cur, prior_end=28, pt=5) if cur else "—"
+
+            na_trend = _trend_of("B")
+            surg_trend = _trend_of("C") if type_key == "surgical" else None
+
+            # Tier2-1: 前年同期比較（B/Cチャートの前年線を再利用。NO_PREVYEAR_WARDS や
+            # 前年データ不足は _q_yoy が None を返し事実に載らない）
+            def _yoy_of(part_key):
+                p = parts.get(part_key)
+                d = (p.get("_data") or {}) if p else {}
+                return _q_yoy(d.get("cur"), d.get("prev"))
+
+            na_yoy = _yoy_of("B")
+            surg_yoy = _yoy_of("C") if type_key == "surgical" else None
+            # 水準×傾向の確定文（fallback・副トピック併記の両方で使う）
+            na_state = _q_target_gap_trend(na_gap, na_tgt_gap, na_trend)
+            surg_state = (_q_target_gap_trend(sv_gap, surg_tgt_gap, surg_trend)
+                          if type_key == "surgical" else None)
+            # P2-b: 同種科内の相対位置（診療科軸のみ）
+            na_peer = (_peer_tier(name, peer_nadm, _same_type_names(peer_nadm, type_key))
+                       if entity == "dept" else None)
+            surg_peer = (_peer_tier(name, peer_surg, list(peer_surg.keys()))
+                         if type_key == "surgical" else None)
 
             # 救命救急センター系病棟(4A/4C)は「予定入院」「地域医療連携」という業務前提が
             # 成り立たないため、トピック(leveling/admission)は共通ロジックで選びつつ、
             # 文言だけ専用プロンプト/定型文（narrate_emergency_*）に差し替える。
-            if entity == "ward" and code in EMERGENCY_WARDS:
+            is_emergency = entity == "ward" and code in EMERGENCY_WARDS
+            if is_emergency:
                 if topic == "admission":
                     move = ((with_ai and narrate_emergency_admission_action(
-                                name, na_gap, na_tgt_gap, quiet=quiet))
-                            or _fallback_move_emergency_admission(_q_target_gap(na_gap, na_tgt_gap)))
+                                name, na_gap, na_tgt_gap, trend=na_trend, quiet=quiet))
+                            or _fallback_move_emergency_admission(na_state))
                 else:
                     move = ((with_ai and narrate_emergency_leveling_action(
                                 name, ret, u.get("room_delta_4w"), quiet=quiet))
                             or _fallback_move_emergency_leveling(u))
             elif topic == "admission":
                 move = ((with_ai and narrate_admission_action(name, entity, na_gap, na_tgt_gap,
-                                                               quiet=quiet))
-                        or _fallback_move_admission(_q_target_gap(na_gap, na_tgt_gap)))
+                                                               trend=na_trend, peer=na_peer,
+                                                               yoy=na_yoy, quiet=quiet))
+                        or _fallback_move_admission(na_state, peer=na_peer))
             elif topic == "surgery":
-                move = ((with_ai and narrate_surgery_action(name, sv_gap, surg_tgt_gap, quiet=quiet))
-                        or _fallback_move_surgery(_q_target_gap(sv_gap, surg_tgt_gap)))
+                move = ((with_ai and narrate_surgery_action(name, sv_gap, surg_tgt_gap,
+                                                             trend=surg_trend, peer=surg_peer,
+                                                             yoy=surg_yoy, quiet=quiet))
+                        or _fallback_move_surgery(surg_state, peer=surg_peer))
             else:
                 move = (_fallback_move(u, dd, entity) if room <= 0.5
                         else (u.get("narrative") or _fallback_move(u, dd, entity)))
 
-            profit_series = (None if entity == "ward"
-                             else _unit_profit_series(profit_monthly, name, base_date,
-                                                      estimators, adm, surg))
-            parts = _build_parts(adm, surg, base_date, entity, name, code, dd,
-                                 r7_inp, r7_nadm, r7_surg, targets, surg_targets, profit_series)
+            # 計測用メタ（テンプレは参照しない）: topic=選定トピック、src=ai(採択)/tpl(定型文)。
+            # scripts/report_comment_diversity.py が fallback 率・重複率を axis×topic で集計する。
+            move = {**move, "topic": ("emergency-" if is_emergency else "") + topic,
+                    "src": move.get("src", "tpl")}
+
+            # P3: 未達が複数ある科は、主トピックの一手に加えて副トピックを本文へ軽く併記
+            # （actionは主トピックに集中）。救命救急系は語彙が異なるため対象外。
+            if secondary and not is_emergency and move.get("body"):
+                also = _secondary_clause(secondary, na_state, surg_state)
+                if also:
+                    move = {**move, "body": move["body"].rstrip() + " " + also}
 
             # 外科系は「一手」に全麻ハイライト1行を常設（週末ならし本文＋全麻の数値）
             if type_key == "surgical":
@@ -745,6 +914,13 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
                                         a_part.get("_data") if a_part else None)
                 if uline:
                     move = {**move, "util_line": uline}
+            # 内科系は「一手」に新入院ハイライト1行を常設（Tier2-2・外科/病棟と対称）
+            else:
+                b_part = parts.get("B")
+                nline = _nadm_highlight(na_gap, na_tgt_gap,
+                                        b_part.get("_data") if b_part else None)
+                if nline:
+                    move = {**move, "nadm_line": nline}
 
             # 優先順にチャートを並べ、利用可能なものだけ採用
             ordered = [parts[k] for k in TYPE_ORDER[type_key] if k in parts and parts[k]]
@@ -841,14 +1017,56 @@ def _hospital_dow(adm, base_date) -> dict:
     return out
 
 
+# 病院全体サマリの「この期間の一手」レバー（打ち手の方向性）。dept_report の単一ユニット
+# 向け一手と同じ語彙に統一（病院全体でも打ち手は現場の一手の延長として理解できるように）。
+_HOSPITAL_LEVERS = {
+    "leveling": "金曜に集中しがちな退院を平日へ分散し、週末の入院受け入れで空床を補充する（在院日数の延長はしない）。",
+    "admission": "地域医療連携（紹介元）への働きかけ強化や、予定入院枠の週後半への調整など、新入院を底上げする運用対応。",
+    "surgery": "手術枠の稼働状況の確認や、執刀医との症例調整など、全身麻酔手術を底上げする運用面の対応。",
+}
+_HOSPITAL_TOPIC_LABEL = {"leveling": "週末在院の維持率", "admission": "新入院", "surgery": "全身麻酔手術"}
+
+
+def _fallback_move_hospital(topic: str, state: Optional[str], ret: Optional[float],
+                            leader: Optional[str] = None,
+                            leader_label: Optional[str] = None) -> dict:
+    """病院全体サマリの「この期間の一手」定型文（oMLX未起動/ハルシネーション棄却時）。
+
+    admission/surgery は単一ユニット向けと同じ定型文を再利用する（ページ見出しに
+    「病院全体」と明記済みのため、本文側で主語を繰り返さない）。
+    leveling（週末在院）は KPIバッジと同じ目標基準（TARGET_WEEKEND_RETENTION）で達成/未達を
+    判定する。ハードコードのしきい値でバッジ「未達」と本文「保てています」が食い違うのを防ぐ。
+    leader: 牽引部門（2-3・あれば褒める1文を決定論で追記）。
+    """
+    if topic == "admission":
+        move = _fallback_move_admission(state)
+    elif topic == "surgery":
+        move = _fallback_move_surgery(state)
+    elif ret is not None and round(ret * 100, 1) >= TARGET_WEEKEND_RETENTION:
+        move = {"body": "病院全体として週末も平日と同水準の在院を保てており、目標を確保できています。",
+                "action": "現状維持。週末の入退院リズムをこのまま継続しましょう。"}
+    else:
+        move = {"body": f"病院全体の週末在院の維持率は{state or '目標を下回っている'}状況です。",
+                "action": "金曜に集中しがちな退院を平日へ分散し、週末の入院受け入れで空床を補充しましょう。"}
+    if leader and leader_label:
+        move = {**move, "body": move["body"].rstrip()
+                + f" こうした中、{leader}は{leader_label}状況で、手本になっています。"}
+    return move
+
+
 def build_hospital_overview_context(adm, surg, targets, surg_targets, profit_monthly,
                                     base_date, generated_at, *, hospital_name: str = "",
-                                    profit_breakdown=None, profit_projection=None) -> dict:
-    """病院全体サマリ（dept_report.html 1シート）のコンテキスト。move は載せない。
+                                    profit_breakdown=None, profit_projection=None,
+                                    with_ai: bool = True, quiet: bool = False) -> dict:
+    """病院全体サマリ（dept_report.html 1シート）のコンテキスト。
 
     profit_projection: profit_estimate.compute_calibrated_profit_projection の戻り値
     （病院全体・診療科別の当月見込み粗利＝ダッシュボードと同一 pipeline）。渡すと粗利KPI/
     チャートが「確報の最新月」でなく「当月見込み」で達成率を表示する。
+
+    「この期間の一手」は 週末在院／新入院／全麻 のうち最も目標未達が大きいトピックを選ぶ
+    （単一ユニット向け _select_action_topic と同じ設計）。在院水準・粗利は本文の文脈
+    （supporting facts）として使うが、打ち手の起点にはしない（対応する運用レバーが無いため）。
     """
     kpi = build_kpi_summary(adm, surg, base_date, targets, surg_targets)
     charts: list = []
@@ -936,6 +1154,87 @@ def build_hospital_overview_context(adm, surg, targets, surg_targets, profit_mon
              tgt=f"目標 {TARGET_WEEKEND_RETENTION:g}", ok=_ok(ret_pct, TARGET_WEEKEND_RETENTION)),
     ]
 
+    # ── この期間の一手（病院全体） ──────────────────────────────
+    # A/B/C チャートの28日MA系列から、単一ユニット向けと同じ窓・閾値でトレンドを取り出す
+    # （新規計算を増やさず既存系列を再利用＝チャートの線と一手の説明を一致させる）。
+    by_kind = {c["kind"]: c for c in charts}
+
+    def _trend_of_kind(kind, prior_end, pt):
+        c = by_kind.get(kind)
+        cur = [v for v in ((c or {}).get("_data") or {}).get("cur", []) if v is not None]
+        return _ma_window_trend(cur, prior_end=prior_end, pt=pt) if cur else "—"
+
+    # 週末在院維持率は病院サマリでは目標(TARGET_WEEKEND_RETENTION)付きKPIとしてバッジ表示される。
+    # 一手の事実・定型文も同じ目標基準で語り、バッジ「未達」と本文「保てています」が食い違わない
+    # ようにする（room基準の _q_state_trend は per-unit 平準化の“絶対水準”用＝目標非依存なので、
+    # ここでは他KPIと同じ目標比の _q_target_gap_trend を使う）。傾向は のびしろΔ から向きを取る
+    # （のびしろ拡大 room_delta>0 ＝ 維持率は低下方向）。
+    rd_total = wr.get("total", {}).get("room_delta_4w")
+    ret_trend = ("上昇" if (rd_total is not None and rd_total < -0.5)
+                 else "低下" if (rd_total is not None and rd_total > 0.5) else "横ばい")
+    leveling_state = _q_target_gap_trend(ret_pct, TARGET_WEEKEND_RETENTION, ret_trend)
+    admission_state = _q_target_gap_trend(kpi["admission_actual_7d"], TARGET_ADMISSION_WEEKLY,
+                                          _trend_of_kind("B", 28, 5))
+    surgery_state = _q_target_gap_trend(kpi["operation_daily_avg"], TARGET_GA_DAILY,
+                                        _trend_of_kind("C", 28, 5))
+    census_state = _q_target_gap_trend(inp_v, TARGET_INPATIENT_ALLDAY, _trend_of_kind("A", 35, 2))
+    profit_state = _q_target_gap(prof_disp, ps["ref"]) if (ps and ps.get("ref")) else None
+
+    topic_states = {"leveling": leveling_state, "admission": admission_state, "surgery": surgery_state}
+    topic_scores = {
+        "leveling": max(0.0, 1 - ret) if ret is not None else 0.0,
+        "admission": _admission_gap_score(kpi["admission_actual_7d"], TARGET_ADMISSION_WEEKLY),
+        "surgery": _surgery_gap_score(kpi["operation_daily_avg"], TARGET_GA_DAILY),
+    }
+    h_topic = max(topic_scores, key=topic_scores.get)
+    if topic_scores[h_topic] < ACTION_TOPIC_MIN_SCORE:
+        h_topic = "leveling"
+    h_primary_state = topic_states.get(h_topic) or leveling_state or "目標を下回っている"
+
+    facts = [f"{_HOSPITAL_TOPIC_LABEL[h_topic]}: {h_primary_state}"]
+    for k in ("leveling", "admission", "surgery"):
+        if k != h_topic and topic_states.get(k):
+            facts.append(f"{_HOSPITAL_TOPIC_LABEL[k]}: {topic_states[k]}")
+    if census_state:
+        facts.append(f"在院患者数: {census_state}")
+    if profit_state:
+        facts.append(f"粗利: {profit_state}")
+    facts = facts[:4]
+
+    # 2-3: 主トピックの牽引役（目標を達成している最上位のみ・褒める方向だけ名指し）。
+    # 達成部門がいなければ名指しなし。下押し側は職員発信トーンのため名指ししない（§5）。
+    # 捏造ガード＝leader以外の全部門名を禁止語で渡す（渡していない名前を書いたら棄却）。
+    dept_ratio, surg_ratio = {}, {}
+    for r in build_dept_ranking(adm, base_date, targets, "new_admission").to_dict("records"):
+        if r.get("目標") and r.get("実績") is not None:
+            dept_ratio[r["診療科"]] = r["実績"] / r["目標"]
+    for r in build_surgery_ranking(surg, base_date, surg_targets, period="7").to_dict("records"):
+        if r.get("週目標") and r.get("実績") is not None:
+            surg_ratio[r["診療科"]] = r["実績"] / r["週目標"]
+    if h_topic == "admission":
+        cands = {n: v for n, v in dept_ratio.items() if v >= 1.0}
+        leader_label = "新入院の目標を上回っている"
+    elif h_topic == "surgery":
+        cands = {n: v for n, v in surg_ratio.items() if v >= 1.0}
+        leader_label = "全身麻酔手術の目標を上回っている"
+    else:
+        cands = {u["name"]: u["retention"] for u in wr.get("units", [])
+                 if u.get("retention") is not None
+                 and u["retention"] * 100 >= TARGET_WEEKEND_RETENTION}
+        leader_label = "週末も在院を維持できている"
+    leader = max(cands, key=cands.get) if cands else None
+    if leader:
+        facts.append(f"牽引役: {leader}が{leader_label}")
+    all_names = set(dept_ratio) | set(surg_ratio) | {u["name"] for u in wr.get("units", [])}
+    other_names = tuple(sorted(all_names - {leader})) if leader else tuple(sorted(all_names))
+
+    move = ((with_ai and narrate_hospital_summary(facts, _HOSPITAL_LEVERS[h_topic],
+                                                  leader=leader, extra_banned=other_names,
+                                                  quiet=quiet))
+           or _fallback_move_hospital(h_topic, h_primary_state, ret,
+                                      leader=leader, leader_label=leader_label if leader else None))
+    move = {**move, "topic": h_topic, "src": move.get("src", "tpl"), "leader": leader}
+
     return {
         "axis": "hospital", "type_key": "hospital",
         "type_label": "全体サマリ", "subtitle": "病院全体パフォーマンスサマリ",
@@ -944,7 +1243,7 @@ def build_hospital_overview_context(adm, surg, targets, surg_targets, profit_mon
         "hospital_name": hospital_name,
         "base_date": base_date.strftime("%Y/%m/%d"),
         "generated_at": generated_at.strftime("%Y/%m/%d"),
-        "kpis": kpis, "charts": charts, "move": None,
+        "kpis": kpis, "charts": charts, "move": move,
     }
 
 

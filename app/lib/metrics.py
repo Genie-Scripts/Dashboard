@@ -286,6 +286,10 @@ def weekend_census_retention(adm: pd.DataFrame, date: pd.Timestamp,
     wk_all = float(g[g["wd"] <= 4]["在院患者数"].mean()) if len(g) else 0.0
     we_all = float(g[g["wd"] >= 5]["在院患者数"].mean()) if len(g) else 0.0
     ret_all = round(we_all / wk_all, 3) if wk_all > 0 else None
+    # 全体の room_delta_4w も units と同じ定義（直近4週−前4週のびしろ）で算出
+    # （病院全体サマリのAI一手で、水準×傾向を語るのに使う）
+    _, _, _, room_r_all = _stats(g[g["日付"] >= mid])
+    _, _, _, room_p_all = _stats(g[g["日付"] < mid])
 
     return {
         "entity": entity,
@@ -297,6 +301,7 @@ def weekend_census_retention(adm: pd.DataFrame, date: pd.Timestamp,
             "weekend_avg": round(we_all, 1),
             "retention": ret_all,
             "room_per_week": round(sum(u["room_per_week"] for u in units), 1),
+            "room_delta_4w": round(room_r_all - room_p_all, 1),
         },
     }
 
