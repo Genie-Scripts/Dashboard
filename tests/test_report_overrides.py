@@ -156,6 +156,12 @@ class TestStripServeArgv(unittest.TestCase):
         self.assertEqual(self.strip(["--serve", "--port=9000", "--axes", "dept"]),
                          ["--axes", "dept"])
 
+    def test_removes_serve_timeout_both_forms(self):
+        self.assertEqual(self.strip(["--serve", "--serve-timeout", "30", "--no-ai"]),
+                         ["--no-ai"])
+        self.assertEqual(self.strip(["--serve", "--serve-timeout=30", "--no-ai"]),
+                         ["--no-ai"])
+
     def test_noop_without_serve(self):
         self.assertEqual(self.strip(["--no-ai"]), ["--no-ai"])
 

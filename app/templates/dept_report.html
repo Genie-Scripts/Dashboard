@@ -245,7 +245,12 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
   ターミナルで make reports を再実行してください）。
   下書きは自動でブラウザに保持され、タブを閉じても消えません。
   数値行（全麻/新入院/病床利用率）はデータ由来のため編集対象外です。
-  差し替えの有効期限は {{ review_expires }}（基準日+14日）まで＝古い文の残留を防ぎます。
+  差し替えの有効期限は {{ review_expires }}（基準日+14日）まで＝古い文の残留を防ぎます。<br>
+  <b>できあがりPDF：</b>
+  <a href="診療科版_{{ review_base }}.pdf" target="_blank">診療科版</a>・
+  <a href="病棟版_{{ review_base }}.pdf" target="_blank">病棟版</a>・
+  <a href="病院全体サマリ_{{ review_base }}.pdf" target="_blank">病院全体サマリ</a>
+  （再作成後に開いて印刷。開き直すと最新版になります）
 </div>
 {% endif %}
 

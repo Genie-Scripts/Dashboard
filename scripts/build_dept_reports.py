@@ -55,43 +55,52 @@ def find_chrome() -> str | None:
 def log(msg, level="info"):
     ts = datetime.now().strftime("%H:%M:%S")
     prefix = {"info": "ℹ️ ", "ok": "✅", "warn": "⚠️ ", "err": "❌"}.get(level, "")
-    print(f"  {prefix} [{ts}] {msg}")
+    # flush=True: バックグラウンド実行（build_reports.sh のレビュー運用）では stdout が
+    # ログファイルへのリダイレクト＝ブロックバッファになり、進捗が遅延して見えるため。
+    print(f"  {prefix} [{ts}] {msg}", flush=True)
 
 
 def _strip_serve_argv(argv: list) -> list:
-    """--serve/--port を除いた再ビルド用引数（レビューUIの「PDF再作成」が同条件で再実行）。"""
+    """--serve/--port/--serve-timeout を除いた再ビルド用引数
+    （レビューUIの「PDF再作成」が同条件で再実行・サーバの再帰起動を防ぐ）。"""
     out, skip = [], 0
     for a in argv:
         if skip:
             skip -= 1
             continue
-        if a == "--serve" or a.startswith("--port="):
+        if a == "--serve" or a.startswith("--port=") or a.startswith("--serve-timeout="):
             continue
-        if a == "--port":
+        if a in ("--port", "--serve-timeout"):
             skip = 1
             continue
         out.append(a)
     return out
 
 
-def serve_review(output_dir: Path, review_rel: str, port: int, rebuild_argv: list):
-    """§6-1 レビューUI用の軽量ローカルサーバ（127.0.0.1限定・Ctrl+Cで終了）。
+def serve_review(output_dir: Path, review_rel: str, port: int, rebuild_argv: list,
+                 timeout_min: int = 120):
+    """§6-1 レビューUI用の軽量ローカルサーバ（127.0.0.1限定）。
 
     - GET: output_dir（dept_reports/）配下の静的配信（レビューHTML/PDF）。
-    - POST /rebuild: このスクリプトを同一引数（--serve/--port除く）で再実行（1本のみ）。
+    - POST /rebuild: このスクリプトを同一引数（--serve等除く）で再実行（1本のみ）。
       リクエスト内容は使わない＝任意コマンド実行の余地なし。
     - GET /rebuild/status: {state: idle|running|ok|error, log: 直近行} を返す。
+    - POST /shutdown: サーバ終了（新しいビルドがポートを引き継ぐ時にも使う）。
+    - timeout_min 分アクセスが無ければ自動終了（バックグラウンド常駐の掃除。0=無効）。
+      再作成の実行中はカウントしない。
     """
     import http.server
     import json
     import threading
+    import time
     import webbrowser
     from collections import deque
     from urllib.parse import quote
+    from urllib.request import Request, urlopen
 
     root = output_dir.resolve()
     repo = Path(__file__).resolve().parent.parent
-    status = {"state": "idle"}
+    status = {"state": "idle", "last": time.time()}
     log_buf = deque(maxlen=100)
     lock = threading.Lock()
 
@@ -104,10 +113,12 @@ def serve_review(output_dir: Path, review_rel: str, port: int, rebuild_argv: lis
             rc = proc.wait()
             with lock:
                 status["state"] = "ok" if rc == 0 else "error"
+                status["last"] = time.time()
         except Exception as e:
             log_buf.append(f"再作成プロセスの起動に失敗: {e}")
             with lock:
                 status["state"] = "error"
+                status["last"] = time.time()
         log(f"再作成 {'完了' if status['state'] == 'ok' else '失敗'}",
             "ok" if status["state"] == "ok" else "err")
 
@@ -127,6 +138,12 @@ def serve_review(output_dir: Path, review_rel: str, port: int, rebuild_argv: lis
             self.wfile.write(body)
 
         def do_POST(self):
+            with lock:
+                status["last"] = time.time()
+            if self.path == "/shutdown":
+                self._json(200, {"state": "bye"})
+                threading.Thread(target=server.shutdown, daemon=True).start()
+                return
             if self.path != "/rebuild":
                 self.send_error(404)
                 return
@@ -141,6 +158,8 @@ def serve_review(output_dir: Path, review_rel: str, port: int, rebuild_argv: lis
             self._json(202, {"state": "running"})
 
         def do_GET(self):
+            with lock:
+                status["last"] = time.time()
             if self.path == "/rebuild/status":
                 with lock:
                     st = status["state"]
@@ -148,14 +167,59 @@ def serve_review(output_dir: Path, review_rel: str, port: int, rebuild_argv: lis
             else:
                 super().do_GET()
 
-    server = http.server.ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    # ポートが使用中なら「自分のレビューサーバか」を確かめてから /shutdown で引き継ぐ。
+    # 別プロジェクトのサーバ（業務ハブ等）だった場合は手を出さずに明確なエラーで戻る。
+    def _is_review_server() -> bool:
+        try:
+            with urlopen(f"http://127.0.0.1:{port}/rebuild/status", timeout=3) as r:
+                return b'"state"' in r.read(200)
+        except Exception:
+            return False
+
+    server = None
+    for attempt in range(6):
+        try:
+            server = http.server.ThreadingHTTPServer(("127.0.0.1", port), Handler)
+            break
+        except OSError:
+            if not _is_review_server():
+                log(f"ポート{port}は別のプロセスが使用中です"
+                    "（--port で空きポートを指定してください）", "err")
+                return
+            if attempt == 0:
+                log(f"ポート{port}が使用中 → 旧レビューサーバに終了を要求", "warn")
+            try:
+                urlopen(Request(f"http://127.0.0.1:{port}/shutdown", method="POST"),
+                        timeout=3)
+            except Exception:
+                pass
+            time.sleep(1)
+    if server is None:
+        log(f"ポート{port}を確保できません（--port で変更可）", "err")
+        return
+
+    if timeout_min:
+        def watchdog():
+            while True:
+                time.sleep(60)
+                with lock:
+                    idle = (status["state"] != "running"
+                            and time.time() - status["last"] > timeout_min * 60)
+                if idle:
+                    log(f"{timeout_min}分間アクセスが無いためレビューサーバを自動終了")
+                    threading.Thread(target=server.shutdown, daemon=True).start()
+                    return
+        threading.Thread(target=watchdog, daemon=True).start()
+
     url = f"http://127.0.0.1:{port}/" + quote(review_rel)
-    log(f"レビューサーバ起動: {url}（終了は Ctrl+C）", "ok")
+    log(f"レビューサーバ起動: {url}"
+        f"（終了は Ctrl+C{f'・無操作{timeout_min}分で自動終了' if timeout_min else ''}）", "ok")
     webbrowser.open(url)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        log("レビューサーバを終了しました")
+        pass
+    log("レビューサーバを終了しました")
 
 
 def html_to_pdf(chrome: str, html_path: Path, pdf_path: Path) -> bool:
@@ -185,7 +249,11 @@ def main():
     p.add_argument("--serve", action="store_true",
                    help="ビルド後にレビューUI用ローカルサーバを起動"
                         "（「PDF再作成」ボタンが使える・Ctrl+Cで終了）")
-    p.add_argument("--port", type=int, default=8765, help="--serve のポート（既定8765）")
+    # 既定8768: 業務ハブ系(8502-04/8910-12/8930-31)・oMLX(8000)・Surgery手動プレビュー(8765)
+    # のいずれとも重ならない空き番号を選んでいる
+    p.add_argument("--port", type=int, default=8768, help="--serve のポート（既定8768）")
+    p.add_argument("--serve-timeout", type=int, default=120,
+                   help="--serve の無操作自動終了（分・既定120・0=無効）")
     p.add_argument("--split", action="store_true",
                    help="軸ごと連結せず、部門ごとの個別PDF（{基準日}/{軸}/{名前}.pdf）に分割")
     p.add_argument("--quiet", "-q", action="store_true")
@@ -371,7 +439,7 @@ def main():
                            + _strip_serve_argv(sys.argv[1:])
             serve_review(Path(args.output_dir),
                          f"{date_str}/レビュー_{date_str}.html",
-                         args.port, rebuild_argv)
+                         args.port, rebuild_argv, timeout_min=args.serve_timeout)
 
 
 if __name__ == "__main__":
