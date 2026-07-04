@@ -175,6 +175,9 @@
      従来どおり生成だけして終わる場合は <code>./build_reports.sh --no-review</code>。
      <code>--only</code>／<code>--limit</code>（部分ビルド）を渡した場合は自動的に
      従来動作になります。</p>
+  <p>初回生成を急ぐときは <code>./build_reports.sh --fast</code>
+     （一手の意味整合チェックを省いてLLM呼び出しを約半分にします）。<b>「PDF再作成」は
+     生成キャッシュにより2回目以降は数秒で完了</b>します（§5.5）。</p>
 
   <h3>コマンドライン（<code>make</code>）</h3>
   <pre><code># 既定（軸ごと連結＋AI一手）
@@ -202,11 +205,19 @@ make reports DATE=2026-05-31</code></pre>
     <tr><td><code>--limit N</code></td><td>先頭N件のみ生成（確認用）</td></tr>
     <tr><td><code>--split</code></td><td>部門ごとの個別PDFに分割</td></tr>
     <tr><td><code>--keep-html</code></td><td>PDF化前の中間HTMLも出力先に残す</td></tr>
+    <tr><td><code>--no-overrides</code></td><td><code>overrides.md</code>（一手の手直し）を読み込まない</td></tr>
+    <tr><td><code>--no-cache</code></td><td>AI一手の生成キャッシュを使わず、毎回すべて再生成する</td></tr>
     <tr><td><code>--quiet</code> / <code>-q</code></td><td>進捗ログを抑制</td></tr>
   </table>
   <div class="note">
     <b>Chromeが必要です</b>：PDF化には headless Chrome（または Chromium / Edge）の
     <code>--print-to-pdf</code> を使用します。見つからない場合は HTML のみ出力されます。
+  </div>
+  <div class="note">
+    <b>初回生成を速くする</b>：意味整合の第2パス検査（judge）を省くとLLM呼び出しが
+    約半分になります。<code>build_reports.sh --fast</code>、直接実行では環境変数
+    <code>AI_NARRATIVE_JUDGE=0</code> を指定します。「PDF再作成」は生成キャッシュにより
+    2回目以降は数秒で完了するため、通常このフラグは不要です。
   </div>
 </section>
 
@@ -301,11 +312,15 @@ make reports DATE=2026-05-31</code></pre>
     <li>直したい部門のコメント（本文／一手）をクリックして書き換えます。
         印刷と同じ見た目のシート上で、チャート・KPIを見ながら直せます。
         文字数メーター（本文90字／一手70字・超過は橙）がレイアウト崩れを防ぎます。</li>
-    <li>右上の「overrides.md へ保存」を押すと <b>dept_reports/overrides.md に直接書き込み</b>
-        ます（初回のみファイル選択。下書きはブラウザに自動保持）。</li>
+    <li>右上の「overrides.md へ保存」を押すと <b>dept_reports/overrides.md に書き込み</b>
+        ます。<code>make review</code>（レビューサーバ経由）で開いていれば、
+        <b>保存先は自動で正しい場所（ビルドが読むファイル）になり、ファイル選択は不要</b>です。
+        ファイルとして直接開いた場合のみ、初回に保存先の選択が必要です
+        （下書きはブラウザに自動保持）。</li>
     <li>隣の「<b>PDF再作成</b>」を押すと、その場で再ビルドが走り差し替え済みのPDFになります
-        （進捗表示つき・完了で画面も新しい版に自動更新。該当部門はAI生成をスキップするため
-        再ビルドも速くなります）。</li>
+        （進捗表示つき・完了で画面も新しい版に自動更新）。<b>2回目以降は生成キャッシュにより
+        数秒で完了</b>します（同じデータの再ビルドではAIを呼び直さず、前回のコメントを
+        そのまま再利用するため。データが変われば自動で作り直します）。</li>
   </ol>
   <div class="note">
     <b>「PDF再作成」ボタンが使えるのは <code>make review</code> で開いたときだけ</b>です。
@@ -331,6 +346,14 @@ make reports DATE=2026-05-31</code></pre>
         <code>[診療科:整形外科] expires:2026-07-16</code> の行に続けて
         <code>body:</code>／<code>action:</code> 行を書きます。壊れたブロックは
         そのブロックだけスキップして警告し、ビルドは止まりません。</li>
+    <li><b>再作成が速い理由（生成キャッシュ）</b>：AI一手は同じ事実からは必ず同じ文に
+        なるため、生成結果が <code>dept_reports/_state/</code> にキャッシュされ、同じデータの
+        再ビルドで再利用されます（LLMを呼び直さない）。これにより「PDF再作成」は数秒で
+        終わります。キャッシュを使わず毎回すべて作り直すには <code>--no-cache</code>。</li>
+    <li><b>保存先はビルドと同じ場所に固定</b>：<code>make review</code> 経由の保存は
+        サーバが <code>dept_reports/overrides.md</code>（ビルドが読むファイル）へ直接
+        書き込みます。手編集する場合も、必ずこの場所のファイルを編集してください
+        （別フォルダに置いても反映されません）。</li>
     <li>読み込みを一時的に止めたいときは <code>--no-overrides</code>。</li>
   </ul>
 </section>
@@ -369,10 +392,11 @@ make reports DATE=2026-05-31</code></pre>
     <tr><th>症状</th><th>対処</th></tr>
     <tr><td>PDFが生成されずHTMLだけ出る</td><td>Google Chrome / Chromium / Edge のいずれかをインストールしてください。</td></tr>
     <tr><td>「この期間の一手」が定型文ばかりになる</td><td>oMLXが起動しているか確認（<code>build_reports.sh</code>は自動起動を試みます）。ハルシネーション棄却が多いだけの場合もあり、異常ではありません。</td></tr>
-    <tr><td>生成が遅い</td><td>AI一手はユニットごとに逐次LLM呼び出しを行うため、部門数が多いと数分かかります。急ぐ場合は <code>--no-ai</code> を使用してください。</td></tr>
+    <tr><td>生成が遅い</td><td>AI一手はユニットごとに逐次LLM呼び出しを行うため、初回は数分かかります。ただし<b>「PDF再作成」（同じデータの再ビルド）は生成キャッシュで数秒</b>です。初回も急ぐなら <code>build_reports.sh --fast</code>（意味整合チェックを省いてLLM呼び出しを約半分に）、または <code>--no-ai</code>（定型文のみ）を使用してください。</td></tr>
     <tr><td>特定の1部門だけ確認したい</td><td><code>--only 診療科名</code> で該当部門のみ・高速に個別出力できます（病院全体サマリは省略されます・レビュー画面も出ません）。</td></tr>
     <tr><td>「PDF再作成」を押すと案内ダイアログが出て実行されない</td><td>レビューHTMLをファイルとして直接開いています。<code>build_reports.sh</code>（または <code>make review</code>）で開いた画面から操作するか、ターミナルで <code>make reports</code> を再実行してください。</td></tr>
-    <tr><td>「保存」でファイル選択が毎回出る／保存できない</td><td>保存先の記憶はブラウザ単位です。初回と、開き方が変わったとき（ファイル直接→レビューサーバ経由）に1回だけ選択が出ます。Chrome以外のブラウザでは直接書き込みできず、ダウンロード保存になります（<code>dept_reports/overrides.md</code> に置き換えてください）。</td></tr>
+    <tr><td>手直しを保存したのにPDFに反映されない</td><td>①保存後に「<b>PDF再作成</b>」を押したか確認（保存だけでは反映されません）。②<b>このアップデート前から開いたままのレビュー画面は一度閉じ、<code>build_reports.sh</code>（<code>make review</code>）を実行し直して</b>開き直してください（古い画面は保存先が正しくない場合があります）。③手編集した場合、保存先が <code>dept_reports/overrides.md</code> になっているか確認してください（別フォルダに保存すると読み込まれません）。</td></tr>
+    <tr><td>「保存」でファイル選択が出る／保存できない</td><td><code>make review</code>（レビューサーバ経由）で開いていれば、保存はサーバが正しい場所へ書き込むため<b>ファイル選択は出ません</b>。ファイルとして直接開いた場合のみ、初回に保存先の選択（Chrome以外はダウンロード保存）になります。その場合の保存先は必ず <code>dept_reports/overrides.md</code> にしてください。</td></tr>
     <tr><td>レビュー画面のボタンが効かない（時間を置いて開いた）</td><td>レビューサーバは無操作2時間で自動終了します。<code>build_reports.sh</code> を再実行してください（保存済みの手直しは <code>overrides.md</code> に残っており、再ビルドで反映されます）。</td></tr>
     <tr><td>ポートが使用中と表示される</td><td>レビューサーバは既定で 8768 番（このMac内限定）を使い、他のアプリが使用中なら自動で隣の空き番号にずれます。<code>--port</code> を自分で指定した場合のみエラーになるため、空き番号を指定し直してください。院内の他システムや業務ハブ側のサーバに影響を与えることはありません。</td></tr>
     <tr><td>手直しした文がいつの間にか元に戻った</td><td>仕様です。差し替えの有効期限（基準日+14日）を過ぎると自動で無効になり、AI文に戻ります（古いコメントの残留防止）。継続したい場合はレビュー画面で再度保存してください。</td></tr>
@@ -381,6 +405,22 @@ make reports DATE=2026-05-31</code></pre>
 
 <section id="history">
   <h2>8. 改訂履歴</h2>
+  <div class="rev">
+    <p><span class="d">2026-07-05（追補）</span><br>
+      ・<b>手直しがPDFに反映されない不具合を修正</b>：レビュー画面の「保存」が
+      レビューサーバ経由のときは、ビルドが読むファイル
+      （<code>dept_reports/overrides.md</code>）へサーバが直接書き込むようにしました。
+      ブラウザのファイル選択で保存先を取り違える問題を解消し、初回のファイル選択も
+      不要になりました。<br>
+      ・<b>「PDF再作成」を高速化</b>：AI一手の生成キャッシュを追加。同じデータの
+      再ビルドではLLMを呼び直さず前回のコメントを再利用するため、再作成が数分→数秒に
+      なりました（<code>--no-cache</code> で無効化可）。<br>
+      ・<b>初回生成の高速化オプション</b> <code>build_reports.sh --fast</code>
+      （＝<code>AI_NARRATIVE_JUDGE=0</code>）を追加：一手の意味整合チェック（第2パス）を
+      省いてLLM呼び出しを約半分にします。<br>
+      ・トラブルシューティング（§7）を更新（反映されないとき／保存先／生成が遅いとき）。
+    </p>
+  </div>
   <div class="rev">
     <p><span class="d">2026-07-05</span><br>
       ・一手の人手オーバーライド機構を新設（§5.5）：レビューHTML

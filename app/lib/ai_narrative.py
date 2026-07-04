@@ -16,12 +16,14 @@ alerts.py が返した「確定事実」を受け取り、ローカルLLMで
 """
 
 from __future__ import annotations
+import hashlib
 import json
 import logging
 import os
 import re
 import zlib
 from collections import Counter
+from pathlib import Path
 from typing import Optional
 
 from .llm import DEFAULT_MODEL, chat_json
@@ -470,6 +472,63 @@ def reset_reject_stats() -> None:
     REJECT_STATS.clear()
 
 
+# ── 生成キャッシュ（PDF再作成の高速化）─────────────────────────────
+# 「PDF再作成」（overrides.md を直しての再ビルド）は同一データで走るため、
+# プロンプト（system+user）は編集していない部門で完全一致する。生成は決定論
+# （seed=crc32(system+user)）なので、同じプロンプトの出力を使い回しても再生成と
+# バイト単位で同一になる＝キャッシュは意味を変えず時間だけ縮める。ディスクに置くのは
+# 再作成が別プロセスで走る（build_reports.sh の --serve → subprocess）ため。
+# キーにモデル名・JUDGE有無・禁止語を含めるので、それらが変われば自動で無効化する。
+_NARR_CACHE: dict = {}
+_NARR_CACHE_ENABLED = False
+_NARR_CACHE_STATS: Counter = Counter()
+_NARR_CACHE_VERSION = "v1"
+
+
+def load_narrative_cache(path) -> None:
+    """生成キャッシュをディスクから読み込み、以後 _generate_checked が使う（有効化）。
+
+    build_dept_reports.py がビルド開始時に呼ぶ。--no-ai/--no-cache 時は呼ばない。
+    読めない/壊れている場合は空で有効化（fail-soft・全再生成に落ちるだけ）。"""
+    global _NARR_CACHE, _NARR_CACHE_ENABLED
+    _NARR_CACHE, _NARR_CACHE_ENABLED = {}, True
+    _NARR_CACHE_STATS.clear()
+    try:
+        p = Path(path)
+        if p.is_file():
+            data = json.loads(p.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                _NARR_CACHE = data
+    except Exception as e:  # fail-soft
+        logger.warning(f"生成キャッシュを読めません（無視して全再生成）: {e}")
+        _NARR_CACHE = {}
+
+
+def save_narrative_cache(path) -> None:
+    """生成キャッシュをディスクへ書き出す（ビルド終了時に呼ぶ）。"""
+    if not _NARR_CACHE_ENABLED:
+        return
+    try:
+        p = Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(_NARR_CACHE, ensure_ascii=False), encoding="utf-8")
+    except Exception as e:  # fail-soft
+        logger.warning(f"生成キャッシュを書けません（無視）: {e}")
+
+
+def narrative_cache_stats() -> dict:
+    return dict(_NARR_CACHE_STATS)
+
+
+def _cache_key(system: str, user: str, banned: tuple, allow: tuple, model: str) -> str:
+    h = hashlib.sha1()
+    h.update("\x1f".join([
+        _NARR_CACHE_VERSION, model, "1" if JUDGE_ENABLED else "0",
+        repr(tuple(banned)), repr(tuple(allow)), system, user,
+    ]).encode("utf-8"))
+    return h.hexdigest()
+
+
 # 事実文そのものに含まれる数字入りフレーズ（_q_state_trend の「直近4週」）。
 # 「事実をそのまま保て」と指示した文を書いた出力を digit で自爆棄却しないための共通アロー
 # （ベースライン計測 2026-07-04: 棄却16件が全て digit で、この自己矛盾と部門名エコーが主因）。
@@ -579,6 +638,18 @@ def _generate_checked(tag: str, system: str, user: str, banned: tuple,
     保たれる）。再試行は seed+1（同じ seed では棄却された同一出力が返るだけのため）。
     """
     allow = tuple(allow) + _ALLOW_FACT_PHRASES
+    # 生成キャッシュ: 同一プロンプトの採択済み出力を使い回す（PDF再作成の高速化）。
+    # ヒットは再生成とバイト単位で同一（決定論seed）＝意味を変えず時間だけ縮める。
+    key = _cache_key(system, user, banned, allow, model) if _NARR_CACHE_ENABLED else None
+    if key is not None:
+        hit = _NARR_CACHE.get(key)
+        if hit and hit.get("body") and hit.get("action"):
+            _NARR_CACHE_STATS["hit"] += 1
+            REJECT_STATS["cache"] += 1
+            if not quiet:
+                print(f"    [AI] ✓ {tag}（キャッシュ）")
+            return {"body": hit["body"], "action": hit["action"], "src": "ai"}
+        _NARR_CACHE_STATS["miss"] += 1
     base_seed = zlib.crc32((system + user).encode("utf-8")) & 0x7FFFFFFF
     result = None
     for attempt, temp in enumerate((temperature, RETRY_TEMPERATURE)):
@@ -600,6 +671,8 @@ def _generate_checked(tag: str, system: str, user: str, banned: tuple,
                 continue
             result = {**parsed, "src": "ai"}
             REJECT_STATS["ok@retry" if attempt else "ok"] += 1
+            if key is not None:
+                _NARR_CACHE[key] = {"body": parsed["body"], "action": parsed["action"]}
             break
         REJECT_STATS[reason] += 1
     if not quiet:

@@ -144,6 +144,23 @@ def serve_review(output_dir: Path, review_rel: str, port: int, rebuild_argv: lis
                 self._json(200, {"state": "bye"})
                 threading.Thread(target=server.shutdown, daemon=True).start()
                 return
+            # レビューUIの「保存」: overrides.md を **ビルドが読むのと同じ場所**
+            # （output_dir 直下）へサーバ側で書き込む。ブラウザのファイル選択で保存先を
+            # 取り違える事故（例: reports/ に保存されビルドは dept_reports/ を読む）を根絶。
+            if self.path == "/overrides":
+                try:
+                    n = int(self.headers.get("Content-Length") or 0)
+                    if n <= 0 or n > 512 * 1024:      # 空/巨大は拒否（暴走・誤POST防止）
+                        self._json(400, {"ok": False, "error": "size"})
+                        return
+                    body = self.rfile.read(n).decode("utf-8")
+                    (root / "overrides.md").write_text(body, encoding="utf-8")
+                    log(f"レビューUIから overrides.md を保存（{root / 'overrides.md'}）", "ok")
+                    self._json(200, {"ok": True})
+                except Exception as e:
+                    log(f"overrides.md の保存に失敗: {e}", "err")
+                    self._json(500, {"ok": False, "error": str(e)})
+                return
             if self.path != "/rebuild":
                 self.send_error(404)
                 return
@@ -246,6 +263,8 @@ def main():
     p.add_argument("--keep-html", action="store_true", help="中間HTMLを出力先に残す")
     p.add_argument("--no-overrides", action="store_true",
                    help="overrides.md（一手の手動差し替え）を読み込まない")
+    p.add_argument("--no-cache", action="store_true",
+                   help="AI一手の生成キャッシュを使わない（毎回すべて再生成）")
     p.add_argument("--serve", action="store_true",
                    help="ビルド後にレビューUI用ローカルサーバを起動"
                         "（「PDF再作成」ボタンが使える・Ctrl+Cで終了）")
@@ -276,6 +295,16 @@ def main():
     # ── 差分ナラティブ用アンカー（約4週前の量子化状態）──
     from app.lib.dept_report import load_delta_anchor, save_facts_snapshot
     state_dir = Path(args.output_dir) / "_state"
+
+    # ── AI一手の生成キャッシュ（同一プロンプト＝同一出力の再利用でPDF再作成を高速化）──
+    # 「PDF再作成」は同一データ・同一プロンプトで走るため、編集していない部門は全て
+    # キャッシュ命中し LLM を呼ばない（〜5分→数秒）。data が変わればプロンプトが変わり
+    # 自動で再生成される（キーにプロンプト全文・モデル・JUDGE有無を含む）。
+    narr_cache_path = state_dir / f"narrative_cache_{base_date.strftime('%Y-%m-%d')}.json"
+    if not args.no_ai and not args.no_cache:
+        from app.lib.ai_narrative import load_narrative_cache
+        load_narrative_cache(narr_cache_path)
+
     anchor = load_delta_anchor(state_dir, base_date)
     if anchor:
         log(f"差分ナラティブ: アンカー {anchor['_anchor_date']} と比較")
@@ -421,6 +450,13 @@ def main():
         from app.lib.ai_narrative import REJECT_STATS
         if REJECT_STATS:
             log(f"AI一手 採択/棄却内訳: {dict(REJECT_STATS)}")
+        if not args.no_cache:
+            from app.lib.ai_narrative import narrative_cache_stats, save_narrative_cache
+            save_narrative_cache(narr_cache_path)
+            cs = narrative_cache_stats()
+            if cs:
+                log(f"生成キャッシュ: 命中 {cs.get('hit', 0)} / 新規 {cs.get('miss', 0)}"
+                    f"（{narr_cache_path.relative_to(Path(args.output_dir))}）")
 
     print(f"\n{'='*52}")
     print(f"  部門別レポート生成完了 — {generated_at.strftime('%Y/%m/%d %H:%M')}")

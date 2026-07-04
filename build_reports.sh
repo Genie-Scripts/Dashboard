@@ -14,9 +14,11 @@
 #     ./build_reports.sh --no-review
 #   その他の引数はそのまま scripts/build_dept_reports.py へ渡す:
 #     ./build_reports.sh --no-ai              # 一手を定型文のみ（oMLX不要・高速）
+#     ./build_reports.sh --fast               # 意味整合検査(judge)を切り初回生成を高速化
 #     ./build_reports.sh --no-review --split  # 部門ごとの個別PDFに分割
 #     ./build_reports.sh --base-date 2026-05-31
 #   ※ --only/--limit（部分ビルド）はレビュー対象外のため自動で従来動作になる。
+#   ※ 「PDF再作成」は生成キャッシュで数秒（同一データの再ビルドはLLMを呼び直さない）。
 set -euo pipefail
 
 # Homebrew（Apple Silicon）のパスを明示的に追加（AppleScript からは PATH が最小のため）
@@ -46,6 +48,9 @@ prev=""
 for a in "$@"; do
   case "$a" in
     --no-review) REVIEW=0; continue ;;
+    # --fast: 意味整合の第2パス検査(judge)を切って初回生成を速くする（一手の生成LLM
+    # 呼び出しが約半分）。PDF再作成は生成キャッシュで元々速いので judge は既定ON。
+    --fast) export AI_NARRATIVE_JUDGE=0; continue ;;
     --only|--limit) REVIEW=0 ;;
     --only=*|--limit=*) REVIEW=0 ;;
     --port=*) PORT="${a#--port=}"; PORT_EXPLICIT=1 ;;

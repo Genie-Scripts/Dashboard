@@ -239,10 +239,11 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
 </div>
 <div class="hint">
   <b>使い方：</b>気になる部門のコメントをクリックして直し、「保存」で
-  <b>dept_reports/overrides.md に直接書き込み</b>（Chrome・初回のみファイル選択）→
-  「<b>PDF再作成</b>」で差し替えたPDFになります（該当部門はAI生成をスキップ。
-  再作成ボタンは <b>make review</b> で開いたときに使えます。ファイルとして直接開いた場合は
-  ターミナルで make reports を再実行してください）。
+  <b>dept_reports/overrides.md に書き込み</b>（<b>make review</b> で開いていれば保存先は
+  自動で正しい場所になります）→「<b>PDF再作成</b>」で差し替えたPDFになります
+  （該当部門はAI生成をスキップ。再作成ボタンは <b>make review</b> で開いたときに使えます。
+  ファイルとして直接開いた場合は保存にファイル選択が要り、ターミナルで make reports を
+  再実行してください）。
   下書きは自動でブラウザに保持され、タブを閉じても消えません。
   数値行（全麻/新入院/病床利用率）はデータ由来のため編集対象外です。
   差し替えの有効期限は {{ review_expires }}（基準日+14日）まで＝古い文の残留を防ぎます。<br>
@@ -502,8 +503,17 @@ function buildOverridesText(){
   return lines.join("\n");
 }
 
-// ── 保存: File System Access API（Chrome）→ 不可ならモーダル＋ダウンロード ──
+// ── 保存 ──
+// レビューサーバ経由（make review / --serve）なら **サーバに保存させる**。書き込み先は
+// ビルドが読むのと同じ output_dir/overrides.md に固定＝保存先の取り違え事故が起きない。
+// file:// で開いた場合のみ File System Access API（→不可ならモーダル＋ダウンロード）。
 async function saveToFile(text){
+  if (SERVED){
+    const r = await fetch("/overrides", {
+      method: "POST", headers: {"Content-Type": "text/markdown; charset=utf-8"}, body: text});
+    if (!r.ok) throw new Error("server-save-failed");
+    return;
+  }
   if (!window.showSaveFilePicker) throw new Error("fsa-unsupported");
   let h = null;
   try {
