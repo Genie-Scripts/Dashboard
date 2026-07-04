@@ -3,7 +3,7 @@
 <head>
 <meta name="robots" content="noindex, nofollow">
 <meta charset="UTF-8">
-<title>部門レポート{% if sheets|length == 1 %} — {{ sheets[0].unit }}（{{ sheets[0].type_label }}）{% endif %}</title>
+<title>{% if review %}部門レポート 一手レビュー（基準日 {{ review_base }}）{% else %}部門レポート{% if sheets|length == 1 %} — {{ sheets[0].unit }}（{{ sheets[0].type_label }}）{% endif %}{% endif %}</title>
 <style>
 :root{
   --ink:#1a2332; --sub:#5f7084; --mu:#9daab8; --ln:#dfe5ed; --bg:#f6f8fb; --s:#fff;
@@ -132,6 +132,89 @@ h4{font-weight:var(--jp-head)!important}
 .kc .st,.gc .st,.tab .st,.mp-st,.kc .prog-st,.prog-status,.stl,.gp,.dual-st{
   font-weight:var(--jp-head)!important}
 </style>
+{% if review %}<style>
+/* ── §6-1 一手レビューUI（review=True のときだけ・spec/override_ui_mock.html 準拠） ──
+   PDFと同じシート上で move の body/action を直接編集 → overrides.md へ保存。 */
+:root{--edit:#e07a2f; --navy:#2b5797}
+body.review{padding-bottom:80px}
+.toolbar{position:sticky; top:0; z-index:50; background:#fff; border-bottom:2px solid var(--navy);
+  display:flex; align-items:center; gap:14px; padding:10px 18px; box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.toolbar .ttl{font-size:14px; font-weight:900; color:var(--navy)}
+.toolbar .sub{font-size:11px; color:var(--sub)}
+.badge-n{background:var(--edit); color:#fff; border-radius:12px; font-size:11px; font-weight:800;
+  padding:2px 10px; min-width:60px; text-align:center}
+.badge-n.zero{background:#b9c2cd}
+.tb-btn{border:1px solid var(--navy); color:var(--navy); background:#fff; border-radius:8px;
+  font-size:12px; font-weight:700; padding:6px 14px; cursor:pointer}
+.tb-btn.primary{background:var(--navy); color:#fff}
+.tb-btn:hover{filter:brightness(1.08)}
+.tb-btn:disabled{opacity:.5; cursor:default}
+.tb-btn.off{opacity:.45}
+.spacer{flex:1}
+.save-msg{font-size:11px; font-weight:800; color:var(--ok)}
+.edited-list{font-size:11px; color:var(--sub); max-width:340px; overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap}
+.edited-list b{color:var(--edit); cursor:pointer; text-decoration:underline dotted}
+.hint{width:190mm; margin:14px auto 0; background:#fff8ec; border:1px solid #eddcb8;
+  border-radius:10px; padding:10px 14px; font-size:12px; line-height:1.7; color:#7a5b16}
+.hint b{color:#8a5a00}
+body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); border-radius:6px}
+/* 編集フィールド */
+.move .field{position:relative; border-radius:7px; padding:2px 6px; margin:0 -6px}
+.move .field.af{flex:1; margin:0; padding:0 4px}
+.move .field:hover{background:rgba(43,87,151,.05)}
+.move .ed{outline:none; min-height:1.4em}
+.move .ed[data-kind="body"]{font-size:10.5px; line-height:1.6; color:var(--ink)}
+.move .ed[data-kind="action"]{font-size:10.5px; font-weight:800; color:#0b5e41; line-height:1.55}
+.move .ed:focus{background:#fff; box-shadow:0 0 0 2px rgba(43,87,151,.35); border-radius:6px}
+.move .field:after{content:"✎"; position:absolute; right:6px; top:2px; font-size:11px;
+  color:#b9c2cd; opacity:0; transition:opacity .12s}
+.move .field:hover:after{opacity:1}
+.move .field:hover .cnt, .move .ed:focus ~ .cnt{opacity:1}
+.cnt{position:absolute; right:6px; bottom:-9px; font-size:9px; font-weight:800; color:#fff;
+  background:#9aa8b8; border-radius:8px; padding:1px 7px; opacity:0; transition:opacity .12s;
+  pointer-events:none; z-index:2}
+.cnt.over{background:var(--wr)}
+/* 編集済み/手動/解除予定の状態 */
+.move.dirty{border-color:var(--edit); border-left-color:var(--edit);
+  background:linear-gradient(180deg,#fff8f2,#fff)}
+.move.dirty .move-h .ttl{color:var(--edit)}
+.move.dirty .move-act{border-color:#f0cdae}
+.move.dirty .move-act .arw{color:var(--edit)}
+.tag-manual,.tag-removed{display:none; font-size:8px; font-weight:800; color:#fff;
+  background:var(--edit); border-radius:3px; padding:1px 6px}
+.tag-removed{background:#9aa8b8}
+.move.manual .tag-manual{display:inline}
+.move.removed .tag-manual{display:none}
+.move.removed .tag-removed{display:inline}
+.move.removed .ed{opacity:.45; text-decoration:line-through}
+.move .restore{font-size:10px; color:var(--sub); border:1px solid #d4dce6; background:#fff;
+  border-radius:6px; padding:2px 8px; cursor:pointer; margin-left:6px; visibility:hidden}
+.move.dirty .restore, .move.manual .restore, .move.removed .restore{visibility:visible}
+.lock-note{font-size:8.5px; color:#9aa8b8; margin-top:4px}
+/* フォールバックモーダル（File System Access API 不可時） */
+.modal-bg{display:none; position:fixed; inset:0; background:rgba(15,25,40,.45); z-index:100}
+.modal{display:none; position:fixed; top:8vh; left:50%; transform:translateX(-50%); width:720px;
+  max-width:94vw; background:#fff; border-radius:12px; padding:20px 22px; z-index:101;
+  box-shadow:0 10px 40px rgba(0,0,0,.3)}
+.modal h3{font-size:14px; color:var(--navy); margin-bottom:6px}
+.modal p{font-size:11.5px; color:var(--sub); line-height:1.7; margin-bottom:10px}
+.modal textarea{width:100%; height:260px; font:11px/1.6 "SF Mono",Menlo,monospace;
+  border:1px solid #d4dce6; border-radius:8px; padding:10px; color:#243447; background:#f8fafc}
+.modal .row{display:flex; gap:10px; margin-top:12px; justify-content:flex-end}
+@media print{
+  .toolbar,.hint,.restore,.cnt,.modal-bg,.modal,.lock-note,.tag-removed{display:none!important}
+  body.review{padding:0}
+  body.review .sheet{box-shadow:none; margin:0 auto; border-radius:0}
+  .move .field:after{display:none}
+  .move.dirty{border-color:#cfe0d8; border-left-color:var(--ok);
+    background:linear-gradient(180deg,#f4fdf9,#fff)}
+  .move.dirty .move-h .ttl{color:#0b5e41}
+  .move.dirty .move-act{border-color:#b6d6c8}
+  .move.dirty .move-act .arw{color:var(--ok)}
+  .tag-manual{display:none!important}
+}
+</style>{% endif %}
 {% if table_css %}<style>
 /* 病院全体サマリ 2・3ページ目（病棟/診療科テーブル）用 ── hospital_summary.BASE_CSS */
 {{ table_css }}
@@ -139,7 +222,32 @@ h4{font-weight:var(--jp-head)!important}
 .sheet-table .sec{margin-top:4px}
 </style>{% endif %}
 </head>
-<body>
+<body{% if review %} class="review"{% endif %}>
+{% if review %}
+<div class="toolbar">
+  <div>
+    <div class="ttl">部門レポート 一手レビュー <span class="sub">基準日 {{ review_base }}</span></div>
+    <div class="sub">直したいコメントをその場でクリック → 書き換え → 右の保存。それ以外は何もしなくてOK</div>
+  </div>
+  <span class="badge-n zero" id="nbadge">変更 0件</span>
+  <span class="edited-list" id="elist"></span>
+  <span class="save-msg" id="savemsg"></span>
+  <div class="spacer"></div>
+  <button class="tb-btn" id="btn-reset" type="button">すべてAI文に戻す</button>
+  <button class="tb-btn primary" id="btn-save" type="button">overrides.md へ保存</button>
+  <button class="tb-btn" id="btn-rebuild" type="button">PDF再作成</button>
+</div>
+<div class="hint">
+  <b>使い方：</b>気になる部門のコメントをクリックして直し、「保存」で
+  <b>dept_reports/overrides.md に直接書き込み</b>（Chrome・初回のみファイル選択）→
+  「<b>PDF再作成</b>」で差し替えたPDFになります（該当部門はAI生成をスキップ。
+  再作成ボタンは <b>make review</b> で開いたときに使えます。ファイルとして直接開いた場合は
+  ターミナルで make reports を再実行してください）。
+  下書きは自動でブラウザに保持され、タブを閉じても消えません。
+  数値行（全麻/新入院/病床利用率）はデータ由来のため編集対象外です。
+  差し替えの有効期限は {{ review_expires }}（基準日+14日）まで＝古い文の残留を防ぎます。
+</div>
+{% endif %}
 
 {% macro card(c, hero=false) %}
 <div class="card{% if hero %} hero{% endif %}">
@@ -160,7 +268,24 @@ h4{font-weight:var(--jp-head)!important}
 </div>
 {% endmacro %}
 
-{% macro movecard(m) %}
+{% macro movecard(m, s=None) %}
+{% if review and s %}
+<div class="move{% if m.src == 'manual' %} manual{% endif %}"
+     data-unit="{{ '診療科' if s.axis == 'dept' else '病棟' }}:{{ s.unit }}"
+     data-src="{{ m.src }}" data-ov-fields="{{ (m.ov_fields or [])|join(',') }}">
+  <div class="move-h">
+    <span class="ttl">この期間の一手</span>
+    <span class="tag-manual">手動</span><span class="tag-removed">次回ビルドでAI文に戻る</span>
+    <span class="ai">AI要約／院内データ</span>
+    <button class="restore" type="button">AI文に戻す</button></div>
+  <div class="field"><div class="ed" data-kind="body" data-max="90">{{ m.body }}</div><span class="cnt"></span></div>
+  <div class="move-act"><span class="arw">▶</span><div class="field af"><div class="ed" data-kind="action" data-max="70">{{ m.action }}</div><span class="cnt"></span></div></div>
+  {% if m.surg_line %}<div class="move-surg">{{ m.surg_line }}</div>{% endif %}
+  {% if m.util_line %}<div class="move-surg">{{ m.util_line }}</div>{% endif %}
+  {% if m.nadm_line %}<div class="move-surg">{{ m.nadm_line }}</div>{% endif %}
+  {% if m.surg_line or m.util_line or m.nadm_line %}<div class="lock-note">※数値行はデータ由来（編集対象外）</div>{% endif %}
+</div>
+{% else %}
 <div class="move">
   <div class="move-h">
     <span class="ttl">この期間の一手</span>
@@ -171,6 +296,7 @@ h4{font-weight:var(--jp-head)!important}
   {% if m.util_line %}<div class="move-surg">{{ m.util_line }}</div>{% endif %}
   {% if m.nadm_line %}<div class="move-surg">{{ m.nadm_line }}</div>{% endif %}
 </div>
+{% endif %}
 {% endmacro %}
 
 {% for s in sheets %}
@@ -214,10 +340,10 @@ h4{font-weight:var(--jp-head)!important}
       {% for i in range(0, rest|length, 2) %}
         <div class="row">
           {{ card(rest[i]) }}
-          {% if i + 1 < rest|length %}{{ card(rest[i+1]) }}{% elif s.move %}{{ movecard(s.move) }}{% endif %}
+          {% if i + 1 < rest|length %}{{ card(rest[i+1]) }}{% elif s.move %}{{ movecard(s.move, s) }}{% endif %}
         </div>
       {% endfor %}
-      {% if rest|length % 2 == 0 and s.move %}<div class="move-wrap">{{ movecard(s.move) }}</div>{% endif %}
+      {% if rest|length % 2 == 0 and s.move %}<div class="move-wrap">{{ movecard(s.move, s) }}</div>{% endif %}
     </div>
 
     <div class="chartkey">
@@ -240,5 +366,286 @@ h4{font-weight:var(--jp-head)!important}
 {% for ep in extra_pages|default([]) %}
   <div class="sheet sheet-table">{{ ep | safe }}</div>
 {% endfor %}
+
+{% if review %}
+<div class="modal-bg" id="modalbg"></div>
+<div class="modal" id="modal">
+  <h3>overrides.md（手動保存フォールバック）</h3>
+  <p>ファイルへの直接書き込みができない環境です。下の内容を <b>dept_reports/overrides.md</b> に
+     貼り付けるか、「ダウンロード」で保存したファイルを同じ場所に置いてください。</p>
+  <textarea id="ovtext" readonly></textarea>
+  <div class="row">
+    <button class="tb-btn" id="btn-dl" type="button">ダウンロード</button>
+    <button class="tb-btn primary" id="btn-close" type="button">閉じる</button>
+  </div>
+</div>
+<script>
+"use strict";
+// §6-1 一手レビューUI。ビルド出力の文面を原文(ORIG)として起動時に取り込み、
+// 編集差分だけを overrides.md 形式で書き出す（保存＝ファイル全体の書き換え）。
+const BASE_DATE = "{{ review_base }}", EXPIRES = "{{ review_expires }}";
+const DRAFT_KEY = "deptReportOv:" + BASE_DATE;
+const norm = t => t.replace(/\n+/g, " ").trim();
+const cards = [...document.querySelectorAll(".move[data-unit]")];
+const ORIG = {};   // unit -> {body, action, manual, ovFields}
+const SERVED = location.protocol === "http:" || location.protocol === "https:";
+let unsavedEdits = false;   // 最後の保存以降に編集があるか（PDF再作成前の確認用）
+
+// ── IndexedDB（overrides.md のファイルハンドル永続化＝初回のみファイル選択）──
+function idb(){ return new Promise((res, rej) => {
+  const r = indexedDB.open("dept-report-review", 1);
+  r.onupgradeneeded = () => r.result.createObjectStore("kv");
+  r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
+async function idbGet(k){ const d = await idb(); return new Promise((res, rej) => {
+  const t = d.transaction("kv").objectStore("kv").get(k);
+  t.onsuccess = () => res(t.result); t.onerror = () => rej(t.error); }); }
+async function idbSet(k, v){ const d = await idb(); return new Promise((res, rej) => {
+  const t = d.transaction("kv", "readwrite").objectStore("kv").put(v, k);
+  t.onsuccess = () => res(); t.onerror = () => rej(t.error); }); }
+
+function eds(card){ return [...card.querySelectorAll(".ed")]; }
+function unitOf(card){ return card.dataset.unit; }
+
+function changedFields(card){
+  const o = ORIG[unitOf(card)];
+  return eds(card).filter(ed => norm(ed.innerText) !== o[ed.dataset.kind])
+                  .map(ed => ed.dataset.kind);
+}
+function emitFields(card){
+  // 保存時にブロックへ書く欄: 手動カード(解除以外)=元の手動欄∪編集欄 / AIカード=編集欄のみ
+  const o = ORIG[unitOf(card)];
+  if (card.classList.contains("removed")) return [];
+  const ch = changedFields(card);
+  return o.manual ? [...new Set([...o.ovFields, ...ch])] : ch;
+}
+function isPending(card){
+  // ツールバーの「変更」= ビルド出力から動かした部門（編集 or 手動解除）
+  return changedFields(card).length > 0 || card.classList.contains("removed");
+}
+
+function refreshCard(card){
+  eds(card).forEach(ed => {
+    const kind = ed.dataset.kind, max = +ed.dataset.max, txt = norm(ed.innerText);
+    const cnt = ed.parentElement.querySelector(".cnt");
+    cnt.textContent = (kind === "body" ? "本文 " : "一手 ") + txt.length + "／" + max + "字";
+    cnt.classList.toggle("over", txt.length > max);
+  });
+  card.classList.toggle("dirty", changedFields(card).length > 0);
+  const btn = card.querySelector(".restore");
+  const o = ORIG[unitOf(card)];
+  btn.textContent = o.manual
+    ? (card.classList.contains("removed") ? "差し替えを維持" : "AI文に戻す")
+    : "AI文に戻す";
+  refreshToolbar();
+}
+function refreshToolbar(){
+  const pend = cards.filter(isPending);
+  const b = document.getElementById("nbadge");
+  b.textContent = "変更 " + pend.length + "件";
+  b.classList.toggle("zero", pend.length === 0);
+  document.getElementById("elist").innerHTML = pend.map(c =>
+    `<b data-u="${unitOf(c)}">${unitOf(c).split(":")[1]}</b>`).join("・");
+}
+
+// ── 下書き（保存前のブラウザ内退避。保存成功でクリア）──
+function writeDraft(){
+  const d = {};
+  cards.forEach(card => {
+    if (!isPending(card)) return;
+    const e = {};
+    eds(card).forEach(ed => { e[ed.dataset.kind] = norm(ed.innerText); });
+    e.removed = card.classList.contains("removed");
+    d[unitOf(card)] = e;
+  });
+  try { Object.keys(d).length
+        ? localStorage.setItem(DRAFT_KEY, JSON.stringify(d))
+        : localStorage.removeItem(DRAFT_KEY); } catch (e) {}
+}
+function applyDraft(){
+  let d = null;
+  try { d = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null"); } catch (e) {}
+  if (!d) return;
+  cards.forEach(card => {
+    const e = d[unitOf(card)];
+    if (!e) return;
+    eds(card).forEach(ed => {
+      if (e[ed.dataset.kind] != null) ed.innerText = e[ed.dataset.kind];
+    });
+    card.classList.toggle("removed", !!e.removed);
+  });
+}
+
+function buildOverridesText(){
+  const lines = [
+    "# 部門レポート 一手の手動差し替え（このファイルは手編集も可）",
+    "# 形式: [診療科:部門名] expires:YYYY-MM-DD ＋ body:/action: 行（片方だけでも可）",
+    "# expires を過ぎたブロックは自動で無視。#始まりの行はコメント。",
+    "# 生成: レビューUI 基準日 " + BASE_DATE, ""];
+  let n = 0;
+  cards.forEach(card => {
+    const fields = emitFields(card);
+    if (!fields.length) return;
+    lines.push(`[${unitOf(card)}] expires:${EXPIRES}`);
+    eds(card).forEach(ed => {
+      if (fields.includes(ed.dataset.kind))
+        lines.push(`${ed.dataset.kind}: ${norm(ed.innerText)}`);
+    });
+    lines.push("");
+    n += 1;
+  });
+  if (!n) lines.push("# （差し替えなし）");
+  return lines.join("\n");
+}
+
+// ── 保存: File System Access API（Chrome）→ 不可ならモーダル＋ダウンロード ──
+async function saveToFile(text){
+  if (!window.showSaveFilePicker) throw new Error("fsa-unsupported");
+  let h = null;
+  try {
+    h = await idbGet("handle");
+    if (h && await h.queryPermission({mode: "readwrite"}) !== "granted"
+          && await h.requestPermission({mode: "readwrite"}) !== "granted") h = null;
+  } catch (e) { h = null; }
+  if (!h){
+    h = await showSaveFilePicker({suggestedName: "overrides.md",
+      types: [{description: "Markdown", accept: {"text/markdown": [".md"]}}]});
+    try { await idbSet("handle", h); } catch (e) {}
+  }
+  const w = await h.createWritable();
+  await w.write(text); await w.close();
+}
+function showModal(text){
+  document.getElementById("ovtext").value = text;
+  document.getElementById("modal").style.display = "block";
+  document.getElementById("modalbg").style.display = "block";
+}
+function closeModal(){
+  document.getElementById("modal").style.display = "none";
+  document.getElementById("modalbg").style.display = "none";
+}
+function flashSaved(msg){
+  const el = document.getElementById("savemsg");
+  el.textContent = msg;
+  setTimeout(() => { if (el.textContent === msg) el.textContent = ""; }, 6000);
+}
+
+// ── 配線 ──
+cards.forEach(card => {
+  const o = {manual: card.dataset.src === "manual",
+             ovFields: (card.dataset.ovFields || "").split(",").filter(Boolean)};
+  eds(card).forEach(ed => {
+    o[ed.dataset.kind] = norm(ed.innerText);
+    try { ed.contentEditable = "plaintext-only"; } catch (e) {}
+    if (ed.contentEditable !== "plaintext-only") ed.contentEditable = "true";
+    ed.addEventListener("input", () => { unsavedEdits = true; refreshCard(card); writeDraft(); });
+    ed.addEventListener("blur", () => { refreshCard(card); writeDraft(); });
+  });
+  ORIG[unitOf(card)] = o;
+  card.querySelector(".restore").addEventListener("click", () => {
+    if (o.manual) {
+      card.classList.toggle("removed");           // 解除=次回保存でブロック削除→次ビルドでAI文
+    } else {
+      eds(card).forEach(ed => { ed.innerText = o[ed.dataset.kind]; });
+    }
+    unsavedEdits = true;
+    refreshCard(card); writeDraft();
+  });
+});
+applyDraft();
+cards.forEach(refreshCard);
+
+document.getElementById("elist").addEventListener("click", e => {
+  const u = e.target.dataset && e.target.dataset.u;
+  if (u) document.querySelector(`.move[data-unit="${u}"]`)
+           .scrollIntoView({behavior: "smooth", block: "center"});
+});
+document.getElementById("btn-reset").addEventListener("click", () => {
+  if (!confirm("すべての編集を取り消し、手動差し替えも解除します。よろしいですか？")) return;
+  cards.forEach(card => {
+    const o = ORIG[unitOf(card)];
+    if (o.manual) card.classList.add("removed");
+    else eds(card).forEach(ed => { ed.innerText = o[ed.dataset.kind]; });
+    refreshCard(card);
+  });
+  unsavedEdits = true;
+  writeDraft();
+});
+document.getElementById("btn-save").addEventListener("click", async () => {
+  const text = buildOverridesText();
+  try {
+    await saveToFile(text);
+    try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
+    unsavedEdits = false;
+    const t = new Date();
+    flashSaved("✓ 保存しました " +
+      String(t.getHours()).padStart(2, "0") + ":" + String(t.getMinutes()).padStart(2, "0") +
+      (SERVED ? "（「PDF再作成」で反映）" : "（make reports の再実行で反映）"));
+  } catch (e) {
+    if (e && e.name === "AbortError") return;     // ファイル選択キャンセル
+    showModal(text);
+  }
+});
+document.getElementById("btn-close").addEventListener("click", closeModal);
+document.getElementById("modalbg").addEventListener("click", closeModal);
+document.getElementById("btn-dl").addEventListener("click", () => {
+  const blob = new Blob([document.getElementById("ovtext").value], {type: "text/markdown"});
+  const a = Object.assign(document.createElement("a"),
+                          {href: URL.createObjectURL(blob), download: "overrides.md"});
+  a.click(); URL.revokeObjectURL(a.href);
+});
+
+// ── PDF再作成（--serve のローカルサーバ経由でのみ実行可。file:// は案内のみ）──
+const rbBtn = document.getElementById("btn-rebuild");
+function setRb(label, disabled){ rbBtn.textContent = label; rbBtn.disabled = !!disabled; }
+function rbMsg(msg){ document.getElementById("savemsg").textContent = msg; }
+async function pollRebuild(){
+  let st;
+  try { st = await (await fetch("/rebuild/status")).json(); }
+  catch (e) { setTimeout(pollRebuild, 3000); return; }
+  if (st.state === "running"){
+    const last = (st.log || []).slice(-1)[0] || "";
+    rbMsg("⟳ 再作成中…（数分かかることがあります） " + last.trim().slice(0, 42));
+    setTimeout(pollRebuild, 2000);
+  } else if (st.state === "ok"){
+    rbMsg("✓ 再作成完了 — 3秒後にこの画面を新しい版に更新します");
+    setTimeout(() => location.reload(), 3000);
+  } else if (st.state === "error"){
+    rbMsg("再作成に失敗しました");
+    setRb("PDF再作成", false);
+    alert("PDF再作成に失敗しました。\n\n" + (st.log || []).join("\n"));
+  } else {
+    setRb("PDF再作成", false);
+  }
+}
+rbBtn.addEventListener("click", async () => {
+  if (!SERVED){
+    alert("この画面はファイルとして直接開かれているため、ここからは再作成できません。\n\n" +
+          "・make review（レビューサーバ）で開き直すとこのボタンで再作成できます。\n" +
+          "・またはターミナルで make reports を再実行してください。");
+    return;
+  }
+  if (unsavedEdits &&
+      !confirm("保存していない編集があります。保存前の再作成には反映されません。\n" +
+               "このまま再作成しますか？（キャンセルして先に「保存」を推奨）")) return;
+  setRb("再作成中…", true);
+  try { await fetch("/rebuild", {method: "POST"}); }
+  catch (e) {
+    setRb("PDF再作成", false);
+    alert("レビューサーバに接続できません（make review で起動した画面か確認してください）。");
+    return;
+  }
+  pollRebuild();
+});
+if (SERVED){
+  // リロード直後に再作成が走っていたら進捗表示に復帰する
+  fetch("/rebuild/status").then(r => r.json()).then(st => {
+    if (st.state === "running"){ setRb("再作成中…", true); pollRebuild(); }
+  }).catch(() => {});
+} else {
+  rbBtn.classList.add("off");
+  rbBtn.title = "make review（レビューサーバ）で開いたときに使えます";
+}
+</script>
+{% endif %}
 </body>
 </html>

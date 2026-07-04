@@ -614,7 +614,8 @@ def narrate_leveling_actions(weekend_leveling: dict,
                              temperature: float = DEFAULT_TEMPERATURE,
                              quiet: bool = False,
                              peers: Optional[dict] = None,
-                             deltas: Optional[dict] = None) -> dict:
+                             deltas: Optional[dict] = None,
+                             skip: Optional[set] = None) -> dict:
     """週末のびしろ payload の各エンティティについて、のびしろ上位 top_n ユニットに
     `narrative`={body, action}（or None）を付与する（破壊的更新して返す）。
 
@@ -625,6 +626,9 @@ def narrate_leveling_actions(weekend_leveling: dict,
       だけが渡す。ポータル（html_builder）は従来どおり未指定＝peer事実なし。
     - deltas: ユニット名→前回レポート比較の事実文（①差分ナラティブ・部門レポートのみ）。
       渡さないユニットは「前回」を禁止語にする（捏造ガードの連動緩和）。
+    - skip: 生成を省くユニット名（§6-1 人手オーバーライドで全文差し替え済みの部門）。
+      候補選定・max_room は変えず生成だけ省く＝他ユニットのプロンプト（room相対値）を
+      変えない（決定論seedの「同じ事実→同じ文」を壊さない）。
     """
     if not weekend_leveling:
         return weekend_leveling
@@ -637,6 +641,8 @@ def narrate_leveling_actions(weekend_leveling: dict,
         det = (dow_unit_detail or {}).get(entity, {}) or {}
         targets = sorted(units, key=lambda u: u.get("room_per_week", 0), reverse=True)[:top_n]
         for u in targets:
+            if u["name"] in (skip or ()):
+                continue
             delta = (deltas or {}).get(u["name"])
             banned = _LEVELING_BANNED if delta else _LEVELING_BANNED + ("前回",)
             u["narrative"] = _generate_checked(

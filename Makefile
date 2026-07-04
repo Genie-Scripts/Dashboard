@@ -104,6 +104,7 @@ pl:
 
 ## 部門別レポートPDF 一括生成（ローカル印刷・配布専用）
 ## 出力: dept_reports/{基準日}/診療科版_{基準日}.pdf・病棟版_{基準日}.pdf（軸ごと連結＝一括印刷用）
+##       ＋ レビュー_{基準日}.html（一手をその場で直して overrides.md へ保存→再実行で差し替え）
 ## 個別PDFに分割: make reports SPLIT=on ／ 一手を定型文のみ: make reports AI=off
 .PHONY: reports
 reports:
@@ -112,8 +113,15 @@ reports:
 		--data-dir $(DATA_DIR) \
 		$(if $(filter off,$(AI)),--no-ai,) \
 		$(if $(filter on,$(SPLIT)),--split,) \
+		$(if $(filter on,$(SERVE)),--serve,) \
 		$(if $(DATE),--base-date $(DATE),)
 	@echo "$(GREEN)✅ 完了: dept_reports/$(RESET)"
+
+## 一手レビュー（ビルド→レビューHTMLをブラウザで自動オープン・「PDF再作成」ボタン有効）
+## 終了は Ctrl+C。オプションは reports と同じ（AI=off / DATE=YYYY-MM-DD）
+.PHONY: review
+review:
+	@$(MAKE) reports SERVE=on
 
 ## Comedix「お知らせ・回覧板」用 週報サマリーPNG 生成（院内LAN配信・レバーB）
 ## 出力: output/comedix/週報サマリー.png（資料室の同じ文書へ毎週上書き）＋ お知らせ本文.html（初回のみ貼付）

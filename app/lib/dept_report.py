@@ -45,6 +45,7 @@ from .ai_narrative import (
 )
 from .hospital_summary import render_trend_svg, _ma_series, _surg_series
 from .profit_estimate import fit_profit_estimators, project_dept_monthend
+from .report_overrides import apply_override, is_full_override
 
 WK = ["月", "火", "水", "木", "金", "土", "日"]
 WEEKS = 12
@@ -944,12 +945,18 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
                                *, hospital_name: str = "", with_ai: bool = True,
                                axes=("dept", "ward"), quiet: bool = False,
                                profit_breakdown: pd.DataFrame = None,
-                               delta_anchor: Optional[dict] = None) -> list:
+                               delta_anchor: Optional[dict] = None,
+                               overrides: Optional[dict] = None) -> list:
     """診療科版・病棟版それぞれの 1部門=1コンテキスト を返す（PDF描画用）。
 
     delta_anchor: load_delta_anchor の戻り値（約4週前の量子化状態）。渡すと各ユニットの
     一手に「前回レポートとの比較」事実が加わる。各コンテキストには "_state"（今回の
     状態タグ）が付き、CLI 側が save_facts_snapshot で次回以降のアンカーとして保存する。
+
+    overrides: report_overrides.parse_overrides の戻り値（(axis, unit)→{body,action}）。
+    §6-1 人手オーバーライド。move 確定直後に差し替え・src="manual" 刻印。全文差し替えの
+    部門は AI 生成をスキップ（再ビルド高速化）。片方だけの差し替えは AI 生成を止めない
+    （決定論seedでレビュー時と同じAI文が再現されるため「承認した文＋修正」が成立する）。
     """
     period_start = (base_date - timedelta(days=WEEKS * 7 - 1)).strftime("%Y/%m/%d")
     period_end = base_date.strftime("%Y/%m/%d")
@@ -1035,9 +1042,13 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
                       for n, m in unit_meta.items()}
         lev_deltas = {n: d for n, d in lev_deltas.items() if d}
 
+        # §6-1: body/action 両方を手動差し替え済みの部門はAI生成を省く（skip=生成だけ省き
+        # 候補選定・max_room は変えない＝他ユニットの決定論を壊さない）。
+        full_ov = {u["name"] for u in wl["units"]
+                   if is_full_override((overrides or {}).get((entity, u["name"])))}
         if with_ai and n_ai:
             narrate_leveling_actions({entity: wl}, {entity: det}, top_n=n_ai, quiet=quiet,
-                                     peers=lev_peers, deltas=lev_deltas)
+                                     peers=lev_peers, deltas=lev_deltas, skip=full_ov)
 
         # P2-b: 同種科内の相対位置(上位/中位/下位)用の達成率マップ（診療科軸のみ・1回）。
         # 新入院＝タイプ別に、全麻＝外科系内で比較する（テーブルと同じ ranking helper を再利用）。
@@ -1056,6 +1067,9 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
             dd = det.get(name)
             room = u.get("room_per_week", 0) or 0
             ret = u.get("retention")
+            # §6-1 人手オーバーライド: 全文差し替えなら以降のAI生成もスキップ
+            ov = (overrides or {}).get((entity, name))
+            unit_ai = with_ai and not is_full_override(ov)
 
             if entity == "ward":
                 type_key = "ward"
@@ -1122,23 +1136,23 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
             # 文言だけ専用プロンプト/定型文（narrate_emergency_*）に差し替える。
             if is_emergency:
                 if topic == "admission":
-                    move = ((with_ai and narrate_emergency_admission_action(
+                    move = ((unit_ai and narrate_emergency_admission_action(
                                 name, na_gap, na_tgt_gap, trend=na_trend, quiet=quiet))
                             or _fallback_move_emergency_admission(na_state))
                 else:
-                    move = ((with_ai and narrate_emergency_leveling_action(
+                    move = ((unit_ai and narrate_emergency_leveling_action(
                                 name, ret, u.get("room_delta_4w"), quiet=quiet))
                             or _fallback_move_emergency_leveling(u))
             elif topic == "admission":
                 mix = _q_planned_mix(adm, base_date, name) if entity == "dept" else None
-                move = ((with_ai and narrate_admission_action(name, entity, na_gap, na_tgt_gap,
+                move = ((unit_ai and narrate_admission_action(name, entity, na_gap, na_tgt_gap,
                                                                trend=na_trend, peer=na_peer,
                                                                yoy=na_yoy, delta=d_txt,
                                                                mix=mix, holiday=holiday_fact,
                                                                quiet=quiet))
                         or _fallback_move_admission(na_state, peer=na_peer))
             elif topic == "surgery":
-                move = ((with_ai and narrate_surgery_action(name, sv_gap, surg_tgt_gap,
+                move = ((unit_ai and narrate_surgery_action(name, sv_gap, surg_tgt_gap,
                                                              trend=surg_trend, peer=surg_peer,
                                                              yoy=surg_yoy, delta=d_txt,
                                                              or_load=or_fact, holiday=holiday_fact,
@@ -1163,6 +1177,14 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
                 also = _secondary_clause(secondary, na_state, surg_state)
                 if also:
                     move = {**move, "body": move["body"].rstrip() + " " + also}
+
+            # §6-1: 人手オーバーライドを move 確定直後の1箇所で適用（src="manual" 刻印・
+            # 数値行はこの後に付くデータ由来行なので影響しない）。差し替えはログに残す。
+            if ov:
+                move = apply_override(move, ov)
+                if not quiet:
+                    print(f"  ✏️ [手動] {entity}:{name} の一手を差し替え "
+                          f"({'+'.join(move['ov_fields'])})")
 
             # 外科系は「一手」に全麻ハイライト1行を常設（週末ならし本文＋全麻の数値）
             if type_key == "surgical":

@@ -78,6 +78,7 @@
     <li><a href="#run">3. 実行方法</a></li>
     <li><a href="#anatomy">4. 各ページの見方</a></li>
     <li><a href="#move">5. 「この期間の一手」の仕組み</a></li>
+    <li><a href="#override">5.5 一手の手直し（レビューHTML／overrides.md）</a></li>
     <li><a href="#ai">6. AI（一手の自動生成）について</a></li>
     <li><a href="#trouble">7. トラブルシューティング</a></li>
     <li><a href="#history">8. 改訂履歴</a></li>
@@ -271,6 +272,53 @@ make reports DATE=2026-05-31</code></pre>
   </div>
 </section>
 
+<section id="override">
+  <h2>5.5 一手の手直し（レビューHTML／overrides.md）<span class="badge new">2026-07-05 新設</span></h2>
+  <p>
+    AI/定型文の一手を<b>人がその場で書き直して配布</b>できます。修正は
+    <code>dept_reports/overrides.md</code> に保存され、再ビルドで該当部門だけ差し替わります。
+  </p>
+  <h3>使い方（推奨フロー）</h3>
+  <ol>
+    <li><code>make review</code> を実行すると、ビルド後にレビューHTML
+        （<code>dept_reports/{基準日}/レビュー_{基準日}.html</code>）がブラウザで
+        自動的に開きます（ローカルサーバ経由・終了は Ctrl+C）。
+        <code>make reports</code> でもファイルは出力されます（手動で開く）。</li>
+    <li>直したい部門のコメント（本文／一手）をクリックして書き換えます。
+        印刷と同じ見た目のシート上で、チャート・KPIを見ながら直せます。
+        文字数メーター（本文90字／一手70字・超過は橙）がレイアウト崩れを防ぎます。</li>
+    <li>右上の「overrides.md へ保存」を押すと <b>dept_reports/overrides.md に直接書き込み</b>
+        ます（初回のみファイル選択。下書きはブラウザに自動保持）。</li>
+    <li>隣の「<b>PDF再作成</b>」を押すと、その場で再ビルドが走り差し替え済みのPDFになります
+        （進捗表示つき・完了で画面も新しい版に自動更新。該当部門はAI生成をスキップするため
+        再ビルドも速くなります）。</li>
+  </ol>
+  <div class="note">
+    <b>「PDF再作成」ボタンが使えるのは <code>make review</code> で開いたときだけ</b>です。
+    ブラウザのセキュリティ上、ファイルとして直接開いたHTMLからはローカルのコマンドを
+    実行できないため、その場合は案内が表示されます（<code>make reports</code> の再実行で
+    同じ結果になります）。再作成は同時に1本のみ・リクエスト内容によらず常に同じビルドを
+    実行するだけなので、外部から任意の操作をされる余地はありません（サーバは
+    127.0.0.1＝このMac内からのみ接続可）。
+  </div>
+  <h3>仕様のポイント</h3>
+  <ul>
+    <li><b>有効期限</b>：差し替えには expires（既定＝基準日+14日）が付き、期限を過ぎると
+        自動で無視されます（古い文が翌月以降に残留しない）。レビューHTMLで保存し直すと延長されます。</li>
+    <li><b>片方だけの差し替え可</b>：本文だけ・一手だけの修正もできます。直していない側は
+        レビューで見たAI文がそのまま再現されます（生成は決定論のため）。</li>
+    <li><b>数値行は編集不可</b>：全麻/新入院/病床利用率のハイライト行はデータ由来のため
+        編集対象外です。</li>
+    <li><b>手動バッジと解除</b>：差し替え済みの部門は次回レビューHTMLで「手動」バッジが付き、
+        「AI文に戻す」で解除（次回保存でブロック削除→次ビルドからAI文）できます。</li>
+    <li><b>手編集も可</b>：<code>overrides.md</code> は素朴なテキストです。
+        <code>[診療科:整形外科] expires:2026-07-16</code> の行に続けて
+        <code>body:</code>／<code>action:</code> 行を書きます。壊れたブロックは
+        そのブロックだけスキップして警告し、ビルドは止まりません。</li>
+    <li>読み込みを一時的に止めたいときは <code>--no-overrides</code>。</li>
+  </ul>
+</section>
+
 <section id="ai">
   <h2>6. AI（一手の自動生成）について</h2>
   <p>
@@ -312,6 +360,15 @@ make reports DATE=2026-05-31</code></pre>
 
 <section id="history">
   <h2>8. 改訂履歴</h2>
+  <div class="rev">
+    <p><span class="d">2026-07-05</span><br>
+      ・一手の人手オーバーライド機構を新設（§5.5）：レビューHTML
+      （<code>レビュー_{基準日}.html</code>）での直接編集→<code>overrides.md</code>保存→
+      再ビルドで差し替え。expires（基準日+14日）で古い文の残留を防止。<br>
+      ・<code>make review</code> 新設：レビューHTMLを自動オープンし、「PDF再作成」ボタンで
+      その場で再ビルドできるローカルサーバモード（<code>--serve</code>）を追加。
+    </p>
+  </div>
   <div class="rev">
     <p><span class="d">2026-07-01</span><br>
       ・病院全体サマリPDF: 粗利KPI/チャートを「当月見込み」表示に変更（点線接続）。<br>

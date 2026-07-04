@@ -58,6 +58,106 @@ def log(msg, level="info"):
     print(f"  {prefix} [{ts}] {msg}")
 
 
+def _strip_serve_argv(argv: list) -> list:
+    """--serve/--port を除いた再ビルド用引数（レビューUIの「PDF再作成」が同条件で再実行）。"""
+    out, skip = [], 0
+    for a in argv:
+        if skip:
+            skip -= 1
+            continue
+        if a == "--serve" or a.startswith("--port="):
+            continue
+        if a == "--port":
+            skip = 1
+            continue
+        out.append(a)
+    return out
+
+
+def serve_review(output_dir: Path, review_rel: str, port: int, rebuild_argv: list):
+    """§6-1 レビューUI用の軽量ローカルサーバ（127.0.0.1限定・Ctrl+Cで終了）。
+
+    - GET: output_dir（dept_reports/）配下の静的配信（レビューHTML/PDF）。
+    - POST /rebuild: このスクリプトを同一引数（--serve/--port除く）で再実行（1本のみ）。
+      リクエスト内容は使わない＝任意コマンド実行の余地なし。
+    - GET /rebuild/status: {state: idle|running|ok|error, log: 直近行} を返す。
+    """
+    import http.server
+    import json
+    import threading
+    import webbrowser
+    from collections import deque
+    from urllib.parse import quote
+
+    root = output_dir.resolve()
+    repo = Path(__file__).resolve().parent.parent
+    status = {"state": "idle"}
+    log_buf = deque(maxlen=100)
+    lock = threading.Lock()
+
+    def run_rebuild():
+        try:
+            proc = subprocess.Popen(rebuild_argv, cwd=str(repo), text=True,
+                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            for line in proc.stdout:
+                log_buf.append(line.rstrip())
+            rc = proc.wait()
+            with lock:
+                status["state"] = "ok" if rc == 0 else "error"
+        except Exception as e:
+            log_buf.append(f"再作成プロセスの起動に失敗: {e}")
+            with lock:
+                status["state"] = "error"
+        log(f"再作成 {'完了' if status['state'] == 'ok' else '失敗'}",
+            "ok" if status["state"] == "ok" else "err")
+
+    class Handler(http.server.SimpleHTTPRequestHandler):
+        def __init__(self, *a, **kw):
+            super().__init__(*a, directory=str(root), **kw)
+
+        def log_message(self, *_a):
+            pass
+
+        def _json(self, code: int, payload: dict):
+            body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_POST(self):
+            if self.path != "/rebuild":
+                self.send_error(404)
+                return
+            with lock:
+                if status["state"] == "running":
+                    self._json(409, {"state": "running"})
+                    return
+                status["state"] = "running"
+                log_buf.clear()
+            log("レビューUIから再作成を開始…")
+            threading.Thread(target=run_rebuild, daemon=True).start()
+            self._json(202, {"state": "running"})
+
+        def do_GET(self):
+            if self.path == "/rebuild/status":
+                with lock:
+                    st = status["state"]
+                self._json(200, {"state": st, "log": list(log_buf)[-15:]})
+            else:
+                super().do_GET()
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    url = f"http://127.0.0.1:{port}/" + quote(review_rel)
+    log(f"レビューサーバ起動: {url}（終了は Ctrl+C）", "ok")
+    webbrowser.open(url)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        log("レビューサーバを終了しました")
+
+
 def html_to_pdf(chrome: str, html_path: Path, pdf_path: Path) -> bool:
     pdf_path.parent.mkdir(parents=True, exist_ok=True)
     cmd = [
@@ -80,6 +180,12 @@ def main():
     p.add_argument("--only", default=None, help="特定ユニット名のみ生成（確認用）")
     p.add_argument("--limit", type=int, default=None, help="先頭N件のみ生成（確認用）")
     p.add_argument("--keep-html", action="store_true", help="中間HTMLを出力先に残す")
+    p.add_argument("--no-overrides", action="store_true",
+                   help="overrides.md（一手の手動差し替え）を読み込まない")
+    p.add_argument("--serve", action="store_true",
+                   help="ビルド後にレビューUI用ローカルサーバを起動"
+                        "（「PDF再作成」ボタンが使える・Ctrl+Cで終了）")
+    p.add_argument("--port", type=int, default=8765, help="--serve のポート（既定8765）")
     p.add_argument("--split", action="store_true",
                    help="軸ごと連結せず、部門ごとの個別PDF（{基準日}/{軸}/{名前}.pdf）に分割")
     p.add_argument("--quiet", "-q", action="store_true")
@@ -108,19 +214,38 @@ def main():
     else:
         log("差分ナラティブ: アンカーなし（21日以上前のスナップショット未蓄積）")
 
+    # ── §6-1 人手オーバーライド（レビューHTML/手編集の overrides.md）──
+    from app.lib.report_overrides import parse_overrides
+    overrides_path = Path(args.output_dir) / "overrides.md"
+    overrides = {}
+    if not args.no_overrides:
+        overrides, ov_notes = parse_overrides(overrides_path, base_date)
+        for level, msg in ov_notes:
+            log(f"overrides.md: {msg}", level)
+        if overrides:
+            log(f"一手の手動差し替え {len(overrides)} 部門（{overrides_path}）")
+
     # ── コンテキスト構築（AI一手は全ユニット）──
     log(f"レポート構築中… axes={axes} AI={'OFF' if args.no_ai else 'ON(全ユニット)'}")
     contexts = build_dept_report_contexts(
         adm, surg, targets, surg_targets, profit_monthly, base_date, generated_at,
         hospital_name=args.hospital_name, with_ai=not args.no_ai,
         axes=axes, quiet=args.quiet, profit_breakdown=profit_breakdown,
-        delta_anchor=anchor,
+        delta_anchor=anchor, overrides=overrides,
     )
     if args.only:
         contexts = [c for c in contexts if c["unit"] == args.only]
     if args.limit:
         contexts = contexts[:args.limit]
     log(f"対象 {len(contexts)} 部門")
+
+    # 部門名の打ち間違い等で適用されなかったオーバーライドを警告（手編集の事故検知）
+    if overrides and not (args.only or args.limit):
+        applied = {(c["axis"], c["unit"]) for c in contexts
+                   if c["move"].get("src") == "manual"}
+        for key in set(overrides) - applied:
+            ax_jp = "診療科" if key[0] == "dept" else "病棟"
+            log(f"overrides.md: [{ax_jp}:{key[1]}] に一致する部門がありません（未適用）", "warn")
 
     # ── Jinja ──
     from jinja2 import Environment, FileSystemLoader
@@ -172,6 +297,21 @@ def main():
             if sheets:
                 emit(sheets, out_root / f"{AXIS_DIR[ax]}版_{date_str}.pdf")
 
+    # ── §6-1 一手レビューHTML（全部門を1ファイル・PDFと同テンプレ＝同じ見た目）──
+    # 責任者が印刷されるそのままのシート上でコメントを直し「保存」で overrides.md へ
+    # 直接書き込む（File System Access API）。--only/--limit の部分ビルドでは省略。
+    if not (args.only or args.limit):
+        from app.lib.report_overrides import default_expires
+        review_sheets = sorted(contexts, key=lambda c: (c["axis"] != "dept", c["order"]))
+        review_html = tmpl.render(
+            sheets=review_sheets, review=True,
+            review_base=date_str, review_expires=default_expires(base_date))
+        review_path = out_root / f"レビュー_{date_str}.html"
+        review_path.write_text(review_html, encoding="utf-8")
+        n_manual = sum(1 for c in contexts if c["move"].get("src") == "manual")
+        log(f"一手レビューHTML: {review_path.name}（{len(review_sheets)}部門・"
+            f"手動差し替え中 {n_manual}件）", "ok")
+
     # ── 病院全体サマリ 3ページPDF（常に追加出力。確認用の --only/--limit 時は省略）──
     if not (args.only or args.limit):
         from app.lib import hospital_summary as hs
@@ -221,6 +361,17 @@ def main():
     print(f"  出力先: {out_root.resolve()}")
     print(f"  PDF: {counts['pdf']} 件" + (f" / HTML: {counts['html']} 件" if counts['html'] else ""))
     print(f"{'='*52}\n")
+
+    # ── §6-1 レビューサーバ（--serve）: HTMLの「PDF再作成」ボタンを有効化 ──
+    if args.serve:
+        if args.only or args.limit:
+            log("--serve は --only/--limit（部分ビルド）では使えません", "warn")
+        else:
+            rebuild_argv = [sys.executable, str(Path(__file__).resolve())] \
+                           + _strip_serve_argv(sys.argv[1:])
+            serve_review(Path(args.output_dir),
+                         f"{date_str}/レビュー_{date_str}.html",
+                         args.port, rebuild_argv)
 
 
 if __name__ == "__main__":
