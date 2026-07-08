@@ -21,6 +21,7 @@ data_loader.py — データ読込（フォルダ単位・複数ファイル自�
 
 from __future__ import annotations
 
+import sys
 import warnings
 from pathlib import Path
 from typing import Optional
@@ -51,6 +52,22 @@ def _list_files(folder: Path, extensions: list) -> list:
     return unique
 
 
+def _warn_partial_load(label: str, loaded: list, skipped: list) -> None:
+    """一部ファイルのみ読込成功（＝履歴短縮の恐れ）を目立つ形で通知。
+
+    通年ファイルが読めず直近ファイルだけになると、月末見込みの日次系列が
+    30日ローリング窓のウォームアップに飲まれ、過去月の見込みライン/塗り分けが
+    丸ごと欠落する。黙って進むと気付けないため stderr へも明示する。
+    """
+    if not skipped:
+        return
+    msg = (f"⚠ {label}データの一部ファイルを読み込めませんでした。"
+           f"履歴が短縮し、月末見込みの過去分が欠落する恐れがあります。\n"
+           f"   スキップ: {skipped}\n   読込成功: {loaded}")
+    warnings.warn(msg)
+    print(msg, file=sys.stderr)
+
+
 def _check_folder(folder: Path, label: str) -> None:
     if not folder.exists():
         raise FileNotFoundError(
@@ -63,6 +80,31 @@ def _check_folder(folder: Path, label: str) -> None:
             f"データフォルダが空です: {folder}\n"
             f"  → {label} データファイルを配置してください。"
         )
+
+
+def _read_csv_robust(path: Path, skiprows: int = 0) -> pd.DataFrame:
+    """CSV を頑健に読む。utf-8-sig → cp932 → cp932(不正バイト置換) の順で試す。
+
+    通年ファイルに混在エンコード等で数バイトの不正バイトが紛れると、
+    utf-8-sig も cp932 も UnicodeDecodeError で全体が読めず、呼び出し側の
+    per-file try/except が「通年ファイルを丸ごと黙ってスキップ」→ 履歴が直近
+    ファイルだけに縮み、月末見込みの日次系列が 30日ウォームアップに飲まれて
+    過去月が欠落する事故があった。最終段は encoding_errors='replace' で破損
+    バイトを置換してでも行を保全する（孤立した数バイトの破損なら実害なし）。
+    """
+    last_err: Exception | None = None
+    for kwargs in (
+        dict(encoding="utf-8-sig"),
+        dict(encoding="cp932"),
+        dict(encoding="cp932", encoding_errors="replace"),
+    ):
+        try:
+            return pd.read_csv(path, engine="python", on_bad_lines="skip",
+                               skiprows=skiprows, **kwargs)
+        except (UnicodeDecodeError, UnicodeError) as e:
+            last_err = e
+    # ここには通常到達しない（最終段は置換で必ず読める）が、保険で送出
+    raise last_err  # type: ignore[misc]
 
 
 def _normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
@@ -85,14 +127,9 @@ def _read_admission_file(path: Path) -> pd.DataFrame:
     if path.suffix.lower() in (".xlsx", ".xls"):
         df = pd.read_excel(path, engine="openpyxl")
     else:
-        # 文字コードを自動判別（UTF-8で失敗したらCP932で試行）
+        # 文字コードを自動判別（utf-8-sig → cp932 → cp932置換で頑健に）
         def _read_csv_with_enc(skiprows=0):
-            try:
-                return pd.read_csv(path, encoding="utf-8-sig", engine="python",
-                                   on_bad_lines="skip", skiprows=skiprows)
-            except (UnicodeDecodeError, UnicodeError):
-                return pd.read_csv(path, encoding="cp932", engine="python",
-                                   on_bad_lines="skip", skiprows=skiprows)
+            return _read_csv_robust(path, skiprows=skiprows)
 
         df = _read_csv_with_enc()
         df = _normalize_columns(df)
@@ -130,12 +167,7 @@ def _read_surgery_file(path: Path) -> pd.DataFrame:
     if path.suffix.lower() in (".xlsx", ".xls"):
         df = pd.read_excel(path, engine="openpyxl")
     else:
-        try:
-            df = pd.read_csv(path, encoding="utf-8-sig", engine="python",
-                              on_bad_lines="skip")
-        except (UnicodeDecodeError, UnicodeError):
-            df = pd.read_csv(path, encoding="cp932", engine="python",
-                              on_bad_lines="skip")
+        df = _read_csv_robust(path)
     df = _normalize_columns(df)
     df["手術実施日"] = pd.to_datetime(df["手術実施日"], errors="coerce")
     df = df.dropna(subset=["手術実施日"])
@@ -235,17 +267,19 @@ def load_admission_data(data_dir: str = DEFAULT_DATA_DIR) -> pd.DataFrame:
     if not files:
         raise FileNotFoundError(f"{folder} に .xlsx / .csv ファイルがありません。")
 
-    frames, loaded = [], []
+    frames, loaded, skipped = [], [], []
     for f in files:
         try:
             df = _read_admission_file(f)
             frames.append(df)
             loaded.append(f.name)
         except Exception as e:
+            skipped.append(f.name)
             warnings.warn(f"入院ファイル読込スキップ: {f.name} — {e}")
 
     if not frames:
         raise ValueError(f"{folder} 内に読み込めるファイルがありませんでした。")
+    _warn_partial_load("入院", loaded, skipped)
 
     merged = _merge_admission_files(frames)
     # 読込サマリーをデータフレームの属性として付与（validate.py で利用）
@@ -272,17 +306,19 @@ def load_surgery_data(data_dir: str = DEFAULT_DATA_DIR) -> pd.DataFrame:
     if not files:
         raise FileNotFoundError(f"{folder} に .csv / .xlsx ファイルがありません。")
 
-    frames, loaded = [], []
+    frames, loaded, skipped = [], [], []
     for f in files:
         try:
             df = _read_surgery_file(f)
             frames.append(df)
             loaded.append(f.name)
         except Exception as e:
+            skipped.append(f.name)
             warnings.warn(f"手術ファイル読込スキップ: {f.name} — {e}")
 
     if not frames:
         raise ValueError(f"{folder} 内に読み込めるファイルがありませんでした。")
+    _warn_partial_load("手術", loaded, skipped)
 
     merged = _merge_surgery_files(frames)
     merged.attrs["source_files"] = loaded
