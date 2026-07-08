@@ -1375,7 +1375,8 @@ def build_hospital_overview_context(adm, surg, targets, surg_targets, profit_mon
                                     base_date, generated_at, *, hospital_name: str = "",
                                     profit_breakdown=None, profit_projection=None,
                                     with_ai: bool = True, quiet: bool = False,
-                                    delta_anchor: Optional[dict] = None) -> dict:
+                                    delta_anchor: Optional[dict] = None,
+                                    overrides: Optional[dict] = None) -> dict:
     """病院全体サマリ（dept_report.html 1シート）のコンテキスト。
 
     profit_projection: profit_estimate.compute_calibrated_profit_projection の戻り値
@@ -1388,6 +1389,12 @@ def build_hospital_overview_context(adm, surg, targets, surg_targets, profit_mon
     """
     kpi = build_kpi_summary(adm, surg, base_date, targets, surg_targets)
     charts: list = []
+
+    # §6-1 人手オーバーライド（軸ラベル [病院全体:◯◯]・unit＝表示名と一致）。
+    # 全文差し替えなら以降のAI生成（narrate_hospital_summary）はスキップ。
+    unit_name = hospital_name or "病院全体"
+    ov = (overrides or {}).get(("hospital", unit_name))
+    with_ai = with_ai and not is_full_override(ov)
 
     def add(kind, name, series, ref, ref_label, unit, win, badge, note=""):
         if not series or not series.get("cur") or all(v is None for v in series["cur"]):
@@ -1574,12 +1581,19 @@ def build_hospital_overview_context(adm, surg, targets, surg_targets, profit_mon
     move = {**move, "topic": h_topic, "src": move.get("src", "tpl"), "leader": leader,
             "delta": h_delta}
 
+    # §6-1: 人手オーバーライドを move 確定直後の1箇所で適用（src="manual" 刻印）。
+    if ov:
+        move = apply_override(move, ov)
+        if not quiet:
+            print(f"  ✏️ [手動] hospital:{unit_name} の一手を差し替え "
+                  f"({'+'.join(move['ov_fields'])})")
+
     return {
         "_state": h_tags,   # 差分ナラティブ用（CLIがスナップショット保存）
         "axis": "hospital", "type_key": "hospital",
         "type_label": "全体サマリ", "subtitle": "病院全体パフォーマンスサマリ",
         "prio_text": "A 在院 → B 新入院 → C 全麻 → D 粗利 → E 曜日",
-        "order": 0, "unit": hospital_name or "病院全体",
+        "order": 0, "unit": unit_name,
         "hospital_name": hospital_name,
         "base_date": base_date.strftime("%Y/%m/%d"),
         "generated_at": generated_at.strftime("%Y/%m/%d"),

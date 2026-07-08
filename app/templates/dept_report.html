@@ -277,7 +277,7 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
 {% macro movecard(m, s=None) %}
 {% if review and s %}
 <div class="move{% if m.src == 'manual' %} manual{% endif %}"
-     data-unit="{{ '診療科' if s.axis == 'dept' else '病棟' }}:{{ s.unit }}"
+     data-unit="{{ {'dept': '診療科', 'ward': '病棟', 'hospital': '病院全体'}[s.axis] }}:{{ s.unit }}"
      data-src="{{ m.src }}" data-ov-fields="{{ (m.ov_fields or [])|join(',') }}">
   <div class="move-h">
     <span class="ttl">この期間の一手</span>

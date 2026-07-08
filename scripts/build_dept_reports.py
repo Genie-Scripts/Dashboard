@@ -336,14 +336,6 @@ def main():
         contexts = contexts[:args.limit]
     log(f"対象 {len(contexts)} 部門")
 
-    # 部門名の打ち間違い等で適用されなかったオーバーライドを警告（手編集の事故検知）
-    if overrides and not (args.only or args.limit):
-        applied = {(c["axis"], c["unit"]) for c in contexts
-                   if c["move"].get("src") == "manual"}
-        for key in set(overrides) - applied:
-            ax_jp = "診療科" if key[0] == "dept" else "病棟"
-            log(f"overrides.md: [{ax_jp}:{key[1]}] に一致する部門がありません（未適用）", "warn")
-
     # ── Jinja ──
     from jinja2 import Environment, FileSystemLoader
     env = Environment(
@@ -394,28 +386,16 @@ def main():
             if sheets:
                 emit(sheets, out_root / f"{AXIS_DIR[ax]}版_{date_str}.pdf")
 
-    # ── §6-1 一手レビューHTML（全部門を1ファイル・PDFと同テンプレ＝同じ見た目）──
-    # 責任者が印刷されるそのままのシート上でコメントを直し「保存」で overrides.md へ
-    # 直接書き込む（File System Access API）。--only/--limit の部分ビルドでは省略。
-    if not (args.only or args.limit):
-        from app.lib.report_overrides import default_expires
-        review_sheets = sorted(contexts, key=lambda c: (c["axis"] != "dept", c["order"]))
-        review_html = tmpl.render(
-            sheets=review_sheets, review=True,
-            review_base=date_str, review_expires=default_expires(base_date))
-        review_path = out_root / f"レビュー_{date_str}.html"
-        review_path.write_text(review_html, encoding="utf-8")
-        n_manual = sum(1 for c in contexts if c["move"].get("src") == "manual")
-        log(f"一手レビューHTML: {review_path.name}（{len(review_sheets)}部門・"
-            f"手動差し替え中 {n_manual}件）", "ok")
-
-    # ── 病院全体サマリ 3ページPDF（常に追加出力。確認用の --only/--limit 時は省略）──
+    # ── 病院全体サマリ 3ページPDF＋レビューHTML（確認用の --only/--limit 時は省略）──
+    # 病院全体サマリを先に構築し、その「一手」も診療科／病棟と同じレビューUI・overrides.md
+    # 経由で人手差し替えできるようにする（[病院全体:◯◯] ブロック）。
     if not (args.only or args.limit):
         from app.lib import hospital_summary as hs
         from app.lib.dept_report import (build_hospital_overview_context,
                                          render_summary_table_pages)
         from app.lib.profit_estimate import (compute_calibrated_profit_projection,
                                              last_complete_driver_date)
+        from app.lib.report_overrides import default_expires
         log("病院全体サマリ（3ページ）を生成中…")
         # 粗利予測は adm/surg 両方が揃う最終日で行う（本番ダッシュボードと同じ日で揃える）
         profit_base_date = last_complete_driver_date(adm, surg) or base_date
@@ -430,7 +410,31 @@ def main():
             adm, surg, targets, surg_targets, profit_monthly, base_date, generated_at,
             hospital_name=args.hospital_name, profit_breakdown=profit_breakdown,
             profit_projection=profit_projection, with_ai=not args.no_ai, quiet=args.quiet,
-            delta_anchor=anchor)
+            delta_anchor=anchor, overrides=overrides)
+
+        # ── §6-1 一手レビューHTML（病院全体サマリ＋全部門を1ファイル・PDFと同テンプレ）──
+        # 責任者が印刷されるそのままのシート上でコメントを直し「保存」で overrides.md へ
+        # 直接書き込む（File System Access API）。病院全体サマリを先頭に置く。
+        review_sheets = [hosp_ctx] + sorted(
+            contexts, key=lambda c: (c["axis"] != "dept", c["order"]))
+        review_html = tmpl.render(
+            sheets=review_sheets, review=True,
+            review_base=date_str, review_expires=default_expires(base_date))
+        review_path = out_root / f"レビュー_{date_str}.html"
+        review_path.write_text(review_html, encoding="utf-8")
+        n_manual = sum(1 for c in [hosp_ctx] + contexts if c["move"].get("src") == "manual")
+        log(f"一手レビューHTML: {review_path.name}（病院全体＋{len(contexts)}部門・"
+            f"手動差し替え中 {n_manual}件）", "ok")
+
+        # 部門名の打ち間違い等で適用されなかったオーバーライドを警告（手編集の事故検知）
+        if overrides:
+            from app.lib.report_overrides import AXIS_JP
+            applied = {(c["axis"], c["unit"]) for c in [hosp_ctx] + contexts
+                       if c["move"].get("src") == "manual"}
+            for key in set(overrides) - applied:
+                log(f"overrides.md: [{AXIS_JP.get(key[0], key[0])}:{key[1]}] に一致する"
+                    "部門がありません（未適用）", "warn")
+
         extra = render_summary_table_pages(
             adm, surg, targets, surg_targets, base_date,
             hospital_name=args.hospital_name, profit_monthly=profit_monthly,

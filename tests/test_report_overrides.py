@@ -50,6 +50,22 @@ class TestParse(unittest.TestCase):
         self.assertEqual(blk["action"], "一手だけ差し替え")
         self.assertFalse(is_full_override(blk))
 
+    def test_hospital_axis_block(self):
+        ov, notes = _parse(
+            "[病院全体:○○病院] expires:2026-07-16\n"
+            "body: 病院全体の差し替え本文。\n"
+            "action: 病院全体の差し替え一手。\n")
+        self.assertIn(("hospital", "○○病院"), ov)
+        blk = ov[("hospital", "○○病院")]
+        self.assertEqual(blk["body"], "病院全体の差し替え本文。")
+        self.assertTrue(is_full_override(blk))
+        self.assertEqual(notes, [])
+
+    def test_hospital_axis_default_unit(self):
+        # REPORT_HOSPITAL_NAME 未設定時の unit（"病院全体"）でもキーが立つ
+        ov, _ = _parse("[病院全体:病院全体] expires:2026-07-16\naction: 一手だけ\n")
+        self.assertIn(("hospital", "病院全体"), ov)
+
     def test_expired_block_ignored(self):
         ov, notes = _parse("[診療科:眼科] expires:2026-07-01\nbody: 期限切れ\n")
         self.assertEqual(ov, {})

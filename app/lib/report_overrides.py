@@ -30,14 +30,15 @@ from typing import Optional
 import pandas as pd
 
 # ファイル上の軸ラベル（人間が書く）→ 内部軸キー
-AXIS_LABELS = {"診療科": "dept", "病棟": "ward"}
+# 「病院全体」は病院全体サマリシートの一手（unit＝病院名 or "病院全体"）に対応。
+AXIS_LABELS = {"診療科": "dept", "病棟": "ward", "病院全体": "hospital"}
 AXIS_JP = {v: k for k, v in AXIS_LABELS.items()}
 
 # 既定の有効期限 = 基準日 + 14日（レビューUI・save_overrides_header と共有）
 DEFAULT_EXPIRES_DAYS = 14
 
 _HEADER_RE = re.compile(
-    r"^\[(?P<axis>診療科|病棟):(?P<unit>[^\]]+)\]\s*(?:expires:(?P<exp>\S+))?\s*$")
+    r"^\[(?P<axis>診療科|病棟|病院全体):(?P<unit>[^\]]+)\]\s*(?:expires:(?P<exp>\S+))?\s*$")
 _FIELD_RE = re.compile(r"^(?P<kind>body|action):\s*(?P<text>.*)$")
 
 
