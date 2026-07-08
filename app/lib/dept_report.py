@@ -352,7 +352,7 @@ def _fallback_move_admission(state: Optional[str], peer: Optional[str] = None) -
                 "action": "現状の受け入れ体制を維持しましょう。"}
     # state 自体が「直近は〜」の傾向を含むため接頭辞「直近で」は付けない（重複回避）
     return {"body": f"{lead}新入院は{state or '目標を下回っている'}状況です。",
-            "action": "地域医療連携での紹介受け入れ強化や、予定入院枠の調整を検討しましょう。"}
+            "action": "地域医療連携での紹介受け入れ強化や予定入院枠の調整で、新入院の患者数増に取り組みましょう。"}
 
 
 def _fallback_move_surgery(state: Optional[str], peer: Optional[str] = None) -> dict:
@@ -365,7 +365,7 @@ def _fallback_move_surgery(state: Optional[str], peer: Optional[str] = None) -> 
         return {"body": f"{lead}全身麻酔手術は直近で目標水準を確保できています。",
                 "action": "現状の手術枠運用を維持しましょう。"}
     return {"body": f"{lead}全身麻酔手術は{state or '目標を下回っている'}状況です。",
-            "action": "手術枠の稼働状況を確認し、執刀医と症例の積み増しを調整しましょう。"}
+            "action": "手術枠の稼働状況の確認と執刀医との症例調整で、全身麻酔手術の件数増に専念しましょう。"}
 
 
 def _fallback_move_emergency_leveling(unit: dict) -> dict:
@@ -397,6 +397,12 @@ def _fallback_move_emergency_admission(state: Optional[str]) -> dict:
 # 明確に不足している部門でも「現状維持」の定型文で埋まってしまう。3トピックの
 # 目標未達の大きさを比べ、最も目立つものを一手のトピックに選ぶ。
 ACTION_TOPIC_MIN_SCORE = 0.12   # これ未満の不足差はノイズ扱い→病床平準化を既定にする
+# 全麻(surgery)は病院全体・外科系診療科で優先的に言及したいという要求に応じ、
+# leveling/admission より低い足切りを別に持つ（達成率換算: 診療科98%=1-0.98=0.02、
+# 病院全体95%=1-0.95=0.05）。eligible判定の閾値差により、生スコアがわずかに leveling の
+# 方が大きくても全麻が主トピックに選ばれ得る（意図的な非対称・全麻優先の要求どおり）。
+SURGERY_TOPIC_MIN_SCORE = 0.02          # 外科系診療科: 全麻達成率98%未満で一手候補に
+SURGERY_TOPIC_MIN_SCORE_HOSPITAL = 0.05  # 病院全体: 全麻達成率95%未満で一手候補に
 
 
 def _admission_gap_score(na, na_tgt) -> float:
@@ -412,27 +418,46 @@ def _surgery_gap_score(sv, surg_tgt) -> float:
 
 
 def _select_action_topic(type_key: str, room: float, max_room: float,
-                         na, na_tgt, sv, surg_tgt):
+                         na, na_tgt, sv, surg_tgt,
+                         *, surgery_min: float = SURGERY_TOPIC_MIN_SCORE):
     """"leveling"(病床平準化) / "admission"(新入院) / "surgery"(全麻・外科系のみ) の
     うち、目標未達が最も大きいトピックを主トピックに選ぶ。leveling は room_per_week を
     全ユニット中の相対値、admission/surgery は目標比の絶対的な不足率で評価する（スケールが
     完全には揃わないが、いずれも0〜1の「どれだけ気にすべきか」の目安として扱う）。
-    目立った不足が無ければ leveling を既定にする（room<=0.5 なら _fallback_move が
+
+    選定はトピックごとの最小スコア（＝足切り）を満たす eligible の中で生スコア最大を
+    主トピックに、次点を副トピックにする。全麻は leveling/admission より低い足切り
+    （SURGERY_TOPIC_MIN_SCORE）を持つため、生スコアがわずかに leveling より小さくても
+    全麻を優先的に一手へ出せる（全麻を優先言及したいという要求どおりの意図的な非対称）。
+    eligible が無ければ leveling を既定にする（room<=0.5 なら _fallback_move が
     「現状維持」の定型文を返す）。
 
-    戻り値=(primary, secondary, scores)。secondary=主以外でスコア最大かつ
-    ACTION_TOPIC_MIN_SCORE 以上のトピック（無ければ None）。複数指標が未達の科で
-    「主トピックの一手＋副トピックを本文で軽く併記」する P3(トンネル視野の解消)に使う。
+    戻り値=(primary, secondary, scores)。secondary=主以外で足切りを満たしスコア最大の
+    トピック（無ければ None）。複数指標が未達の科で「主トピックの一手＋副トピックを本文で
+    軽く併記」する P3(トンネル視野の解消)に使う。内科系・病棟は surgery キーが scores に
+    入らないため従来と完全に同一挙動（surgery_min は無関係）。
     """
     scores = {"leveling": (room / max_room) if max_room else 0.0,
               "admission": _admission_gap_score(na, na_tgt)}
+    mins = {"leveling": ACTION_TOPIC_MIN_SCORE, "admission": ACTION_TOPIC_MIN_SCORE}
     if type_key == "surgical":
         scores["surgery"] = _surgery_gap_score(sv, surg_tgt)
-    top = max(scores, key=scores.get)
-    primary = top if scores[top] >= ACTION_TOPIC_MIN_SCORE else "leveling"
-    sec = {k: v for k, v in scores.items() if k != primary and v >= ACTION_TOPIC_MIN_SCORE}
+        mins["surgery"] = surgery_min
+    eligible = {k: v for k, v in scores.items() if v >= mins[k]}
+    primary = max(eligible, key=eligible.get) if eligible else "leveling"
+    sec = {k: v for k, v in scores.items() if k != primary and v >= mins[k]}
     secondary = max(sec, key=sec.get) if sec else None
     return primary, secondary, scores
+
+
+def _select_hospital_topic(topic_scores: dict) -> str:
+    """病院全体サマリの主トピック選定（_select_action_topic と同じ eligible ルール）。
+    全麻は SURGERY_TOPIC_MIN_SCORE_HOSPITAL（達成率95%未満）で候補に入る。
+    eligible が無ければ leveling を既定にする。"""
+    mins = {"leveling": ACTION_TOPIC_MIN_SCORE, "admission": ACTION_TOPIC_MIN_SCORE,
+            "surgery": SURGERY_TOPIC_MIN_SCORE_HOSPITAL}
+    eligible = {k: v for k, v in topic_scores.items() if v >= mins.get(k, ACTION_TOPIC_MIN_SCORE)}
+    return max(eligible, key=eligible.get) if eligible else "leveling"
 
 
 # ── P2-b: 同種科内の相対位置（上位/中位/下位・診療科軸のみ） ──
@@ -1313,8 +1338,8 @@ def _hospital_dow(adm, base_date) -> dict:
 # 向け一手と同じ語彙に統一（病院全体でも打ち手は現場の一手の延長として理解できるように）。
 _HOSPITAL_LEVERS = {
     "leveling": "金曜に集中しがちな退院を平日へ分散し、週末の入院受け入れで空床を補充する（在院日数の延長はしない）。",
-    "admission": "地域医療連携（紹介元）への働きかけ強化や、予定入院枠の週後半への調整など、新入院を底上げする運用対応。",
-    "surgery": "手術枠の稼働状況の確認や、執刀医との症例調整など、全身麻酔手術を底上げする運用面の対応。",
+    "admission": "地域医療連携（紹介元）への働きかけ強化や、予定入院枠の週後半への調整などで、新入院の患者数増に取り組む。",
+    "surgery": "手術枠の稼働状況の確認や、執刀医との症例調整などで、全身麻酔手術の件数増に専念する。",
 }
 _HOSPITAL_TOPIC_LABEL = {"leveling": "週末在院の維持率", "admission": "新入院", "surgery": "全身麻酔手術"}
 
@@ -1479,9 +1504,7 @@ def build_hospital_overview_context(adm, surg, targets, surg_targets, profit_mon
         "admission": _admission_gap_score(kpi["admission_actual_7d"], TARGET_ADMISSION_WEEKLY),
         "surgery": _surgery_gap_score(kpi["operation_daily_avg"], TARGET_GA_DAILY),
     }
-    h_topic = max(topic_scores, key=topic_scores.get)
-    if topic_scores[h_topic] < ACTION_TOPIC_MIN_SCORE:
-        h_topic = "leveling"
+    h_topic = _select_hospital_topic(topic_scores)
     h_primary_state = topic_states.get(h_topic) or leveling_state or "目標を下回っている"
 
     facts = [f"{_HOSPITAL_TOPIC_LABEL[h_topic]}: {h_primary_state}"]

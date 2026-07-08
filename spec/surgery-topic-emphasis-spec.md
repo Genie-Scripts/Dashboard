@@ -3,7 +3,12 @@
 - 作成日: 2026-07-06（行アンカーはこの日時点の main = commit 9fea41f 基準。実装時は関数名・定数名で再検索すること）
 - 対象サブシステム: 部門別レポートPDF（`scripts/build_dept_reports.py` → `app/lib/dept_report.py`）の
   「この期間の一手」＝ 病院全体サマリ ＋ 診療科/病棟の各1枚
-- 状態: **未実装（プランのみ）**。後日、別モデル・別エフォートでも本書だけで実装できるよう詳細に書く。
+- 状態: **実装済（2026-07-09・未コミット→コミット済）**。本プランどおり実装・実データ検証完了。
+  - `app/lib/dept_report.py`: 定数2つ＋`_select_action_topic`(eligibleルール)＋`_select_hospital_topic`新設＋文言直接化。
+  - `app/lib/ai_narrative.py`: surgery/admission システムプロンプト2つ更新。
+  - `tests/test_dept_report_topic.py` 新規13件。全112テストpass。
+  - 実データ検証(基準日2026-07-07): 病院全体=topic surgery＋「件数増に専念」／乳腺外科62%=主・整形94%/一般消化器58%=副併記／内科系に全麻action無し／`--no-ai`フォールバックも新文言／AI-on棄却ゼロ(ok:25・AI率91%＝ベースライン同水準)。
+  - ※spec記載の脳神経外科67%は2026-07-05データ。2026-07-07では達成側(133%)へ変化し正しく全麻非言及。
 
 ---
 
