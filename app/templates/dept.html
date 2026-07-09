@@ -26,6 +26,14 @@
 /* ── Landing Grid ── */
 .landing{animation:fadeIn .3s ease}
 .sec-title{font-size:15px;font-weight:800;color:var(--sub);margin:20px 0 10px;display:flex;align-items:center;gap:6px}
+/* 入り口タブ: 診療科/病棟の切替（ランディング先頭） */
+.unit-tabs{display:flex;gap:10px;margin:18px 0 4px}
+.unit-tab{flex:0 1 220px;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--s);border:1px solid var(--ln);border-radius:12px;padding:12px 18px;font-size:14px;font-weight:800;color:var(--sub);cursor:pointer;box-shadow:0 2px 6px rgba(10,22,42,.04);transition:all .15s}
+.unit-tab:hover{border-color:#93b4e4;color:var(--br)}
+.unit-tab.active{background:var(--bl);border-color:#93b4e4;color:var(--br);box-shadow:inset 0 -3px 0 var(--br)}
+.unit-tab .ut-n{font-size:11px;font-weight:700;background:var(--ln);border-radius:9px;padding:1px 8px;color:var(--sub)}
+.unit-tab.active .ut-n{background:var(--br);color:#fff}
+@media(max-width:768px){.unit-tabs{gap:7px}.unit-tab{flex:1 1 0;padding:10px 8px;font-size:13px}}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:16px}
 .gc{background:var(--s);border:1px solid var(--ln);border-radius:14px;padding:16px;cursor:pointer;transition:all .15s;box-shadow:0 2px 6px rgba(10,22,42,.04);text-decoration:none;color:inherit;border-top:4px solid var(--ln);position:relative}.gc:hover{box-shadow:0 8px 24px rgba(10,22,42,.12);transform:translateY(-2px)}.gc.ok{border-top-color:var(--ok)}.gc.wr{border-top-color:var(--wr)}.gc.dr{border-top-color:var(--dr)}
 .gc .nm{font-size:14px;font-weight:900;margin-bottom:10px;padding-right:60px}
@@ -359,6 +367,7 @@ h4{font-weight:var(--jp-head)!important}
 const DATA = {{ data_json|safe }};
 
 let currentUnit = null; // 選択中の科・病棟名
+let landingTab = 'depts'; // ランディングの表示区分: 'depts'(診療科) | 'wards'(病棟)
 let period = '12w';
 let showWeekday = true, showHoliday = true;
 let showDaily = false, showMA7 = false, showMA28 = true, showPrevYear = true;  // ★7日/4週移動平均はデフォルト非表示、昨年度同期はデフォルト表示
@@ -486,11 +495,15 @@ function renderLanding() {
     </a>`;
   }
 
-  let html = '';
-  html += `<div class="sec-title">🩺 診療科（${depts.length}科）<span style="font-size:11px;font-weight:600;color:var(--mu);margin-left:8px">クリックして詳細を確認</span></div>`;
-  html += `<div class="grid">${depts.map(cardHtml).join('')}</div>`;
-  html += `<div class="sec-title">🏥 病棟（${wards.length}棟）<span style="font-size:11px;font-weight:600;color:var(--mu);margin-left:8px">クリックして詳細を確認</span></div>`;
-  html += `<div class="grid">${wards.map(cardHtml).join('')}</div>`;
+  // 入り口タブ: 診療科/病棟を分けて表示（病棟がスクロール下に埋もれるのを解消）
+  const isW = landingTab === 'wards';
+  let html = `<div class="unit-tabs" role="tablist">
+    <button class="unit-tab ${!isW ? 'active' : ''}" role="tab" aria-selected="${!isW}" onclick="showLanding('depts')">🩺 診療科 <span class="ut-n">${depts.length}</span></button>
+    <button class="unit-tab ${isW ? 'active' : ''}" role="tab" aria-selected="${isW}" onclick="showLanding('wards')">🏥 病棟 <span class="ut-n">${wards.length}</span></button>
+  </div>`;
+  const list = isW ? wards : depts;
+  html += `<div class="sec-title">${isW ? '🏥 病棟' : '🩺 診療科'}（${list.length}${isW ? '棟' : '科'}）<span style="font-size:11px;font-weight:600;color:var(--mu);margin-left:8px">クリックして詳細を確認</span></div>`;
+  html += `<div class="grid">${list.map(cardHtml).join('')}</div>`;
 
   document.getElementById('landingView').innerHTML = html;
 }
@@ -518,9 +531,13 @@ function onSelectChange(val) {
 // ══════════════════════════
 // Mode Switching
 // ══════════════════════════
-function showLanding() {
+function showLanding(tab) {
+  if (tab === 'depts' || tab === 'wards') landingTab = tab;
   currentUnit = null;
-  location.hash = '';
+  // 病棟タブは #wards でディープリンク可能（診療科タブ=既定はハッシュなし）
+  const wantHash = landingTab === 'wards' ? '#wards' : '';
+  if ((location.hash || '') !== wantHash) location.hash = wantHash;
+  renderLanding();
   document.getElementById('landingView').style.display = '';
   document.getElementById('dashView').style.display = 'none';
   document.getElementById('deptSelect').style.display = 'none';
@@ -549,11 +566,12 @@ function selectUnit(name) {
   document.getElementById('dashView').style.display = 'block';
 
   const isWard = !!d.ward_extra;
+  landingTab = isWard ? 'wards' : 'depts';  // 一覧へ戻ったとき同じ区分のタブを開く
   const icon = isWard ? '🏥' : '🩺';
   document.getElementById('pageTitle').textContent = `${icon} ${name}`;
   document.getElementById('backLink').href = '#';
   document.getElementById('backLink').textContent = '‹ 一覧';
-  document.getElementById('backLink').onclick = function(e) { e.preventDefault(); showLanding(); };
+  document.getElementById('backLink').onclick = function(e) { e.preventDefault(); showLanding(isWard ? 'wards' : 'depts'); };
 
   const sel = document.getElementById('deptSelect');
   sel.style.display = '';
@@ -1574,11 +1592,12 @@ function renderFlowChart(elId, admTd, outTd, opts) {
 // ══════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
   buildSelector();
-  renderLanding();
 
   const hash = decodeURIComponent(location.hash.replace('#',''));
   if (hash && DATA.drill[hash]) {
     selectUnit(hash);
+  } else if (hash === 'wards' || hash === 'depts') {
+    showLanding(hash);  // ディープリンク: dept.html#wards で病棟一覧を直接表示
   } else {
     showLanding();
   }
@@ -1587,7 +1606,8 @@ document.addEventListener('DOMContentLoaded', () => {
 window.addEventListener('hashchange', () => {
   const hash = decodeURIComponent(location.hash.replace('#',''));
   if (hash && DATA.drill[hash]) selectUnit(hash);
-  else if (!hash) showLanding();
+  else if (hash === 'wards' || hash === 'depts') showLanding(hash);
+  else if (!hash) showLanding('depts');
 });
 </script>
 <script>
