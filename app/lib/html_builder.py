@@ -236,7 +236,8 @@ def build_portal_context(adm, surg, targets, surg_targets,
                          include_ai_alerts: bool = True,
                          weekly_story: dict = None,
                          profit_monthly=None,
-                         include_triage: bool = True) -> dict:
+                         include_triage: bool = True,
+                         kpi_history_path=None) -> dict:
     """
     portal.html テンプレート用のコンテキスト辞書を生成。
 
@@ -379,6 +380,29 @@ def build_portal_context(adm, surg, targets, surg_targets,
               else {"dept_internal": [], "dept_surgery": [], "ward": [],
                     "dept_leveling": [], "ward_leveling": []})
 
+    # ── A4/B4: 継続日数と変化点（失敗しても portal は完走）──
+    # detail.html（include_triage=False）ではトリアージ自体を計算しないため対象外。
+    # leveling 系（dept_leveling/ward_leveling）は週次性格の別軸のため streak を付けない。
+    changes = None
+    if include_triage:
+        try:
+            from .portal_history import build_attention_history, kpi_status_changes, HISTORY_DAYS
+            hist = build_attention_history(adm, surg, targets, surg_targets, profit_monthly, base_date)
+            for group in ("dept_internal", "dept_surgery", "ward"):
+                for item in triage.get(group, []):
+                    item["streak_days"] = hist["streaks"].get((item["entity_type"], item["name"]), 1)
+                    item["streak_capped"] = item["streak_days"] >= HISTORY_DAYS
+            changes = {
+                "prev_date": hist["prev_date"],
+                "triage_in": hist["entered"], "triage_out": hist["exited"],
+                "kpi": kpi_status_changes(kpi_history_path, base_date) if kpi_history_path else [],
+            }
+            if not (changes["triage_in"] or changes["triage_out"] or changes["kpi"]):
+                changes["quiet"] = True     # 「変化なし」表示用
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"変化点/継続日数スキップ: {e}")
+
     # ── AI アラート（後方互換：include_ai_alerts=True 時のみ。portal では使用しない）──
     ai_alerts = (_build_ai_alerts(adm, surg, targets, surg_targets, base_date)
                  if include_ai_alerts else [])
@@ -393,6 +417,7 @@ def build_portal_context(adm, surg, targets, surg_targets,
         "improvement": improvement,
         "ai_alerts": ai_alerts,
         "weekly_story": weekly_story,
+        "changes": changes,
     }
 
 

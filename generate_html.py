@@ -218,6 +218,7 @@ def generate(data_dir: str = DEFAULT_DATA_DIR,
         adm, surg, targets, surg_targets, base_date, generated_at,
         weekly_story=weekly_story_result,
         profit_monthly=profit_monthly,
+        kpi_history_path=out_dir / "output" / "last_kpi.json",
     )
     portal_ctx["ga_id"] = resolved_ga_id
     portal_tmpl = env.get_template("portal.html")

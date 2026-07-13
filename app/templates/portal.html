@@ -95,6 +95,16 @@
 .kc-proj{font-size:11.5px;color:var(--sub);margin-top:4px;padding-top:6px;border-top:1px dashed var(--ln)}
 .kc-proj b{font-weight:900}
 .kc-proj b.ok{color:var(--ok)}.kc-proj b.wr{color:var(--wr)}.kc-proj b.dr{color:var(--dr-t)}
+/* ── 変化点バナー ── */
+.chg-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--s);border:1px solid var(--ln);border-radius:var(--card-border-radius);box-shadow:var(--card-box-shadow);padding:9px 14px;margin-bottom:16px}
+.chg-title{font-size:12.5px;font-weight:800;color:var(--ink);flex-shrink:0}
+.chg-vs{font-size:10.5px;font-weight:600;color:var(--mu)}
+.chg-none{font-size:12px;color:var(--mu)}
+.chg-chip{font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:999px;text-decoration:none;white-space:nowrap}
+.chg-chip.in{background:var(--dr-bg);color:var(--dr-t)}
+.chg-chip.out{background:var(--ok-bg);color:var(--ok)}
+/* ── 連続チップ ── */
+.streak-chip{font-size:10px;font-weight:800;color:var(--dr-t);background:var(--dr-bg);border:1px solid rgba(196,49,75,.25);border-radius:999px;padding:1px 7px;flex-shrink:0}
 /* ── 部門トリアージ ── */
 .triage-sec{background:var(--s);border:1px solid var(--ln);border-radius:var(--r);margin-bottom:16px;box-shadow:var(--sh);overflow:hidden}
 .triage-hd{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--ln)}
@@ -248,6 +258,22 @@ h4{font-weight:var(--jp-head)!important}
     {% endif %}
   </section>
 
+  {# ── B4: 昨日からの変化点バナー ── #}
+  {% if changes %}
+  <section class="chg-bar" aria-label="昨日からの変化点">
+    <span class="chg-title">🔔 変化点{% if changes.prev_date %} <span class="chg-vs">vs {{ changes.prev_date }}</span>{% endif %}</span>
+    {% if changes.quiet %}
+      <span class="chg-none">昨日から大きな変化はありません</span>
+    {% else %}
+      {% for it in changes.triage_in %}<a class="chg-chip in" href="{{ it.href }}">＋要注視入り {{ it.name }}</a>{% endfor %}
+      {% for it in changes.triage_out %}<a class="chg-chip out" href="{{ it.href }}">−脱出 {{ it.name }}</a>{% endfor %}
+      {% for k in changes.kpi %}
+        <span class="chg-chip {{ 'out' if k.improved else 'in' }}">{{ k.label }} {{ k.from }}→{{ k.to }}（{{ k.from_rate }}→{{ k.to_rate }}%）</span>
+      {% endfor %}
+    {% endif %}
+  </section>
+  {% endif %}
+
   {# ── KPIカード×3（⑤部門別リンクカード削除済み → 3列均等） ── #}
   <section class="kpi">
     {% for card in kpi_cards %}
@@ -293,6 +319,9 @@ h4{font-weight:var(--jp-head)!important}
        onclick="event.preventDefault();toggleNarrative('{{ sfx }}');location.href='{{ item.href }}'">
       <span class="pri-dot {{ item.priority }}" aria-label="優先度 {{ item.priority }}"></span>
       <span class="triage-name">{{ item.name }}</span>
+      {% if item.streak_days and item.streak_days >= 2 %}
+      <span class="streak-chip" title="連続して要注視">{{ '14日以上' if item.streak_capped else item.streak_days ~ '日連続' }}</span>
+      {% endif %}
       {% if item.trend_dir == 'down' %}<span class="triage-trend down" title="悪化傾向">↘</span>{% elif item.trend_dir == 'up' %}<span class="triage-trend up" title="改善傾向">↗</span>{% endif %}
       <button class="triage-acc-btn" id="acc-btn-{{ sfx }}"
               aria-expanded="false" aria-controls="narrative-{{ sfx }}"
@@ -354,6 +383,9 @@ h4{font-weight:var(--jp-head)!important}
                onclick="event.preventDefault();toggleNarrative('w{{ loop.index }}');location.href='{{ item.href }}'">
               <span class="pri-dot {{ item.priority }}" aria-label="優先度 {{ item.priority }}"></span>
               <span class="triage-name">{{ item.name }}</span>
+              {% if item.streak_days and item.streak_days >= 2 %}
+              <span class="streak-chip" title="連続して要注視">{{ '14日以上' if item.streak_capped else item.streak_days ~ '日連続' }}</span>
+              {% endif %}
               <button class="triage-acc-btn" id="acc-btn-w{{ loop.index }}"
                       aria-expanded="false" aria-controls="narrative-w{{ loop.index }}"
                       onclick="event.preventDefault();event.stopPropagation();toggleNarrative('w{{ loop.index }}')">▼詳細</button>
