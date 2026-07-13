@@ -152,6 +152,9 @@ body.review{padding-bottom:80px}
 .tb-btn.off{opacity:.45}
 .spacer{flex:1}
 .save-msg{font-size:11px; font-weight:800; color:var(--ok)}
+.srv-status{font-size:11px; font-weight:800; padding:2px 9px; border-radius:11px}
+.srv-status.up{color:var(--ok); background:rgba(14,122,84,.10)}
+.srv-status.down{color:#b4530a; background:rgba(180,83,9,.12)}
 .edited-list{font-size:11px; color:var(--sub); max-width:340px; overflow:hidden;
   text-overflow:ellipsis; white-space:nowrap}
 .edited-list b{color:var(--edit); cursor:pointer; text-decoration:underline dotted}
@@ -233,6 +236,7 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
   <span class="edited-list" id="elist"></span>
   <span class="save-msg" id="savemsg"></span>
   <div class="spacer"></div>
+  <span class="srv-status" id="srvstatus"></span>
   <button class="tb-btn" id="btn-reset" type="button">すべてAI文に戻す</button>
   <button class="tb-btn primary" id="btn-save" type="button">overrides.md へ保存</button>
   <button class="tb-btn" id="btn-rebuild" type="button">PDF再作成</button>
@@ -243,7 +247,9 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
   自動で正しい場所になります）→「<b>PDF再作成</b>」で差し替えたPDFになります
   （該当部門はAI生成をスキップ。再作成ボタンは <b>make review</b> で開いたときに使えます。
   ファイルとして直接開いた場合は保存にファイル選択が要り、ターミナルで make reports を
-  再実行してください）。
+  再実行してください）。この画面を開いている間はレビューサーバが延命されます。もし
+  「サーバ終了」と表示されたら <b>build_reports.sh</b>（<b>make review</b>）を再実行すれば復帰し、
+  この画面は自動で最新版に切り替わります。
   下書きは自動でブラウザに保持され、タブを閉じても消えません。
   数値行（全麻/新入院/病床利用率）はデータ由来のため編集対象外です。
   差し替えの有効期限は {{ review_expires }}（基準日+14日）まで＝古い文の残留を防ぎます。<br>
@@ -377,7 +383,7 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
 <div class="modal-bg" id="modalbg"></div>
 <div class="modal" id="modal">
   <h3>overrides.md（手動保存フォールバック）</h3>
-  <p>ファイルへの直接書き込みができない環境です。下の内容を <b>dept_reports/overrides.md</b> に
+  <p id="ovmsg">ファイルへの直接書き込みができない環境です。下の内容を <b>dept_reports/overrides.md</b> に
      貼り付けるか、「ダウンロード」で保存したファイルを同じ場所に置いてください。</p>
   <textarea id="ovtext" readonly></textarea>
   <div class="row">
@@ -396,6 +402,15 @@ const cards = [...document.querySelectorAll(".move[data-unit]")];
 const ORIG = {};   // unit -> {body, action, manual, ovFields}
 const SERVED = location.protocol === "http:" || location.protocol === "https:";
 let unsavedEdits = false;   // 最後の保存以降に編集があるか（PDF再作成前の確認用）
+let serverOnline = SERVED;  // レビューサーバの死活（ハートビートで追跡）
+const srvEl = document.getElementById("srvstatus");
+function setSrvStatus(online){
+  serverOnline = online;
+  if (!srvEl) return;
+  if (!SERVED){ srvEl.textContent = ""; return; }
+  srvEl.textContent = online ? "● サーバ接続中" : "● サーバ終了（要再起動）";
+  srvEl.className = "srv-status " + (online ? "up" : "down");
+}
 
 // ── IndexedDB（overrides.md のファイルハンドル永続化＝初回のみファイル選択）──
 function idb(){ return new Promise((res, rej) => {
@@ -529,7 +544,14 @@ async function saveToFile(text){
   const w = await h.createWritable();
   await w.write(text); await w.close();
 }
-function showModal(text){
+function showModal(text, reason){
+  const p = document.getElementById("ovmsg");
+  if (p) p.innerHTML = (reason === "server-offline")
+    ? "レビューサーバが終了しているため直接保存できませんでした。下の内容を「ダウンロード」で " +
+      "<b>dept_reports/overrides.md</b> として保存し、<b>build_reports.sh</b>（<b>make review</b>）を" +
+      "再実行してください。反映後、この画面はサーバ復帰を検知して自動で最新版に切り替わります。"
+    : "ファイルへの直接書き込みができない環境です。下の内容を <b>dept_reports/overrides.md</b> に" +
+      "貼り付けるか、「ダウンロード」で保存したファイルを同じ場所に置いてください。";
   document.getElementById("ovtext").value = text;
   document.getElementById("modal").style.display = "block";
   document.getElementById("modalbg").style.display = "block";
@@ -597,7 +619,8 @@ document.getElementById("btn-save").addEventListener("click", async () => {
       (SERVED ? "（「PDF再作成」で反映）" : "（make reports の再実行で反映）"));
   } catch (e) {
     if (e && e.name === "AbortError") return;     // ファイル選択キャンセル
-    showModal(text);
+    if (SERVED){ setSrvStatus(false); showModal(text, "server-offline"); }
+    else showModal(text);
   }
 });
 document.getElementById("btn-close").addEventListener("click", closeModal);
@@ -632,6 +655,10 @@ async function pollRebuild(){
     setRb("PDF再作成", false);
   }
 }
+const SRV_DOWN_MSG =
+  "レビューサーバが終了しています。\n\n" +
+  "ターミナルで build_reports.sh（または make review）を再実行してください。\n" +
+  "置いた overrides.md は自動で反映され、この画面はサーバ復帰を検知して自動で最新版へ更新します。";
 rbBtn.addEventListener("click", async () => {
   if (!SERVED){
     alert("この画面はファイルとして直接開かれているため、ここからは再作成できません。\n\n" +
@@ -639,6 +666,7 @@ rbBtn.addEventListener("click", async () => {
           "・またはターミナルで make reports を再実行してください。");
     return;
   }
+  if (!serverOnline){ setSrvStatus(false); alert(SRV_DOWN_MSG); return; }
   if (unsavedEdits &&
       !confirm("保存していない編集があります。保存前の再作成には反映されません。\n" +
                "このまま再作成しますか？（キャンセルして先に「保存」を推奨）")) return;
@@ -646,12 +674,41 @@ rbBtn.addEventListener("click", async () => {
   try { await fetch("/rebuild", {method: "POST"}); }
   catch (e) {
     setRb("PDF再作成", false);
-    alert("レビューサーバに接続できません（make review で起動した画面か確認してください）。");
+    setSrvStatus(false);
+    alert(SRV_DOWN_MSG);
     return;
   }
   pollRebuild();
 });
+
+// ── サーバ死活のハートビート ──
+// 開いている間 GET /rebuild/status を送り続ける＝サーバ側の最終アクセス時刻が更新され、
+// 無操作 idle 自動終了（既定120分）を抑止して延命する。切断（スリープ等）も検知し、
+// サーバ復帰（build_reports.sh 再実行）を捉えて最新版へ自動復帰する。
+async function heartbeat(){
+  if (!SERVED) return;
+  let st = null, ok = false;
+  try { st = await (await fetch("/rebuild/status", {cache: "no-store"})).json(); ok = true; }
+  catch (e) { ok = false; }
+  if (ok && !serverOnline){                       // オフライン→復帰
+    setSrvStatus(true);
+    if (!unsavedEdits && !(st && st.state === "running")){
+      rbMsg("✓ サーバに再接続しました — 3秒後に最新版へ更新します");
+      setTimeout(() => location.reload(), 3000);
+      return;
+    }
+    rbMsg("✓ サーバに再接続しました。再読み込みで最新版になります");
+  } else if (!ok && serverOnline){                // オンライン→切断
+    setSrvStatus(false);
+    rbMsg("⚠ レビューサーバが終了しました。build_reports.sh（make review）の再実行で復帰します");
+  } else {
+    setSrvStatus(ok);
+  }
+}
 if (SERVED){
+  setSrvStatus(true);
+  heartbeat();
+  setInterval(heartbeat, 45000);   // idle自動終了(既定120分)に対し十分な延命間隔
   // リロード直後に再作成が走っていたら進捗表示に復帰する
   fetch("/rebuild/status").then(r => r.json()).then(st => {
     if (st.state === "running"){ setRb("再作成中…", true); pollRebuild(); }
