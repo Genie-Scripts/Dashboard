@@ -17,6 +17,7 @@ PDF化は headless Chrome の --print-to-pdf。SVG/レイアウトは Python 側
 JS 実行は不要（タイミング問題なし）。
 """
 import argparse
+import json
 import shutil
 import subprocess
 import sys
@@ -456,6 +457,20 @@ def main():
         snap = save_facts_snapshot(state_dir, base_date, units_state,
                                    hosp_ctx.get("_state") or {})
         log(f"事実スナップショット保存: {snap.relative_to(Path(args.output_dir))}")
+
+        # ── A1: 一手の確定値スナップショット（dept.html への掲載用・オーバーライド適用後）──
+        _MOVE_KEYS = ("body", "action", "surg_line", "util_line", "nadm_line", "topic", "src")
+        def _move_lite(m):
+            return {k: m[k] for k in _MOVE_KEYS if m.get(k)}
+        moves_payload = {
+            "base_date": date_str,
+            "generated_at": generated_at.strftime("%Y/%m/%d %H:%M"),
+            "units": {f"{c['axis']}:{c['unit']}": _move_lite(c["move"]) for c in contexts if c.get("move")},
+            "hospital": _move_lite(hosp_ctx["move"]) if hosp_ctx.get("move") else None,
+        }
+        moves_path = state_dir / f"moves_{date_str}.json"
+        moves_path.write_text(json.dumps(moves_payload, ensure_ascii=False, indent=1), encoding="utf-8")
+        log(f"一手スナップショット保存: {moves_path.relative_to(Path(args.output_dir))}")
 
     if not args.no_ai:
         from app.lib.ai_narrative import REJECT_STATS

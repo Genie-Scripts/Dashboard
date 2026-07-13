@@ -47,6 +47,7 @@ from .profit_estimate import (
     last_complete_driver_date,
 )
 from .month_projection import build_month_projection_payload, profit_target_for_month
+from .moves_store import load_latest_moves
 
 
 def _json_safe(obj):
@@ -612,6 +613,9 @@ def build_detail_json(adm, surg, targets, surg_targets,
 
     # ── drill: 診療科ドリルダウン ──
     drill = {}
+    # ── A1: 部門レポートPDFの「この期間の一手」確定値（moves 無し/対象なしは非表示に縮退）──
+    moves = load_latest_moves(base_date)
+    _report_label = moves and pd.Timestamp(moves["base_date"]).strftime("%-m/%-d")
     r7_nadm = rolling7_new_admission(adm, base_date)
     r7_surg = rolling7_surgery(surg, base_date)
     from .metrics import daily_inpatient
@@ -729,6 +733,10 @@ def build_detail_json(adm, surg, targets, surg_targets,
             "discharge_dow": discharge_dow_profile(adm, base_date, group_col="診療科名", group_val=dept),
             "comment": "、".join(comments),
         }
+        mv = moves and moves["units"].get(f"dept:{dept}")
+        if mv:
+            drill[dept]["move"] = {k: mv[k] for k in ("body", "action", "surg_line", "util_line", "nadm_line") if mv.get(k)}
+            drill[dept]["move"]["report_date"] = _report_label
 
     # ── drill: 病棟ドリルダウン ──
     from .config import WARD_NAMES, WARD_HIDDEN
@@ -819,6 +827,10 @@ def build_detail_json(adm, surg, targets, surg_targets,
             "discharge_dow": discharge_dow_profile(adm, base_date, group_col="病棟コード", group_val=wcode),
             "comment": "、".join(w_comments),
         }
+        mv = moves and moves["units"].get(f"ward:{wname}")
+        if mv:
+            drill[wname]["move"] = {k: mv[k] for k in ("body", "action", "surg_line", "util_line", "nadm_line") if mv.get(k)}
+            drill[wname]["move"]["report_date"] = _report_label
 
     # ── attention / improvement ──
     # detail.html は attention/improvement のみ使用。AI アラート/トリアージ/

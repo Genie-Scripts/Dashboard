@@ -282,6 +282,15 @@ h4{font-weight:var(--jp-head)!important}
         <div id="monthProjectionTiles" class="mp-grid"></div>
       </div>
     </section>
+    <section id="moveSection" style="margin-bottom:12px;display:none">
+      <div class="cpnl" style="padding:14px 16px">
+        <h4 style="margin:0 0 8px;font-size:13px;font-weight:800">🧭 この期間の一手
+          <span id="moveMeta" style="font-weight:500;color:var(--mu);font-size:11px"></span></h4>
+        <div id="moveBody" style="font-size:12.5px;line-height:1.75;color:var(--ink)"></div>
+        <div id="moveAction" style="margin-top:6px;font-size:12.5px;font-weight:600;color:var(--ink)"></div>
+        <div id="moveExtra" style="margin-top:6px;font-size:11px;color:var(--sub)"></div>
+      </div>
+    </section>
     <div id="commentBox" class="comment" style="display:none"></div>
     <div class="tb" id="toolbar"></div>
     <div id="chartsWrap" class="charts-container layout-2plus1">
@@ -551,6 +560,8 @@ function showLanding(tab) {
   if (estWrap) estWrap.style.display = 'none';
   const mpSec = document.getElementById('monthProjectionSection');
   if (mpSec) mpSec.style.display = 'none';
+  const moveSec = document.getElementById('moveSection');
+  if (moveSec) moveSec.style.display = 'none';
 }
 
 function selectUnit(name) {
@@ -586,6 +597,7 @@ function selectUnit(name) {
 function renderDashboard(name, d) {
   renderKpiCards(d);
   renderMonthProjection(d);
+  renderMove(d);
   renderWardExtra(d);
   renderComment(d);
   renderToolbar();
@@ -647,6 +659,19 @@ function renderMonthProjection(d) {
       prevEl.style.display = 'none';
     }
   }
+}
+
+function renderMove(d) {
+  const sec = document.getElementById('moveSection');
+  if (!sec) return;
+  const mv = d && d.move;
+  if (!mv || !mv.body) { sec.style.display = 'none'; return; }
+  sec.style.display = '';
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  document.getElementById('moveMeta').textContent = mv.report_date ? `（${mv.report_date} 部門レポートより）` : '';
+  document.getElementById('moveBody').textContent = mv.body;
+  document.getElementById('moveAction').innerHTML = mv.action ? `<span style="color:var(--br)">→</span> ${esc(mv.action)}` : '';
+  document.getElementById('moveExtra').textContent = mv.surg_line || mv.util_line || mv.nadm_line || '';
 }
 
 function kpiCardHtml(c) {
