@@ -377,7 +377,9 @@ def _build_improvement(adm, surg, base_date) -> dict:
     """
     def _wow_top3(cands):
         c = [x for x in cands if x["delta"] > 0]
-        c.sort(key=lambda x: -x["delta"])
+        # delta降順。同点は科名/病棟名で確定させる（NADM_DISPLAY_DEPTS が set で
+        # 反復順が PYTHONHASHSEED 依存のため、第2キー無しだと同点3位がプロセス毎に入替わる）
+        c.sort(key=lambda x: (-x["delta"], x["name"]))
         return c[:3]
 
     r7s_now  = rolling7_surgery(surg, base_date)["by_dept"]
