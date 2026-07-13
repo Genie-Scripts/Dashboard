@@ -68,6 +68,7 @@ pip install pandas openpyxl jinja2 plotly streamlit numpy
 | ローカルで動作確認（インタラクティブ） | `streamlit run streamlit_app.py` |
 | ブラウザで静的HTMLを確認 | `python -m http.server 8080` |
 | Comedix配布用 自己完結HTML（部門＋ポータル）再出力 | `make selfcontained` |
+| 週次ダイジェスト（掲示A4＋メール貼付テキスト）生成 | `make digest`（`make digest-fast` はAI要約なし） |
 
 > ⚠️ `streamlit run generate_html.py` は**誤り**です。  
 > `generate_html.py` は Streamlit アプリではなく、コマンドラインスクリプトです。

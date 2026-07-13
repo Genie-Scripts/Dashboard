@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta name="robots" content="noindex, nofollow">
+<meta charset="UTF-8">
+<title>週次ダイジェスト — {{ base_date }}</title>
+<style>
+:root{
+  --ink:#1a2332; --sub:#5f7084; --mu:#9daab8; --ln:#dfe5ed; --bg:#f6f8fb; --s:#fff;
+  --ok:#0e7a54; --ok-bg:#ecfdf5; --wr:#b45309; --wr-bg:#fef7ee; --dr:#c4314b; --dr-bg:#fdf0f2;
+  --cen:#2a9d8f; --in:#3d5a80;
+}
+*{box-sizing:border-box; margin:0; padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
+  background:var(--bg); color:var(--ink); -webkit-font-smoothing:antialiased; line-height:1.5}
+.sheet{width:190mm; min-height:277mm; margin:0 auto; background:var(--s);
+  padding:11mm 11mm 8mm; display:flex; flex-direction:column}
+
+.letterhead{font-size:11px; font-weight:800; color:var(--sub); text-align:right; margin-bottom:3px}
+.hd{display:flex; align-items:flex-end; justify-content:space-between;
+  border-bottom:2.5px solid var(--ink); padding-bottom:7px; margin-bottom:11px}
+.hd-ttl{font-size:23px; font-weight:900; letter-spacing:.5px}
+.hd-period{font-size:12px; font-weight:700; color:var(--sub); margin-top:2px}
+.hd-r{text-align:right; font-size:10px; color:var(--sub); line-height:1.55}
+.hd-r b{color:var(--ink); font-weight:800}
+.pill-conf{display:inline-block; font-size:9.5px; font-weight:900; color:var(--dr);
+  border:1px solid #e9c2cb; background:var(--dr-bg); border-radius:999px; padding:1px 8px; margin-top:2px}
+
+.sec{margin-bottom:11px}
+.sec-h{font-size:12.5px; font-weight:800; color:var(--ink); margin-bottom:6px;
+  padding-bottom:4px; border-bottom:1px solid var(--ln)}
+
+.story{font-size:12px; line-height:1.75; background:#f4fdf9; border:1px solid #cfe0d8;
+  border-left:4px solid var(--ok); border-radius:8px; padding:9px 12px; margin-bottom:7px}
+.diffs{list-style:none; display:flex; flex-direction:column; gap:3px}
+.diffs li{font-size:11px; color:var(--sub); padding-left:14px; position:relative}
+.diffs li:before{content:"・"; position:absolute; left:0}
+.diffs li.muted{color:var(--mu)}
+
+.kpi-table{width:100%; border-collapse:collapse; font-size:11px}
+.kpi-table th{text-align:right; font-size:9.5px; font-weight:800; color:var(--sub);
+  border-bottom:1.5px solid var(--ln); padding:4px 6px}
+.kpi-table th:first-child{text-align:left}
+.kpi-table td{text-align:right; padding:6px 6px; border-bottom:1px solid var(--ln)}
+.kpi-table td.lbl{text-align:left; font-weight:800; color:var(--ink)}
+.kpi-table td.mu{color:var(--mu)}
+.kpi-table td.ok{color:var(--ok); font-weight:800}
+.kpi-table td.dr{color:var(--dr); font-weight:800}
+.kpi-table td.rate{font-weight:900}
+.kpi-table td.rate.ok{color:var(--ok)}
+.kpi-table td.rate.wr{color:var(--wr)}
+.kpi-table td.rate.dr{color:var(--dr)}
+.kpi-table td.rate.mu{color:var(--mu); font-weight:700}
+
+.mp-tiles{display:grid; grid-template-columns:repeat(3,1fr); gap:8px}
+.mp-tile{border:1px solid var(--ln); border-radius:10px; padding:8px 10px}
+.mp-lbl{font-size:9.5px; font-weight:800; color:var(--sub)}
+.mp-val{font-size:19px; font-weight:900; margin-top:2px}
+.mp-val.ok{color:var(--ok)} .mp-val.wr{color:var(--wr)} .mp-val.dr{color:var(--dr)} .mp-val.mu{color:var(--mu)}
+.mp-tgt{font-size:9.5px; color:var(--mu); margin-top:2px}
+
+.attn-list{list-style:none; display:flex; flex-direction:column; gap:5px}
+.attn-list li{font-size:11px; color:var(--ink); padding:5px 8px; background:var(--dr-bg);
+  border-left:3px solid var(--dr); border-radius:6px}
+.attn-list li.muted{background:transparent; border-left-color:var(--ln); color:var(--mu)}
+.attn-list .elabel{font-size:9.5px; color:var(--sub); font-weight:700}
+
+.imp-group{margin-bottom:5px}
+.imp-group .glabel{font-size:9.5px; font-weight:800; color:var(--in); background:#eef2f9;
+  border:1px solid #d3deef; border-radius:5px; padding:1px 7px; margin-right:6px}
+.imp-group .items{font-size:11px; color:var(--ink)}
+.imp-group .items b{color:var(--ok); font-weight:800}
+.imp-none{font-size:11px; color:var(--mu)}
+
+.ft{display:flex; justify-content:space-between; align-items:center; margin-top:auto;
+  padding-top:8px; border-top:1px solid var(--ln); font-size:9.5px; color:var(--mu)}
+.ft-l{display:flex; align-items:center; gap:8px}
+.ft-qr{flex-shrink:0}
+.ft-qr svg{display:block; width:16mm; height:16mm}
+.ft-txt b{color:var(--sub); font-weight:800}
+.ft-r{text-align:right; line-height:1.6}
+
+@page{ size:A4 portrait; margin:0 }
+@media print{ body{background:#fff} .sheet{width:auto; min-height:auto; margin:0} }
+</style>
+</head>
+<body>
+<div class="sheet">
+
+  {% if hospital_name %}<div class="letterhead">{{ hospital_name }}</div>{% endif %}
+
+  <div class="hd">
+    <div>
+      <div class="hd-ttl">📰 週次ダイジェスト</div>
+      <div class="hd-period">対象週 {{ week_start }} 〜 {{ week_end }}（直近7日 vs 前週）</div>
+    </div>
+    <div class="hd-r">
+      基準日 <b>{{ base_date }}</b>　発行 {{ generated_at }}<br>
+      <span class="pill-conf">院内限り</span>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-h">📝 今週のまとめ</div>
+    {% if story %}<div class="story">{{ story }}</div>{% endif %}
+    <ul class="diffs">
+      {% for d in diffs %}<li>{{ d }}</li>{% endfor %}
+      {% if not diffs %}<li class="muted">確定差分なし（前週の比較データが不足しています）</li>{% endif %}
+    </ul>
+  </div>
+
+  <div class="sec">
+    <div class="sec-h">📊 KPI（今週 / 先週 / 目標）</div>
+    <table class="kpi-table">
+      <thead><tr><th>指標</th><th>今週</th><th>先週</th><th>差</th><th>目標</th><th>達成率</th></tr></thead>
+      <tbody>
+      {% for row in kpi_rows %}
+        <tr>
+          <td class="lbl">{{ row.label }}</td>
+          <td>{{ row.now_s }}{{ row.unit }}</td>
+          <td class="mu">{{ row.prev_s }}{{ row.unit }}</td>
+          <td class="{{ row.diff_css }}">{{ row.diff_s }}{{ row.unit }}</td>
+          <td class="mu">{{ row.target_s }}{% if row.target is not none %}{{ row.unit }}{% endif %}</td>
+          <td class="rate {{ row.status.css }}">{{ row.rate_display }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="sec">
+    <div class="sec-h">📅 当月着地見込み</div>
+    <div class="mp-tiles">
+      {% for tile in month_projection %}
+      <div class="mp-tile">
+        <div class="mp-lbl">{{ tile.label }}</div>
+        <div class="mp-val {{ tile.status_css }}">{{ tile.status_shape }} {{ tile.projection }}{{ tile.unit }}</div>
+        <div class="mp-tgt">{% if tile.target %}目標 {{ tile.target }}{{ tile.unit }}{% if tile.rate %}（{{ tile.rate }}%）{% endif %}{% else %}目標未設定{% endif %}</div>
+      </div>
+      {% endfor %}
+      {% if not month_projection %}<div class="imp-none">当月着地見込みは算出できませんでした</div>{% endif %}
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-h">🚨 要注視（病棟 {{ attention.ward_count }}件・診療科 {{ attention.dept_count }}件）</div>
+    <ul class="attn-list">
+    {% for it in attention.worst3 %}
+      <li><span class="elabel">［{{ it.entity_label }}］</span> <b>{{ it.name }}</b>　{{ it.kpi_summary }}</li>
+    {% endfor %}
+    {% if not attention.worst3 %}<li class="muted">要注視の対象はありません</li>{% endif %}
+    </ul>
+  </div>
+
+  <div class="sec">
+    <div class="sec-h">📈 改善（前週比プラスの上位・北極星KPI）</div>
+    {% set has_imp = (improvement.dept_internal or improvement.dept_surgery or improvement.ward) %}
+    {% if has_imp %}
+      {% for glabel, items in [("内科系", improvement.dept_internal), ("外科系", improvement.dept_surgery), ("病棟", improvement.ward)] %}
+        {% if items %}
+        <div class="imp-group">
+          <span class="glabel">{{ glabel }}</span>
+          <span class="items">{% for it in items %}<b>{{ it.name }}</b> {{ it.metric_label }}{{ "%+d"|format(it.delta) }}{{ it.unit }}（{{ it.compare }}）{% if not loop.last %}　{% endif %}{% endfor %}</span>
+        </div>
+        {% endif %}
+      {% endfor %}
+    {% else %}
+      <div class="imp-none">該当なし</div>
+    {% endif %}
+  </div>
+
+  <div class="ft">
+    <div class="ft-l">
+      {% if qr_svg %}<div class="ft-qr">{{ qr_svg|safe }}</div>{% endif %}
+      <div class="ft-txt">📱 最新データは毎日更新 → <b>{{ public_base_url }}portal.html</b></div>
+    </div>
+    <div class="ft-r">数値はPython算出・文章はローカルLLM<br>{{ generated_at }} 自動生成</div>
+  </div>
+
+</div>
+</body>
+</html>

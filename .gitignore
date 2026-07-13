@@ -57,3 +57,6 @@ output/outpatient_profit_backtest_monthly.csv
 
 # 自己完結HTML（オフライン/Comedix資料室配信用・ローカル再生成物・公開しない）
 output/selfcontained/
+
+# 週次ダイジェスト（掲示A4＋メール貼付テキスト・ローカル再生成物・公開しない）
+output/weekly_digest/

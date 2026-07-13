@@ -155,6 +155,26 @@ report-hospital:
 		$(if $(DATE),--base-date $(DATE),)
 	@echo "$(GREEN)✅ 完了: output/comedix/実績まとめ_<基準日>.pdf$(RESET)"
 
+## 週次ダイジェスト自動生成（掲示A4＋メール貼付テキスト・push型周知）
+## 出力: output/weekly_digest/{基準日}/週次ダイジェスト_{基準日}.{html,pdf,txt}
+.PHONY: digest
+digest:
+	@echo "$(CYAN)📰 週次ダイジェスト 生成中...$(RESET)"
+	$(PYTHON) scripts/build_weekly_digest.py \
+		--data-dir $(DATA_DIR) \
+		$(if $(DATE),--base-date $(DATE),)
+	@echo "$(GREEN)✅ 完了: output/weekly_digest/$(RESET)"
+
+## 週次ダイジェスト（一手同様、確定差分の箇条書きのみ・oMLX不要・高速）
+.PHONY: digest-fast
+digest-fast:
+	@echo "$(CYAN)⚡ 週次ダイジェスト（高速・AI要約なし）生成中...$(RESET)"
+	$(PYTHON) scripts/build_weekly_digest.py \
+		--data-dir $(DATA_DIR) \
+		--no-ai \
+		$(if $(DATE),--base-date $(DATE),)
+	@echo "$(GREEN)✅ 完了: output/weekly_digest/$(RESET)"
+
 ## Comedix配布用 自己完結HTML（部門＋ポータル）を再出力
 ## 出力: output/selfcontained/部門ダッシュボード_{基準日}.html ＋ 診療KPIポータル_{基準日}.html
 .PHONY: selfcontained
