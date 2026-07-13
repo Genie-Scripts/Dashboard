@@ -112,8 +112,8 @@ def is_operational_day(dt) -> bool:
 # ──────────────────────────────
 TARGET_INPATIENT_WEEKDAY = 600   # 平日目標（人）
 TARGET_INPATIENT_HOLIDAY = 550   # 休日目標（人）
-TARGET_INPATIENT_ALLDAY  = 583   # 全日目標（年間加重平均）
-TARGET_ADMISSION_WEEKLY  = 380   # 新入院 週目標（人/週）
+TARGET_INPATIENT_ALLDAY  = 582.8   # 全日目標（年間加重平均）
+TARGET_ADMISSION_WEEKLY  = 379.2   # 新入院 週目標（人/週）
 TARGET_GA_DAILY          = 21    # 全身麻酔 営業平日目標（件/営業平日）
 
 # ──────────────────────────────
