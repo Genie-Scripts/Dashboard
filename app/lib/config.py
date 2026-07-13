@@ -261,6 +261,9 @@ DEFAULT_DATA_DIR = "data"
 # 例: REPORT_HOSPITAL_NAME = "○○総合病院"
 REPORT_HOSPITAL_NAME = ""
 
+# 公開ダッシュボードのベースURL（部門レポートPDFのQRコード等で使用）
+PUBLIC_BASE_URL = "https://genie-scripts.github.io/Dashboard/"
+
 DATA_FOLDERS = {
     "patient_data":   "patient_data",
     "patient_target": "patient_target",

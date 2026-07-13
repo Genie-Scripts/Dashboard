@@ -7,3 +7,4 @@ numpy>=1.24.0
 jpholiday>=0.1.8
 openai>=1.30.0
 pyyaml>=6.0
+segno>=1.6

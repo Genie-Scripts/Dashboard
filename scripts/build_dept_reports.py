@@ -336,6 +336,12 @@ def main():
         contexts = contexts[:args.limit]
     log(f"対象 {len(contexts)} 部門")
 
+    from urllib.parse import quote
+    from app.lib.config import PUBLIC_BASE_URL
+    from app.lib.qr import qr_svg_inline
+    for c in contexts:
+        c["qr_svg"] = qr_svg_inline(f"{PUBLIC_BASE_URL}dept.html#{quote(c['unit'])}")
+
     # ── Jinja ──
     from jinja2 import Environment, FileSystemLoader
     env = Environment(
@@ -411,6 +417,7 @@ def main():
             hospital_name=args.hospital_name, profit_breakdown=profit_breakdown,
             profit_projection=profit_projection, with_ai=not args.no_ai, quiet=args.quiet,
             delta_anchor=anchor, overrides=overrides)
+        hosp_ctx["qr_svg"] = qr_svg_inline(f"{PUBLIC_BASE_URL}portal.html")
 
         # ── §6-1 一手レビューHTML（病院全体サマリ＋全部門を1ファイル・PDFと同テンプレ）──
         # 責任者が印刷されるそのままのシート上でコメントを直し「保存」で overrides.md へ
