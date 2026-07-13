@@ -203,8 +203,8 @@ GA_MEASUREMENT_ID = "G-R843H5Z3R8"
 # ──────────────────────────────
 TARGET_INPATIENT_WEEKDAY = 600   # 平日目標（人）
 TARGET_INPATIENT_HOLIDAY = 550   # 休日目標（人）
-TARGET_INPATIENT_ALLDAY  = 583   # 全日目標（年間加重平均）
-TARGET_ADMISSION_WEEKLY  = 380   # 新入院 週目標（人/週）
+TARGET_INPATIENT_ALLDAY  = 582.8   # 全日目標（年間加重平均）
+TARGET_ADMISSION_WEEKLY  = 379.2   # 新入院 週目標（人/週）
 TARGET_GA_DAILY          = 21    # 全身麻酔 営業平日目標（件/営業平日）
 TARGET_WEEKEND_RETENTION = 93    # 週末在院維持率 目標（%＝土日平均在院÷平日平均在院）
 

@@ -14,7 +14,7 @@ detail.html headline 直下の「📅 当月予測」カードに供給される
 
 目標換算:
   - 粗利     : profit_monthly の月次補正目標合計 (営業日/暦日補正後)
-  - 在院日平均: TARGET_INPATIENT_ALLDAY (583/日) のまま
+  - 在院日平均: TARGET_INPATIENT_ALLDAY (582.8/日) のまま
   - 新入院   : (TARGET_ADMISSION_WEEKLY / 7) × 当月暦日数
   - 全身麻酔 : TARGET_GA_DAILY × 当月営業平日数
 """
