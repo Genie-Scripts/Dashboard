@@ -155,6 +155,15 @@ report-hospital:
 		$(if $(DATE),--base-date $(DATE),)
 	@echo "$(GREEN)✅ 完了: output/comedix/実績まとめ_<基準日>.pdf$(RESET)"
 
+## Comedix配布用 自己完結HTML（部門＋ポータル）を再出力
+## 出力: output/selfcontained/部門ダッシュボード_{基準日}.html ＋ 診療KPIポータル_{基準日}.html
+.PHONY: selfcontained
+selfcontained:
+	@echo "$(CYAN)📦 Comedix配布用 自己完結HTML 生成中...$(RESET)"
+	$(PYTHON) scripts/build_selfcontained.py --profile dept-standalone
+	$(PYTHON) scripts/build_selfcontained.py --profile portal-standalone
+	@echo "$(GREEN)✅ 完了: output/selfcontained/$(RESET)"
+
 # ============================================================
 # ローカル確認
 # ============================================================

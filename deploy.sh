@@ -91,6 +91,13 @@ else
   echo "⚠️  部門ダッシュボード(自己完結)生成に失敗（デプロイは継続）" >> "$LOG"
 fi
 
+echo "📋 診療KPIポータル(自己完結)生成中..." >> "$LOG"
+if python scripts/build_selfcontained.py --profile portal-standalone >> "$LOG" 2>&1; then
+  echo "✅ 診療KPIポータル(自己完結)生成完了 → output/selfcontained/" >> "$LOG"
+else
+  echo "⚠️  診療KPIポータル(自己完結)生成に失敗（デプロイは継続）" >> "$LOG"
+fi
+
 # ── 2. ソースコード + 生成HTML をステージ ──
 # 注: output/pl_projection.html は公開しない方針のため git add しない
 # さきほど設定した .gitignore により .venv や data/ は自動で除外されます

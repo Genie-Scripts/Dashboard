@@ -472,6 +472,17 @@ def main():
         moves_path.write_text(json.dumps(moves_payload, ensure_ascii=False, indent=1), encoding="utf-8")
         log(f"一手スナップショット保存: {moves_path.relative_to(Path(args.output_dir))}")
 
+        # ── S3: Comedix配布物の再出力（override確定を反映・fail-soft・数秒）──
+        repo = Path(__file__).resolve().parent.parent
+        try:
+            subprocess.run(
+                [sys.executable, str(repo / "scripts" / "build_selfcontained.py"),
+                 "--profile", "dept-standalone"],
+                check=True, capture_output=True, timeout=120)
+            log("Comedix用 自己完結HTML 再出力（override反映）→ output/selfcontained/")
+        except Exception as e:
+            log(f"自己完結HTML再出力スキップ: {e}", "warn")
+
     if not args.no_ai:
         from app.lib.ai_narrative import REJECT_STATS
         if REJECT_STATS:
