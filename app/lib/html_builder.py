@@ -343,6 +343,34 @@ def build_portal_context(adm, surg, targets, surg_targets,
         },
     ]
 
+    # ── A2: 前年同期比（build_kpi_summary の既存前年値を再利用）──
+    def _yoy(cur, prev, note):
+        if cur is None or prev is None or prev == 0:
+            return None                     # 前年データ不足 → チップ非表示
+        pct = (cur - prev) / abs(prev) * 100.0
+        css = "ok" if pct >= 5 else ("dr" if pct <= -5 else "mu")   # dept.htmlのyoyBadgeと同じ±5%
+        arrow = "↑" if pct >= 5 else ("↓" if pct <= -5 else "→")
+        return {"pct": round(pct, 1), "prev": prev, "css": css, "arrow": arrow, "note": note}
+
+    kpi_cards[0]["yoy"] = _yoy(kpi["inpatient_avg_7d"],  kpi["inpatient_prev_7d_avg"],  "7日平均")
+    kpi_cards[1]["yoy"] = _yoy(kpi["admission_actual_7d"], kpi["admission_prev_7d_total"], "7日累計")
+    kpi_cards[2]["yoy"] = _yoy(kpi["operation_4w_biz_avg"], kpi["operation_prev_4w_avg"], "4週平日平均")
+
+    # ── A2: 当月着地見込み（detail/deptと同じ month_projection を portal にも）──
+    try:
+        mp = build_month_projection_payload(adm, surg, profit_monthly, None, None, base_date)
+        for card, key in zip(kpi_cards, ("inpatient", "admission", "operation")):
+            tile = mp.get(key)
+            if tile and tile.get("projection") is not None:
+                card["proj"] = {
+                    "value": tile["projection"], "target": tile["target"],
+                    "rate": tile["rate"], "unit": tile["unit"],
+                    "status_css": tile["status_css"], "month": base_date.month,
+                }
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"当月着地見込みスキップ: {e}")
+
     # ── 部門トリアージ（多KPI合成スコアリング + LLMナラティブ）──
     # detail.html では triage を使わない（attention/improvement のみ）。
     # その場合 LLM 計算を丸ごとスキップして二重実行を防ぐ。

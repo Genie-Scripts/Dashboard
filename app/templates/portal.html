@@ -89,6 +89,12 @@
 .dual-val small{font-size:13px;font-weight:600;color:var(--sub);margin-left:1px}
 .dual-st{font-size:11px;font-weight:900}
 .dual-tgt{font-size:11px;color:var(--mu);margin-left:auto}
+.kc-yoy{font-size:11.5px;font-weight:800;margin-top:6px}
+.kc-yoy.ok{color:var(--ok)}.kc-yoy.dr{color:var(--dr-t)}.kc-yoy.mu{color:var(--sub)}
+.kc-note{font-size:10px;font-weight:600;color:var(--mu)}
+.kc-proj{font-size:11.5px;color:var(--sub);margin-top:4px;padding-top:6px;border-top:1px dashed var(--ln)}
+.kc-proj b{font-weight:900}
+.kc-proj b.ok{color:var(--ok)}.kc-proj b.wr{color:var(--wr)}.kc-proj b.dr{color:var(--dr-t)}
 /* ── 部門トリアージ ── */
 .triage-sec{background:var(--s);border:1px solid var(--ln);border-radius:var(--r);margin-bottom:16px;box-shadow:var(--sh);overflow:hidden}
 .triage-hd{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--ln)}
@@ -263,6 +269,16 @@ h4{font-weight:var(--jp-head)!important}
       {% else %}
       <div class="vl">{{ card.value }}<small style="font-size:16px;font-weight:400">{{ card.unit }}</small></div>
       <div class="gp">{% if card.gap == 0 %}目標達成！{% elif card.gap > 0 %}目標達成 (+{{ card.gap }}{{ card.gap_unit }}){% else %}目標まであと {{ -card.gap }}{{ card.gap_unit }}{% endif %}</div>
+      {% endif %}
+      {% if card.yoy %}
+      <div class="kc-yoy {{ card.yoy.css }}">前年比 {{ card.yoy.arrow }} {{ '%+.1f'|format(card.yoy.pct) }}%
+        <span class="kc-note">（{{ card.yoy.note }}）</span></div>
+      {% endif %}
+      {% if card.proj %}
+      <div class="kc-proj">📅 {{ card.proj.month }}月 着地見込み
+        <b class="{{ card.proj.status_css }}">{{ card.proj.value }}{{ card.proj.unit }}</b>
+        {%- if card.proj.target %}／目標 {{ card.proj.target }}{{ card.proj.unit }}
+          {%- if card.proj.rate %}（{{ card.proj.rate }}%）{% endif %}{% endif %}</div>
       {% endif %}
       <div class="cta"><span>詳細を見る</span><span class="cta-arrow">›</span></div>
     </a>
