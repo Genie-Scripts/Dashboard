@@ -8,7 +8,7 @@ import re
 from datetime import datetime, time, timedelta
 from .config import (
     DEPT_MERGE, DEPT_HIDDEN, WARD_NAMES, WARD_HIDDEN,
-    SURGERY_DISPLAY_DEPTS, OR_ROOMS_ACTIVE, GA_KEYWORD,
+    SURGERY_DISPLAY_DEPTS, ALLSURG_NORTH_STAR_DEPTS, OR_ROOMS_ACTIVE, GA_KEYWORD,
     ZEN2HAN, OR_START_HOUR, OR_START_MIN, OR_END_HOUR, OR_END_MIN,
     OR_MINUTES_PER_ROOM, OR_ROOM_COUNT, is_operational_day,
 )
@@ -107,7 +107,15 @@ def preprocess_surgery(df: pd.DataFrame) -> pd.DataFrame:
     # 全身麻酔フラグ
     df["全麻"] = df["麻酔種別"].fillna("").str.contains(
         re.escape(GA_KEYWORD), na=False)
-    
+
+    # 術数対象フラグ: 手術KPIの評価対象行。
+    #   SURGERY_DISPLAY_DEPTS（外科系12科）は全麻手術のみ、
+    #   ALLSURG_NORTH_STAR_DEPTS（眼科）は全手術（入外・全麻区分を問わず全行）を対象とする。
+    df["術数対象"] = (
+        (df["実施診療科"].isin(SURGERY_DISPLAY_DEPTS) & df["全麻"])
+        | (df["実施診療科"].isin(ALLSURG_NORTH_STAR_DEPTS))
+    )
+
     # 稼働対象手術室フラグ
     df["稼働対象室"] = df["手術室"].isin(OR_ROOMS_ACTIVE)
     

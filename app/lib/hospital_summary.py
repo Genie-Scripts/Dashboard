@@ -16,6 +16,7 @@ import pandas as pd
 from . import metrics, triage
 from .config import (
     WARD_NAMES, WARD_HIDDEN, NADM_DISPLAY_DEPTS, SURGERY_DISPLAY_DEPTS,
+    SURGERY_EVAL_DEPTS,
     KPI_ICONS, status_display,
     TARGET_INPATIENT_ALLDAY, TARGET_INPATIENT_WEEKDAY, TARGET_INPATIENT_HOLIDAY,
     TARGET_ADMISSION_WEEKLY, TARGET_GA_DAILY,
@@ -30,7 +31,7 @@ PREVYEAR_DAYS = 364   # 52週=曜日合わせ
 # 色スケール対象外（業務実態が一般病棟/一般科と異なる＝誤読を避けるためミュート）
 # ICU/HCU(04B/04D)は目標・実績が揃っており評価可能なため対象外から除外（2026-07-01）。
 COLOR_EXEMPT_WARDS: set = set()
-COLOR_EXEMPT_DEPTS = {"眼科"}          # memory: profile 未整備
+COLOR_EXEMPT_DEPTS: set = set()        # 眼科は全手術モードで手術評価対象へ移行済み（色評価対象）
 
 BASE_CSS = """
   *{box-sizing:border-box;}
@@ -254,8 +255,8 @@ def build_summary_context(adm, surg, targets, surg_targets, base_date,
     surg_rank = {r["診療科"]: r for r in
                  metrics.build_surgery_ranking(surg, base_date, surg_targets, period="7").to_dict("records")}
     flow_d = _flow_7d(adm, base_date, "dept")
-    medical = sorted(NADM_DISPLAY_DEPTS - SURGERY_DISPLAY_DEPTS)
-    surgical = sorted(SURGERY_DISPLAY_DEPTS)
+    medical = sorted(NADM_DISPLAY_DEPTS - SURGERY_EVAL_DEPTS)
+    surgical = sorted(SURGERY_EVAL_DEPTS)
     dept_rows = []
     for dept, dtype in [(d, "内科") for d in medical] + [(d, "外科") for d in surgical]:
         ip, na, sg = inp_rank.get(dept), nadm_rank.get(dept), surg_rank.get(dept)
@@ -480,7 +481,7 @@ def _proj_cell(pj: Optional[dict]) -> str:
 def render_dept_table(rows: list) -> str:
     head = ('<tr><th>診療科</th><th>在院<span class="sub">実/目</span></th>'
             '<th>新入院<span class="sub">実/目</span></th><th>入退院フロー<span class="sub">直近7日</span></th>'
-            '<th>全麻<span class="sub">実/目</span></th>'
+            '<th>手術<span class="sub">実/目</span></th>'
             '<th>粗利予測達成率<span class="sub">見込/目標</span></th></tr>')
     # 列幅を固定（入退院フロー列だけが内容で広がるのを防ぎ、データ5列を等幅に）
     cols = ('<colgroup><col style="width:16%">'

@@ -18,7 +18,8 @@ from .config import (
     TARGET_INPATIENT_WEEKDAY, TARGET_INPATIENT_HOLIDAY,
     TARGET_INPATIENT_ALLDAY, TARGET_ADMISSION_WEEKLY, TARGET_GA_DAILY,
     KPI_ICONS, AXIS_ICONS, status_display, status_label,
-    SURGERY_DISPLAY_DEPTS, NADM_DISPLAY_DEPTS, PROFIT_ONLY_DISPLAY_DEPTS,
+    SURGERY_DISPLAY_DEPTS, SURGERY_EVAL_DEPTS, surgery_metric_label,
+    NADM_DISPLAY_DEPTS, PROFIT_ONLY_DISPLAY_DEPTS,
 )
 from .metrics import (
     build_kpi_summary, build_dept_ranking, build_ward_ranking,
@@ -387,12 +388,12 @@ def _build_improvement(adm, surg, base_date) -> dict:
 
     dept_imp_internal, dept_imp_surgery = [], []
     for dept in NADM_DISPLAY_DEPTS:
-        if dept in SURGERY_DISPLAY_DEPTS:
+        if dept in SURGERY_EVAL_DEPTS:
             delta = int(r7s_now.get(dept, 0)) - int(r7s_prev.get(dept, 0))
             if delta > 0:
                 dept_imp_surgery.append({
                     "name": dept, "kpi": "operation",
-                    "metric_label": "全麻", "unit": "件",
+                    "metric_label": surgery_metric_label(dept, short=True), "unit": "件",
                     "delta": delta, "compare": "前週比（7日累計）",
                     "href": f"dept.html#{dept}",
                 })
@@ -422,7 +423,7 @@ def _build_improvement(adm, surg, base_date) -> dict:
                 "name": wname, "kpi": "inpatient",
                 "metric_label": "在院", "unit": "人",
                 "delta": int(wow), "compare": "前週同曜日比",
-                "href": "detail.html#inpatient?axis=ward",
+                "href": f"dept.html#{wname}",
             })
     ward_improvement = _wow_top3(ward_imp_candidates)
 
@@ -646,12 +647,12 @@ def build_detail_json(adm, surg, targets, surg_targets,
     # 無く None/0 になり、フロントは「—」表示・手術行非表示で吸収する。粗利は
     # 後段の profit / profit_hybrid attach で既存経路どおり付与される。
     for dept in NADM_DISPLAY_DEPTS | SURGERY_DISPLAY_DEPTS | PROFIT_ONLY_DISPLAY_DEPTS:
-        is_surgery_dept = dept in SURGERY_DISPLAY_DEPTS
+        is_surgery_dept = dept in SURGERY_EVAL_DEPTS
         adm_actual = r7_nadm["by_dept"].get(dept, 0)
         adm_target = nadm_tgt.get(dept)
         inp_actual = inp_by_dept.get(dept, 0)
         inp_target = inp_tgt.get(dept)
-        # 手術データは SURGERY_DISPLAY_DEPTS のみ（op_target 対象科）
+        # 手術データは SURGERY_EVAL_DEPTS のみ（op_target 対象科）
         surg_actual = r7_surg["by_dept"].get(dept, 0) if is_surgery_dept else None
         surg_target = surg_targets.get(dept) if is_surgery_dept else None
 
@@ -694,7 +695,7 @@ def build_detail_json(adm, surg, targets, surg_targets,
         if inp_rate is not None and inp_rate < 90:
             comments.append(f"在院患者が目標の{inp_rate:.0f}%（{inp_actual}/{inp_target:.1f}）")
         if surg_rate is not None and surg_rate < 90:
-            comments.append(f"全麻手術が目標の{surg_rate:.0f}%（{surg_actual}/{surg_target:.1f}）")
+            comments.append(f"{surgery_metric_label(dept)}が目標の{surg_rate:.0f}%（{surg_actual}/{surg_target:.1f}）")
         if not comments:
             # 達成している場合
             best_rate = max(filter(None, [adm_rate, inp_rate, surg_rate]), default=0)
@@ -731,6 +732,7 @@ def build_detail_json(adm, surg, targets, surg_targets,
                 "actual": surg_actual,
                 "target": round(float(surg_target), 1) if surg_target else None,
                 "rate": surg_rate,
+                "label": surgery_metric_label(dept) if is_surgery_dept else None,
             },
             "trend": {
                 "admission": dept_adm_trend,

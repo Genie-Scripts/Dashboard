@@ -13,6 +13,7 @@ import pandas as pd
 import numpy as np
 from .config import (
     CHART_COLORS, TARGET_INPATIENT_ALLDAY, TARGET_ADMISSION_WEEKLY, TARGET_GA_DAILY,
+    surgery_metric_label,
 )
 
 
@@ -344,7 +345,7 @@ def build_surgery_chart_dept(daily_series: pd.DataFrame, base_date: pd.Timestamp
             "line": {"color": CHART_COLORS["yoy"], "width": 1, "dash": "dot"},
         })
 
-    layout = _base_layout(f"全身麻酔手術 推移（{dept_name}・暦日基準）")
+    layout = _base_layout(f"{surgery_metric_label(dept_name)} 推移（{dept_name}・暦日基準）")
     return {"traces": traces, "layout": layout, "config": {"responsive": True}}
 
 

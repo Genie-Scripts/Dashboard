@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Optional
 
 from .llm import DEFAULT_MODEL, chat_json
+from .config import surgery_metric_label
 
 logger = logging.getLogger(__name__)
 
@@ -827,7 +828,9 @@ def _build_admission_prompt(unit_name: str, entity: str, state: str,
 - JSON 以外（```・前置き・末尾コメント）を出力しない。"""
 
 
-def _build_surgery_prompt(dept_name: str, state: str, peer: Optional[str] = None,
+def _build_surgery_prompt(dept_name: str, state: str,
+                          metric_label: str = "全身麻酔手術",
+                          peer: Optional[str] = None,
                           yoy: Optional[str] = None,
                           delta: Optional[str] = None,
                           or_load: Optional[str] = None,
@@ -839,14 +842,14 @@ def _build_surgery_prompt(dept_name: str, state: str, peer: Optional[str] = None
     if or_load: lines.append(f"- 手術室全体の稼働: {or_load}")
     if holiday: lines.append(f"- 補足: {holiday}")
     facts = "\n".join(lines)
-    return f"""以下の事実から、診療科「{dept_name}」の全身麻酔手術に関する“今週の一手”を JSON で1つだけ出力してください。
+    return f"""以下の事実から、診療科「{dept_name}」の{metric_label}に関する“今週の一手”を JSON で1つだけ出力してください。
 
 【対象】診療科: {dept_name}
-【全身麻酔手術（直近7日）の状況】
+【{metric_label}（直近7日）の状況】
 {facts}
 
 【書き方】
-- body=全身麻酔手術の状況の要約（数値を使わない定性的記述）。相対位置・前年同期比較・前回レポート比較が与えられていれば軽く織り込んでよい（目標未達でも前年や前回を上回るなら、その点は前向きに触れる）。
+- body={metric_label}の状況の要約（数値を使わない定性的記述）。相対位置・前年同期比較・前回レポート比較が与えられていれば軽く織り込んでよい（目標未達でも前年や前回を上回るなら、その点は前向きに触れる）。
 - 「手術室全体の稼働」が与えられていれば、actionに反映する（空きがあるなら症例の積み増し、埋まっているなら枠の調整・効率化）。
 - 「補足」に祝日の記載があれば、水準の低さを断定的に責めず、その影響に軽く触れてよい。
 - action=今週の一手（手術枠の稼働確認、執刀医との症例調整など運用面の対応）。
@@ -910,6 +913,12 @@ def narrate_surgery_action(dept_name: str, sv, surg_tgt, trend: Optional[str] = 
     state = _q_target_gap_trend(sv, surg_tgt, trend)
     if state is None:
         return None
+    # 眼科=全手術 / 他外科系=全身麻酔手術。12科はラベル不変ゆえプロンプトもバイト等価、
+    # 眼科のみ「全身麻酔手術」→「全手術」に差し替える。
+    label = surgery_metric_label(dept_name)
+    system = SURGERY_ACTION_SYSTEM_PROMPT
+    if label != "全身麻酔手術":
+        system = system.replace("全身麻酔手術", label)
     banned = _SURGERY_BANNED_TREND_OK if trend in ("上昇", "低下") else _SURGERY_BANNED
     if yoy is None:
         banned = banned + ("前年",)   # narrate_admission_action と同じ連動緩和
@@ -919,8 +928,8 @@ def narrate_surgery_action(dept_name: str, sv, surg_tgt, trend: Optional[str] = 
         banned = banned + ("祝日", "連休")
     return _generate_checked(
         f"surgery dept:{dept_name}",
-        system=SURGERY_ACTION_SYSTEM_PROMPT,
-        user=_build_surgery_prompt(dept_name, state, peer=peer, yoy=yoy,
+        system=system,
+        user=_build_surgery_prompt(dept_name, state, metric_label=label, peer=peer, yoy=yoy,
                                    delta=delta, or_load=or_load, holiday=holiday),
         banned=banned, allow=_unit_allow(dept_name),
         model=model, temperature=temperature, quiet=quiet)

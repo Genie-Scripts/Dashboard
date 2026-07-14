@@ -20,6 +20,7 @@ import pandas as pd
 
 from .config import (
     NADM_DISPLAY_DEPTS, SURGERY_DISPLAY_DEPTS,
+    SURGERY_EVAL_DEPTS, surgery_metric_label,
     WARD_NAMES, WARD_HIDDEN,
 )
 from .metrics import (
@@ -289,8 +290,8 @@ def score_departments(adm: pd.DataFrame, surg: pd.DataFrame,
     r28_prev = rolling28_surgery_dept(surg, base_date - pd.Timedelta(days=SURGERY_TREND_WIN))["by_dept"]
 
     results = []
-    for dept in NADM_DISPLAY_DEPTS | SURGERY_DISPLAY_DEPTS:
-        is_surgery = dept in SURGERY_DISPLAY_DEPTS
+    for dept in NADM_DISPLAY_DEPTS | SURGERY_EVAL_DEPTS:
+        is_surgery = dept in SURGERY_EVAL_DEPTS
 
         adm_actual  = r7_nadm["by_dept"].get(dept, 0)
         adm_target  = nadm_tgt.get(dept)
@@ -400,7 +401,7 @@ def pick_targets(scored: list[dict], adm: pd.DataFrame,
         if is_surgery and item["op_rate"] is not None and item["op_target"] is not None:
             op_gap = item.get("op_gap", 0) or 0
             op_gap_str = f"・目標まであと{op_gap:.1f}件" if op_gap > 0 else f"・目標+{abs(op_gap):.1f}件超過"
-            op_fact = (f"全身麻酔手術（直近7日）: 実績{item['op_actual']:.0f}件 / "
+            op_fact = (f"{surgery_metric_label(item['name'])}（直近7日）: 実績{item['op_actual']:.0f}件 / "
                        f"目標{item['op_target']:.1f}件（達成率{item['op_rate']:.0f}%{op_gap_str}）")
         if item.get("profit_rate") is not None:
             profit_fact = f"粗利: 達成率{item['profit_rate']:.0f}%（参考・ランク対象外）"
@@ -437,7 +438,7 @@ def pick_targets(scored: list[dict], adm: pd.DataFrame,
         if item["inp_rate"] is not None:
             inp_kpi = f"在院{item['inp_rate']:.0f}%({_gap_s(item.get('inp_gap', 0) or 0)}人)"
         if is_surgery and item["op_rate"] is not None:
-            op_kpi = f"全麻{item['op_rate']:.0f}%({_gap_s(item.get('op_gap', 0) or 0)}件)"
+            op_kpi = f"{surgery_metric_label(item['name'], short=True)}{item['op_rate']:.0f}%({_gap_s(item.get('op_gap', 0) or 0)}件)"
 
         if is_surgery:
             # 全麻が主軸。在院・新入院は達成率のみを文脈として併記
@@ -475,10 +476,10 @@ def pick_targets(scored: list[dict], adm: pd.DataFrame,
         item["facts"] = facts
         item["wow_hint"] = wow_hint
         item["narrative"] = None   # LLM で後から付与
-        if is_ward:
-            item["href"] = "detail.html#inpatient?axis=ward"
-        else:
-            item["href"] = f"dept.html#{item['name']}"
+        # 病棟・診療科とも dept.html の個別ページ（#<名称>）へ遷移する。
+        # 旧実装は病棟を汎用の detail.html#inpatient?axis=ward に流していたため
+        # 変化点リストの病棟チップが個別ページに飛ばなかった（回帰修正）。
+        item["href"] = f"dept.html#{item['name']}"
 
     return items
 
@@ -490,13 +491,13 @@ def pick_targets(scored: list[dict], adm: pd.DataFrame,
 def _build_triage_prompt(item: dict) -> str:
     facts_block = "\n".join(f"- {f}" for f in item["facts"])
     wow_line = f"\n・前週同曜日比: {item['wow_hint']}" if item.get("wow_hint") else ""
-    strong_note = ("\n\n【重要】この科は全身麻酔手術が目標を大きく上回っている。"
+    strong_note = (f"\n\n【重要】この科は{surgery_metric_label(item['name'])}が目標を大きく上回っている。"
                    "手術実績を主軸に肯定的に評価し、在院患者数や退院曜日の偏りは"
                    "強く指摘しないこと。") if item.get("surgery_strong") else ""
     entity_label = item.get("entity_label", "科")
     goal_map = {
         "inp": "在院患者数の増加（レバー: 新入院・紹介患者の確保）",
-        "op":  "全身麻酔手術件数の増加（レバー: 手術枠の活用・予約調整）",
+        "op":  f"{surgery_metric_label(item['name'])}件数の増加（レバー: 手術枠の活用・予約調整）",
     }
     goal_line = goal_map.get(item.get("primary_kpi"), "")
     if item.get("status_kind") == "watch":
@@ -571,7 +572,7 @@ def _make_fallback_narrative(item: dict) -> dict:
     if item.get("primary_is_fallback"):
         kpi, key = "新入院", "adm"
     elif item.get("primary_kpi") == "op":
-        kpi, key = "全身麻酔手術", "op"
+        kpi, key = surgery_metric_label(item["name"]), "op"
     else:
         kpi, key = "在院患者数", "inp"
 
@@ -770,9 +771,9 @@ def score_leveling(adm: pd.DataFrame, surg: pd.DataFrame, surg_targets: dict,
     r7_surg = rolling7_surgery(surg, base_date)["by_dept"]
 
     dept_items: list[dict] = []
-    for dept in sorted(NADM_DISPLAY_DEPTS | SURGERY_DISPLAY_DEPTS):
+    for dept in sorted(NADM_DISPLAY_DEPTS | SURGERY_EVAL_DEPTS):
         # 手術目標を大幅にクリアしている外科系は退院曜日集中をうるさく言わない
-        if dept in SURGERY_DISPLAY_DEPTS:
+        if dept in SURGERY_EVAL_DEPTS:
             s_rate = achievement_rate(r7_surg.get(dept, 0), surg_targets.get(dept))
             if s_rate is not None and s_rate >= SURGERY_OVERACHIEVE_RATE:
                 continue

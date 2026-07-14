@@ -26,6 +26,7 @@ from .config import (
     biz_days_in_month, calendar_days_in_month, is_operational_day,
     TARGET_INPATIENT_ALLDAY, TARGET_ADMISSION_WEEKLY, TARGET_GA_DAILY,
     STD_BIZ_DAYS_PER_MONTH, STD_CAL_DAYS_PER_MONTH,
+    surgery_metric_label,
 )
 
 
@@ -168,13 +169,15 @@ def build_month_projection_payload(
                 if adm_target and adm_target > 0 else None)
 
     # ── 全身麻酔 (営業平日ペース) ──
+    # dept指定時は術数対象（眼科=全手術、他科=全麻）基準、病院全体は従来通り全麻基準。
+    op_mask = surg["術数対象"] if dept is not None else surg["全麻"]
     ga_mtd_df = surg[(surg["手術実施日"] >= month_start)
                      & (surg["手術実施日"] <= base_date)
-                     & surg["全麻"]]
+                     & op_mask]
     ga_mtd = int(len(ga_mtd_df))
     ga_win28_df = surg[(surg["手術実施日"] >= win28_start)
                        & (surg["手術実施日"] <= base_date)
-                       & surg["全麻"]]
+                       & op_mask]
     win28_biz = _count_biz_days(win28_start, base_date)
     ga_pace = (len(ga_win28_df) / win28_biz) if win28_biz > 0 else 0.0
     ga_proj = ga_mtd + ga_pace * biz_days_remaining
@@ -238,7 +241,7 @@ def build_month_projection_payload(
                               "百万円", profit_rate))
     operation_tile = (None if (dept is not None
                                and dept_operation_weekly is None)
-                      else _tile("", "全身麻酔",
+                      else _tile("", surgery_metric_label(dept) if dept is not None else "全身麻酔",
                                  ga_mtd, _i(ga_proj), _i(ga_target),
                                  "件", ga_rate))
 

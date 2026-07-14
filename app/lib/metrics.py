@@ -14,7 +14,7 @@ import pandas as pd
 import numpy as np
 from datetime import timedelta
 from .config import (
-    DEPT_HIDDEN, WARD_HIDDEN, SURGERY_DISPLAY_DEPTS,
+    DEPT_HIDDEN, WARD_HIDDEN, SURGERY_DISPLAY_DEPTS, SURGERY_EVAL_DEPTS,
     OR_MINUTES_PER_ROOM, OR_ROOM_COUNT,
     TARGET_INPATIENT_WEEKDAY, TARGET_INPATIENT_HOLIDAY, TARGET_INPATIENT_ALLDAY,
     TARGET_ADMISSION_WEEKLY, TARGET_GA_DAILY,
@@ -384,22 +384,22 @@ def rolling7_new_admission(adm: pd.DataFrame, date: pd.Timestamp) -> dict:
 
 
 def rolling7_surgery(surg: pd.DataFrame, date: pd.Timestamp) -> dict:
-    """直近7暦日の全麻件数（診療科別=全日基準）★v2.1"""
+    """直近7暦日の手術件数（診療科別=全日基準）★v2.1
+    診療科別(by_dept)は術数対象（眼科=全手術、他科=全麻）基準。病院合計(total)は全麻を維持。"""
     start = date - timedelta(days=6)
     window = surg[(surg["手術実施日"] >= start) & (surg["手術実施日"] <= date)]
-    ga_window = window[window["全麻"]]
-    total = len(ga_window)
-    by_dept = (ga_window[ga_window["科_表示"]].groupby("実施診療科").size().to_dict())
+    total = int(window["全麻"].sum())
+    by_dept = (window[window["術数対象"]].groupby("実施診療科").size().to_dict())
     return {"start": start, "date": date, "total": total, "by_dept": by_dept}
 
 
 def rolling28_surgery_dept(surg: pd.DataFrame, date: pd.Timestamp) -> dict:
-    """直近28暦日の全麻件数（診療科別=全日基準、過去4週平均）★v2.1 新設"""
+    """直近28暦日の手術件数（診療科別=全日基準、過去4週平均）★v2.1 新設
+    診療科別(by_dept/avg_by_dept)は術数対象（眼科=全手術、他科=全麻）基準。病院合計(total)は全麻を維持。"""
     start = date - timedelta(days=27)
     window = surg[(surg["手術実施日"] >= start) & (surg["手術実施日"] <= date)]
-    ga_window = window[window["全麻"]]
-    total = len(ga_window)
-    by_dept = (ga_window[ga_window["科_表示"]].groupby("実施診療科").size().to_dict())
+    total = int(window["全麻"].sum())
+    by_dept = (window[window["術数対象"]].groupby("実施診療科").size().to_dict())
     # 4週平均
     avg_by_dept = {k: round(v / 4, 1) for k, v in by_dept.items()}
     return {"start": start, "date": date, "total": total,
@@ -430,12 +430,15 @@ def build_daily_series(adm: pd.DataFrame, col: str = "在院患者数",
 def build_surgery_daily_series(surg: pd.DataFrame,
                                ga_only: bool = True,
                                dept: str = None) -> pd.DataFrame:
-    """手術日次時系列"""
+    """手術日次時系列。
+    dept指定時は術数対象（眼科=全手術、他科=全麻）基準を優先（ga_onlyより優先）。
+    dept=None（病院全体）は従来通り ga_only（全麻）基準。"""
     df = surg.copy()
-    if ga_only:
-        df = df[df["全麻"]]
     if dept:
         df = df[df["実施診療科"] == dept]
+        df = df[df["術数対象"]]
+    elif ga_only:
+        df = df[df["全麻"]]
     series = df.groupby("手術実施日").size().reset_index(name="値")
     series.columns = ["日付", "値"]
     return series.sort_values("日付")
@@ -849,13 +852,13 @@ def build_surgery_ranking(surg: pd.DataFrame, date: pd.Timestamp,
         fy_year = date.year if date.month >= 4 else date.year - 1
         fy_start = pd.Timestamp(f"{fy_year}-04-01")
         fy_data = surg[(surg["手術実施日"] >= fy_start) & (surg["手術実施日"] <= date)]
-        ga_fy = fy_data[fy_data["全麻"] & fy_data["科_表示"]]
+        eval_fy = fy_data[fy_data["術数対象"]]
         weeks = max(((date - fy_start).days + 1) / 7, 1)
-        total_by_dept = ga_fy.groupby("実施診療科").size().to_dict()
+        total_by_dept = eval_fy.groupby("実施診療科").size().to_dict()
         data = {k: round(v / weeks, 1) for k, v in total_by_dept.items()}
 
     rows = []
-    for dept in SURGERY_DISPLAY_DEPTS:
+    for dept in SURGERY_EVAL_DEPTS:
         actual = data.get(dept, 0)
         target = surgery_targets.get(dept)
         rate = achievement_rate(actual, target)

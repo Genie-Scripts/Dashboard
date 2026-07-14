@@ -22,7 +22,7 @@ from typing import Optional
 import pandas as pd
 
 from .config import (
-    SURGERY_DISPLAY_DEPTS, EMERGENCY_WARDS,
+    SURGERY_DISPLAY_DEPTS, SURGERY_EVAL_DEPTS, surgery_metric_label, EMERGENCY_WARDS,
     TARGET_INPATIENT_ALLDAY, TARGET_ADMISSION_WEEKLY, TARGET_GA_DAILY,
     TARGET_WEEKEND_RETENTION,
 )
@@ -355,17 +355,19 @@ def _fallback_move_admission(state: Optional[str], peer: Optional[str] = None) -
             "action": "地域医療連携での紹介受け入れ強化や予定入院枠の調整で、新入院の患者数増に取り組みましょう。"}
 
 
-def _fallback_move_surgery(state: Optional[str], peer: Optional[str] = None) -> dict:
-    """全麻トピックの定型文（oMLX未起動/ハルシネーション棄却時）。peer=同種科内の相対位置。"""
+def _fallback_move_surgery(state: Optional[str], peer: Optional[str] = None,
+                           label: str = "全身麻酔手術") -> dict:
+    """手術トピックの定型文（oMLX未起動/ハルシネーション棄却時）。peer=同種科内の相対位置。
+    label=科ごとの手術KPI名（眼科=全手術 / 他外科系=全身麻酔手術・病院全体=全身麻酔手術）。"""
     lead = f"外科系の診療科では{peer}ながら、" if peer else ""
     if _is_met(state) and "鈍って" in state:
-        return {"body": f"{lead}全身麻酔手術は{state}状況です。",
+        return {"body": f"{lead}{label}は{state}状況です。",
                 "action": "手術枠の運用を維持しつつ、直近の稼働状況を注視しましょう。"}
     if _is_met(state):
-        return {"body": f"{lead}全身麻酔手術は直近で目標水準を確保できています。",
+        return {"body": f"{lead}{label}は直近で目標水準を確保できています。",
                 "action": "現状の手術枠運用を維持しましょう。"}
-    return {"body": f"{lead}全身麻酔手術は{state or '目標を下回っている'}状況です。",
-            "action": "手術枠の稼働状況の確認と執刀医との症例調整で、全身麻酔手術の件数増に専念しましょう。"}
+    return {"body": f"{lead}{label}は{state or '目標を下回っている'}状況です。",
+            "action": f"手術枠の稼働状況の確認と執刀医との症例調整で、{label}の件数増に専念しましょう。"}
 
 
 def _fallback_move_emergency_leveling(unit: dict) -> dict:
@@ -487,7 +489,7 @@ def _peer_tier(name: str, ratio_map: dict, peer_names: list) -> Optional[str]:
 def _same_type_names(ratio_map: dict, type_key: str) -> list:
     """ratio_map のうち type_key(surgical/internal) が一致する診療科名。"""
     return [n for n in ratio_map
-            if ("surgical" if n in SURGERY_DISPLAY_DEPTS else "internal") == type_key]
+            if ("surgical" if n in SURGERY_EVAL_DEPTS else "internal") == type_key]
 
 
 # ── P3: 副トピックを本文へ併記する決定論クローズ（actionは主トピックに集中） ──
@@ -542,8 +544,8 @@ def _nadm_highlight(na, na_tgt, na_series) -> Optional[str]:
             f"28日線は{trend}／{gap_phrase}")
 
 
-def _surg_highlight(sv, surg_tgt, surg_series) -> Optional[str]:
-    """外科系の一手に添える全麻ハイライト1行（数値駆動・AI不要）。
+def _surg_highlight(sv, surg_tgt, surg_series, dept: str = None) -> Optional[str]:
+    """外科系の一手に添える手術ハイライト1行（数値駆動・AI不要）。
     直近7日累計(件/週) vs 週次目標＋28日線の方向＋目標までの差を1行に。"""
     if not surg_tgt:
         return None
@@ -557,7 +559,8 @@ def _surg_highlight(sv, surg_tgt, surg_series) -> Optional[str]:
         gap_phrase = f"目標を{-gap:.0f}件/週上回る"
     else:
         gap_phrase = "ほぼ目標どおり"
-    return (f"全麻：直近7日 {sv:g}件／週目標{surg_tgt:g}（{rate}%）。"
+    label = surgery_metric_label(dept, short=True) if dept else "全麻"
+    return (f"{label}：直近7日 {sv:g}件／週目標{surg_tgt:g}（{rate}%）。"
             f"28日線は{trend}／{gap_phrase}")
 
 
@@ -855,13 +858,13 @@ def _build_parts(adm, surg, base_date, entity, name, code, dd, r7_inp, r7_nadm,
                              f"目標{daily_na_tgt:g}" if daily_na_tgt else "", "件/日",
                              _ach_badge(na, na_tgt))
 
-    # C: 全麻手術（外科系診療科のみ）。公開版 dept.html と統一＝週次合計(件/週)の28日移動平均、
+    # C: 手術（外科系診療科のみ）。公開版 dept.html と統一＝週次合計(件/週)の28日移動平均、
     #    目標線は週次目標そのもの（flat）。KPI/バッジは直近7日累計(件/週) vs 週次目標。
-    if not is_ward and name in SURGERY_DISPLAY_DEPTS:
+    if not is_ward and name in SURGERY_EVAL_DEPTS:
         cs = _unit_surg_weekly_series(surg, base_date, name)
         surg_tgt = surg_targets.get(name) if isinstance(surg_targets, dict) else None
         sv = r7_surg["by_dept"].get(name, 0)
-        parts["C"] = _trend_part("C", "全身麻酔手術", cs, surg_tgt or 0,
+        parts["C"] = _trend_part("C", surgery_metric_label(name), cs, surg_tgt or 0,
                                  f"目標{surg_tgt:g}" if surg_tgt else "", "件/週",
                                  _ach_badge(sv, surg_tgt))
 
@@ -944,7 +947,7 @@ def _kpi_band(type_key, entity, name, code, dd, r7_inp, r7_nadm, r7_surg,
     if type_key == "surgical":
         sv = r7_surg["by_dept"].get(name, 0)
         surg_tgt = surg_targets.get(name) if isinstance(surg_targets, dict) else None
-        return [_kpi("手術（全麻）", "直近7日累計", _fmt(sv), "件", lead=True,
+        return [_kpi(surgery_metric_label(name), "直近7日累計", _fmt(sv), "件", lead=True,
                      tgt=f"目標 {surg_tgt:g}/週" if surg_tgt else "目標未設定", ok=_ok(sv, surg_tgt)),
                 prof_kpi, inp_kpi(False), nadm_kpi]
     if type_key == "internal":
@@ -1029,7 +1032,7 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
             ret_map = {u["name"]: u["retention"] for u in wl["units"]
                        if u.get("retention") is not None}
             for u in wl["units"]:
-                tk = "surgical" if u["name"] in SURGERY_DISPLAY_DEPTS else "internal"
+                tk = "surgical" if u["name"] in SURGERY_EVAL_DEPTS else "internal"
                 lev_peers[u["name"]] = _peer_tier(u["name"], ret_map,
                                                   _same_type_names(ret_map, tk))
         # ① 差分ナラティブ: 各ユニットの量子化状態タグと「前回レポート比較」1文を先に確定
@@ -1040,7 +1043,7 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
             code0 = name2code.get(name0, name0)
             dd0 = det.get(name0)
             tk0 = ("ward" if entity == "ward"
-                   else "surgical" if name0 in SURGERY_DISPLAY_DEPTS else "internal")
+                   else "surgical" if name0 in SURGERY_EVAL_DEPTS else "internal")
             na0 = r7_nadm[by_gap].get(code0)
             na_tgt0 = targets.get("new_admission", {}).get(tgt_axis_gap, {}).get(code0)
             sv0 = r7_surg["by_dept"].get(name0, 0) if tk0 == "surgical" else None
@@ -1098,7 +1101,7 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
 
             if entity == "ward":
                 type_key = "ward"
-            elif name in SURGERY_DISPLAY_DEPTS:
+            elif name in SURGERY_EVAL_DEPTS:
                 type_key = "surgical"
             else:
                 type_key = "internal"
@@ -1182,7 +1185,8 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
                                                              yoy=surg_yoy, delta=d_txt,
                                                              or_load=or_fact, holiday=holiday_fact,
                                                              quiet=quiet))
-                        or _fallback_move_surgery(surg_state, peer=surg_peer))
+                        or _fallback_move_surgery(surg_state, peer=surg_peer,
+                                                  label=surgery_metric_label(name)))
             else:
                 move = (_fallback_move(u, dd, entity) if room <= 0.5
                         else (u.get("narrative") or _fallback_move(u, dd, entity)))
@@ -1216,7 +1220,8 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
                 c_part = parts.get("C")
                 sline = _surg_highlight(r7_surg["by_dept"].get(name, 0),
                                         surg_targets.get(name) if isinstance(surg_targets, dict) else None,
-                                        c_part.get("_data") if c_part else None)
+                                        c_part.get("_data") if c_part else None,
+                                        dept=name)
                 if sline:
                     move = {**move, "surg_line": sline}
             # 病棟は「一手」に病床利用率ハイライト1行を常設

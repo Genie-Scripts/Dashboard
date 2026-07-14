@@ -43,8 +43,9 @@ def _item_lite(key: tuple[str, str], status_kind: str) -> dict:
     """(entity, name) + status_kind から item-lite を組み立てる。
     href は triage.pick_targets と同じ規約。"""
     entity, name = key
+    # 病棟・診療科とも dept.html の個別ページへ（病棟の汎用href遷移バグ修正）。
     if entity == "ward":
-        href = "detail.html#inpatient?axis=ward"
+        href = f"dept.html#{name}"
         entity_label = "病棟"
     else:
         href = f"dept.html#{name}"

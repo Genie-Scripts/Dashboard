@@ -330,7 +330,7 @@ h4{font-weight:var(--jp-head)!important}
             <div id="opIndexMeta" style="margin-top:6px;font-size:11px;color:var(--mu);line-height:1.5"></div>
           </div>
           <div class="cpnl">
-            <h4>💎 月次単価 <span style="font-weight:500;color:var(--mu);font-size:11px">（粗利 ÷ 全麻件数）</span></h4>
+            <h4>💎 月次単価 <span id="opUnitDenomLabel" style="font-weight:500;color:var(--mu);font-size:11px">（粗利 ÷ 全麻件数）</span></h4>
             <div class="chart" id="opUnitChart"></div>
             <div id="opUnitMeta" style="margin-top:6px;font-size:11px;color:var(--mu);line-height:1.5"></div>
           </div>
@@ -860,7 +860,7 @@ function renderCharts(d) {
       // 2×2: 全麻（左下）＋粗利（右下）
       container.className = 'charts-container layout-2x2';
       chart4panel.style.display = '';
-      document.getElementById('chartTitle3').textContent = `💉 全麻手術 推移${suffix}`;
+      document.getElementById('chartTitle3').textContent = `💉 ${d.operation.label||'全麻手術'} 推移${suffix}`;
       document.getElementById('chartTitle4').textContent = `💰 月次粗利 推移`;
       renderSurgeryChart('chart3', d.trend?.operation, d.operation.target);
       renderProfitDeptChart('chart4', d.profit_chart, d.month_projection, d.profit_projections);
@@ -868,7 +868,7 @@ function renderCharts(d) {
       // 2+1: 全麻（全幅）
       container.className = 'charts-container layout-2plus1';
       chart4panel.style.display = 'none';
-      document.getElementById('chartTitle3').textContent = `💉 全麻手術 推移${suffix}`;
+      document.getElementById('chartTitle3').textContent = `💉 ${d.operation.label||'全麻手術'} 推移${suffix}`;
       renderSurgeryChart('chart3', d.trend?.operation, d.operation.target);
     } else if (hasProfitChart) {
       // 2+1: 粗利（全幅）
@@ -912,7 +912,7 @@ function renderCharts(d) {
   const hasOp = !isWard && d.operation && d.operation.actual !== null && d.trend && d.trend.operation;
   const hasPC = !!d.profit_chart;
   if (hasOp && hasPC) {
-    renderOpVsProfit(d.trend.operation, d.profit_chart);
+    renderOpVsProfit(d.trend.operation, d.profit_chart, d.operation.label);
   } else if (opVsWrap) {
     opVsWrap.style.display = 'none';
   }
@@ -1305,10 +1305,11 @@ function aggregateOpsByMonth(opTd, months) {
   return months.map(m => map[m] != null ? map[m] : null);
 }
 
-function renderOpVsProfit(opTd, pc) {
+function renderOpVsProfit(opTd, pc, opLabel) {
   const wrap = document.getElementById('opVsProfitWrap');
   if (!wrap) return;
   if (!pc || !pc.months || !pc.values) { wrap.style.display = 'none'; return; }
+  const label = opLabel || '全麻';
   const months = pc.months;
   const profitVals = pc.values;
   const opVals = aggregateOpsByMonth(opTd, months);
@@ -1318,6 +1319,8 @@ function renderOpVsProfit(opTd, pc) {
   const validCount = validIdx.filter(Boolean).length;
   if (validCount < 3) { wrap.style.display = 'none'; return; }
   wrap.style.display = '';
+  const denomLabelEl = document.getElementById('opUnitDenomLabel');
+  if (denomLabelEl) denomLabelEl.textContent = `（粗利 ÷ ${label}件数）`;
 
   // 過去12ヶ月平均をベースに指数化（直近12ヶ月の有効値で計算）
   const recent12 = months.length > 12 ? months.slice(-12) : months;
@@ -1337,7 +1340,7 @@ function renderOpVsProfit(opTd, pc) {
 
   // ── 左: 指数化二重線 ──
   const idxTraces = [
-    {name:'全麻件数 指数', x:months, y:idxOps,    type:'scatter', mode:'lines+markers',
+    {name:`${label}件数 指数`, x:months, y:idxOps,    type:'scatter', mode:'lines+markers',
      line:{color:'#0072B2', width:2.4}, marker:{size:6},
      hovertemplate:'%{y:.1f}<extra>件数</extra>'},
     {name:'粗利 指数',     x:months, y:idxProfit, type:'scatter', mode:'lines+markers',

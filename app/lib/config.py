@@ -69,6 +69,21 @@ SURGERY_DISPLAY_DEPTS = {
     "心臓血管外科", "乳腺外科", "形成外科", "脳神経外科",
 }
 
+# 手術KPIの評価軸を「全手術（入院+外来、ORフィード内=手術データ全行）」に切替える科。
+# 眼科は全麻がほぼ無いが術式ボリュームがあり、全手術件数で評価できる。
+ALLSURG_NORTH_STAR_DEPTS = {"眼科"}
+
+# 手術KPI評価対象（SURGERY_DISPLAY_DEPTS=全麻評価 ＋ ALLSURG_NORTH_STAR_DEPTS=全手術評価）。
+SURGERY_EVAL_DEPTS = SURGERY_DISPLAY_DEPTS | ALLSURG_NORTH_STAR_DEPTS
+
+
+def surgery_metric_label(dept: str, short: bool = False) -> str:
+    """診療科の手術KPIラベル。眼科=全手術、他外科系=全身麻酔。"""
+    if dept in ALLSURG_NORTH_STAR_DEPTS:
+        return "手術" if short else "全手術"
+    return "全麻" if short else "全身麻酔手術"
+
+
 # 粗利の「手術モデル」評価対象科（allowlist）。
 # = 全麻手術目標を持つ外科系(SURGERY_DISPLAY_DEPTS) ＋ 眼科。
 #   眼科は全麻はほぼ無いが白内障など術式ボリュームがあり、術式NNLSで粗利を説明できる。
@@ -86,10 +101,9 @@ PROFIT_SURGERY_DEPTS = SURGERY_DISPLAY_DEPTS | {"眼科"}
 #   内科系 → 在院患者数（inp）
 # 外科系は手術目標を持つ SURGERY_DISPLAY_DEPTS と一致。内科系はそれ以外の表示科。
 #
-# 【眼科】実態は手術科だが全麻目標が未整備（GA件数もほぼ無い）ため、
-#   暫定的に内科系（在院）扱い。全麻目標が整備されたら
-#   SURGERY_NORTH_STAR_DEPTS に追加して外科系へ移すこと。
-SURGERY_NORTH_STAR_DEPTS = set(SURGERY_DISPLAY_DEPTS)
+# 【眼科】全手術モードで手術評価対象へ移行済み（ALLSURG_NORTH_STAR_DEPTS）。
+#   北極星KPIは全手術件数（週目標あり）で外科系として評価する。
+SURGERY_NORTH_STAR_DEPTS = set(SURGERY_DISPLAY_DEPTS) | ALLSURG_NORTH_STAR_DEPTS
 INTERNAL_NORTH_STAR_DEPTS = (
     (NADM_DISPLAY_DEPTS | SURGERY_DISPLAY_DEPTS) - SURGERY_NORTH_STAR_DEPTS
 )
