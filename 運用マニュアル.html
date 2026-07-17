@@ -1,0 +1,779 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>診療ダッシュボード 運用マニュアル</title>
+<style>
+:root {
+  --ink: #1a1f26;
+  --ink-soft: #4a525c;
+  --paper: #eef1ee;
+  --paper-raised: #ffffff;
+  --line: #d6dcd8;
+  --accent: #b8722c;
+  --accent-ink: #1a1f26;
+  --steel: #33606e;
+  --ok: #3f8f5f;
+  --warn: #b1492f;
+  --code-bg: #1a1f26;
+  --code-ink: #eef1ee;
+  --code-line: #333c44;
+  --shadow: 0 1px 2px rgba(26,31,38,.06), 0 6px 20px rgba(26,31,38,.06);
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #e9ece8;
+    --ink-soft: #a9b2ad;
+    --paper: #14181a;
+    --paper-raised: #1c2124;
+    --line: #2c3336;
+    --accent: #d99248;
+    --accent-ink: #14181a;
+    --steel: #6fa3ac;
+    --ok: #63b585;
+    --warn: #d97a63;
+    --code-bg: #0d1012;
+    --code-ink: #dfe6e0;
+    --code-line: #262e31;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"] {
+  --ink: #e9ece8; --ink-soft: #a9b2ad; --paper: #14181a; --paper-raised: #1c2124;
+  --line: #2c3336; --accent: #d99248; --accent-ink: #14181a; --steel: #6fa3ac;
+  --ok: #63b585; --warn: #d97a63; --code-bg: #0d1012; --code-ink: #dfe6e0; --code-line: #262e31;
+  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+}
+:root[data-theme="light"] {
+  --ink: #1a1f26; --ink-soft: #4a525c; --paper: #eef1ee; --paper-raised: #ffffff;
+  --line: #d6dcd8; --accent: #b8722c; --accent-ink: #1a1f26; --steel: #33606e;
+  --ok: #3f8f5f; --warn: #b1492f; --code-bg: #1a1f26; --code-ink: #eef1ee; --code-line: #333c44;
+  --shadow: 0 1px 2px rgba(26,31,38,.06), 0 6px 20px rgba(26,31,38,.06);
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN",
+               "Yu Gothic Medium", "Yu Gothic", "Noto Sans JP", sans-serif;
+  font-feature-settings: "palt" 1;
+  line-height: 1.75;
+  -webkit-font-smoothing: antialiased;
+}
+
+.mono {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Cascadia Mono", monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+a { color: var(--steel); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+a:focus-visible, button:focus-visible, summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── ヘッダー ── */
+.masthead {
+  border-bottom: 1px solid var(--line);
+  background: var(--paper-raised);
+}
+.masthead-inner {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 40px 32px 32px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.eyebrow {
+  font-size: 12.5px;
+  letter-spacing: .09em;
+  color: var(--steel);
+  font-weight: 700;
+  text-transform: uppercase;
+  margin: 0 0 10px;
+}
+h1 {
+  font-size: clamp(26px, 3.4vw, 34px);
+  margin: 0 0 8px;
+  letter-spacing: -.01em;
+  text-wrap: balance;
+  font-weight: 800;
+}
+.masthead-sub {
+  color: var(--ink-soft);
+  font-size: 15.5px;
+  margin: 0;
+  max-width: 46ch;
+}
+.masthead-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--ink-soft);
+  text-align: right;
+}
+.masthead-meta a { white-space: nowrap; }
+
+#theme-toggle {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  z-index: 40;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--paper-raised);
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow);
+  font-size: 16px;
+  transition: transform .15s ease;
+}
+#theme-toggle:hover { transform: scale(1.06); }
+
+/* ── レイアウト ── */
+.layout {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 36px 32px 100px;
+  display: grid;
+  grid-template-columns: 220px minmax(0,1fr);
+  gap: 48px;
+  align-items: start;
+}
+nav.toc {
+  position: sticky;
+  top: 28px;
+  font-size: 13.5px;
+  border-left: 1px solid var(--line);
+  padding-left: 16px;
+}
+nav.toc .toc-label {
+  font-size: 11.5px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+nav.toc ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+nav.toc a {
+  display: block;
+  padding: 6px 10px;
+  margin-left: -10px;
+  border-radius: 7px;
+  color: var(--ink-soft);
+  text-decoration: none;
+  transition: background .12s ease, color .12s ease;
+}
+nav.toc a:hover { background: var(--paper-raised); color: var(--ink); }
+nav.toc a.active { color: var(--accent-ink); background: var(--accent); font-weight: 700; }
+
+main { min-width: 0; }
+
+section { margin-bottom: 64px; scroll-margin-top: 24px; }
+section:last-of-type { margin-bottom: 24px; }
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  border-bottom: 2px solid var(--ink);
+  padding-bottom: 10px;
+  margin-bottom: 20px;
+}
+h2 {
+  font-size: 21px;
+  margin: 0;
+  letter-spacing: -.01em;
+}
+h3 { font-size: 16.5px; margin: 28px 0 10px; }
+p { margin: 0 0 14px; color: var(--ink); }
+.lede { color: var(--ink-soft); font-size: 15px; margin: -8px 0 22px; max-width: 62ch; }
+
+/* 頻度ピル: 塗り=日次(毎回やる)／輪郭=それ以外。色数を増やさず「塗りvs輪郭」で頻度を符号化する */
+.freq {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: .03em;
+  padding: 3px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.freq-daily { background: var(--accent); color: var(--accent-ink); }
+.freq-weekly { border: 1.5px solid var(--steel); color: var(--steel); }
+.freq-adhoc { border: 1.5px dashed var(--ink-soft); color: var(--ink-soft); }
+
+/* ── コマンドブロック ── */
+.cmd {
+  position: relative;
+  background: var(--code-bg);
+  color: var(--code-ink);
+  border-radius: var(--radius);
+  padding: 16px 48px 16px 18px;
+  margin: 0 0 16px;
+  font-size: 13.5px;
+  line-height: 1.9;
+  overflow-x: auto;
+  box-shadow: var(--shadow);
+}
+.cmd.freq-daily-bar { border-left: 4px solid var(--accent); }
+.cmd.freq-weekly-bar { border-left: 4px solid var(--steel); }
+.cmd .prompt { color: #8a9490; user-select: none; }
+.cmd .flag { color: #d99248; }
+.cmd .comment { color: #7d8985; }
+.copy-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: transparent;
+  border: 1px solid var(--code-line);
+  color: var(--code-ink);
+  font-size: 11px;
+  padding: 4px 9px;
+  border-radius: 6px;
+  cursor: pointer;
+  opacity: .7;
+  transition: opacity .12s ease, background .12s ease;
+}
+.copy-btn:hover { opacity: 1; background: var(--code-line); }
+
+/* ── カード / ステップ ── */
+.card {
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  box-shadow: var(--shadow);
+}
+.steps {
+  list-style: none;
+  margin: 0 0 20px;
+  padding: 0;
+  counter-reset: step;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.steps li {
+  counter-increment: step;
+  position: relative;
+  padding: 10px 0 10px 40px;
+  border-bottom: 1px dashed var(--line);
+  font-size: 14.5px;
+}
+.steps li:last-child { border-bottom: none; }
+.steps li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: 9px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--paper);
+  border: 1.5px solid var(--steel);
+  color: var(--steel);
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-variant-numeric: tabular-nums;
+}
+.steps .note { color: var(--ink-soft); font-size: 13px; margin-top: 2px; }
+
+/* ── テーブル ── */
+.table-wrap { overflow-x: auto; margin: 0 0 20px; border-radius: var(--radius); border: 1px solid var(--line); }
+table { width: 100%; border-collapse: collapse; font-size: 13.8px; background: var(--paper-raised); }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+thead th {
+  background: var(--paper);
+  font-size: 11.5px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  font-weight: 700;
+  white-space: nowrap;
+}
+tbody tr:last-child td { border-bottom: none; }
+td code, p code, li code {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  padding: 1px 6px;
+  border-radius: 5px;
+  font-size: .92em;
+}
+
+/* ── 概要フロー図 ── */
+.flow { display: flex; flex-direction: column; gap: 6px; margin: 0 0 22px; }
+.flow-row { display: flex; align-items: stretch; gap: 12px; flex-wrap: wrap; }
+.flow-box {
+  flex: 1 1 220px;
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  box-shadow: var(--shadow);
+}
+.flow-box.accent { border-color: var(--accent); }
+.flow-box .flow-label { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-soft); font-weight: 700; margin-bottom: 4px; }
+.flow-box .flow-title { font-weight: 700; font-size: 15px; }
+.flow-box .flow-detail { font-size: 12.5px; color: var(--ink-soft); margin-top: 4px; }
+.flow-arrow {
+  align-self: center;
+  color: var(--ink-soft);
+  font-size: 20px;
+  flex: 0 0 auto;
+  transform: rotate(90deg);
+}
+@media (min-width: 760px) { .flow-arrow { transform: none; } }
+
+.split { display: grid; grid-template-columns: 1fr; gap: 14px; margin-bottom: 20px; }
+@media (min-width: 700px) { .split { grid-template-columns: 1fr 1fr; } }
+
+.callout {
+  border-left: 3px solid var(--steel);
+  background: var(--paper-raised);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  padding: 12px 16px;
+  font-size: 13.8px;
+  color: var(--ink-soft);
+  margin: 0 0 20px;
+}
+.callout strong { color: var(--ink); }
+.callout.warn { border-left-color: var(--warn); }
+.callout.ok { border-left-color: var(--ok); }
+
+.example-file {
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  font-size: 13px;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  white-space: pre-wrap;
+  color: var(--ink-soft);
+  line-height: 1.8;
+  margin: 0 0 18px;
+}
+.example-file .fname {
+  display: block;
+  font-family: -apple-system, "Hiragino Sans", sans-serif;
+  font-size: 11.5px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--steel);
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+footer {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 28px 32px 60px;
+  color: var(--ink-soft);
+  font-size: 12.5px;
+  border-top: 1px solid var(--line);
+}
+
+@media (max-width: 880px) {
+  .layout { grid-template-columns: 1fr; }
+  nav.toc {
+    position: static;
+    border-left: none;
+    border-bottom: 1px solid var(--line);
+    padding: 0 0 16px;
+    margin-bottom: 8px;
+  }
+  nav.toc ol { flex-direction: row; flex-wrap: wrap; gap: 6px; }
+  nav.toc a { margin-left: 0; }
+}
+</style>
+</head>
+<body>
+
+<button id="theme-toggle" aria-label="配色を切り替え" title="配色を切り替え">◐</button>
+
+<header class="masthead">
+  <div class="masthead-inner">
+    <div>
+      <p class="eyebrow">Operations Runbook</p>
+      <h1>診療ダッシュボード 運用マニュアル</h1>
+      <p class="masthead-sub">日次のビルド配信から週次の部門別レポート・院内配信まで、実際に使うコマンドと手順をまとめた早見帳です。</p>
+    </div>
+    <div class="masthead-meta">
+      <span>最終更新: 2026年7月17日</span>
+      <span>リポジトリ: <span class="mono">~/dev/ai-apps/Dashboard</span></span>
+      <a href="https://genie-scripts.github.io/Dashboard/" target="_blank" rel="noopener">公開ダッシュボードを開く ↗</a>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+
+<nav class="toc" aria-label="目次">
+  <div class="toc-label">目次</div>
+  <ol>
+    <li><a href="#overview">全体像</a></li>
+    <li><a href="#quickref">早見表</a></li>
+    <li><a href="#daily">日次｜deploy.sh</a></li>
+    <li><a href="#weekly-reports">週次｜部門別レポート</a></li>
+    <li><a href="#comedix">随時｜院内配信</a></li>
+    <li><a href="#data">データ更新</a></li>
+    <li><a href="#troubleshoot">トラブルシューティング</a></li>
+    <li><a href="#reference">参照情報</a></li>
+  </ol>
+</nav>
+
+<main>
+
+<section id="overview">
+  <div class="section-head"><h2>1. 全体像</h2></div>
+  <p class="lede">data/ に置いたExcel/CSVから、Python が2つの出口を作ります。1つは GitHub Pages で公開される3ファイル、もう1つは院内配布用のPDF・PNG・HTMLです。後者は git 管理外（.gitignore対象）で、リポジトリには残りません。</p>
+
+  <div class="flow">
+    <div class="flow-row">
+      <div class="flow-box"><div class="flow-label">Input</div><div class="flow-title">data/</div><div class="flow-detail">入院日報・手術データ・粗利・PL確定 など</div></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box accent"><div class="flow-label">Build</div><div class="flow-title">generate_html.py</div><div class="flow-detail"><code>make</code> / <code>./deploy.sh</code></div></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box"><div class="flow-label">公開・3ファイルのみ</div><div class="flow-title">portal / detail / dept.html</div><div class="flow-detail">git push → GitHub Pages</div></div>
+    </div>
+    <div class="flow-row">
+      <div class="flow-box"><div class="flow-label">Input</div><div class="flow-title">同じ data/</div><div class="flow-detail">確定後の月次データを含む</div></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box"><div class="flow-label">Build</div><div class="flow-title">scripts/build_*.py</div><div class="flow-detail"><code>./build_reports.sh</code> / <code>make comedix</code> 等</div></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box"><div class="flow-label">院内限定・git管理外</div><div class="flow-title">PDF / PNG / HTML</div><div class="flow-detail">dept_reports/・output/ 配下へ出力</div></div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <strong>公開範囲の境界線はここだけ覚えれば十分です。</strong> git に載って GitHub Pages で世界に公開されるのは <code>portal.html</code> <code>detail.html</code> <code>dept.html</code> の3つだけ。それ以外（部門別レポートPDF・Comedix週報・医業収支推計・自己完結HTML）はすべてローカル/院内配布専用で、<code>deploy.sh</code> の <code>git add</code> 対象にも入っていません。
+  </div>
+</section>
+
+<section id="quickref">
+  <div class="section-head"><h2>2. 早見表</h2></div>
+  <p class="lede">迷ったらここ。実行する場所はすべてリポジトリ直下（<span class="mono">~/dev/ai-apps/Dashboard</span>）です。</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>コマンド</th><th>内容</th><th>頻度</th><th>出力先</th></tr></thead>
+      <tbody>
+        <tr><td><code>./pull.sh</code></td><td>最新コード取得＋ライブラリ同期</td><td>作業開始時</td><td>—</td></tr>
+        <tr><td><code>./deploy.sh</code></td><td>ビルド→コミット→push（公開更新）</td><td><span class="freq freq-daily">日次</span></td><td>portal / detail / dept.html</td></tr>
+        <tr><td><code>./build_reports.sh</code></td><td>部門別レポートPDF＋レビュー画面</td><td><span class="freq freq-weekly">週次</span></td><td><span class="mono">dept_reports/{基準日}/</span></td></tr>
+        <tr><td><code>make comedix</code></td><td>Comedix週報（PNG貼付）</td><td><span class="freq freq-weekly">週次</span></td><td><span class="mono">output/comedix/週報サマリー.png</span></td></tr>
+        <tr><td><code>make comedix-html</code></td><td>Comedix週報（単一HTML直貼り）</td><td><span class="freq freq-weekly">週次</span></td><td><span class="mono">output/comedix/単一HTML週報.html</span></td></tr>
+        <tr><td><code>make report-hospital</code></td><td>全病院 実績まとめPDF（A4 4頁）</td><td><span class="freq freq-adhoc">週〜月次</span></td><td><span class="mono">output/comedix/実績まとめ_{日付}.pdf</span></td></tr>
+        <tr><td><code>make digest</code></td><td>週次ダイジェスト（掲示＋メール貼付）</td><td><span class="freq freq-weekly">週次</span></td><td><span class="mono">output/weekly_digest/</span></td></tr>
+        <tr><td><code>make pl</code></td><td>医業収支 推計レポート</td><td><span class="freq freq-adhoc">随時</span></td><td><span class="mono">output/pl_projection.html</span></td></tr>
+        <tr><td><code>make test</code></td><td>ユニットテスト実行</td><td><span class="freq freq-adhoc">コード変更時</span></td><td>ターミナル出力</td></tr>
+        <tr><td><code>make serve</code></td><td>ビルド後ローカルサーバで確認</td><td><span class="freq freq-adhoc">随時</span></td><td><span class="mono">http://localhost:8080</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="daily">
+  <div class="section-head">
+    <h2>3. 日次：<span class="mono">deploy.sh</span></h2>
+    <span class="freq freq-daily">日次</span>
+  </div>
+  <p class="lede">作業終了時に1回。ビルド・コミット・pushをまとめて行い、公開ダッシュボードを最新化します。</p>
+
+  <div class="cmd freq-daily-bar mono">
+    <button class="copy-btn" data-copy="./deploy.sh">コピー</button>
+    <span class="prompt">$</span> ./deploy.sh
+  </div>
+
+  <h3>内部で起きていること</h3>
+  <ol class="steps">
+    <li>oMLX（AI一手生成用ローカルLLM）の起動確認。未起動なら自動起動を試みる<div class="note">失敗しても止まらない。以降のAI生成が定型文にフォールバックするだけ</div></li>
+    <li><code>generate_html.py</code> でHTML生成<div class="note">ここで失敗すると即エラーダイアログで停止する（唯一の致命ポイント）</div></li>
+    <li>医業収支 推計レポート（<code>pl_projection.html</code>）を生成<div class="note">失敗してもデプロイは継続。非公開・院内限定のため</div></li>
+    <li>Comedix配布用の自己完結HTML（部門・ポータル）を再出力<div class="note">同上、失敗してもデプロイは継続</div></li>
+    <li><code>git add</code>（対象は固定リスト：<code>portal.html</code> <code>detail.html</code> <code>dept.html</code> <code>app/templates/</code> <code>app/lib/</code> など）</li>
+    <li>差分がなければ「変更なし。スキップ。」で終了。あればコミット</li>
+    <li>push。拒否された場合は <code>git pull --rebase</code> を挟んで1回だけ自動リトライ</li>
+  </ol>
+
+  <div class="callout warn">
+    <strong>失敗したら</strong>：macOS通知ダイアログが出ます。詳細は <code>/tmp/dashboard_deploy.log</code> を確認してください。rebase も失敗した場合はコンフリクトの可能性があるので、手動で <code>git pull --rebase origin main</code> してから再実行します。
+  </div>
+
+  <div class="callout">
+    <strong>scripts/ や tests/ を編集した日</strong>は要注意です。<code>deploy.sh</code> の <code>git add</code> はファイル名を明示リストで指定しており、<code>scripts/</code> と <code>tests/</code> は含まれていません。新規追加・編集した場合は忘れず手動で <code>git add</code> してください。
+  </div>
+</section>
+
+<section id="weekly-reports">
+  <div class="section-head">
+    <h2>4. 週次：部門別レポート（<span class="mono">build_reports.sh</span>）</h2>
+    <span class="freq freq-weekly">週次</span>
+  </div>
+  <p class="lede">診療科版・病棟版・病院全体サマリの3PDFを、AIコメント（今週の一手）付きで生成します。既定は「レビュー運用」— 生成後にブラウザが自動で開き、その場でコメントを直せます。</p>
+
+  <div class="cmd freq-weekly-bar mono">
+    <button class="copy-btn" data-copy="./build_reports.sh">コピー</button>
+    <span class="prompt">$</span> ./build_reports.sh
+  </div>
+
+  <h3>レビュー運用の流れ</h3>
+  <ol class="steps">
+    <li>生成完了後、レビュー画面（<span class="mono">レビュー_{基準日}.html</span>）がブラウザで自動的に開く</li>
+    <li>AIが書いた「今週の一手」が不自然な科があれば、画面上で直接編集</li>
+    <li>「保存」→ <code>dept_reports/overrides.md</code> に書き込まれる</li>
+    <li>「PDF再作成」ボタンで差し替え反映（生成キャッシュが効くため数秒）</li>
+    <li>画面内の「できあがりPDF」リンクから開いて印刷</li>
+  </ol>
+  <p class="lede" style="margin-top:-6px">レビューサーバは無操作120分で自動終了します。手動で止めたい場合はターミナルで <code>Ctrl+C</code>。</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>オプション</th><th>効果</th></tr></thead>
+      <tbody>
+        <tr><td><code>--no-review</code></td><td>レビュー画面を開かず生成のみで終了（従来運用）</td></tr>
+        <tr><td><code>--no-ai</code></td><td>一手をAI生成せず定型文のみ（oMLX不要・高速）</td></tr>
+        <tr><td><code>--fast</code></td><td>意味整合チェック（judge）を省略し初回生成を高速化</td></tr>
+        <tr><td><code>--no-review --split</code></td><td>軸ごと連結せず部門ごとの個別PDFに分割</td></tr>
+        <tr><td><code>--base-date YYYY-MM-DD</code></td><td>基準日を指定して過去日で生成</td></tr>
+        <tr><td><code>--port=8770</code></td><td>レビューサーバのポートを明示指定（既定8768・使用中なら自動でずれる）</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>overrides.md（一手の手動差し替え）</h3>
+  <p>レビュー画面の保存先。<code>[診療科:名前]</code> <code>[病棟:名前]</code> <code>[病院全体:病院全体]</code> のブロックに <code>body:</code>（現状の説明）・<code>action:</code>（次の一手）を書きます。<code>expires:</code> を過ぎたブロックは自動的に無視されるので、消し忘れても実害はありません。テキストエディタで直接編集しても構いません。</p>
+  <div class="example-file"><span class="fname">dept_reports/overrides.md（抜粋）</span>[診療科:一般消化器外科] expires:2026-07-29
+body: 週末の在院がやや落ち込み、直近4週で悪化傾向にあります。
+action: 手術件数を増やして平均を上げていきましょう。加えて金曜に集中する
+        退院の一部を日〜月曜へ分散し、週末の在院数を安定させてください。</div>
+
+  <h3>出力ファイル</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ファイル</th><th>内容</th></tr></thead>
+      <tbody>
+        <tr><td><span class="mono">診療科版_{基準日}.pdf</span></td><td>診療科ごとの実績（1部門1頁・一括印刷用に連結済み）</td></tr>
+        <tr><td><span class="mono">病棟版_{基準日}.pdf</span></td><td>病棟ごとの実績（同上）</td></tr>
+        <tr><td><span class="mono">病院全体サマリ_{基準日}.pdf</span></td><td>病院全体の1頁サマリ</td></tr>
+        <tr><td><span class="mono">レビュー_{基準日}.html</span></td><td>一手の確認・差し替え用（配布しない）</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="comedix">
+  <div class="section-head">
+    <h2>5. 随時：院内配信（Comedix・実績まとめ・ダイジェスト）</h2>
+    <span class="freq freq-weekly">週次目安</span>
+  </div>
+  <p class="lede">Comedix「お知らせ・回覧板」や資料室へ配信する3系統。目的が近いので使い分けだけ押さえれば十分です。</p>
+
+  <div class="split">
+    <div class="card">
+      <h3 style="margin-top:0">make comedix</h3>
+      <p style="margin-bottom:6px">今週の一手＋KPI3＋在院トレンドを<strong>1枚のPNG画像</strong>にして、Comedix資料室の固定文書へ上書き。お知らせ本文からは画像として貼るだけ。</p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">make comedix-html</h3>
+      <p style="margin-bottom:6px">同じ内容を<strong>インラインstyleのみのHTML断片</strong>で出力。お知らせのHTMLソースへ直接貼付でき、画像アップロード不要。病棟・診療科テーブルまで含む詳細版。</p>
+    </div>
+  </div>
+
+  <div class="cmd freq-weekly-bar mono">
+    <button class="copy-btn" data-copy="make comedix REFRESH=1">コピー</button>
+    <span class="prompt">$</span> make comedix <span class="flag">REFRESH=1</span>  <span class="comment"># 今週の一手.md を自動下書きへ書き戻す</span>
+  </div>
+
+  <h3>今週の一手.md の編集</h3>
+  <p>本文をそのまま直接編集して <code>make comedix</code>（または <code>comedix-html</code>）を再実行すれば反映されます。自動下書きに戻したいときは <code>REFRESH=1</code>。維持率・伸びしろの数字部分は常にデータから自動計算されるので、この文面では触れません。</p>
+  <div class="example-file"><span class="fname">output/comedix/今週の一手.md</span>土日の在院ディップを埋める
+
+この流れで土曜の退院を月曜へ。週末の退院準備の前倒しを継続してください
+（総退院数・在院は維持）</div>
+
+  <div class="split">
+    <div class="card">
+      <h3 style="margin-top:0">make report-hospital</h3>
+      <p style="margin-bottom:6px">全病院 実績まとめPDF（A4 4頁）。KPI3・12週トレンド3枚（前年同期線つき）・病棟別/診療科別テーブル。週次〜月次で配布向け。</p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">make digest / digest-fast</h3>
+      <p style="margin-bottom:6px">掲示用A4＋メール貼付テキストの週次ダイジェスト。<code>digest-fast</code> はAI要約なしで確定差分の箇条書きのみ（高速・oMLX不要）。</p>
+    </div>
+  </div>
+</section>
+
+<section id="data">
+  <div class="section-head"><h2>6. データ更新</h2></div>
+  <p class="lede"><code>data/</code> 配下にファイルを追加・更新したら <code>./deploy.sh</code>（または <code>make</code>）で反映されます。古いファイルは消さずに追加するだけで、複数ファイルは自動マージされます。</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>場所</th><th>内容</th><th>形式</th><th>複数ファイル時</th></tr></thead>
+      <tbody>
+        <tr><td><span class="mono">patient_data/</span></td><td>入院日報</td><td>.xlsx / .csv</td><td>自動マージ（更新日時が新しい方を優先）</td></tr>
+        <tr><td><span class="mono">patient_target/</span></td><td>在院・新入院目標</td><td>.csv (UTF-8 BOM)</td><td>最新ファイルのみ使用</td></tr>
+        <tr><td><span class="mono">op_data/</span></td><td>手術実施データ</td><td>.csv (CP932) / .xlsx</td><td>自動マージ</td></tr>
+        <tr><td><span class="mono">op_target/</span></td><td>手術目標</td><td>.csv (UTF-8 BOM)</td><td>最新ファイルのみ使用</td></tr>
+        <tr><td><span class="mono">profit_data/</span></td><td>粗利データ（外来/入院シート）</td><td>.xlsx</td><td>最新ファイルのみ使用</td></tr>
+        <tr><td><span class="mono">profit_target/</span></td><td>粗利目標</td><td>.xlsx</td><td>最新ファイルのみ使用</td></tr>
+        <tr><td><span class="mono">PL_確定.xlsx</span></td><td>月次確定PL（年度別シート）</td><td>.xlsx（<code>data/</code>直下）</td><td>1ファイルを直接更新・年度替わりでシート追加</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout">
+    初回セットアップ（フォルダが無い場合）は <code>make setup</code> で自動作成されます。ファイル配置ルールの詳細は <code>README.md</code> も参照してください。
+  </div>
+</section>
+
+<section id="troubleshoot">
+  <div class="section-head"><h2>7. トラブルシューティング</h2></div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>症状</th><th>原因・対処</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>oMLXが起動しない／モデル未取得</td>
+          <td>AI一手・週次まとめの生成がスキップされ定型文にフォールバックするだけで、ビルド自体は止まりません。手動起動は <code>open -a oMLX</code>。</td>
+        </tr>
+        <tr>
+          <td><code>deploy.sh</code> でpushが拒否される</td>
+          <td>自動で <code>git pull --rebase</code> を挟んで1回だけリトライします。それでも失敗する場合はコンフリクトの可能性があるため、手動で <code>git pull --rebase origin main</code> 後に再実行してください。</td>
+        </tr>
+        <tr>
+          <td>レビューサーバが起動しない／ポート使用中</td>
+          <td>既定ポート8768が使用中なら自動で空きポートへずらします。<code>--port</code> を明示指定した場合のみ、衝突するとエラーで停止します。</td>
+        </tr>
+        <tr>
+          <td>「変更なし。スキップ。」と出る</td>
+          <td>前回ビルドから <code>data/</code> の内容が変わっていません。新しいデータファイルを追加してから再実行してください。</td>
+        </tr>
+        <tr>
+          <td>部門別レポートPDFだけ科別の粗利見込みが抜ける</td>
+          <td>公開ダッシュボード（<code>make build</code>）と部門別レポート（<code>make reports</code>）は粗利推計の呼び出し経路が異なります。前者が通っても後者が壊れることがあるため、粗利推計まわりを変更した週は <code>make reports</code> まで通して確認してください。</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="reference">
+  <div class="section-head"><h2>8. 参照情報</h2></div>
+  <div class="split">
+    <div class="card">
+      <h3 style="margin-top:0">ポート番号</h3>
+      <div class="table-wrap" style="border:none;box-shadow:none">
+        <table>
+          <tbody>
+            <tr><td class="mono">8080</td><td><code>make serve</code>（ローカル確認）</td></tr>
+            <tr><td class="mono">8501</td><td><code>make streamlit</code></td></tr>
+            <tr><td class="mono">8768</td><td>部門別レポートのレビューサーバ（既定）</td></tr>
+            <tr><td class="mono">8000</td><td>oMLX（AI一手生成用ローカルLLM）</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">ログの場所</h3>
+      <div class="table-wrap" style="border:none;box-shadow:none">
+        <table>
+          <tbody>
+            <tr><td class="mono">/tmp/dashboard_deploy.log</td><td><code>deploy.sh</code></td></tr>
+            <tr><td class="mono">/tmp/dept_reports.log</td><td><code>build_reports.sh</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <p style="margin-top:6px">公開ダッシュボード: <a href="https://genie-scripts.github.io/Dashboard/" target="_blank" rel="noopener">genie-scripts.github.io/Dashboard</a>　／　全コマンド一覧: <code>make help</code></p>
+</section>
+
+</main>
+</div>
+
+<footer>
+  診療ダッシュボード 運用マニュアル — リポジトリ直下の <span class="mono">運用マニュアル.html</span> をブラウザで開くと閲覧できます。内容は <code>Makefile</code> / <code>deploy.sh</code> / <code>build_reports.sh</code> / 各 <code>scripts/*.py</code> の実装に基づいています。
+</footer>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var KEY = 'dashboard-manual-theme';
+  var btn = document.getElementById('theme-toggle');
+  function apply(mode) {
+    if (mode === 'dark' || mode === 'light') { root.setAttribute('data-theme', mode); }
+    else { root.removeAttribute('data-theme'); }
+  }
+  var saved = null;
+  try { saved = localStorage.getItem(KEY); } catch (e) {}
+  if (saved) apply(saved);
+  btn.addEventListener('click', function () {
+    var current = root.getAttribute('data-theme') ||
+      (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    var next = current === 'dark' ? 'light' : 'dark';
+    apply(next);
+    try { localStorage.setItem(KEY, next); } catch (e) {}
+  });
+
+  // コマンドのコピー
+  document.querySelectorAll('.copy-btn').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var text = b.getAttribute('data-copy') || '';
+      navigator.clipboard && navigator.clipboard.writeText(text).then(function () {
+        var orig = b.textContent;
+        b.textContent = 'コピー済';
+        setTimeout(function () { b.textContent = orig; }, 1400);
+      });
+    });
+  });
+
+  // 目次のアクティブ表示
+  var links = Array.prototype.slice.call(document.querySelectorAll('nav.toc a'));
+  var map = {};
+  links.forEach(function (a) { map[a.getAttribute('href').slice(1)] = a; });
+  var sections = Array.prototype.slice.call(document.querySelectorAll('main section[id]'));
+  if ('IntersectionObserver' in window) {
+    var observer = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        var link = map[entry.target.id];
+        if (!link) return;
+        if (entry.isIntersecting) {
+          links.forEach(function (a) { a.classList.remove('active'); });
+          link.classList.add('active');
+        }
+      });
+    }, { rootMargin: '-15% 0px -70% 0px', threshold: 0 });
+    sections.forEach(function (s) { observer.observe(s); });
+  }
+})();
+</script>
+
+</body>
+</html>
