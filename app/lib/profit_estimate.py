@@ -32,7 +32,8 @@ import pandas as pd
 from pathlib import Path
 from typing import Optional, Dict, Any
 
-from .config import biz_days_in_month, is_operational_day
+from .config import (biz_days_in_month, is_operational_day,
+                     FEE_REVISION_DATE, FEE_REVISION_PROFIT_UPLIFT)
 
 
 # MTD ブレンドのアンカー営業日数。月内経過営業日が anchor に達すると
@@ -44,6 +45,36 @@ MTD_BLEND_ANCHOR = 8
 # 月別 {actual, proj, ratio, metric} を蓄積し、初回のみ過去12か月を再計算する。
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CALIB_CACHE_PATH = _REPO_ROOT / "output" / "g_calib_cache.json"
+
+# 改定日（Timestamp化）。予測対象月がこれ以後のときだけ改定換算を適用する。
+FEE_REVISION_TS = pd.Timestamp(FEE_REVISION_DATE)
+
+
+def _calib_model_rev() -> str:
+    """校正キャッシュのモデル世代。改定換算の係数を含むため、係数を再測定して
+    config を更新すると自動的に不一致 → 該当月が再計算される。"""
+    ups = ",".join(f"{k}:{FEE_REVISION_PROFIT_UPLIFT[k]}"
+                   for k in sorted(FEE_REVISION_PROFIT_UPLIFT))
+    return f"feerev@{FEE_REVISION_DATE}({ups})"
+
+
+def adjust_profit_for_fee_revision(profit_breakdown):
+    """改定換算: 改定前(月 < FEE_REVISION_DATE)の確定粗利に区分別係数を乗じ、
+    改定後の単価スケールへ揃えた学習用コピーを返す（引数のDFは変更しない）。
+
+    学習・校正パイプライン専用。表示（profit.build_profit_monthly）や
+    δ恒等式（pl_projection.aggregate_profit_monthly）には絶対に使わないこと。
+    """
+    if (profit_breakdown is None or len(profit_breakdown) == 0
+            or "区分" not in profit_breakdown.columns):
+        return profit_breakdown
+    pb = profit_breakdown.copy()
+    pb["粗利"] = pb["粗利"].astype(float)          # int流入時のdtype警告/切捨て防止
+    pre = pd.to_datetime(pb["月"]) < FEE_REVISION_TS
+    if pre.any():
+        factors = pb["区分"].map(FEE_REVISION_PROFIT_UPLIFT).fillna(1.0).astype(float)
+        pb.loc[pre, "粗利"] = pb.loc[pre, "粗利"] * factors[pre]
+    return pb
 
 
 # ────────────────────────────────────────────────────
@@ -139,7 +170,8 @@ def _fit_ols_no_intercept(X: np.ndarray, y: np.ndarray) -> dict:
 def fit_profit_estimators(profit_breakdown: pd.DataFrame,
                            adm: pd.DataFrame,
                            surg: pd.DataFrame,
-                           lookback_months: int = 12) -> Dict[str, Any]:
+                           lookback_months: int = 12,
+                           *, fee_revision_adjust: bool = True) -> Dict[str, Any]:
     """診療科ごとに外来/入院 2式の係数をフィット。
 
     Returns:
@@ -154,6 +186,9 @@ def fit_profit_estimators(profit_breakdown: pd.DataFrame,
     pb = profit_breakdown.copy()
     pb["月"] = pd.to_datetime(pb["月"]).apply(_month_floor)
     end_month   = pb["月"].max()
+    # 改定換算: 予測対象月（= 最新確報月の翌月）が改定以後のときだけ適用
+    if fee_revision_adjust and end_month + pd.DateOffset(months=1) >= FEE_REVISION_TS:
+        pb = adjust_profit_for_fee_revision(pb)
     start_month = end_month - pd.DateOffset(months=lookback_months - 1)
     months = pd.date_range(start_month, end_month, freq="MS").tolist()
 
@@ -197,6 +232,17 @@ def _predict_kpis(est: dict, drv: dict) -> dict:
     gairai = max(0.0, float(gairai))
     nyuin  = max(0.0, float(nyuin))
     return {"gairai": gairai, "nyuin": nyuin, "total": gairai + nyuin}
+
+
+def _recency_actual_adjusted(act: float, g_act, n_act, pred_gairai_share: float) -> float:
+    """改定前月の実績を改定後スケールへ換算。内訳列があれば区分別係数、
+    無ければ推計器の予測ミックス比 w（外来シェア）でブレンドした係数を使う。"""
+    f_g = FEE_REVISION_PROFIT_UPLIFT.get("外来", 1.0)
+    f_n = FEE_REVISION_PROFIT_UPLIFT.get("入院", 1.0)
+    if g_act is not None and n_act is not None and pd.notna(g_act) and pd.notna(n_act):
+        return float(g_act) * f_g + float(n_act) * f_n
+    w = min(max(float(pred_gairai_share), 0.0), 1.0)
+    return float(act) * (w * f_g + (1.0 - w) * f_n)
 
 
 def _window_drivers_daily(adm: pd.DataFrame,
@@ -295,7 +341,8 @@ def project_dept_monthend(estimators: Dict[str, Any],
                           profit_monthly: Optional[pd.DataFrame] = None,
                           recency_k: int = 3,
                           recency_clip: tuple = (0.85, 1.15),
-                          min_n: int = 6) -> Optional[Dict[str, Any]]:
+                          min_n: int = 6,
+                          fee_revision_adjust: bool = True) -> Optional[Dict[str, Any]]:
     """診療科の「当月（最新確報月の翌月）月末見込み粗利（百万円）」を直近の診療実績から推計。
 
     既存の per-dept 推計器 estimators（fit_profit_estimators の出力）を使い、当月ドライバーを
@@ -359,6 +406,10 @@ def project_dept_monthend(estimators: Dict[str, Any],
         sub["月"] = pd.to_datetime(sub["月"]).apply(_month_floor)
         months = sorted(sub["月"].unique())[-recency_k:]
         amap = dict(zip(sub["月"], sub["粗利"]))
+        gmap = dict(zip(sub["月"], sub["外来粗利"])) if "外来粗利" in sub.columns else {}
+        nmap = dict(zip(sub["月"], sub["入院粗利"])) if "入院粗利" in sub.columns else {}
+        # 推計器が改定後スケールで学習されている場合のみ、改定前月の実績を換算
+        adjust_recency = fee_revision_adjust and proj_month >= FEE_REVISION_TS
         drv_m = _aggregate_monthly_drivers(adm, surg, list(months))
         ratios = []
         for mm in months:
@@ -367,10 +418,15 @@ def project_dept_monthend(estimators: Dict[str, Any],
             if row.empty or not act or act <= 0:
                 continue
             rr = row.iloc[0]
-            pm_pred = _predict_kpis(est, {k: rr[k] for k in
-                ("営業日数", "純在院延べ", "新入院", "入院手術件数", "外来手術件数")})["total"]
-            if pm_pred and pm_pred > 0:
-                ratios.append(float(act) / pm_pred)
+            pred = _predict_kpis(est, {k: rr[k] for k in
+                ("営業日数", "純在院延べ", "新入院", "入院手術件数", "外来手術件数")})
+            pm_pred = pred["total"]
+            if not pm_pred or pm_pred <= 0:
+                continue
+            if adjust_recency and mm < FEE_REVISION_TS:
+                act = _recency_actual_adjusted(act, gmap.get(mm), nmap.get(mm),
+                                               pred["gairai"] / pm_pred)
+            ratios.append(float(act) / pm_pred)
         if ratios:
             factor = float(min(max(float(np.median(ratios)), recency_clip[0]), recency_clip[1]))
 
@@ -642,7 +698,8 @@ def build_hybrid_payload(profit_breakdown: pd.DataFrame,
                           test_months: int = 2,
                           min_count: int = 30,
                           rolling_days: int = 30,
-                          history_days: Optional[int] = None) -> Optional[dict]:
+                          history_days: Optional[int] = None,
+                          *, fee_revision_adjust: bool = True) -> Optional[dict]:
     """ハイブリッド推計を構築。
 
     外来/入院それぞれで profit_surgery.fit_hybrid_models を呼び、
@@ -680,6 +737,16 @@ def build_hybrid_payload(profit_breakdown: pd.DataFrame,
         return None
 
     base_date = pd.Timestamp(base_date).normalize()
+
+    # ── 改定換算（学習用）──
+    # 予測対象月（base_date の属する月）が改定以後のときだけ、改定前の確定粗利を
+    # 改定後スケールへ換算して学習する。改定前の月のバックテスト再現
+    # （monthend_projection_total / scripts/backtest_profit_projection.py）では
+    # 換算しない＝当時のモデルを忠実に再現し leakage-free を維持する。
+    fee_revision_applied = bool(fee_revision_adjust
+                                and _month_floor(base_date) >= FEE_REVISION_TS)
+    if fee_revision_applied:
+        profit_breakdown = adjust_profit_for_fee_revision(profit_breakdown)
 
     # adm 月次集計を kind ループ前に用意（weak hybrid demote 判定で使用）
     adm_monthly_pre = (aggregate_monthly_admission(adm)
@@ -890,6 +957,7 @@ def build_hybrid_payload(profit_breakdown: pd.DataFrame,
         history_days if history_days is not None else 365,
         baseline_g=baseline_g, baseline_n=baseline_n,
         adm=adm, fallback_layers=fallback_layers,
+        fee_revision_deadjust=fee_revision_applied,
     )
 
     return {
@@ -908,6 +976,50 @@ def build_hybrid_payload(profit_breakdown: pd.DataFrame,
     }
 
 
+# 表示用 de-adjust の対象キー三つ組（外来キー, 入院キー, 合計キー）。
+# 合計は単一係数で割れない（区分で係数が違う）ため、外来+入院を再合成する。
+_DEADJUST_SERIES_TRIPLES = (
+    ("values_gairai",            "values_nyuin",            "values_total"),
+    ("ols_gairai",               "ols_nyuin",               "ols_total"),
+    ("values_projection_gairai", "values_projection_nyuin", "values_projection_total"),
+    ("values_mtd_gairai",        "values_mtd_nyuin",        "values_mtd_total"),
+    ("values_blend_gairai",      "values_blend_nyuin",      "values_blend_total"),
+)
+
+
+def _deadjust_display_series(series: Dict[str, Any], dates) -> None:
+    """改定前の日付の推計系列を改定前スケールへ割り戻す（表示用・in-place）。
+
+    学習は改定後スケール（改定換算）で行うため、改定前の日付の推計値は
+    そのままだと当時の実績バーより区分別係数のぶん高く出る。チャートは
+    「その日が属する月の月末見込み」を描くので、月単位で割り戻して
+    当時の実績と直接比較できるようにする（2026-06-01 に段差＝実績の段差と一致）。
+
+    meta（latest_*）は base_date の点から別途算出されるため対象外＝G は不変。
+    呼び出し側で「改定換算が実際に適用された場合のみ」呼ぶこと。
+    """
+    f_g = FEE_REVISION_PROFIT_UPLIFT.get("外来", 1.0)
+    f_n = FEE_REVISION_PROFIT_UPLIFT.get("入院", 1.0)
+    pre = [pd.Timestamp(d).replace(day=1) < FEE_REVISION_TS for d in dates]
+
+    def _scaled(vals, inv):
+        if not vals:
+            return None
+        return [round(v * inv, 2) if (v is not None and p) else v
+                for v, p in zip(vals, pre)]
+
+    for g_key, n_key, t_key in _DEADJUST_SERIES_TRIPLES:
+        g_new = _scaled(series.get(g_key), 1.0 / f_g)
+        n_new = _scaled(series.get(n_key), 1.0 / f_n)
+        if g_new is not None:
+            series[g_key] = g_new
+        if n_new is not None:
+            series[n_key] = n_new
+        if g_new is not None and n_new is not None and series.get(t_key):
+            series[t_key] = [round(g + n, 2) if (g is not None and n is not None) else None
+                             for g, n in zip(g_new, n_new)]
+
+
 def _build_hybrid_daily_series(fit_models: Dict[str, Dict[str, Any]],
                                  surg: pd.DataFrame,
                                  base_date: pd.Timestamp,
@@ -916,7 +1028,8 @@ def _build_hybrid_daily_series(fit_models: Dict[str, Dict[str, Any]],
                                  baseline_g: Optional[Dict[str, float]] = None,
                                  baseline_n: Optional[Dict[str, float]] = None,
                                  adm: Optional[pd.DataFrame] = None,
-                                 fallback_layers: Optional[Dict[str, Dict[str, Any]]] = None):
+                                 fallback_layers: Optional[Dict[str, Dict[str, Any]]] = None,
+                                 fee_revision_deadjust: bool = False):
     """日次ローリング 30日 ハイブリッド推計の系列を構築。
 
     fallback_layers: hybrid 不在科向け比推定（単価×在院数/営業日）。
@@ -1158,6 +1271,14 @@ def _build_hybrid_daily_series(fit_models: Dict[str, Dict[str, Any]],
         "latest_mtdblend_gairai": round(blend_g, 2),
         "latest_mtdblend_nyuin":  round(blend_n, 2),
     }
+
+    # 改定換算を適用した場合のみ、表示系列の改定前区間を当時のスケールへ割り戻す
+    # （meta/latest_* は base_date の点＝改定後なので対象外＝G は不変）。
+    if fee_revision_deadjust:
+        _deadjust_display_series(hospital_series, dates)
+        for _ser in series_by_dept.values():
+            _deadjust_display_series(_ser, dates)
+
     return series_by_dept, hospital_series, series_meta
 
 
@@ -1227,6 +1348,21 @@ def _month_actual_total(pb_floored: pd.DataFrame, month_start: pd.Timestamp) -> 
     return float(sub["粗利"].sum()) / 1000.0
 
 
+def _calib_cache_entry_reusable(cached, actual, metric: str, model_rev: str) -> bool:
+    """月次比キャッシュを再利用してよいか（monthend 再計算スキップ判定）。
+    metric・model_rev（改定換算の世代）が一致し、確定実績が保存時と同一（±1e-6）
+    のときのみ再利用。model_rev 欠落/不一致は再計算（改定換算の導入・係数更新で
+    過去 proj の再現値が変わるため）。"""
+    if not cached or not cached.get("proj"):
+        return False
+    if cached.get("metric") != metric or cached.get("model_rev") != model_rev:
+        return False
+    try:
+        return abs(float(cached.get("actual", 0.0)) - float(actual)) < 1e-6
+    except (TypeError, ValueError):
+        return False
+
+
 def compute_projection_calibration(profit_breakdown: pd.DataFrame,
                                    surg: pd.DataFrame,
                                    adm: Optional[pd.DataFrame],
@@ -1252,6 +1388,7 @@ def compute_projection_calibration(profit_breakdown: pd.DataFrame,
     pb = profit_breakdown.copy()
     pb["月"] = pd.to_datetime(pb["月"]).apply(_month_floor)
     known = dict(known_ratios or {})
+    model_rev = _calib_model_rev()
 
     ratios: Dict[str, float] = {}
     detail: Dict[str, Any] = {}
@@ -1262,9 +1399,7 @@ def compute_projection_calibration(profit_breakdown: pd.DataFrame,
         if actual is None or actual <= 0:
             continue  # 未確定（本番でも見えない）月はスキップ
         cached = known.get(key)
-        if (cached and cached.get("proj")
-                and cached.get("metric") == metric
-                and abs(float(cached.get("actual", 0.0)) - actual) < 1e-6):
+        if _calib_cache_entry_reusable(cached, actual, metric, model_rev):
             proj = float(cached["proj"])
         else:
             proj = monthend_projection_total(profit_breakdown, surg, adm, p,
@@ -1274,7 +1409,8 @@ def compute_projection_calibration(profit_breakdown: pd.DataFrame,
         r = actual / proj
         ratios[key] = r
         detail[key] = {"actual": round(actual, 2), "proj": round(proj, 2),
-                       "ratio": round(r, 4), "metric": metric}
+                       "ratio": round(r, 4), "metric": metric,
+                       "model_rev": model_rev}
 
     if ratios:
         raw = float(np.median(list(ratios.values())))
