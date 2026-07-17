@@ -418,14 +418,15 @@ def project_dept_monthend(estimators: Dict[str, Any],
             if row.empty or not act or act <= 0:
                 continue
             rr = row.iloc[0]
-            pred = _predict_kpis(est, {k: rr[k] for k in
+            # 変数名は pred と分ける（外側の pred＝当月見込み(千円)を上書きしないため）
+            pred_mm = _predict_kpis(est, {k: rr[k] for k in
                 ("営業日数", "純在院延べ", "新入院", "入院手術件数", "外来手術件数")})
-            pm_pred = pred["total"]
+            pm_pred = pred_mm["total"]
             if not pm_pred or pm_pred <= 0:
                 continue
             if adjust_recency and mm < FEE_REVISION_TS:
                 act = _recency_actual_adjusted(act, gmap.get(mm), nmap.get(mm),
-                                               pred["gairai"] / pm_pred)
+                                               pred_mm["gairai"] / pm_pred)
             ratios.append(float(act) / pm_pred)
         if ratios:
             factor = float(min(max(float(np.median(ratios)), recency_clip[0]), recency_clip[1]))

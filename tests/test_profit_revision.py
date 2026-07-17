@@ -31,7 +31,13 @@ from app.lib.profit_estimate import (  # noqa: E402
     monthend_projection_total,
     compute_projection_calibration,
     fit_profit_estimators,
+    project_dept_monthend,
     _deadjust_display_series,
+)
+from app.lib.dept_report import (  # noqa: E402
+    _prev_needs_revision_adjust,
+    _revision_adjusted_prev,
+    _unit_profit_series,
 )
 
 FEE_REVISION_TS = pd.Timestamp("2026-06-01")
@@ -460,6 +466,172 @@ class TestDeadjustDisplaySeries(unittest.TestCase):
         self.assertAlmostEqual(series["values_blend_gairai"][0], expected_g0, places=2)
         self.assertAlmostEqual(series["values_blend_nyuin"][0], expected_n0, places=2)
         self.assertAlmostEqual(series["values_blend_total"][0], round(expected_g0 + expected_n0, 2), places=2)
+
+
+class TestPrevYearRevisionAdjust(unittest.TestCase):
+    """dept_report.py の粗利チャート前年線・改定換算（memory: project_dept_report_pdf）。
+
+    対象: _prev_needs_revision_adjust / _revision_adjusted_prev / _unit_profit_series
+    """
+
+    def test_needs_adjust_post_revision_month_true(self):
+        self.assertTrue(_prev_needs_revision_adjust("2026-06-01"))
+
+    def test_needs_adjust_pre_revision_month_false(self):
+        # 当年月自体が改定前 → 前年も改定前で物差しが揃っている
+        self.assertFalse(_prev_needs_revision_adjust("2026-05-01"))
+
+    def test_needs_adjust_next_year_may_true(self):
+        # m=2027-05 の前年同月=2026-05は改定前 → 換算が要る
+        self.assertTrue(_prev_needs_revision_adjust("2027-05-01"))
+
+    def test_needs_adjust_next_year_june_false_expired(self):
+        # m=2027-06 の前年同月=2026-06は改定後 → 物差しが揃い期限切れ
+        self.assertFalse(_prev_needs_revision_adjust("2027-06-01"))
+
+    def test_needs_adjust_december_true(self):
+        self.assertTrue(_prev_needs_revision_adjust("2026-12-01"))
+
+    def test_adjusted_prev_uses_breakdown(self):
+        pm = pd.Timestamp("2025-06-01")
+        gmap = {pm: 10000.0}
+        nmap = {pm: 20000.0}
+        out = _revision_adjusted_prev(gmap, nmap, pm)
+        expected = round((10000.0 * UPLIFT_GAIRAI + 20000.0 * UPLIFT_NYUIN) / 1000, 1)
+        self.assertAlmostEqual(out, expected, places=6)
+
+    def test_adjusted_prev_missing_breakdown_returns_none(self):
+        pm = pd.Timestamp("2025-06-01")
+        self.assertIsNone(_revision_adjusted_prev({}, {}, pm))
+        self.assertIsNone(_revision_adjusted_prev({pm: 10000.0}, {}, pm))
+
+    def test_adjusted_prev_nan_returns_none(self):
+        pm = pd.Timestamp("2025-06-01")
+        gmap = {pm: float("nan")}
+        nmap = {pm: 20000.0}
+        self.assertIsNone(_revision_adjusted_prev(gmap, nmap, pm))
+
+
+def _synthetic_profit_monthly(with_breakdown: bool = True) -> pd.DataFrame:
+    """1診療科・2025-04〜2026-06の月次 profit_monthly（合成データのみ）。
+
+    粗利=30000（千円）一定・目標=25000・達成率=95.0 で、内訳(外来粗利/入院粗利)は
+    with_breakdown=True のときだけ列を持たせる（全月 5000/15000 一定）。
+    """
+    months = pd.date_range("2025-04-01", "2026-06-01", freq="MS")
+    rows = []
+    for m in months:
+        row = {"診療科名": "内科A", "月": m, "粗利": 30000.0,
+              "月次目標": 25000.0, "達成率": 95.0}
+        if with_breakdown:
+            row["外来粗利"] = 5000.0
+            row["入院粗利"] = 15000.0
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
+class TestUnitProfitSeriesRevisionAdjust(unittest.TestCase):
+    """_unit_profit_series の結合テスト（見込みスロットは estimators=None, adm=None で作らせない）。"""
+
+    def setUp(self):
+        self.base_date = pd.Timestamp("2026-06-15")
+
+    def test_2026_06_prev_is_adjusted(self):
+        pm_data = _synthetic_profit_monthly(with_breakdown=True)
+        out = _unit_profit_series(pm_data, "内科A", self.base_date,
+                                  estimators=None, adm=None, surg=None)
+        self.assertTrue(out["prev_adjusted"])
+        idx = out["dates"].index("6月")
+        expected = round((5000.0 * UPLIFT_GAIRAI + 15000.0 * UPLIFT_NYUIN) / 1000, 1)
+        self.assertAlmostEqual(out["prev"][idx], expected, places=6)
+
+    def test_pre_revision_month_prev_is_raw(self):
+        pm_data = _synthetic_profit_monthly(with_breakdown=True)
+        out = _unit_profit_series(pm_data, "内科A", self.base_date,
+                                  estimators=None, adm=None, surg=None)
+        idx = out["dates"].index("5月")
+        self.assertAlmostEqual(out["prev"][idx], 30.0, places=6)
+
+    def test_missing_breakdown_columns_prev_raw_and_not_adjusted(self):
+        pm_data = _synthetic_profit_monthly(with_breakdown=False)
+        out = _unit_profit_series(pm_data, "内科A", self.base_date,
+                                  estimators=None, adm=None, surg=None)
+        self.assertFalse(out["prev_adjusted"])
+        idx = out["dates"].index("6月")
+        self.assertAlmostEqual(out["prev"][idx], 30.0, places=6)
+
+
+class TestProjectDeptMonthendIntegration(unittest.TestCase):
+    """project_dept_monthend が recency ループを通っても月末見込みを返せること。
+
+    リグレッション: recency ループ内のローカル変数が外側の pred（当月見込み・千円）を
+    dict で上書きし、`pred * factor` が TypeError になった。ヘルパー単体のテストでは
+    捕まらず make reports だけが落ちたため、結合パスをここで固定する。
+    """
+
+    DEPT = "外科A"
+    # 月ごとに在院・粗利を振る。定数だと分散0で r2=None になり、推計器の品質ゲート
+    # （r2 None → 見込みを出さない）に阻まれて結合パスを通れない。
+    MONTHS = ["2025-12-01", "2026-01-01", "2026-02-01",
+              "2026-03-01", "2026-04-01", "2026-05-01"]
+    CENSUS = {"2025-12-01": 40.0, "2026-01-01": 46.0, "2026-02-01": 52.0,
+              "2026-03-01": 44.0, "2026-04-01": 58.0, "2026-05-01": 50.0}
+
+    def setUp(self):
+        adm_parts, surg_parts, pb_rows, pm_rows = [], [], [], []
+        for m in self.MONTHS + ["2026-06-01"]:
+            ms = pd.Timestamp(m)
+            me = ms + pd.offsets.MonthEnd(0)
+            cen = self.CENSUS.get(m, 50.0)
+            adm_parts.append(_const_daily_adm(self.DEPT, ms, me,
+                                              census=cen, new_adm=cen / 10.0))
+            surg_parts.append(_const_daily_surg(self.DEPT, ms, me,
+                                               n_nyuin=2, n_gairai=1))
+            if m in self.CENSUS:   # 確報は 2026-05 まで
+                nyuin = cen * 40.0
+                gairai = cen * 10.0
+                pb_rows += [
+                    {"診療科名": self.DEPT, "月": ms, "区分": "外来", "粗利": gairai},
+                    {"診療科名": self.DEPT, "月": ms, "区分": "入院", "粗利": nyuin},
+                ]
+                pm_rows.append({"診療科名": self.DEPT, "月": ms,
+                                "粗利": gairai + nyuin,
+                                "外来粗利": gairai, "入院粗利": nyuin})
+        self.adm = pd.concat(adm_parts, ignore_index=True)
+        self.surg = pd.concat(surg_parts, ignore_index=True)
+        self.pb = pd.DataFrame(pb_rows)
+        self.pm = pd.DataFrame(pm_rows)
+        self.est = fit_profit_estimators(self.pb, self.adm, self.surg)
+
+    def _run(self, profit_monthly):
+        return project_dept_monthend(self.est, self.adm, self.surg,
+                                     pd.Timestamp("2026-06-15"), self.DEPT,
+                                     profit_monthly=profit_monthly)
+
+    def test_returns_numeric_value_with_breakdown(self):
+        out = self._run(self.pm)
+        self.assertIsNotNone(out)
+        self.assertIsInstance(out["value"], float)
+        self.assertGreater(out["value"], 0)
+        self.assertIsInstance(out["factor"], float)
+
+    def test_returns_numeric_value_without_breakdown(self):
+        # 内訳列なし → _recency_actual_adjusted の blend fallback を通る
+        out = self._run(self.pm.drop(columns=["外来粗利", "入院粗利"]))
+        self.assertIsNotNone(out)
+        self.assertIsInstance(out["value"], float)
+        self.assertGreater(out["value"], 0)
+
+    def test_recency_loop_does_not_clobber_projection(self):
+        # profit_monthly なし（recency ループを通らない）と比べ、factor 以外の
+        # 構造が壊れていないこと＝ループが外側 pred を破壊していないこと
+        with_pm = self._run(self.pm)
+        without_pm = self._run(None)
+        self.assertIsNotNone(without_pm)
+        self.assertAlmostEqual(without_pm["factor"], 1.0, places=9)
+        # factor で割り戻せば同じ当月見込みに戻る
+        self.assertAlmostEqual(with_pm["value"] / with_pm["factor"],
+                               without_pm["value"], places=1)
 
 
 if __name__ == "__main__":

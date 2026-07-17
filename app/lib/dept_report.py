@@ -24,7 +24,7 @@ import pandas as pd
 from .config import (
     SURGERY_DISPLAY_DEPTS, SURGERY_EVAL_DEPTS, surgery_metric_label, EMERGENCY_WARDS,
     TARGET_INPATIENT_ALLDAY, TARGET_ADMISSION_WEEKLY, TARGET_GA_DAILY,
-    TARGET_WEEKEND_RETENTION,
+    TARGET_WEEKEND_RETENTION, FEE_REVISION_DATE, FEE_REVISION_PROFIT_UPLIFT,
 )
 from .metrics import (
     weekend_census_retention, rolling7_inpatient_avg,
@@ -50,6 +50,14 @@ from .report_overrides import apply_override, is_full_override
 WK = ["月", "火", "水", "木", "金", "土", "日"]
 WEEKS = 12
 PREVYEAR_DAYS = 364   # 52週=曜日合わせ
+
+# 2026-06-01 診療報酬改定（係数の出所は config.FEE_REVISION_PROFIT_UPLIFT のコメント）。
+# 粗利チャートの前年同期線は、当年が改定後・前年同月が改定前のときだけ改定後スケールへ
+# 換算して物差しを揃える（実質比較）。詳細は _prev_needs_revision_adjust を参照。
+FEE_REVISION_TS = pd.Timestamp(FEE_REVISION_DATE)
+_REV_NOTE = ("・前年線は改定換算("
+             f"外来×{FEE_REVISION_PROFIT_UPLIFT.get('外来', 1.0):g}"
+             f"/入院×{FEE_REVISION_PROFIT_UPLIFT.get('入院', 1.0):g})")
 
 # 前年同期に比較可能なデータがない病棟（再編・新規開棟）＝前年同期線を出さない。
 #   ICU(04B)/HCU(04D)は業務実態が一般病棟と異なり前年比較が成り立たず、8階B(08B)は2025年開棟。
@@ -225,6 +233,33 @@ def _unit_surg_weekly_series(surg, base_date, dept) -> dict:
     return {"dates": [d.strftime("%m/%d") for d in cur_dates], "cur": cur, "prev": prev}
 
 
+def _prev_needs_revision_adjust(m) -> bool:
+    """当年の月 m の前年同月が「改定前の点数」で、m 自身が「改定後」か。
+
+    両方とも改定前／両方とも改定後なら物差しが揃っているので換算不要。
+    2027-06 以降は前年同月も改定後になり、自動的に False になる（期限切れ）。
+    """
+    m = pd.Timestamp(m)
+    return bool(m >= FEE_REVISION_TS
+                and (m - pd.DateOffset(years=1)) < FEE_REVISION_TS)
+
+
+def _revision_adjusted_prev(gmap, nmap, pm):
+    """前年同月 pm の粗利を改定後スケールへ換算（百万円）。
+
+    粗利チャートの前年同期線を当年線と同じ物差しに揃えるための表示用換算。
+    内訳(外来/入院)が取れないときは None を返す＝呼び出し側は素の値を使い、
+    注記も出さない（不正確な換算をして「換算済み」と偽らない）。
+    """
+    g = gmap.get(pm) if gmap else None
+    n = nmap.get(pm) if nmap else None
+    if g is None or n is None or pd.isna(g) or pd.isna(n):
+        return None
+    adj = (float(g) * FEE_REVISION_PROFIT_UPLIFT.get("外来", 1.0)
+           + float(n) * FEE_REVISION_PROFIT_UPLIFT.get("入院", 1.0))
+    return round(adj / 1000, 1)
+
+
 def _unit_profit_series(profit_monthly, name, base_date,
                         estimators=None, adm=None, surg=None) -> Optional[dict]:
     """指定診療科の月次粗利（百万円）・直近12か月＋前年同期。目標線=月次目標、達成率=最新月。
@@ -244,10 +279,26 @@ def _unit_profit_series(profit_monthly, name, base_date,
     rows = rows.tail(WEEKS)
     months = list(rows["月"])
     pmap = dict(zip(df["月"], df["粗利"]))
+    gmap = dict(zip(df["月"], df["外来粗利"])) if "外来粗利" in df.columns else {}
+    nmap = dict(zip(df["月"], df["入院粗利"])) if "入院粗利" in df.columns else {}
     dates = [m.strftime("%-m月") for m in months]
     cur = [round(pmap[m] / 1000, 1) for m in months]
-    prev = [round(pmap[m - pd.DateOffset(years=1)] / 1000, 1)
-            if (m - pd.DateOffset(years=1)) in pmap else None for m in months]
+
+    prev_adjusted = False
+
+    def _prev_at(m):
+        nonlocal prev_adjusted
+        pm = m - pd.DateOffset(years=1)
+        if pm not in pmap:
+            return None
+        if _prev_needs_revision_adjust(m):
+            adj = _revision_adjusted_prev(gmap, nmap, pm)
+            if adj is not None:
+                prev_adjusted = True
+                return adj
+        return round(pmap[pm] / 1000, 1)
+
+    prev = [_prev_at(m) for m in months]
     last = rows.iloc[-1]
     tgt = last["月次目標"]
     ref = round(tgt / 1000, 1) if pd.notna(tgt) else None
@@ -262,12 +313,12 @@ def _unit_profit_series(profit_monthly, name, base_date,
             pm = p["month"]
             dates.append(f"{pm.strftime('%-m月')}(見込)")
             cur.append(None)
-            prev.append(round(pmap[pm - pd.DateOffset(years=1)] / 1000, 1)
-                        if (pm - pd.DateOffset(years=1)) in pmap else None)
+            prev.append(_prev_at(pm))
             proj = p["value"]
 
     return {"dates": dates, "cur": cur, "prev": prev, "ref": ref, "rate": rate,
-            "latest": months[-1], "proj": proj, "proj_month": (p["month"] if proj else None)}
+            "latest": months[-1], "proj": proj, "proj_month": (p["month"] if proj else None),
+            "prev_adjusted": prev_adjusted}
 
 
 # ════════════════════════════════════════════════════════════
@@ -876,6 +927,8 @@ def _build_parts(adm, surg, base_date, entity, name, code, dd, r7_inp, r7_nadm,
                     f"点線={profit_series['proj_month'].strftime('%-m月')}は診療実績ベースの見込（暫定）")
         else:
             note = f"確報ベース・最新 {profit_series['latest'].strftime('%Y年%-m月')}"
+        if profit_series.get("prev_adjusted"):
+            note += _REV_NOTE
         badge = (f"達成率 {rate:g}%", "ok" if (rate or 0) >= 100 else "wr") if rate is not None else None
         ref = profit_series["ref"] or 0
         parts["D"] = _trend_part("D", "粗利", profit_series, ref,
@@ -1298,14 +1351,32 @@ def _hospital_profit_series(profit_monthly, base_date, profit_projection=None) -
     by_month = profit_monthly.groupby("月")
     gp = by_month["粗利"].sum()
     gt = by_month["月次目標"].sum(min_count=1)
+    gsum = by_month["外来粗利"].sum(min_count=1) if "外来粗利" in profit_monthly.columns else None
+    nsum = by_month["入院粗利"].sum(min_count=1) if "入院粗利" in profit_monthly.columns else None
+    gmap = dict(gsum) if gsum is not None else {}
+    nmap = dict(nsum) if nsum is not None else {}
     base_m = base_date.to_period("M").to_timestamp()
     months = [m for m in gp.index if m <= base_m]
     if not months:
         return None
     months = sorted(months)[-WEEKS:]
     cur = [round(gp[m] / 1000, 1) for m in months]
-    prev = [round(gp[m - pd.DateOffset(years=1)] / 1000, 1)
-            if (m - pd.DateOffset(years=1)) in gp.index else None for m in months]
+
+    prev_adjusted = False
+
+    def _prev_at(m):
+        nonlocal prev_adjusted
+        pm = m - pd.DateOffset(years=1)
+        if pm not in gp.index:
+            return None
+        if _prev_needs_revision_adjust(m):
+            adj = _revision_adjusted_prev(gmap, nmap, pm)
+            if adj is not None:
+                prev_adjusted = True
+                return adj
+        return round(gp[pm] / 1000, 1)
+
+    prev = [_prev_at(m) for m in months]
     dates = [m.strftime("%-m月") for m in months]
     last = months[-1]
     tgt = gt.get(last)
@@ -1318,13 +1389,13 @@ def _hospital_profit_series(profit_monthly, base_date, profit_projection=None) -
         if pm not in months:
             dates.append(f"{pm.strftime('%-m月')}(見込)")
             cur.append(None)
-            prev.append(round(gp[pm - pd.DateOffset(years=1)] / 1000, 1)
-                        if (pm - pd.DateOffset(years=1)) in gp.index else None)
+            prev.append(_prev_at(pm))
             proj = profit_projection["hospital_million"]
             proj_month = pm
 
     return {"dates": dates, "cur": cur, "prev": prev, "ref": ref, "rate": rate,
-            "latest": last.strftime("%Y年%-m月"), "proj": proj, "proj_month": proj_month}
+            "latest": last.strftime("%Y年%-m月"), "proj": proj, "proj_month": proj_month,
+            "prev_adjusted": prev_adjusted}
 
 
 def _hospital_dow(adm, base_date) -> dict:
@@ -1443,6 +1514,8 @@ def build_hospital_overview_context(adm, surg, targets, surg_targets, profit_mon
             badge = ((f"達成率 {prof_rate:g}%", "ok" if prof_rate >= 100 else "wr")
                      if prof_rate is not None else None)
             note = f"確報ベース・最新 {ps['latest']}"
+        if ps.get("prev_adjusted"):
+            note += _REV_NOTE
         add("D", "粗利", ps, ps["ref"], f"目標{ps['ref']:g}" if ps["ref"] else "",
             "百万円", "12か月・月次（確報＋当月見込み）", badge, note=note)
 
