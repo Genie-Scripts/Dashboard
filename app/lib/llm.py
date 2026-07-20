@@ -14,7 +14,7 @@ oMLX(OpenAI互換 /v1) に統一。oMLX はホストの 127.0.0.1:8000 で動作
     OMLX_MODEL     使用モデル（既定: 日本語軽量の Swallow-8B）
     OMLX_BASE_URL  既定 http://localhost:8000/v1
     OMLX_API_KEY   既定 sk-ant-omlx-local-key（~/.omlx/settings.json の auth.api_key）
-    OMLX_TIMEOUT   1リクエストの上限秒（既定 60）
+    OMLX_TIMEOUT   1リクエストの上限秒（既定 180）
 """
 
 from __future__ import annotations
@@ -23,7 +23,11 @@ import os
 DEFAULT_MODEL = os.environ.get("OMLX_MODEL", "Llama-3.1-Swallow-8B-Instruct-v0.5")
 BASE_URL = os.environ.get("OMLX_BASE_URL", "http://localhost:8000/v1")
 API_KEY = os.environ.get("OMLX_API_KEY", "sk-ant-omlx-local-key")
-TIMEOUT_SEC = float(os.environ.get("OMLX_TIMEOUT", "60"))
+# 既定 60→180（2026-07 並列実行導入時に引き上げ）: 並列実行下では個別リクエストの
+# レイテンシが数倍に伸びる（実測で単独比 約3.8倍）。60秒のままだとタイムアウト例外が
+# ai_narrative.REJECT_STATS["error"] を経て静かに定型文フォールバックへ縮退し、
+# 「速くなった代わりに文章の質が落ちる」結果になるため。環境変数での上書きは従来どおり効く。
+TIMEOUT_SEC = float(os.environ.get("OMLX_TIMEOUT", "180"))
 
 _client = None
 

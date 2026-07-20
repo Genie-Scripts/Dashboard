@@ -215,7 +215,7 @@ h4{font-weight:var(--jp-head)!important}
 <header class="hdr">
   <div class="row1">
     <div class="left"><span class="badge">KPI</span><span class="title">🏥 診療ダッシュボード</span></div>
-    <div class="meta">📅 2026-07-16 ｜ 🕐 2026/07/17 16:27 更新</div>
+    <div class="meta">📅 2026-07-20 ｜ 🕐 2026/07/21 07:13 更新</div>
     <button class="dm-btn" onclick="toggleDarkMode()">🌙</button>
   </div>
   <nav class="nav-bar">
@@ -231,7 +231,7 @@ h4{font-weight:var(--jp-head)!important}
   <section class="sb-bar sb-warn" aria-label="全体ステータス">
     <div class="sb-row">
       <span class="sb-icon">🟡</span>
-      <span class="sb-text">全麻が目標をやや下回っています</span>
+      <span class="sb-text">新入院と在院が目標をやや下回っています</span>
       
       <button class="sb-toggle" id="sb-toggle-btn"
               onclick="toggleStatusBar()" aria-expanded="false"
@@ -241,7 +241,7 @@ h4{font-weight:var(--jp-head)!important}
     
     <div class="sb-detail" id="sb-detail" hidden>
       
-      <p class="sb-story">手術室稼働率が11.2%上昇し76.5%に、全麻手術件数は27件増の84件と大幅に増加。新入院も23人増の393人、在院患者数も16.2人増の570.9人と増加傾向。粗利達成率は心臓血管外科が1位に躍り出るなど、手術関連KPIが好調です。</p>
+      <p class="sb-story">手術室稼働率が3.3%上昇し75.0%に。全麻手術件数は21件減少し0件に。新入院は10%減少、緊急入院は12%増加。粗利達成率は心臓血管外科が1位、呼吸器外科が2位、皮膚科が3位。</p>
       
       
       
@@ -263,7 +263,7 @@ h4{font-weight:var(--jp-head)!important}
       
       
       <ul class="sb-items">
-        <li>手術室稼働率（直近7日）: 65.3% → 76.5%（+11.2%）</li><li>緊急入院（直近7日累計）: 164件 → 168件（+4件、+2%）</li>
+        <li>手術室稼働率（直近7日）: 71.7% → 75.0%（+3.3%）</li><li>緊急入院（直近7日累計）: 151件 → 169件（+18件、+12%）</li>
       </ul>
       
     </div>
@@ -273,10 +273,14 @@ h4{font-weight:var(--jp-head)!important}
   
   
   <section class="chg-bar" aria-label="昨日からの最新の動向">
-    <span class="chg-title">🔔 最新の動向 <span class="chg-vs">vs 2026-07-15</span></span>
+    <span class="chg-title">🔔 最新の動向 <span class="chg-vs">vs 2026-07-19</span></span>
     
-      <a class="chg-chip in" href="dept.html#産婦人科">＋要注視入り 産婦人科</a><a class="chg-chip in" href="dept.html#救急科">＋要注視入り 救急科</a><a class="chg-chip in" href="dept.html#脳神経内科">＋要注視入り 脳神経内科</a><a class="chg-chip in" href="dept.html#腎内科">＋要注視入り 腎内科</a><a class="chg-chip in" href="dept.html#4階A病棟">＋要注視入り 4階A病棟</a>
-      <a class="chg-chip out" href="dept.html#脳神経外科">−要注視解 脳神経外科</a><a class="chg-chip out" href="dept.html#7階B病棟">−要注視解 7階B病棟</a>
+      <a class="chg-chip in" href="dept.html#脳神経外科">＋要注視入り 脳神経外科</a><a class="chg-chip in" href="dept.html#耳鼻咽喉科">＋要注視入り 耳鼻咽喉科</a><a class="chg-chip in" href="dept.html#一般消化器外科">＋要注視入り 一般消化器外科</a>
+      <a class="chg-chip out" href="dept.html#総合内科">−要注視解 総合内科</a><a class="chg-chip out" href="dept.html#7階B病棟">−要注視解 7階B病棟</a><a class="chg-chip out" href="dept.html#6階A病棟">−要注視解 6階A病棟</a><a class="chg-chip out" href="dept.html#2階A病棟">−要注視解 2階A病棟</a>
+      
+        <span class="chg-chip in">新入院 達成→接近（103.6→90.2%）</span>
+      
+        <span class="chg-chip out">全麻 接近→達成（98.6→100.0%）</span>
       
     
   </section>
@@ -285,8 +289,8 @@ h4{font-weight:var(--jp-head)!important}
   
   <section class="kpi">
     
-    <a class="kc wr" href="detail.html#inpatient">
-      <span class="st wr">― 接近</span>
+    <a class="kc ok" href="detail.html#inpatient">
+      <span class="st ok">▲ 達成</span>
       <div class="lb">🛏️ 在院患者数</div>
       <div class="sb">直近7日平均（平日／休日）</div>
       
@@ -294,14 +298,14 @@ h4{font-weight:var(--jp-head)!important}
         
         <div class="dual-row">
           <span class="dual-lab">平日</span>
-          <span class="dual-val">589.6<small>人</small></span>
-          <span class="dual-st" style="color:#b45309">― 接近</span>
+          <span class="dual-val">599.8<small>人</small></span>
+          <span class="dual-st" style="color:#0e7a54">▲ 達成</span>
           <span class="dual-tgt">目標600</span>
         </div>
         
         <div class="dual-row">
           <span class="dual-lab">休日</span>
-          <span class="dual-val">524.0<small>人</small></span>
+          <span class="dual-val">526.7<small>人</small></span>
           <span class="dual-st" style="color:#b45309">― 接近</span>
           <span class="dual-tgt">目標550</span>
         </div>
@@ -309,42 +313,42 @@ h4{font-weight:var(--jp-head)!important}
       </div>
       
       
-      <div class="kc-yoy ok">前年比 ↑ +6.8%
+      <div class="kc-yoy ok">前年比 ↑ +6.7%
         <span class="kc-note">（7日平均）</span></div>
       
       
       <div class="kc-proj">📅 7月 着地見込み
-        <b class="wr">564.8人/日</b>／目標 583.0人/日（96.9%）</div>
+        <b class="wr">560.9人/日</b>／目標 583.0人/日（96.2%）</div>
       
       <div class="cta"><span>詳細を見る</span><span class="cta-arrow">›</span></div>
     </a>
     
-    <a class="kc ok" href="detail.html#admission">
-      <span class="st ok">▲ 達成</span>
+    <a class="kc wr" href="detail.html#admission">
+      <span class="st wr">― 接近</span>
       <div class="lb">🚪 新入院患者数</div>
       <div class="sb">直近7日累計</div>
       
-      <div class="vl">393<small style="font-size:16px;font-weight:400">人</small></div>
-      <div class="gp">目標達成 (+13.8人)</div>
+      <div class="vl">342<small style="font-size:16px;font-weight:400">人</small></div>
+      <div class="gp">目標まであと 37.2人</div>
       
       
-      <div class="kc-yoy ok">前年比 ↑ +5.6%
+      <div class="kc-yoy mu">前年比 → +0.6%
         <span class="kc-note">（7日累計）</span></div>
       
       
       <div class="kc-proj">📅 7月 着地見込み
-        <b class="ok">1736人</b>／目標 1679人（103.4%）</div>
+        <b class="wr">1621人</b>／目標 1679人（96.5%）</div>
       
       <div class="cta"><span>詳細を見る</span><span class="cta-arrow">›</span></div>
     </a>
     
-    <a class="kc wr" href="detail.html#operation">
-      <span class="st wr">― 接近</span>
+    <a class="kc ok" href="detail.html#operation">
+      <span class="st ok">▲ 達成</span>
       <div class="lb">💉 全身麻酔手術</div>
       <div class="sb">直近7平日平均</div>
       
-      <div class="vl">20.7<small style="font-size:16px;font-weight:400">件/日</small></div>
-      <div class="gp">目標まであと 0.3件/日</div>
+      <div class="vl">21.0<small style="font-size:16px;font-weight:400">件/日</small></div>
+      <div class="gp">目標達成！</div>
       
       
       <div class="kc-yoy ok">前年比 ↑ +6.5%
@@ -352,7 +356,7 @@ h4{font-weight:var(--jp-head)!important}
       
       
       <div class="kc-proj">📅 7月 着地見込み
-        <b class="wr">440件</b>／目標 462件（95.2%）</div>
+        <b class="wr">441件</b>／目標 462件（95.5%）</div>
       
       <div class="cta"><span>詳細を見る</span><span class="cta-arrow">›</span></div>
     </a>
@@ -393,23 +397,67 @@ h4{font-weight:var(--jp-head)!important}
       <div id="triage-ward-attention" class="triage-panel" role="tabpanel">
         
           
-          <div class="triage-item mid">
+          <div class="triage-item high">
             
-            <a class="triage-item-row" href="dept.html#4階C病棟"
-               onclick="event.preventDefault();toggleNarrative('w1');location.href='dept.html#4階C病棟'">
-              <span class="pri-dot mid" aria-label="優先度 mid"></span>
-              <span class="triage-name">4階C病棟</span>
+            <a class="triage-item-row" href="dept.html#4階A病棟"
+               onclick="event.preventDefault();toggleNarrative('w1');location.href='dept.html#4階A病棟'">
+              <span class="pri-dot high" aria-label="優先度 high"></span>
+              <span class="triage-name">4階A病棟</span>
               
-              <span class="streak-chip" title="連続して要注視">2日連続</span>
+              <span class="streak-chip" title="連続して要注視">5日連続</span>
               
               <button class="triage-acc-btn" id="acc-btn-w1"
                       aria-expanded="false" aria-controls="narrative-w1"
                       onclick="event.preventDefault();event.stopPropagation();toggleNarrative('w1')">▼詳細</button>
             </a>
-            <div class="triage-headline">在院84%(▲3.0人) ← 新入院81%(▲6.0人)</div>
+            <div class="triage-headline">在院70%(▲1.7人) ← 新入院115%(+4.0人)　↘悪化傾向</div>
             <div class="triage-narrative" id="narrative-w1" hidden
-                 role="region" aria-label="4階C病棟 詳細">
-              <div class="triage-obs">🤖 在院患者数は16人で、目標19.0人に対し84%の達成率です。新入院は26人で目標32.0人に対し81%です。前週比で新入院が5人減少しています。</div>
+                 role="region" aria-label="4階A病棟 詳細">
+              <div class="triage-obs">🤖 在院患者数は70%の達成率で、目標を1.7人下回っています。新入院は目標を4.0人上回っています。</div>
+              <div class="triage-sug">新入院・紹介患者の確保を強化し、在院患者数の増加を目指してください。</div>
+            </div>
+            
+          </div>
+          
+          <div class="triage-item low">
+            
+            <a class="triage-item-row" href="dept.html#9階A病棟"
+               onclick="event.preventDefault();toggleNarrative('w2');location.href='dept.html#9階A病棟'">
+              <span class="pri-dot low" aria-label="優先度 low"></span>
+              <span class="triage-name">9階A病棟</span>
+              
+              <span class="streak-chip" title="連続して要注視">2日連続</span>
+              
+              <button class="triage-acc-btn" id="acc-btn-w2"
+                      aria-expanded="false" aria-controls="narrative-w2"
+                      onclick="event.preventDefault();event.stopPropagation();toggleNarrative('w2')">▼詳細</button>
+            </a>
+            <div class="triage-headline">在院81%(▲4.1人) ← 新入院75%(▲5.0人)　↗改善傾向</div>
+            <div class="triage-narrative" id="narrative-w2" hidden
+                 role="region" aria-label="9階A病棟 詳細">
+              <div class="triage-obs">🤖 在院患者数は81%の達成率で、目標まであと4.1人。新入院は75%で目標まであと5.0人。前週比で新入院が減少しています。</div>
+              <div class="triage-sug">新入院・紹介患者の確保を強化し、在院患者数の増加を目指しましょう。</div>
+            </div>
+            
+          </div>
+          
+          <div class="triage-item mid">
+            
+            <a class="triage-item-row" href="dept.html#5階B病棟"
+               onclick="event.preventDefault();toggleNarrative('w3');location.href='dept.html#5階B病棟'">
+              <span class="pri-dot mid" aria-label="優先度 mid"></span>
+              <span class="triage-name">5階B病棟</span>
+              
+              <span class="streak-chip" title="連続して要注視">2日連続</span>
+              
+              <button class="triage-acc-btn" id="acc-btn-w3"
+                      aria-expanded="false" aria-controls="narrative-w3"
+                      onclick="event.preventDefault();event.stopPropagation();toggleNarrative('w3')">▼詳細</button>
+            </a>
+            <div class="triage-headline">在院83%(▲6.1人) ← 新入院93%(▲3.0人)</div>
+            <div class="triage-narrative" id="narrative-w3" hidden
+                 role="region" aria-label="5階B病棟 詳細">
+              <div class="triage-obs">🤖 在院患者数は29人で、目標の35.1人に達していません。新入院は39人で目標の42.0人に近づいていますが、前週比で減少しています。</div>
               <div class="triage-sug">新入院・紹介患者の確保を強化し、在院患者数の増加を目指してください。</div>
             </div>
             
@@ -417,20 +465,110 @@ h4{font-weight:var(--jp-head)!important}
           
           <div class="triage-item mid">
             
-            <a class="triage-item-row" href="dept.html#4階A病棟"
-               onclick="event.preventDefault();toggleNarrative('w2');location.href='dept.html#4階A病棟'">
+            <a class="triage-item-row" href="dept.html#3階A病棟"
+               onclick="event.preventDefault();toggleNarrative('w4');location.href='dept.html#3階A病棟'">
               <span class="pri-dot mid" aria-label="優先度 mid"></span>
-              <span class="triage-name">4階A病棟</span>
+              <span class="triage-name">3階A病棟</span>
               
-              <button class="triage-acc-btn" id="acc-btn-w2"
-                      aria-expanded="false" aria-controls="narrative-w2"
-                      onclick="event.preventDefault();event.stopPropagation();toggleNarrative('w2')">▼詳細</button>
+              <span class="streak-chip" title="連続して要注視">3日連続</span>
+              
+              <button class="triage-acc-btn" id="acc-btn-w4"
+                      aria-expanded="false" aria-controls="narrative-w4"
+                      onclick="event.preventDefault();event.stopPropagation();toggleNarrative('w4')">▼詳細</button>
             </a>
-            <div class="triage-headline">在院105%(+0.3人) ← 新入院89%(▲3.0人)　↘達成中だが悪化傾向</div>
-            <div class="triage-narrative" id="narrative-w2" hidden
-                 role="region" aria-label="4階A病棟 詳細">
-              <div class="triage-obs">🤖 在院患者数は目標を105%達成するも、直近7日間の新入院数が目標を下回る状況が続いています。</div>
-              <div class="triage-sug">新入院・紹介患者の確保状況を点検し、失速要因を分析してください。</div>
+            <div class="triage-headline">在院83%(▲7.2人) ← 新入院74%(▲11.0人)</div>
+            <div class="triage-narrative" id="narrative-w4" hidden
+                 role="region" aria-label="3階A病棟 詳細">
+              <div class="triage-obs">🤖 在院患者数は目標の83%で、7.2人不足しています。新入院は目標の74%で、11.0人不足しています。</div>
+              <div class="triage-sug">新入院・紹介患者の確保を強化し、在院患者数の増加を目指してください。</div>
+            </div>
+            
+          </div>
+          
+          <div class="triage-item mid">
+            
+            <a class="triage-item-row" href="dept.html#8階A病棟"
+               onclick="event.preventDefault();toggleNarrative('w5');location.href='dept.html#8階A病棟'">
+              <span class="pri-dot mid" aria-label="優先度 mid"></span>
+              <span class="triage-name">8階A病棟</span>
+              
+              <span class="streak-chip" title="連続して要注視">3日連続</span>
+              
+              <button class="triage-acc-btn" id="acc-btn-w5"
+                      aria-expanded="false" aria-controls="narrative-w5"
+                      onclick="event.preventDefault();event.stopPropagation();toggleNarrative('w5')">▼詳細</button>
+            </a>
+            <div class="triage-headline">在院86%(▲6.6人) ← 新入院83%(▲4.0人)</div>
+            <div class="triage-narrative" id="narrative-w5" hidden
+                 role="region" aria-label="8階A病棟 詳細">
+              <div class="triage-obs">🤖 在院患者数は39人で、目標の45.6人を下回っています。新入院は19人で、目標の23人に届いていません。</div>
+              <div class="triage-sug">新入院・紹介患者の確保を強化し、在院患者数の増加を目指してください。</div>
+            </div>
+            
+          </div>
+          
+          <div class="triage-item mid">
+            
+            <a class="triage-item-row" href="dept.html#ICU"
+               onclick="event.preventDefault();toggleNarrative('w6');location.href='dept.html#ICU'">
+              <span class="pri-dot mid" aria-label="優先度 mid"></span>
+              <span class="triage-name">ICU</span>
+              
+              <span class="streak-chip" title="連続して要注視">3日連続</span>
+              
+              <button class="triage-acc-btn" id="acc-btn-w6"
+                      aria-expanded="false" aria-controls="narrative-w6"
+                      onclick="event.preventDefault();event.stopPropagation();toggleNarrative('w6')">▼詳細</button>
+            </a>
+            <div class="triage-headline">在院88%(▲0.7人) ← 新入院67%(▲5.0人)</div>
+            <div class="triage-narrative" id="narrative-w6" hidden
+                 role="region" aria-label="ICU 詳細">
+              <div class="triage-obs">🤖 在院患者数は目標を0.7人下回る。新入院は目標の67%。</div>
+              <div class="triage-sug">新入院・紹介患者の確保を強化し、目標達成を目指す。</div>
+            </div>
+            
+          </div>
+          
+          <div class="triage-item mid">
+            
+            <a class="triage-item-row" href="dept.html#9階B病棟"
+               onclick="event.preventDefault();toggleNarrative('w7');location.href='dept.html#9階B病棟'">
+              <span class="pri-dot mid" aria-label="優先度 mid"></span>
+              <span class="triage-name">9階B病棟</span>
+              
+              <span class="streak-chip" title="連続して要注視">3日連続</span>
+              
+              <button class="triage-acc-btn" id="acc-btn-w7"
+                      aria-expanded="false" aria-controls="narrative-w7"
+                      onclick="event.preventDefault();event.stopPropagation();toggleNarrative('w7')">▼詳細</button>
+            </a>
+            <div class="triage-headline">在院88%(▲5.5人) ← 新入院96%(▲1.0人)</div>
+            <div class="triage-narrative" id="narrative-w7" hidden
+                 role="region" aria-label="9階B病棟 詳細">
+              <div class="triage-obs">🤖 在院患者数は目標47.5人に対し42人（達成率88%）。新入院は目標26人に対し25人（達成率96%）。</div>
+              <div class="triage-sug">新入院・紹介患者の確保を強化し、在院患者数の増加を目指す。</div>
+            </div>
+            
+          </div>
+          
+          <div class="triage-item mid">
+            
+            <a class="triage-item-row" href="dept.html#6階B病棟"
+               onclick="event.preventDefault();toggleNarrative('w8');location.href='dept.html#6階B病棟'">
+              <span class="pri-dot mid" aria-label="優先度 mid"></span>
+              <span class="triage-name">6階B病棟</span>
+              
+              <span class="streak-chip" title="連続して要注視">3日連続</span>
+              
+              <button class="triage-acc-btn" id="acc-btn-w8"
+                      aria-expanded="false" aria-controls="narrative-w8"
+                      onclick="event.preventDefault();event.stopPropagation();toggleNarrative('w8')">▼詳細</button>
+            </a>
+            <div class="triage-headline">在院90%(▲4.5人) ← 新入院109%(+3.0人)　↘達成中だが悪化傾向</div>
+            <div class="triage-narrative" id="narrative-w8" hidden
+                 role="region" aria-label="6階B病棟 詳細">
+              <div class="triage-obs">🤖 在院患者数は目標47.5人に対し43人で、90%の達成率です。新入院は目標を3人上回る36人でしたが、直近7日間では前週比で1人減少しています。</div>
+              <div class="triage-sug">新入院・紹介患者の安定的な確保と、直近の新入院減少要因の点検を推奨します。</div>
             </div>
             
           </div>
@@ -441,27 +579,27 @@ h4{font-weight:var(--jp-head)!important}
       <div id="triage-ward-improvement" class="triage-panel" role="tabpanel" hidden>
         
           
-          <a class="imp-row" href="dept.html#2階A病棟">
+          <a class="imp-row" href="dept.html#7階B病棟">
             <span class="imp-rank">1</span>
+            <span class="imp-name">7階B病棟</span>
+            <span style="font-size:12px;color:var(--sub)">在院</span>
+            <span class="imp-delta">+6人</span>
+            <span class="imp-compare">前週同曜日比</span>
+          </a>
+          
+          <a class="imp-row" href="dept.html#2階A病棟">
+            <span class="imp-rank">2</span>
             <span class="imp-name">2階A病棟</span>
             <span style="font-size:12px;color:var(--sub)">在院</span>
-            <span class="imp-delta">+6人</span>
-            <span class="imp-compare">前週同曜日比</span>
-          </a>
-          
-          <a class="imp-row" href="dept.html#8階B病棟">
-            <span class="imp-rank">2</span>
-            <span class="imp-name">8階B病棟</span>
-            <span style="font-size:12px;color:var(--sub)">在院</span>
-            <span class="imp-delta">+6人</span>
-            <span class="imp-compare">前週同曜日比</span>
-          </a>
-          
-          <a class="imp-row" href="dept.html#3階A病棟">
-            <span class="imp-rank">3</span>
-            <span class="imp-name">3階A病棟</span>
-            <span style="font-size:12px;color:var(--sub)">在院</span>
             <span class="imp-delta">+5人</span>
+            <span class="imp-compare">前週同曜日比</span>
+          </a>
+          
+          <a class="imp-row" href="dept.html#HCU">
+            <span class="imp-rank">3</span>
+            <span class="imp-name">HCU</span>
+            <span style="font-size:12px;color:var(--sub)">在院</span>
+            <span class="imp-delta">+1人</span>
             <span class="imp-compare">前週同曜日比</span>
           </a>
           
@@ -472,37 +610,20 @@ h4{font-weight:var(--jp-head)!important}
         <p class="triage-leveling-note">🚪 退院が週後半（特に土曜）に偏り、月曜が谷の病棟。<b>土曜→月曜の付け替え</b>で平準化（総退院数・在院は維持）。</p>
         
           
-          <div class="triage-item mid">
+          <div class="triage-item low">
             <a class="triage-item-row" href="dept.html#6階A病棟"
                onclick="event.preventDefault();toggleNarrative('wl1');location.href='dept.html#6階A病棟'">
-              <span class="pri-dot mid" aria-label="優先度 mid"></span>
+              <span class="pri-dot low" aria-label="優先度 low"></span>
               <span class="triage-name">6階A病棟</span>
               <button class="triage-acc-btn" id="acc-btn-wl1"
                       aria-expanded="false" aria-controls="narrative-wl1"
                       onclick="event.preventDefault();event.stopPropagation();toggleNarrative('wl1')">▼詳細</button>
             </a>
-            <div class="triage-headline">土19% / 月8% / 再配分34%（週9件）</div>
+            <div class="triage-headline">土16% / 月6% / 再配分31%（週8件）↘改善</div>
             <div class="triage-narrative" id="narrative-wl1" hidden
                  role="region" aria-label="6階A病棟 曜日偏在">
-              <div class="triage-obs">🤖 土曜・金曜に退院が集中し、月曜は低い傾向です。</div>
-              <div class="triage-sug">土曜の退院予定を月曜へ前倒しし、週末に退院準備を進めることで、曜日平準化を図りましょう。</div>
-            </div>
-          </div>
-          
-          <div class="triage-item low">
-            <a class="triage-item-row" href="dept.html#2階A病棟"
-               onclick="event.preventDefault();toggleNarrative('wl2');location.href='dept.html#2階A病棟'">
-              <span class="pri-dot low" aria-label="優先度 low"></span>
-              <span class="triage-name">2階A病棟</span>
-              <button class="triage-acc-btn" id="acc-btn-wl2"
-                      aria-expanded="false" aria-controls="narrative-wl2"
-                      onclick="event.preventDefault();event.stopPropagation();toggleNarrative('wl2')">▼詳細</button>
-            </a>
-            <div class="triage-headline">土16% / 月7% / 再配分30%（週9件）</div>
-            <div class="triage-narrative" id="narrative-wl2" hidden
-                 role="region" aria-label="2階A病棟 曜日偏在">
-              <div class="triage-obs">🤖 退院が土曜・金曜に集中し、月曜は低い傾向にあります。</div>
-              <div class="triage-sug">土曜の退院予定を月曜へ前倒しし、週末の退院準備を強化することで、曜日平準化を目指します。</div>
+              <div class="triage-obs">🤖 退院が土曜・金曜に集中し、月曜は低い状況。改善傾向が見られる。</div>
+              <div class="triage-sug">土曜の退院予定を月曜へ付け替え、週末の退院準備を前倒しすることで、月曜日の退院枠を確保する。</div>
             </div>
           </div>
           
@@ -529,45 +650,47 @@ h4{font-weight:var(--jp-head)!important}
           <div class="triage-group-label">内科系 ｜ 目標: <span class="goal">在院患者数 ↑</span></div>
           
             
-  <div class="triage-item mid">
+  <div class="triage-item high">
     
-    <a class="triage-item-row" href="dept.html#救急科"
-       onclick="event.preventDefault();toggleNarrative('di1');location.href='dept.html#救急科'">
-      <span class="pri-dot mid" aria-label="優先度 mid"></span>
-      <span class="triage-name">救急科</span>
+    <a class="triage-item-row" href="dept.html#消化器内科"
+       onclick="event.preventDefault();toggleNarrative('di1');location.href='dept.html#消化器内科'">
+      <span class="pri-dot high" aria-label="優先度 high"></span>
+      <span class="triage-name">消化器内科</span>
       
-      <span class="triage-trend up" title="改善傾向">↗</span>
+      <span class="streak-chip" title="連続して要注視">10日連続</span>
+      
+      <span class="triage-trend down" title="悪化傾向">↘</span>
       <button class="triage-acc-btn" id="acc-btn-di1"
               aria-expanded="false" aria-controls="narrative-di1"
               onclick="event.preventDefault();event.stopPropagation();toggleNarrative('di1')">▼詳細</button>
     </a>
-    <div class="triage-headline">在院76%(▲6.0人) ← 新入院79%(▲6.8人)　↗改善傾向</div>
+    <div class="triage-headline">在院65%(▲15.0人) ← 新入院60%(▲9.3人)　↘悪化傾向</div>
     <div class="triage-narrative" id="narrative-di1" hidden
-         role="region" aria-label="救急科 詳細">
-      <div class="triage-obs">🤖 在院患者数は目標達成率76%。新入院は目標達成率79%。前週比で新入院が減少。</div>
-      <div class="triage-sug">新入院・紹介患者の確保を強化し、在院患者数増加の勢いを維持・加速する。</div>
+         role="region" aria-label="消化器内科 詳細">
+      <div class="triage-obs">🤖 在院患者数は28人で、目標43.0人に対し65%の達成率です。新入院は14人で目標23.3人に対し60%です。</div>
+      <div class="triage-sug">新入院・紹介患者の確保を強化し、在院患者数の増加を目指してください。</div>
     </div>
     
   </div>
   
-  <div class="triage-item mid">
+  <div class="triage-item high">
     
-    <a class="triage-item-row" href="dept.html#消化器内科"
-       onclick="event.preventDefault();toggleNarrative('di2');location.href='dept.html#消化器内科'">
-      <span class="pri-dot mid" aria-label="優先度 mid"></span>
-      <span class="triage-name">消化器内科</span>
+    <a class="triage-item-row" href="dept.html#リウマチ膠原病内科"
+       onclick="event.preventDefault();toggleNarrative('di2');location.href='dept.html#リウマチ膠原病内科'">
+      <span class="pri-dot high" aria-label="優先度 high"></span>
+      <span class="triage-name">リウマチ膠原病内科</span>
       
-      <span class="streak-chip" title="連続して要注視">6日連続</span>
+      <span class="streak-chip" title="連続して要注視">14日以上</span>
       
       <span class="triage-trend down" title="悪化傾向">↘</span>
       <button class="triage-acc-btn" id="acc-btn-di2"
               aria-expanded="false" aria-controls="narrative-di2"
               onclick="event.preventDefault();event.stopPropagation();toggleNarrative('di2')">▼詳細</button>
     </a>
-    <div class="triage-headline">在院84%(▲7.0人) ← 新入院64%(▲8.3人)　↘悪化傾向</div>
+    <div class="triage-headline">在院71%(▲4.0人) ← 新入院81%(▲0.7人)　↘悪化傾向</div>
     <div class="triage-narrative" id="narrative-di2" hidden
-         role="region" aria-label="消化器内科 詳細">
-      <div class="triage-obs">🤖 在院患者数は目標の84%で、7人不足しています。新入院は目標の64%で、8.3人不足しています。</div>
+         role="region" aria-label="リウマチ膠原病内科 詳細">
+      <div class="triage-obs">🤖 在院患者数は目標の14.0人に対し10人と、達成率71%です。新入院は目標3.7人に対し3人と、達成率81%です。</div>
       <div class="triage-sug">新入院・紹介患者の確保を強化し、在院患者数の増加を目指してください。</div>
     </div>
     
@@ -580,83 +703,41 @@ h4{font-weight:var(--jp-head)!important}
       <span class="pri-dot mid" aria-label="優先度 mid"></span>
       <span class="triage-name">脳神経内科</span>
       
+      <span class="streak-chip" title="連続して要注視">5日連続</span>
+      
       <span class="triage-trend down" title="悪化傾向">↘</span>
       <button class="triage-acc-btn" id="acc-btn-di3"
               aria-expanded="false" aria-controls="narrative-di3"
               onclick="event.preventDefault();event.stopPropagation();toggleNarrative('di3')">▼詳細</button>
     </a>
-    <div class="triage-headline">在院85%(▲3.0人) ← 新入院143%(+1.5人)　↘悪化傾向</div>
+    <div class="triage-headline">在院80%(▲4.0人) ← 新入院86%(▲0.5人)　↘悪化傾向</div>
     <div class="triage-narrative" id="narrative-di3" hidden
          role="region" aria-label="脳神経内科 詳細">
-      <div class="triage-obs">🤖 在院患者数は17人で、目標20.0人に対し85%の達成率です。新入院は5人で目標を143%達成しています。</div>
-      <div class="triage-sug">新入院・紹介患者の確保を強化し、在院患者数の増加を目指してください。</div>
+      <div class="triage-obs">🤖 在院患者数は16人で、目標20.0人に対し80%の達成率。新入院は3人で目標3.5人に対し86%の達成率。粗利は96%。</div>
+      <div class="triage-sug">新入院・紹介患者の確保を強化し、在院患者数増加を目指す。</div>
     </div>
     
   </div>
   
   <div class="triage-item mid">
     
-    <a class="triage-item-row" href="dept.html#リウマチ膠原病内科"
-       onclick="event.preventDefault();toggleNarrative('di4');location.href='dept.html#リウマチ膠原病内科'">
+    <a class="triage-item-row" href="dept.html#循環器内科"
+       onclick="event.preventDefault();toggleNarrative('di4');location.href='dept.html#循環器内科'">
       <span class="pri-dot mid" aria-label="優先度 mid"></span>
-      <span class="triage-name">リウマチ膠原病内科</span>
+      <span class="triage-name">循環器内科</span>
       
-      <span class="streak-chip" title="連続して要注視">14日以上</span>
+      <span class="streak-chip" title="連続して要注視">4日連続</span>
       
-      <span class="triage-trend down" title="悪化傾向">↘</span>
+      
       <button class="triage-acc-btn" id="acc-btn-di4"
               aria-expanded="false" aria-controls="narrative-di4"
               onclick="event.preventDefault();event.stopPropagation();toggleNarrative('di4')">▼詳細</button>
     </a>
-    <div class="triage-headline">在院86%(▲2.0人) ← 新入院108%(+0.3人)　↘悪化傾向</div>
+    <div class="triage-headline">在院86%(▲5.0人) ← 新入院103%(+0.7人)</div>
     <div class="triage-narrative" id="narrative-di4" hidden
-         role="region" aria-label="リウマチ膠原病内科 詳細">
-      <div class="triage-obs">🤖 在院患者数は12人で、目標14.0人に対し86%の達成率です。新入院は4人で目標を上回っていますが、前週比で1人減少しています。</div>
-      <div class="triage-sug">新入院・紹介患者の確保を強化し、在院患者数の増加を目指してください。</div>
-    </div>
-    
-  </div>
-  
-  <div class="triage-item low">
-    
-    <a class="triage-item-row" href="dept.html#腎内科"
-       onclick="event.preventDefault();toggleNarrative('di5');location.href='dept.html#腎内科'">
-      <span class="pri-dot low" aria-label="優先度 low"></span>
-      <span class="triage-name">腎内科</span>
-      
-      <span class="triage-trend up" title="改善傾向">↗</span>
-      <button class="triage-acc-btn" id="acc-btn-di5"
-              aria-expanded="false" aria-controls="narrative-di5"
-              onclick="event.preventDefault();event.stopPropagation();toggleNarrative('di5')">▼詳細</button>
-    </a>
-    <div class="triage-headline">在院88%(▲2.0人) ← 新入院120%(+1.8人)　↗改善傾向</div>
-    <div class="triage-narrative" id="narrative-di5" hidden
-         role="region" aria-label="腎内科 詳細">
-      <div class="triage-obs">🤖 在院患者数は目標に未達だが、新入院は目標を上回る実績。</div>
-      <div class="triage-sug">新入院・紹介患者の確保を継続し、勢いを維持・加速させてください。</div>
-    </div>
-    
-  </div>
-  
-  <div class="triage-item mid">
-    
-    <a class="triage-item-row" href="dept.html#総合内科"
-       onclick="event.preventDefault();toggleNarrative('di6');location.href='dept.html#総合内科'">
-      <span class="pri-dot mid" aria-label="優先度 mid"></span>
-      <span class="triage-name">総合内科</span>
-      
-      <span class="streak-chip" title="連続して要注視">10日連続</span>
-      
-      <span class="triage-trend down" title="悪化傾向">↘</span>
-      <button class="triage-acc-btn" id="acc-btn-di6"
-              aria-expanded="false" aria-controls="narrative-di6"
-              onclick="event.preventDefault();event.stopPropagation();toggleNarrative('di6')">▼詳細</button>
-    </a>
-    <div class="triage-headline">在院88%(▲13.0人) ← 新入院92%(▲3.9人)　↘悪化傾向</div>
-    <div class="triage-narrative" id="narrative-di6" hidden
-         role="region" aria-label="総合内科 詳細">
-      <div class="triage-obs">🤖 在院患者数は97人で、目標110人に対し88%の達成率です。新入院は48人で目標51.9人に対し92%です。</div>
-      <div class="triage-sug">新入院・紹介患者の確保を強化し、在院患者数の増加を目指してください。</div>
+         role="region" aria-label="循環器内科 詳細">
+      <div class="triage-obs">🤖 在院患者数は30人で、目標35.0人に対し86%の達成率です。新入院は24人で目標を上回っていますが、前週比で減少しています。</div>
+      <div class="triage-sug">新入院の増加を維持し、紹介患者数の確保に努めてください。</div>
     </div>
     
   </div>
@@ -667,23 +748,23 @@ h4{font-weight:var(--jp-head)!important}
             
   <div class="triage-item high">
     
-    <a class="triage-item-row" href="dept.html#形成外科"
-       onclick="event.preventDefault();toggleNarrative('ds1');location.href='dept.html#形成外科'">
+    <a class="triage-item-row" href="dept.html#心臓血管外科"
+       onclick="event.preventDefault();toggleNarrative('ds1');location.href='dept.html#心臓血管外科'">
       <span class="pri-dot high" aria-label="優先度 high"></span>
-      <span class="triage-name">形成外科</span>
+      <span class="triage-name">心臓血管外科</span>
       
-      <span class="streak-chip" title="連続して要注視">14日以上</span>
+      <span class="streak-chip" title="連続して要注視">2日連続</span>
       
-      
+      <span class="triage-trend down" title="悪化傾向">↘</span>
       <button class="triage-acc-btn" id="acc-btn-ds1"
               aria-expanded="false" aria-controls="narrative-ds1"
               onclick="event.preventDefault();event.stopPropagation();toggleNarrative('ds1')">▼詳細</button>
     </a>
-    <div class="triage-headline">全麻71%(▲0.8件) ｜ 在院100%・新入院54%</div>
+    <div class="triage-headline">全麻48%(▲1.1件) ｜ 在院125%・新入院36%　↘悪化傾向</div>
     <div class="triage-narrative" id="narrative-ds1" hidden
-         role="region" aria-label="形成外科 詳細">
-      <div class="triage-obs">🤖 全身麻酔手術は2件で、目標2.8件に対し71%の達成率です。新入院は2人で、目標3.7人に対し54%です。在院患者数は目標を上回っています。</div>
-      <div class="triage-sug">手術枠の活用・予約調整を強化し、手術件数の増加を目指してください。</div>
+         role="region" aria-label="心臓血管外科 詳細">
+      <div class="triage-obs">🤖 全身麻酔手術は目標の48%、新入院は目標の36%と低迷。在院患者は目標を上回る。</div>
+      <div class="triage-sug">手術枠の活用・予約調整を強化し、全身麻酔手術件数の増加を図る。</div>
     </div>
     
   </div>
@@ -695,16 +776,150 @@ h4{font-weight:var(--jp-head)!important}
       <span class="pri-dot high" aria-label="優先度 high"></span>
       <span class="triage-name">産婦人科</span>
       
+      <span class="streak-chip" title="連続して要注視">5日連続</span>
+      
       
       <button class="triage-acc-btn" id="acc-btn-ds2"
               aria-expanded="false" aria-controls="narrative-ds2"
               onclick="event.preventDefault();event.stopPropagation();toggleNarrative('ds2')">▼詳細</button>
     </a>
-    <div class="triage-headline">全麻72%(▲3.5件) ｜ 在院112%・新入院97%</div>
+    <div class="triage-headline">全麻56%(▲5.5件) ｜ 在院100%・新入院87%</div>
     <div class="triage-narrative" id="narrative-ds2" hidden
          role="region" aria-label="産婦人科 詳細">
-      <div class="triage-obs">🤖 全身麻酔手術は目標12.5件に対し9件（72%）と未達。新入院は目標32.1件に対し31件（97%）。在院患者は目標33.0人を上回る37人。</div>
-      <div class="triage-sug">手術枠の活用・予約調整を強化し、全身麻酔手術件数の増加を図る。</div>
+      <div class="triage-obs">🤖 全身麻酔手術は実績7件で、目標12.5件に対し56%の達成率です。新入院は28件で目標32.1件に対し87%です。在院患者数は目標を上回っています。</div>
+      <div class="triage-sug">手術枠の活用・予約調整を強化し、全身麻酔手術件数の増加を目指してください。</div>
+    </div>
+    
+  </div>
+  
+  <div class="triage-item mid">
+    
+    <a class="triage-item-row" href="dept.html#脳神経外科"
+       onclick="event.preventDefault();toggleNarrative('ds3');location.href='dept.html#脳神経外科'">
+      <span class="pri-dot mid" aria-label="優先度 mid"></span>
+      <span class="triage-name">脳神経外科</span>
+      
+      <span class="triage-trend up" title="改善傾向">↗</span>
+      <button class="triage-acc-btn" id="acc-btn-ds3"
+              aria-expanded="false" aria-controls="narrative-ds3"
+              onclick="event.preventDefault();event.stopPropagation();toggleNarrative('ds3')">▼詳細</button>
+    </a>
+    <div class="triage-headline">全麻67%(▲1.0件) ｜ 在院76%・新入院77%　↗改善傾向</div>
+    <div class="triage-narrative" id="narrative-ds3" hidden
+         role="region" aria-label="脳神経外科 詳細">
+      <div class="triage-obs">🤖 全身麻酔手術は実績2件で目標3件に未達。新入院は目標を下回る1人減少。粗利は106%。</div>
+      <div class="triage-sug">手術枠の活用・予約調整を強化し、全身麻酔手術件数の増加を目指す。新入院の減少要因を分析し、集患策を検討する。</div>
+    </div>
+    
+  </div>
+  
+  <div class="triage-item mid">
+    
+    <a class="triage-item-row" href="dept.html#呼吸器外科"
+       onclick="event.preventDefault();toggleNarrative('ds4');location.href='dept.html#呼吸器外科'">
+      <span class="pri-dot mid" aria-label="優先度 mid"></span>
+      <span class="triage-name">呼吸器外科</span>
+      
+      <span class="streak-chip" title="連続して要注視">4日連続</span>
+      
+      <span class="triage-trend up" title="改善傾向">↗</span>
+      <button class="triage-acc-btn" id="acc-btn-ds4"
+              aria-expanded="false" aria-controls="narrative-ds4"
+              onclick="event.preventDefault();event.stopPropagation();toggleNarrative('ds4')">▼詳細</button>
+    </a>
+    <div class="triage-headline">全麻71%(▲0.8件) ｜ 在院80%・新入院107%　↗改善傾向</div>
+    <div class="triage-narrative" id="narrative-ds4" hidden
+         role="region" aria-label="呼吸器外科 詳細">
+      <div class="triage-obs">🤖 全身麻酔手術は71%の達成率。新入院は目標を上回る3件を記録。粗利は136%と好調。</div>
+      <div class="triage-sug">手術枠の活用・予約調整を強化し、全身麻酔手術件数の増加を目指す。新入院の勢いを維持し、更なる増加を促す。</div>
+    </div>
+    
+  </div>
+  
+  <div class="triage-item high">
+    
+    <a class="triage-item-row" href="dept.html#形成外科"
+       onclick="event.preventDefault();toggleNarrative('ds5');location.href='dept.html#形成外科'">
+      <span class="pri-dot high" aria-label="優先度 high"></span>
+      <span class="triage-name">形成外科</span>
+      
+      <span class="streak-chip" title="連続して要注視">14日以上</span>
+      
+      
+      <button class="triage-acc-btn" id="acc-btn-ds5"
+              aria-expanded="false" aria-controls="narrative-ds5"
+              onclick="event.preventDefault();event.stopPropagation();toggleNarrative('ds5')">▼詳細</button>
+    </a>
+    <div class="triage-headline">全麻71%(▲0.8件) ｜ 在院75%・新入院54%</div>
+    <div class="triage-narrative" id="narrative-ds5" hidden
+         role="region" aria-label="形成外科 詳細">
+      <div class="triage-obs">🤖 全身麻酔手術は目標2.8件に対し2件、在院患者は目標4.0人に対し3人。新入院は目標3.7人に対し2人。</div>
+      <div class="triage-sug">手術枠の活用・予約調整を強化し、手術件数の増加を目指す。</div>
+    </div>
+    
+  </div>
+  
+  <div class="triage-item high">
+    
+    <a class="triage-item-row" href="dept.html#眼科"
+       onclick="event.preventDefault();toggleNarrative('ds6');location.href='dept.html#眼科'">
+      <span class="pri-dot high" aria-label="優先度 high"></span>
+      <span class="triage-name">眼科</span>
+      
+      <span class="streak-chip" title="連続して要注視">4日連続</span>
+      
+      
+      <button class="triage-acc-btn" id="acc-btn-ds6"
+              aria-expanded="false" aria-controls="narrative-ds6"
+              onclick="event.preventDefault();event.stopPropagation();toggleNarrative('ds6')">▼詳細</button>
+    </a>
+    <div class="triage-headline">手術74%(▲27.0件) ｜ 在院146%・新入院126%</div>
+    <div class="triage-narrative" id="narrative-ds6" hidden
+         role="region" aria-label="眼科 詳細">
+      <div class="triage-obs">🤖 全手術は目標を下回る。新入院は目標を上回る。</div>
+      <div class="triage-sug">手術枠の活用・予約調整を強化し、手術件数増加を目指す。</div>
+    </div>
+    
+  </div>
+  
+  <div class="triage-item high">
+    
+    <a class="triage-item-row" href="dept.html#耳鼻咽喉科"
+       onclick="event.preventDefault();toggleNarrative('ds7');location.href='dept.html#耳鼻咽喉科'">
+      <span class="pri-dot high" aria-label="優先度 high"></span>
+      <span class="triage-name">耳鼻咽喉科</span>
+      
+      
+      <button class="triage-acc-btn" id="acc-btn-ds7"
+              aria-expanded="false" aria-controls="narrative-ds7"
+              onclick="event.preventDefault();event.stopPropagation();toggleNarrative('ds7')">▼詳細</button>
+    </a>
+    <div class="triage-headline">全麻79%(▲1.6件) ｜ 在院109%・新入院77%</div>
+    <div class="triage-narrative" id="narrative-ds7" hidden
+         role="region" aria-label="耳鼻咽喉科 詳細">
+      <div class="triage-obs">🤖 全身麻酔手術は79%の達成率。新入院は前週比+2人。</div>
+      <div class="triage-sug">手術枠の活用と予約調整を強化し、手術件数の増加を目指す。</div>
+    </div>
+    
+  </div>
+  
+  <div class="triage-item high">
+    
+    <a class="triage-item-row" href="dept.html#一般消化器外科"
+       onclick="event.preventDefault();toggleNarrative('ds8');location.href='dept.html#一般消化器外科'">
+      <span class="pri-dot high" aria-label="優先度 high"></span>
+      <span class="triage-name">一般消化器外科</span>
+      
+      
+      <button class="triage-acc-btn" id="acc-btn-ds8"
+              aria-expanded="false" aria-controls="narrative-ds8"
+              onclick="event.preventDefault();event.stopPropagation();toggleNarrative('ds8')">▼詳細</button>
+    </a>
+    <div class="triage-headline">全麻80%(▲2.8件) ｜ 在院83%・新入院94%</div>
+    <div class="triage-narrative" id="narrative-ds8" hidden
+         role="region" aria-label="一般消化器外科 詳細">
+      <div class="triage-obs">🤖 全身麻酔手術は80%の達成率。新入院は94%と堅調だが、在院患者数は7人不足。</div>
+      <div class="triage-sug">手術枠の活用・予約調整を強化し、手術件数の増加を図る。</div>
     </div>
     
   </div>
@@ -712,22 +927,22 @@ h4{font-weight:var(--jp-head)!important}
   <div class="triage-item mid">
     
     <a class="triage-item-row" href="dept.html#歯科口腔外科"
-       onclick="event.preventDefault();toggleNarrative('ds3');location.href='dept.html#歯科口腔外科'">
+       onclick="event.preventDefault();toggleNarrative('ds9');location.href='dept.html#歯科口腔外科'">
       <span class="pri-dot mid" aria-label="優先度 mid"></span>
       <span class="triage-name">歯科口腔外科</span>
       
-      <span class="streak-chip" title="連続して要注視">7日連続</span>
+      <span class="streak-chip" title="連続して要注視">11日連続</span>
       
       <span class="triage-trend down" title="悪化傾向">↘</span>
-      <button class="triage-acc-btn" id="acc-btn-ds3"
-              aria-expanded="false" aria-controls="narrative-ds3"
-              onclick="event.preventDefault();event.stopPropagation();toggleNarrative('ds3')">▼詳細</button>
+      <button class="triage-acc-btn" id="acc-btn-ds9"
+              aria-expanded="false" aria-controls="narrative-ds9"
+              onclick="event.preventDefault();event.stopPropagation();toggleNarrative('ds9')">▼詳細</button>
     </a>
-    <div class="triage-headline">全麻81%(▲0.7件) ｜ 在院125%・新入院91%　↘悪化傾向</div>
-    <div class="triage-narrative" id="narrative-ds3" hidden
+    <div class="triage-headline">全麻81%(▲0.7件) ｜ 在院75%・新入院91%　↘悪化傾向</div>
+    <div class="triage-narrative" id="narrative-ds9" hidden
          role="region" aria-label="歯科口腔外科 詳細">
-      <div class="triage-obs">🤖 全身麻酔手術は目標3.7件に対し3件（達成率81%）。新入院は目標4.4件に対し4件（達成率91%）。在院患者は目標4.0人を上回る5人。</div>
-      <div class="triage-sug">手術枠の活用・予約調整を強化し、全身麻酔手術件数の増加を目指す。</div>
+      <div class="triage-obs">🤖 全身麻酔手術は81%の達成率。新入院は91%と堅調だが、在院患者数が75%と目標に届いていない。</div>
+      <div class="triage-sug">手術枠の活用・予約調整を強化し、全身麻酔手術件数の増加を図る。</div>
     </div>
     
   </div>
@@ -735,22 +950,22 @@ h4{font-weight:var(--jp-head)!important}
   <div class="triage-item mid">
     
     <a class="triage-item-row" href="dept.html#乳腺外科"
-       onclick="event.preventDefault();toggleNarrative('ds4');location.href='dept.html#乳腺外科'">
+       onclick="event.preventDefault();toggleNarrative('ds10');location.href='dept.html#乳腺外科'">
       <span class="pri-dot mid" aria-label="優先度 mid"></span>
       <span class="triage-name">乳腺外科</span>
       
       <span class="streak-chip" title="連続して要注視">14日以上</span>
       
       <span class="triage-trend down" title="悪化傾向">↘</span>
-      <button class="triage-acc-btn" id="acc-btn-ds4"
-              aria-expanded="false" aria-controls="narrative-ds4"
-              onclick="event.preventDefault();event.stopPropagation();toggleNarrative('ds4')">▼詳細</button>
+      <button class="triage-acc-btn" id="acc-btn-ds10"
+              aria-expanded="false" aria-controls="narrative-ds10"
+              onclick="event.preventDefault();event.stopPropagation();toggleNarrative('ds10')">▼詳細</button>
     </a>
-    <div class="triage-headline">全麻99%(▲0.1件) ｜ 在院120%・新入院63%　↘達成中だが悪化傾向</div>
-    <div class="triage-narrative" id="narrative-ds4" hidden
+    <div class="triage-headline">全麻99%(▲0.1件) ｜ 在院32%・新入院42%　↘達成中だが悪化傾向</div>
+    <div class="triage-narrative" id="narrative-ds10" hidden
          role="region" aria-label="乳腺外科 詳細">
-      <div class="triage-obs">🤖 全身麻酔手術は目標を達成したものの、直近で実績が減少傾向にあります。在院患者数は目標を上回っています。</div>
-      <div class="triage-sug">手術枠の活用状況を確認し、予約調整を徹底することで、手術件数の維持・向上を目指してください。</div>
+      <div class="triage-obs">🤖 全身麻酔手術は目標を達成しましたが、新入院と在院患者数は目標を下回っています。在院患者数は前週比で減少しています。</div>
+      <div class="triage-sug">手術枠の活用と予約調整を徹底し、全身麻酔手術件数の維持・増加を図ってください。新入院と紹介患者の確保に注力し、在院患者数の増加を目指しましょう。</div>
     </div>
     
   </div>
@@ -764,27 +979,27 @@ h4{font-weight:var(--jp-head)!important}
           <div class="triage-group-label">内科系 ｜ <span class="goal">在院の伸び</span></div>
           
             
-            <a class="imp-row" href="dept.html#呼吸器内科">
+            <a class="imp-row" href="dept.html#総合内科">
               <span class="imp-rank">1</span>
-              <span class="imp-name">呼吸器内科</span>
+              <span class="imp-name">総合内科</span>
+              <span style="font-size:12px;color:var(--sub)">在院</span>
+              <span class="imp-delta">+17人</span>
+              <span class="imp-compare">前週同曜日比</span>
+            </a>
+            
+            <a class="imp-row" href="dept.html#救急科">
+              <span class="imp-rank">2</span>
+              <span class="imp-name">救急科</span>
               <span style="font-size:12px;color:var(--sub)">在院</span>
               <span class="imp-delta">+8人</span>
               <span class="imp-compare">前週同曜日比</span>
             </a>
             
-            <a class="imp-row" href="dept.html#総合内科">
-              <span class="imp-rank">2</span>
-              <span class="imp-name">総合内科</span>
-              <span style="font-size:12px;color:var(--sub)">在院</span>
-              <span class="imp-delta">+6人</span>
-              <span class="imp-compare">前週同曜日比</span>
-            </a>
-            
-            <a class="imp-row" href="dept.html#小児科">
+            <a class="imp-row" href="dept.html#腎内科">
               <span class="imp-rank">3</span>
-              <span class="imp-name">小児科</span>
+              <span class="imp-name">腎内科</span>
               <span style="font-size:12px;color:var(--sub)">在院</span>
-              <span class="imp-delta">+5人</span>
+              <span class="imp-delta">+2人</span>
               <span class="imp-compare">前週同曜日比</span>
             </a>
             
@@ -792,27 +1007,27 @@ h4{font-weight:var(--jp-head)!important}
           <div class="triage-group-label">外科系 ｜ <span class="goal">手術の伸び</span></div>
           
             
-            <a class="imp-row" href="dept.html#一般消化器外科">
-              <span class="imp-rank">1</span>
-              <span class="imp-name">一般消化器外科</span>
-              <span style="font-size:12px;color:var(--sub)">全麻</span>
-              <span class="imp-delta">+10件</span>
-              <span class="imp-compare">前週比（7日累計）</span>
-            </a>
-            
             <a class="imp-row" href="dept.html#乳腺外科">
-              <span class="imp-rank">2</span>
+              <span class="imp-rank">1</span>
               <span class="imp-name">乳腺外科</span>
               <span style="font-size:12px;color:var(--sub)">全麻</span>
               <span class="imp-delta">+3件</span>
               <span class="imp-compare">前週比（7日累計）</span>
             </a>
             
-            <a class="imp-row" href="dept.html#耳鼻咽喉科">
-              <span class="imp-rank">3</span>
-              <span class="imp-name">耳鼻咽喉科</span>
+            <a class="imp-row" href="dept.html#形成外科">
+              <span class="imp-rank">2</span>
+              <span class="imp-name">形成外科</span>
               <span style="font-size:12px;color:var(--sub)">全麻</span>
-              <span class="imp-delta">+2件</span>
+              <span class="imp-delta">+1件</span>
+              <span class="imp-compare">前週比（7日累計）</span>
+            </a>
+            
+            <a class="imp-row" href="dept.html#皮膚科">
+              <span class="imp-rank">3</span>
+              <span class="imp-name">皮膚科</span>
+              <span style="font-size:12px;color:var(--sub)">全麻</span>
+              <span class="imp-delta">+1件</span>
               <span class="imp-compare">前週比（7日累計）</span>
             </a>
             
@@ -824,71 +1039,54 @@ h4{font-weight:var(--jp-head)!important}
         <p class="triage-leveling-note">🚪 退院が週後半（特に土曜）に偏り、月曜が谷の診療科。<b>土曜→月曜の付け替え</b>で平準化（総退院数・在院は維持）。</p>
         
           
-          <div class="triage-item mid">
-            <a class="triage-item-row" href="dept.html#循環器内科"
-               onclick="event.preventDefault();toggleNarrative('dl1');location.href='dept.html#循環器内科'">
-              <span class="pri-dot mid" aria-label="優先度 mid"></span>
-              <span class="triage-name">循環器内科</span>
+          <div class="triage-item high">
+            <a class="triage-item-row" href="dept.html#乳腺外科"
+               onclick="event.preventDefault();toggleNarrative('dl1');location.href='dept.html#乳腺外科'">
+              <span class="pri-dot high" aria-label="優先度 high"></span>
+              <span class="triage-name">乳腺外科</span>
               <button class="triage-acc-btn" id="acc-btn-dl1"
                       aria-expanded="false" aria-controls="narrative-dl1"
                       onclick="event.preventDefault();event.stopPropagation();toggleNarrative('dl1')">▼詳細</button>
             </a>
-            <div class="triage-headline">土15% / 月5% / 再配分36%（週9件）</div>
+            <div class="triage-headline">土24% / 月12% / 再配分38%（週5件）</div>
             <div class="triage-narrative" id="narrative-dl1" hidden
-                 role="region" aria-label="循環器内科 曜日偏在">
-              <div class="triage-obs">🤖 退院が土曜・金曜に集中し、月曜は低い状況です。</div>
-              <div class="triage-sug">土曜の退院予定を月曜へ前倒しし、週末に退院準備を進めることで、曜日平準化を図ります。</div>
-            </div>
-          </div>
-          
-          <div class="triage-item mid">
-            <a class="triage-item-row" href="dept.html#乳腺外科"
-               onclick="event.preventDefault();toggleNarrative('dl2');location.href='dept.html#乳腺外科'">
-              <span class="pri-dot mid" aria-label="優先度 mid"></span>
-              <span class="triage-name">乳腺外科</span>
-              <button class="triage-acc-btn" id="acc-btn-dl2"
-                      aria-expanded="false" aria-controls="narrative-dl2"
-                      onclick="event.preventDefault();event.stopPropagation();toggleNarrative('dl2')">▼詳細</button>
-            </a>
-            <div class="triage-headline">土22% / 月12% / 再配分35%（週4件）</div>
-            <div class="triage-narrative" id="narrative-dl2" hidden
                  role="region" aria-label="乳腺外科 曜日偏在">
-              <div class="triage-obs">🤖 退院が土曜に集中し、月曜は低水準です。</div>
-              <div class="triage-sug">土曜の退院予定を月曜へ前倒しし、週末の退院準備を強化することで、曜日平準化を図ります。</div>
+              <div class="triage-obs">🤖 退院が土曜に集中し、月曜は低調です。</div>
+              <div class="triage-sug">土曜の退院予定を月曜に前倒しし、週末の退院準備を強化することで、曜日平準化を図りましょう。</div>
             </div>
           </div>
           
           <div class="triage-item low">
-            <a class="triage-item-row" href="dept.html#産婦人科"
-               onclick="event.preventDefault();toggleNarrative('dl3');location.href='dept.html#産婦人科'">
+            <a class="triage-item-row" href="dept.html#循環器内科"
+               onclick="event.preventDefault();toggleNarrative('dl2');location.href='dept.html#循環器内科'">
               <span class="pri-dot low" aria-label="優先度 low"></span>
-              <span class="triage-name">産婦人科</span>
-              <button class="triage-acc-btn" id="acc-btn-dl3"
-                      aria-expanded="false" aria-controls="narrative-dl3"
-                      onclick="event.preventDefault();event.stopPropagation();toggleNarrative('dl3')">▼詳細</button>
+              <span class="triage-name">循環器内科</span>
+              <button class="triage-acc-btn" id="acc-btn-dl2"
+                      aria-expanded="false" aria-controls="narrative-dl2"
+                      onclick="event.preventDefault();event.stopPropagation();toggleNarrative('dl2')">▼詳細</button>
             </a>
-            <div class="triage-headline">土20% / 月15% / 再配分31%（週10件）↗悪化</div>
-            <div class="triage-narrative" id="narrative-dl3" hidden
-                 role="region" aria-label="産婦人科 曜日偏在">
-              <div class="triage-obs">🤖 退院が土曜・金曜に集中し、月曜は低水準。再配分率は悪化傾向。</div>
-              <div class="triage-sug">土曜の退院予定を月曜へシフト。週末に退院準備を前倒しし、月曜の退院枠を確保することで、曜日平準化を図る。</div>
+            <div class="triage-headline">土15% / 月6% / 再配分34%（週9件）↘改善</div>
+            <div class="triage-narrative" id="narrative-dl2" hidden
+                 role="region" aria-label="循環器内科 曜日偏在">
+              <div class="triage-obs">🤖 土曜・金曜の退院が集中し、月曜は低水準です。</div>
+              <div class="triage-sug">土曜の退院予定を月曜へ付け替え、週末の退院準備を前倒しに進めてください。週9件程度の余地があります。</div>
             </div>
           </div>
           
           <div class="triage-item low">
             <a class="triage-item-row" href="dept.html#眼科"
-               onclick="event.preventDefault();toggleNarrative('dl4');location.href='dept.html#眼科'">
+               onclick="event.preventDefault();toggleNarrative('dl3');location.href='dept.html#眼科'">
               <span class="pri-dot low" aria-label="優先度 low"></span>
               <span class="triage-name">眼科</span>
-              <button class="triage-acc-btn" id="acc-btn-dl4"
-                      aria-expanded="false" aria-controls="narrative-dl4"
-                      onclick="event.preventDefault();event.stopPropagation();toggleNarrative('dl4')">▼詳細</button>
+              <button class="triage-acc-btn" id="acc-btn-dl3"
+                      aria-expanded="false" aria-controls="narrative-dl3"
+                      onclick="event.preventDefault();event.stopPropagation();toggleNarrative('dl3')">▼詳細</button>
             </a>
-            <div class="triage-headline">土27% / 月6% / 再配分31%（週8件）↘改善</div>
-            <div class="triage-narrative" id="narrative-dl4" hidden
+            <div class="triage-headline">土26% / 月5% / 再配分31%（週7件）↘改善</div>
+            <div class="triage-narrative" id="narrative-dl3" hidden
                  role="region" aria-label="眼科 曜日偏在">
-              <div class="triage-obs">🤖 土曜・金曜に退院が集中し、月曜は低水準です。</div>
-              <div class="triage-sug">土曜の退院予定を月曜へ付け替え、週末の退院準備を前倒しに進めてください。週8件程度の調整が可能です。</div>
+              <div class="triage-obs">🤖 退院が土曜・金曜に集中し、月曜は低水準。</div>
+              <div class="triage-sug">土曜の退院予定を月曜へシフトし、週末の退院準備を前倒しで進めることで、月曜日の退院枠を確保してください。</div>
             </div>
           </div>
           
@@ -898,7 +1096,7 @@ h4{font-weight:var(--jp-head)!important}
   </section>
 
   <div class="ft">
-    🏥 診療ダッシュボード ポータル ｜ 生成 2026/07/17 16:27 ｜ 基準日 2026-07-16<br>
+    🏥 診療ダッシュボード ポータル ｜ 生成 2026/07/21 07:13 ｜ 基準日 2026-07-20<br>
     <span style="font-size:10px">※ 数値はPython検知、文章はローカルLLM翻訳（oMLX未起動時は定型文）</span>
   </div>
 </div>

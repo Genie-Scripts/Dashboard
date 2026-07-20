@@ -16,11 +16,13 @@ alerts.py が返した「確定事実」を受け取り、ローカルLLMで
 """
 
 from __future__ import annotations
+import concurrent.futures
 import hashlib
 import json
 import logging
 import os
 import re
+import threading
 import zlib
 from collections import Counter
 from pathlib import Path
@@ -38,6 +40,10 @@ logger = logging.getLogger(__name__)
 # 使用モデルは llm.DEFAULT_MODEL（環境変数 OMLX_MODEL で deploy.sh と一元管理）
 DEFAULT_TEMPERATURE = 0.35   # 表現の固定化を戻す（数値・禁止語ガードで安全側は担保）
 DEFAULT_NUM_PREDICT = 220          # 出力トークン上限
+
+# oMLX の同時実行数（leveling バッチの並列化・dept_report.py 側も参照）。27B/35B など
+# 大型モデルを使う場合は 2 に落とす（2モデル同時ロードや prefill メモリガードを避けるため）。
+NARRATE_WORKERS = int(os.environ.get("OMLX_NARRATE_WORKERS", "4"))
 
 
 SYSTEM_PROMPT = """あなたは病院経営会議向けの要約ライターです。以下を厳守してください。
@@ -468,6 +474,12 @@ _MAX_TEXT_LEN = 400   # 想定外の長文出力（暴走）も棄却
 # できないため内訳を取る（scripts/report_comment_diversity.py と build_dept_reports.py が参照）。
 REJECT_STATS: Counter = Counter()
 
+# leveling バッチ並列化(NARRATE_WORKERS)向け: REJECT_STATS/_NARR_CACHE_STATS の
+# Counter += 1 は read-modify-write で不可分ではなく、進捗 print も並列だと行が
+# 混ざるため、この1本のロックで両方を保護する。LLM呼び出し(chat_json)は保持区間に
+# 含めない（含めると並列化の意味が消える）。
+_STATS_LOCK = threading.Lock()
+
 
 def reset_reject_stats() -> None:
     REJECT_STATS.clear()
@@ -614,7 +626,8 @@ def _judge_consistency(user_prompt: str, obj: dict, seed: int,
         return bool(verdict.get("ok", True))
     except Exception as exc:
         logger.warning(f"judge 呼び出し失敗 ({tag}): {exc}")
-        REJECT_STATS["judge_err"] += 1
+        with _STATS_LOCK:
+            REJECT_STATS["judge_err"] += 1
         return True   # fail-open
 
 
@@ -645,12 +658,14 @@ def _generate_checked(tag: str, system: str, user: str, banned: tuple,
     if key is not None:
         hit = _NARR_CACHE.get(key)
         if hit and hit.get("body") and hit.get("action"):
-            _NARR_CACHE_STATS["hit"] += 1
-            REJECT_STATS["cache"] += 1
-            if not quiet:
-                print(f"    [AI] ✓ {tag}（キャッシュ）")
+            with _STATS_LOCK:
+                _NARR_CACHE_STATS["hit"] += 1
+                REJECT_STATS["cache"] += 1
+                if not quiet:
+                    print(f"    [AI] ✓ {tag}（キャッシュ）")
             return {"body": hit["body"], "action": hit["action"], "src": "ai"}
-        _NARR_CACHE_STATS["miss"] += 1
+        with _STATS_LOCK:
+            _NARR_CACHE_STATS["miss"] += 1
     base_seed = zlib.crc32((system + user).encode("utf-8")) & 0x7FFFFFFF
     result = None
     for attempt, temp in enumerate((temperature, RETRY_TEMPERATURE)):
@@ -660,7 +675,8 @@ def _generate_checked(tag: str, system: str, user: str, banned: tuple,
                                 seed=base_seed + attempt)
         except Exception as e:
             logger.warning(f"oMLX 呼び出し失敗 ({tag}): {e}")
-            REJECT_STATS["error"] += 1
+            with _STATS_LOCK:
+                REJECT_STATS["error"] += 1
             break
         parsed = _extract_body_action(content)
         reason = _rejection_reason(parsed, banned=banned, allow=allow)
@@ -668,16 +684,20 @@ def _generate_checked(tag: str, system: str, user: str, banned: tuple,
             # 機械ガード通過後、意味整合の第2パス（②-1）。矛盾判定なら再試行→fallback。
             if JUDGE_ENABLED and not _judge_consistency(
                     user, parsed, base_seed + 101 + attempt, JUDGE_MODEL or model, tag):
-                REJECT_STATS["judge"] += 1
+                with _STATS_LOCK:
+                    REJECT_STATS["judge"] += 1
                 continue
             result = {**parsed, "src": "ai"}
-            REJECT_STATS["ok@retry" if attempt else "ok"] += 1
+            with _STATS_LOCK:
+                REJECT_STATS["ok@retry" if attempt else "ok"] += 1
             if key is not None:
                 _NARR_CACHE[key] = {"body": parsed["body"], "action": parsed["action"]}
             break
-        REJECT_STATS[reason] += 1
+        with _STATS_LOCK:
+            REJECT_STATS[reason] += 1
     if not quiet:
-        print(f"    [AI] {'✓' if result else '—'} {tag}")
+        with _STATS_LOCK:
+            print(f"    [AI] {'✓' if result else '—'} {tag}")
     return result
 
 
@@ -703,6 +723,10 @@ def narrate_leveling_actions(weekend_leveling: dict,
     - skip: 生成を省くユニット名（§6-1 人手オーバーライドで全文差し替え済みの部門）。
       候補選定・max_room は変えず生成だけ省く＝他ユニットのプロンプト（room相対値）を
       変えない（決定論seedの「同じ事実→同じ文」を壊さない）。
+    - 生成は NARRATE_WORKERS 並列（ThreadPoolExecutor）で行う。max_room/peers/deltas/
+      det はループ前に確定済みで相対値の順序依存は無く、u["narrative"] の代入先も
+      ユニット固有の dict なので競合しない。1ユニットの生成失敗は他ユニットへ波及させず
+      （narrative 未設定＝呼び出し側の定型文フォールバックへ無害縮退）。
     """
     if not weekend_leveling:
         return weekend_leveling
@@ -714,12 +738,14 @@ def narrate_leveling_actions(weekend_leveling: dict,
         max_room = max((u.get("room_per_week", 0) for u in units), default=1) or 1
         det = (dow_unit_detail or {}).get(entity, {}) or {}
         targets = sorted(units, key=lambda u: u.get("room_per_week", 0), reverse=True)[:top_n]
-        for u in targets:
-            if u["name"] in (skip or ()):
-                continue
+        candidates = [u for u in targets if u["name"] not in (skip or ())]
+        if not candidates:
+            continue
+
+        def _one(u, entity=entity, det=det, max_room=max_room):
             delta = (deltas or {}).get(u["name"])
             banned = _LEVELING_BANNED if delta else _LEVELING_BANNED + ("前回",)
-            u["narrative"] = _generate_checked(
+            return _generate_checked(
                 f"leveling {entity}:{u['name']}",
                 system=LEVELING_ACTION_SYSTEM_PROMPT,
                 user=_build_leveling_prompt(u, entity, max_room, det.get(u["name"]),
@@ -727,6 +753,16 @@ def narrate_leveling_actions(weekend_leveling: dict,
                                             delta=delta),
                 banned=banned, allow=_unit_allow(u["name"]),
                 model=model, temperature=temperature, quiet=quiet)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=NARRATE_WORKERS) as ex:
+            future_to_unit = {ex.submit(_one, u): u for u in candidates}
+            for fut in future_to_unit:
+                u = future_to_unit[fut]
+                try:
+                    u["narrative"] = fut.result()
+                except Exception as e:
+                    # 1ユニットの失敗が全体を落とさない（narrative 未設定＝定型文フォールバック）
+                    logger.warning(f"leveling 生成失敗 ({entity}:{u['name']}): {e}")
     return weekend_leveling
 
 

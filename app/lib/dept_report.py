@@ -13,7 +13,9 @@ profit_monthly)から、診療科版・病棟版それぞれ「1部門=1コン�
 """
 from __future__ import annotations
 
+import concurrent.futures
 import json
+import logging
 import math
 from datetime import timedelta
 from pathlib import Path
@@ -38,7 +40,7 @@ from .charts import build_dow_unit_detail, _dow_unit_candidates
 from .ai_narrative import (
     narrate_leveling_actions, narrate_admission_action, narrate_surgery_action,
     narrate_emergency_leveling_action, narrate_emergency_admission_action,
-    narrate_hospital_summary,
+    narrate_hospital_summary, NARRATE_WORKERS,
     _q_latewk_discharge, _q_weekend_adm, _q_census_dip, _q_thin_latewk_adm,
     _leveling_levers, _q_state_trend, _q_target_gap, _q_target_gap_trend, _q_yoy,
     _gap_level_tier, _q_ret_level,
@@ -46,6 +48,8 @@ from .ai_narrative import (
 from .hospital_summary import render_trend_svg, _ma_series, _surg_series
 from .profit_estimate import fit_profit_estimators, project_dept_monthend
 from .report_overrides import apply_override, is_full_override
+
+logger = logging.getLogger(__name__)
 
 WK = ["月", "火", "水", "木", "金", "土", "日"]
 WEEKS = 12
@@ -1072,8 +1076,9 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
         total_ret_pct = round(total_ret * 100, 1) if total_ret else None
 
         # AI一手（病床平準化）は「のびしろのあるユニット」に限定（room>0.5）。
-        # トピックが新入院/全麻に決まるユニットでは後段で別途AI生成するため無駄にはならない
-        # （病床平準化が結局のトピックに選ばれるユニットのために、ここで先に一括生成する）。
+        # トピックが新入院/全麻に決まるユニットは後段で別途AI生成するため、この一括生成では
+        # skip して無駄打ちを避ける（病床平準化が結局のトピックに選ばれるユニットのためだけに、
+        # ここで先に一括生成する）。
         max_room = max((u.get("room_per_week", 0) or 0 for u in wl["units"]), default=1) or 1
         by_gap = "by_ward" if entity == "ward" else "by_dept"
         tgt_axis_gap = "ward" if entity == "ward" else "dept"
@@ -1117,19 +1122,33 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
                 "tags": tags,
                 "anchor": None if is_em0 else anchor_units.get(f"{entity}:{name0}"),
             }
+            # per-unit ループ（後段）と同一の入力から topic を前倒し計算し、
+            # leveling バッチの生成が捨てられるユニット（救急病棟／topicが
+            # admission・surgeryに決まる／room<=0.5）を skip 対象として拾う
+            # （u["narrative"] が読まれるのは非救急×topic=leveling×room>0.5 のときだけ）。
+            room0 = u.get("room_per_week", 0) or 0
+            topic0, _sec0, _sc0 = _select_action_topic(
+                tk0, room0, max_room, na0, na_tgt0, sv0, sv_tgt0)
+            unit_meta[name0]["skip_leveling_gen"] = (
+                is_em0 or topic0 in ("admission", "surgery") or room0 <= 0.5)
         # leveling バッチは leveling トピック整合の差分を渡す（topic が admission/surgery に
-        # 決まるユニットの narration は後で破棄され、per-unit で topic 整合の差分を採り直す）。
+        # 決まるユニットは下の skip 対象になり生成自体を行わない＝この差分は使われない。
+        # per-unit 側は topic 整合の差分を別途採り直す）。
         lev_deltas = {n: _pick_delta(m["anchor"], m["tags"], topic="leveling")
                       for n, m in unit_meta.items()}
         lev_deltas = {n: d for n, d in lev_deltas.items() if d}
 
         # §6-1: body/action 両方を手動差し替え済みの部門はAI生成を省く（skip=生成だけ省き
         # 候補選定・max_room は変えない＝他ユニットの決定論を壊さない）。
+        # 加えて、生成しても後段で捨てられるだけのユニット（救急病棟／topicが
+        # admission・surgeryに確定／room<=0.5）も同じ skip で無駄打ちを避ける。
         full_ov = {u["name"] for u in wl["units"]
                    if is_full_override((overrides or {}).get((entity, u["name"])))}
+        waste_skip = {n for n, m in unit_meta.items() if m["skip_leveling_gen"]}
         if with_ai and n_ai:
             narrate_leveling_actions({entity: wl}, {entity: det}, top_n=n_ai, quiet=quiet,
-                                     peers=lev_peers, deltas=lev_deltas, skip=full_ov)
+                                     peers=lev_peers, deltas=lev_deltas,
+                                     skip=full_ov | waste_skip)
 
         # P2-b: 同種科内の相対位置(上位/中位/下位)用の達成率マップ（診療科軸のみ・1回）。
         # 新入院＝タイプ別に、全麻＝外科系内で比較する（テーブルと同じ ranking helper を再利用）。
@@ -1142,6 +1161,15 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
                 if r.get("週目標") and r.get("実績") is not None:
                     peer_surg[r["診療科"]] = r["実績"] / r["週目標"]
 
+        # per-unit ループはフルビルドの律速が narrate_*（oMLX呼び出し）にあるため、
+        # 「LLM を呼ぶ直前まで」→「LLM 呼び出しだけ並列」→「move 確定〜contexts 組み立て」
+        # の3パスに分ける（pandas/SVG構築は並列化の利益が薄いため逐次のまま）。
+        #
+        # パス1（逐次）: ユニットごとの中間結果と、呼ぶべき narrate_* 呼び出し（あれば）を
+        # unit_states / ai_jobs に積む。contexts の並び順は wl["units"] の順のまま保つため、
+        # unit_states はその順で積み、パス3もその順で辿る。
+        unit_states = []
+        ai_jobs = {}   # unit_states のインデックス -> (func, args, kwargs)
         for u in wl["units"]:
             name = u["name"]
             code = name2code.get(name, name)
@@ -1215,31 +1243,90 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
             # 救命救急センター系病棟(4A/4C)は「予定入院」「地域医療連携」という業務前提が
             # 成り立たないため、トピック(leveling/admission)は共通ロジックで選びつつ、
             # 文言だけ専用プロンプト/定型文（narrate_emergency_*）に差し替える。
+            # ここでは呼び出す narrate_* と引数だけを確定し、実際の呼び出しはパス2でまとめて
+            # 並列に行う（topic=="leveling"(非救急)は LLM を呼ばないため call=None のまま）。
+            call = None
             if is_emergency:
                 if topic == "admission":
-                    move = ((unit_ai and narrate_emergency_admission_action(
-                                name, na_gap, na_tgt_gap, trend=na_trend, quiet=quiet))
-                            or _fallback_move_emergency_admission(na_state))
+                    call = (narrate_emergency_admission_action,
+                            (name, na_gap, na_tgt_gap), {"trend": na_trend, "quiet": quiet})
                 else:
-                    move = ((unit_ai and narrate_emergency_leveling_action(
-                                name, ret, u.get("room_delta_4w"), quiet=quiet))
-                            or _fallback_move_emergency_leveling(u))
+                    call = (narrate_emergency_leveling_action,
+                            (name, ret, u.get("room_delta_4w")), {"quiet": quiet})
             elif topic == "admission":
                 mix = _q_planned_mix(adm, base_date, name) if entity == "dept" else None
-                move = ((unit_ai and narrate_admission_action(name, entity, na_gap, na_tgt_gap,
-                                                               trend=na_trend, peer=na_peer,
-                                                               yoy=na_yoy, delta=d_txt,
-                                                               mix=mix, holiday=holiday_fact,
-                                                               quiet=quiet))
-                        or _fallback_move_admission(na_state, peer=na_peer))
+                call = (narrate_admission_action,
+                        (name, entity, na_gap, na_tgt_gap),
+                        {"trend": na_trend, "peer": na_peer, "yoy": na_yoy, "delta": d_txt,
+                         "mix": mix, "holiday": holiday_fact, "quiet": quiet})
             elif topic == "surgery":
-                move = ((unit_ai and narrate_surgery_action(name, sv_gap, surg_tgt_gap,
-                                                             trend=surg_trend, peer=surg_peer,
-                                                             yoy=surg_yoy, delta=d_txt,
-                                                             or_load=or_fact, holiday=holiday_fact,
-                                                             quiet=quiet))
-                        or _fallback_move_surgery(surg_state, peer=surg_peer,
-                                                  label=surgery_metric_label(name)))
+                call = (narrate_surgery_action,
+                        (name, sv_gap, surg_tgt_gap),
+                        {"trend": surg_trend, "peer": surg_peer, "yoy": surg_yoy, "delta": d_txt,
+                         "or_load": or_fact, "holiday": holiday_fact, "quiet": quiet})
+
+            idx = len(unit_states)
+            if unit_ai and call is not None:
+                ai_jobs[idx] = call
+            unit_states.append({
+                "u": u, "name": name, "code": code, "dd": dd, "room": room, "ret": ret,
+                "ov": ov, "unit_ai": unit_ai, "type_key": type_key,
+                "na_gap": na_gap, "na_tgt_gap": na_tgt_gap, "sv_gap": sv_gap,
+                "surg_tgt_gap": surg_tgt_gap, "topic": topic, "secondary": secondary,
+                "parts": parts, "profit_series": profit_series,
+                "na_trend": na_trend, "surg_trend": surg_trend,
+                "na_yoy": na_yoy, "surg_yoy": surg_yoy, "na_state": na_state,
+                "surg_state": surg_state, "na_peer": na_peer, "surg_peer": surg_peer,
+                "is_emergency": is_emergency, "d_txt": d_txt,
+            })
+
+        # パス2（並列）: パス1で記録した narrate_* 呼び出しを NARRATE_WORKERS 並列で実行する。
+        # 1ユニットの失敗（例外）が全ビルドを落とさないよう try/except で包み、失敗時は
+        # None（＝呼び出し側のパス3が定型文フォールバックへ無害縮退）にする。
+        ai_results = {}
+        if ai_jobs:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=NARRATE_WORKERS) as ex:
+                future_to_idx = {ex.submit(func, *args, **kwargs): idx
+                                 for idx, (func, args, kwargs) in ai_jobs.items()}
+                for fut in future_to_idx:
+                    idx = future_to_idx[fut]
+                    try:
+                        ai_results[idx] = fut.result()
+                    except Exception as e:
+                        logger.warning(
+                            f"一手生成失敗 ({entity}:{unit_states[idx]['name']}): {e}")
+                        ai_results[idx] = None
+
+        # パス3（逐次）: パス1の中間結果とパス2の生成結果から move を確定し、以降は
+        # 現行と同じ処理（差分ナラティブ追記〜contexts.append）を同じ順序で行う。
+        for idx, st in enumerate(unit_states):
+            u, name, code, dd = st["u"], st["name"], st["code"], st["dd"]
+            room, ret, ov, unit_ai = st["room"], st["ret"], st["ov"], st["unit_ai"]
+            type_key = st["type_key"]
+            na_gap, na_tgt_gap = st["na_gap"], st["na_tgt_gap"]
+            sv_gap, surg_tgt_gap = st["sv_gap"], st["surg_tgt_gap"]
+            topic, secondary = st["topic"], st["secondary"]
+            parts, profit_series = st["parts"], st["profit_series"]
+            na_trend, surg_trend = st["na_trend"], st["surg_trend"]
+            na_yoy, surg_yoy = st["na_yoy"], st["surg_yoy"]
+            na_state, surg_state = st["na_state"], st["surg_state"]
+            na_peer, surg_peer = st["na_peer"], st["surg_peer"]
+            is_emergency, d_txt = st["is_emergency"], st["d_txt"]
+
+            # unit_ai and narrate_xxx(...) と等価（unit_ai=False は call を記録していないので
+            # ai_results に無く、そのケースは ai_out=False として下の `or fallback` に落ちる）。
+            ai_out = ai_results.get(idx) if unit_ai else False
+
+            if is_emergency:
+                if topic == "admission":
+                    move = ai_out or _fallback_move_emergency_admission(na_state)
+                else:
+                    move = ai_out or _fallback_move_emergency_leveling(u)
+            elif topic == "admission":
+                move = ai_out or _fallback_move_admission(na_state, peer=na_peer)
+            elif topic == "surgery":
+                move = ai_out or _fallback_move_surgery(surg_state, peer=surg_peer,
+                                                        label=surgery_metric_label(name))
             else:
                 move = (_fallback_move(u, dd, entity) if room <= 0.5
                         else (u.get("narrative") or _fallback_move(u, dd, entity)))
