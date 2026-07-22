@@ -454,11 +454,15 @@ def _fallback_move_emergency_admission(state: Optional[str]) -> dict:
 # 明確に不足している部門でも「現状維持」の定型文で埋まってしまう。3トピックの
 # 目標未達の大きさを比べ、最も目立つものを一手のトピックに選ぶ。
 ACTION_TOPIC_MIN_SCORE = 0.12   # これ未満の不足差はノイズ扱い→病床平準化を既定にする
-# 全麻(surgery)は病院全体・外科系診療科で優先的に言及したいという要求に応じ、
-# leveling/admission より低い足切りを別に持つ（達成率換算: 診療科98%=1-0.98=0.02、
-# 病院全体95%=1-0.95=0.05）。eligible判定の閾値差により、生スコアがわずかに leveling の
-# 方が大きくても全麻が主トピックに選ばれ得る（意図的な非対称・全麻優先の要求どおり）。
-SURGERY_TOPIC_MIN_SCORE = 0.02          # 外科系診療科: 全麻達成率98%未満で一手候補に
+# 全麻(surgery)の優先度は2段階で強化してきた:
+#   ①足切りの非対称（診療科98%/病院全体95%で候補入り）→ ただし leveling が相対スコアで
+#     ほぼ常に勝ち、外科系でも手術の一手が出にくかった。
+#   ②2026-07-22: 外科系診療科は達成状況によらず手術を常に主トピックへ固定
+#     （発信方針=外科系の一手は必ず全麻〔眼科=全手術〕コメントで始める）。
+# これにより SURGERY_TOPIC_MIN_SCORE は診療科軸では実効を持たない（目標未設定の科は
+# forced 分岐に入らず従来選定のまま）。病院全体サマリは②の対象外で、①の
+# SURGERY_TOPIC_MIN_SCORE_HOSPITAL による選定を維持する。
+SURGERY_TOPIC_MIN_SCORE = 0.02          # 外科系診療科: ②により実効なし（後方互換で残置）
 SURGERY_TOPIC_MIN_SCORE_HOSPITAL = 0.05  # 病院全体: 全麻達成率95%未満で一手候補に
 
 
@@ -478,16 +482,18 @@ def _select_action_topic(type_key: str, room: float, max_room: float,
                          na, na_tgt, sv, surg_tgt,
                          *, surgery_min: float = SURGERY_TOPIC_MIN_SCORE):
     """"leveling"(病床平準化) / "admission"(新入院) / "surgery"(全麻・外科系のみ) の
-    うち、目標未達が最も大きいトピックを主トピックに選ぶ。leveling は room_per_week を
-    全ユニット中の相対値、admission/surgery は目標比の絶対的な不足率で評価する（スケールが
-    完全には揃わないが、いずれも0〜1の「どれだけ気にすべきか」の目安として扱う）。
+    うち主トピックを選ぶ。leveling は room_per_week を全ユニット中の相対値、
+    admission/surgery は目標比の絶対的な不足率で評価する（スケールが完全には揃わないが、
+    いずれも0〜1の「どれだけ気にすべきか」の目安として扱う）。
 
-    選定はトピックごとの最小スコア（＝足切り）を満たす eligible の中で生スコア最大を
-    主トピックに、次点を副トピックにする。全麻は leveling/admission より低い足切り
-    （SURGERY_TOPIC_MIN_SCORE）を持つため、生スコアがわずかに leveling より小さくても
-    全麻を優先的に一手へ出せる（全麻を優先言及したいという要求どおりの意図的な非対称）。
-    eligible が無ければ leveling を既定にする（room<=0.5 なら _fallback_move が
-    「現状維持」の定型文を返す）。
+    外科系（手術目標あり）は達成状況によらず surgery を主トピックに固定する
+    （2026-07-22 発信方針: 外科系の一手は必ず全麻〔眼科=全手術〕コメントで始める。
+    達成時は状態文＋維持系 action になり、他トピックの未達は副トピックの一行併記へ降格）。
+
+    それ以外（内科系・病棟・手術目標未設定の外科系）は従来どおり、トピックごとの
+    最小スコア（＝足切り）を満たす eligible の中で生スコア最大を主トピックに、
+    次点を副トピックにする。eligible が無ければ leveling を既定にする
+    （room<=0.5 なら _fallback_move が「現状維持」の定型文を返す）。
 
     戻り値=(primary, secondary, scores)。secondary=主以外で足切りを満たしスコア最大の
     トピック（無ければ None）。複数指標が未達の科で「主トピックの一手＋副トピックを本文で
@@ -500,6 +506,10 @@ def _select_action_topic(type_key: str, room: float, max_room: float,
     if type_key == "surgical":
         scores["surgery"] = _surgery_gap_score(sv, surg_tgt)
         mins["surgery"] = surgery_min
+        if surg_tgt:
+            sec = {k: v for k, v in scores.items()
+                   if k != "surgery" and v >= mins[k]}
+            return "surgery", (max(sec, key=sec.get) if sec else None), scores
     eligible = {k: v for k, v in scores.items() if v >= mins[k]}
     primary = max(eligible, key=eligible.get) if eligible else "leveling"
     sec = {k: v for k, v in scores.items() if k != primary and v >= mins[k]}
@@ -548,14 +558,17 @@ def _same_type_names(ratio_map: dict, type_key: str) -> list:
 
 
 # ── P3: 副トピックを本文へ併記する決定論クローズ（actionは主トピックに集中） ──
+# 接続は極性中立の「なお、〜は」を使う。主文はLLM自由文で「未達でも前年比は前向きに触れる」
+# 指示があるためポジティブに終わり得るが、「あわせて、〜も」は直前も同調子である前提を含意し、
+# 逆説的な内容を順接で繋ぐ違和感を生んでいた（主文の極性は判定不能ゆえ中立接続に統一）。
 def _secondary_clause(topic: Optional[str], na_state: Optional[str],
                       surg_state: Optional[str]) -> Optional[str]:
     if topic == "admission" and na_state:
-        return f"あわせて、新入院も{na_state}状況です。"
+        return f"なお、新入院は{na_state}状況です。"
     if topic == "surgery" and surg_state:
-        return f"あわせて、全身麻酔手術も{surg_state}状況です。"
+        return f"なお、全身麻酔手術は{surg_state}状況です。"
     if topic == "leveling":
-        return "あわせて、週末在院の維持にも改善余地があります。"
+        return "なお、週末在院の維持には改善余地があります。"
     return None
 
 
@@ -1187,8 +1200,9 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
             else:
                 type_key = "internal"
 
-            # 「この期間の一手」は 病床平準化／新入院／全麻(外科系のみ) のうち最も目標未達が
-            # 大きいトピックを選ぶ（病床管理一辺倒にしない）。
+            # 「この期間の一手」: 外科系は常に全麻(眼科=全手術)を主トピックに固定し、
+            # 内科系・病棟は 病床平準化／新入院 のうち目標未達が大きい方を選ぶ
+            # （病床管理一辺倒にしない）。
             na_gap = r7_nadm[by_gap].get(code)
             na_tgt_gap = targets.get("new_admission", {}).get(tgt_axis_gap, {}).get(code)
             sv_gap = r7_surg["by_dept"].get(name, 0) if type_key == "surgical" else None

@@ -1,8 +1,9 @@
 """部門レポート「この期間の一手」のトピック選定と直接文言のユニットテスト。
 
-全麻(surgery)のトピック別足切り（外科系98%=0.02 / 病院全体95%=0.05）と、
-未達 action の直接文言化（件数増に専念／患者数増に取り組む）を純関数で検証する。
-LLM呼び出しはテストしない。
+外科系診療科の surgery 主トピック常時固定（2026-07-22・達成状況によらず手術コメントを
+必ず先頭へ）、病院全体の足切り（全麻95%=0.05）、未達 action の直接文言化
+（件数増に専念／患者数増に取り組む）、副トピック併記の極性中立接続（なお、〜は）を
+純関数で検証する。LLM呼び出しはテストしない。
 """
 import sys
 import unittest
@@ -12,39 +13,45 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.lib.dept_report import (_select_action_topic, _select_hospital_topic,
                                  _fallback_move_surgery, _fallback_move_admission,
+                                 _secondary_clause,
                                  SURGERY_TOPIC_MIN_SCORE,
                                  SURGERY_TOPIC_MIN_SCORE_HOSPITAL)
 
 
 class SelectActionTopicTest(unittest.TestCase):
     def test_surgical_97pct_becomes_primary(self):
-        # 外科系: 全麻97%(スコア0.03≥0.02)のみ eligible → 主トピック=surgery
-        # leveling=0.05(<0.12足切り)・admission=目標達成(0)
+        # 外科系: 全麻97% → 主トピック=surgery（常時固定）
         p, s, sc = _select_action_topic("surgical", 0.05, 1.0, 10, 10, 9.7, 10)
         self.assertEqual(p, "surgery")
         self.assertAlmostEqual(sc["surgery"], 0.03, places=4)
 
-    def test_surgical_99pct_falls_back_to_leveling(self):
-        # 外科系: 全麻99%(0.01<0.02) は足切り → eligible無し → leveling 既定
+    def test_surgical_99pct_still_surgery(self):
+        # 外科系: 全麻99%（旧仕様では足切りで leveling 既定）でも surgery 固定
         p, s, _ = _select_action_topic("surgical", 0.05, 1.0, 10, 10, 9.9, 10)
-        self.assertEqual(p, "leveling")
+        self.assertEqual(p, "surgery")
 
-    def test_surgical_96pct_as_secondary(self):
-        # 外科系: leveling 0.5 が主でも 全麻96%(0.04≥0.02) は副トピックで言及される
+    def test_surgical_met_target_still_surgery(self):
+        # 外科系: 全麻105%達成でも surgery 固定（達成時は維持系の文言になる）
+        p, s, _ = _select_action_topic("surgical", 0.05, 1.0, 10, 10, 10.5, 10)
+        self.assertEqual(p, "surgery")
+        self.assertIsNone(s)
+
+    def test_surgical_leveling_demoted_to_secondary(self):
+        # 外科系: leveling 0.5(≥0.12) は副トピックへ降格し「なお…」併記で言及される
         p, s, _ = _select_action_topic("surgical", 0.5, 1.0, 10, 10, 9.6, 10)
-        self.assertEqual((p, s), ("leveling", "surgery"))
+        self.assertEqual((p, s), ("surgery", "leveling"))
+
+    def test_surgical_no_target_falls_back_to_selection(self):
+        # 外科系でも手術目標未設定なら forced 分岐に入らず従来選定（leveling 既定）
+        p, s, sc = _select_action_topic("surgical", 0.05, 1.0, 10, 10, None, None)
+        self.assertEqual(p, "leveling")
+        self.assertEqual(sc["surgery"], 0.0)
 
     def test_internal_never_has_surgery(self):
         # 内科系: 全麻データがあっても候補にならない（回帰）
         p, s, sc = _select_action_topic("internal", 0.05, 1.0, 10, 10, 5, 10)
         self.assertEqual(p, "leveling")
         self.assertNotIn("surgery", sc)
-
-    def test_surgery_beats_slightly_larger_leveling(self):
-        # 全麻優先の意図的非対称: leveling(0.03<0.12足切りで落選) と 全麻(0.025≥0.02)
-        # → 生スコアは leveling の方が大きいが eligible は surgery のみ → 主=surgery
-        p, s, sc = _select_action_topic("surgical", 0.03, 1.0, 10, 10, 9.75, 10)
-        self.assertEqual(p, "surgery")
 
     def test_internal_call_matches_default(self):
         # 既定 surgery_min を渡さない呼び出しでも内科系挙動は不変
@@ -90,6 +97,28 @@ class DirectWordingTest(unittest.TestCase):
         move = _fallback_move_surgery("目標を達成している")
         self.assertNotIn("件数増に専念", move["action"])
         self.assertIn("維持", move["action"])
+
+
+class SecondaryClauseNeutralConnectiveTest(unittest.TestCase):
+    """副トピック併記は極性中立の「なお、〜は」。主文(LLM自由文)がポジティブに終わっても
+    「あわせて、〜も」のようなねじれた順接にならないこと。"""
+
+    def test_admission_clause(self):
+        c = _secondary_clause("admission", "目標をやや下回っている", None)
+        self.assertEqual(c, "なお、新入院は目標をやや下回っている状況です。")
+
+    def test_leveling_clause(self):
+        self.assertEqual(_secondary_clause("leveling", None, None),
+                         "なお、週末在院の維持には改善余地があります。")
+
+    def test_no_additive_connective(self):
+        for topic, na, sv in (("admission", "目標を下回っている", None),
+                              ("surgery", None, "目標を下回っている"),
+                              ("leveling", None, None)):
+            c = _secondary_clause(topic, na, sv)
+            self.assertNotIn("あわせて", c)
+            # 「〜も…」の同調前提を含意しない（主語直後は「は/には」）
+            self.assertNotRegex(c, r"(新入院|全身麻酔手術)も")
 
 
 if __name__ == "__main__":
