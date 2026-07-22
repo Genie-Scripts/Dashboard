@@ -18,9 +18,38 @@ oMLX(OpenAI互換 /v1) に統一。oMLX はホストの 127.0.0.1:8000 で動作
 """
 
 from __future__ import annotations
+import contextlib
 import os
+import sys
 
-DEFAULT_MODEL = os.environ.get("OMLX_MODEL", "Llama-3.1-Swallow-8B-Instruct-v0.5")
+# 協調層（モデル常駐競合の507を「待ち」に変える・業務ハブと共通のモデル管理）。
+# ai-apps monorepo 内で実行されるときだけ root の genie_llm を取り込む。単体/公開 Dashboard
+# として動かす場合は未配置→fail-open で従来どおり（協調なしの直呼び）動作する。
+try:
+    _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    if _ROOT not in sys.path:
+        sys.path.insert(0, _ROOT)
+    import genie_llm
+except Exception:  # noqa: BLE001
+    genie_llm = None
+
+def _resolve_default_model() -> str:
+    """使用モデルの解決順: 業務ハブのモデルパネルが書く override → OMLX_MODEL env → 既定。
+    override は orchestrator が Dashboard/data/model_override.json に書く（他ツールと同じ方式）。
+    未配置/未読なら従来どおり env・既定にフォールバック（fail-open）。"""
+    try:
+        import json as _json
+        _dash = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # Dashboard/
+        with open(os.path.join(_dash, "data", "model_override.json"), encoding="utf-8") as _f:
+            _m = _json.load(_f).get("model")
+        if _m:
+            return _m
+    except Exception:  # noqa: BLE001
+        pass
+    return os.environ.get("OMLX_MODEL", "Llama-3.1-Swallow-8B-Instruct-v0.5")
+
+
+DEFAULT_MODEL = _resolve_default_model()
 BASE_URL = os.environ.get("OMLX_BASE_URL", "http://localhost:8000/v1")
 API_KEY = os.environ.get("OMLX_API_KEY", "sk-ant-omlx-local-key")
 # 既定 60→180（2026-07 並列実行導入時に引き上げ）: 並列実行下では個別リクエストの
@@ -60,22 +89,26 @@ def chat_json(system: str, user: str, model: str,
         {"role": "user", "content": user},
     ]
     extra = {} if seed is None else {"seed": seed}
-    try:
-        res = client.chat.completions.create(
-            model=model,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            response_format={"type": "json_object"},
-            **extra,
-        )
-    except Exception:
-        # response_format 非対応モデル等へのフォールバック（接続不能ならここでも送出される）
-        res = client.chat.completions.create(
-            model=model,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            **extra,
-        )
+    # 協調層: focus を取ってからロードし、業務ハブの重い並行要求（会議議事録80B 等）と
+    # 直列化して 507 を避ける。Dashboard の生成は基本バッチなので priority=batch。
+    _coord = genie_llm.session(model, priority="batch") if genie_llm else contextlib.nullcontext()
+    with _coord:
+        try:
+            res = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                response_format={"type": "json_object"},
+                **extra,
+            )
+        except Exception:
+            # response_format 非対応モデル等へのフォールバック（接続不能ならここでも送出される）
+            res = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                **extra,
+            )
     return res.choices[0].message.content or ""
