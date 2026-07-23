@@ -18,6 +18,7 @@ JS 実行は不要（タイミング問題なし）。
 """
 import argparse
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -59,6 +60,42 @@ def log(msg, level="info"):
     # flush=True: バックグラウンド実行（build_reports.sh のレビュー運用）では stdout が
     # ログファイルへのリダイレクト＝ブロックバッファになり、進捗が遅延して見えるため。
     print(f"  {prefix} [{ts}] {msg}", flush=True)
+
+
+_NARR_CACHE_FNAME_RE = re.compile(r"^narrative_cache_(\d{4}-\d{2}-\d{2})\.json$")
+
+
+def _parse_narr_cache_date(name: str):
+    """narrative_cache_YYYY-MM-DD.json のファイル名から日付を取り出す（不一致はNone）。"""
+    m = _NARR_CACHE_FNAME_RE.match(name)
+    if not m:
+        return None
+    try:
+        return datetime.strptime(m.group(1), "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def find_narr_cache_seed(state_dir: Path, base_date, exclude: Path):
+    """基準日の生成キャッシュが無いとき、引き継ぎ元（base_date 以前で最新）を探す。
+
+    `_cache_key` は日付リテラルを含まないため、日付をまたいでも事実が変わらない
+    部門は同じキーで命中する。base_date より後のファイルは過去日ビルドで未来の文を
+    引き継いでしまうため除外する。想定外のファイル名はパース失敗としてスキップ
+    （fail-soft）。"""
+    if not state_dir.is_dir():
+        return None
+    base = base_date.date() if hasattr(base_date, "date") else base_date
+    best_path, best_date = None, None
+    for p in sorted(state_dir.glob("narrative_cache_*.json")):
+        if p == exclude:
+            continue
+        d = _parse_narr_cache_date(p.name)
+        if d is None or d > base:
+            continue
+        if best_date is None or d > best_date:
+            best_path, best_date = p, d
+    return best_path
 
 
 def _strip_serve_argv(argv: list) -> list:
@@ -297,14 +334,26 @@ def main():
     from app.lib.dept_report import load_delta_anchor, save_facts_snapshot
     state_dir = Path(args.output_dir) / "_state"
 
-    # ── AI一手の生成キャッシュ（同一プロンプト＝同一出力の再利用でPDF再作成を高速化）──
+    # ── AI一手の生成キャッシュ（同一プロンプト＝同一出力の再利用）──
     # 「PDF再作成」は同一データ・同一プロンプトで走るため、編集していない部門は全て
     # キャッシュ命中し LLM を呼ばない（〜5分→数秒）。data が変わればプロンプトが変わり
     # 自動で再生成される（キーにプロンプト全文・モデル・JUDGE有無を含む）。
+    # 「同じ事実→同じ文」の決定論は当初 LLM の seed 固定で担保していたが、oMLX は
+    # 同時実行下では seed を固定しても連続バッチングのバッチ構成が変わり出力が揺れる
+    # （実測・クライアント側から制御不能）。以後は本キャッシュが決定論を担う。
+    # `_cache_key` は日付リテラルを含まないため、基準日のファイルが無ければ日付を
+    # またいで直近の過去キャッシュを種として読み込む（書き出し先は従来どおり
+    # 基準日のファイルのまま＝世代を追って前進する）。
     narr_cache_path = state_dir / f"narrative_cache_{base_date.strftime('%Y-%m-%d')}.json"
     if not args.no_ai and not args.no_cache:
         from app.lib.ai_narrative import load_narrative_cache
-        load_narrative_cache(narr_cache_path)
+        narr_cache_seed = narr_cache_path
+        if not narr_cache_path.is_file():
+            seed = find_narr_cache_seed(state_dir, base_date, narr_cache_path)
+            if seed is not None:
+                narr_cache_seed = seed
+                log(f"生成キャッシュを {seed.name} から引き継ぎ")
+        load_narrative_cache(narr_cache_seed)
 
     anchor = load_delta_anchor(state_dir, base_date)
     if anchor:
