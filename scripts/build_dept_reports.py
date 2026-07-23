@@ -458,6 +458,17 @@ def main():
                                    hosp_ctx.get("_state") or {})
         log(f"事実スナップショット保存: {snap.relative_to(Path(args.output_dir))}")
 
+        # ── P0: 添削フィードバック捕捉（人手 override を学習信号として蓄積・非破壊/fail-soft）──
+        # 状態が変わったユニットだけ _state/edits_<date>.jsonl へ追記。突き合わせは
+        # scripts/mine_report_edits.py（P1）。詳細=root 開発プラン_添削フィードバックループ.md。
+        try:
+            from app.lib.report_feedback import capture_edits
+            ep = capture_edits(state_dir, base_date, contexts, hosp_ctx)
+            if ep is not None:
+                log(f"添削フィードバック捕捉: {ep.relative_to(Path(args.output_dir))}")
+        except Exception as e:  # noqa: BLE001
+            log(f"添削フィードバック捕捉スキップ: {e}", "warn")
+
         # ── A1: 一手の確定値スナップショット（dept.html への掲載用・オーバーライド適用後）──
         _MOVE_KEYS = ("body", "action", "surg_line", "util_line", "nadm_line", "topic", "src")
         def _move_lite(m):

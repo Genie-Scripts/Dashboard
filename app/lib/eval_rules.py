@@ -34,11 +34,37 @@ def _load() -> dict:
     return _cache
 
 
+# ── 今期の経営方針（業務方向性）: data/management_policy.yaml（gitignore・院内非公開）──
+# evaluation_rules.yaml は PUBLIC リポにコミットされるため、機密の経営判断はここに書かず、
+# data/ 側（非公開）へ置いて読み込み時にマージする。テンプレートは config/management_policy.example.yaml。
+_POLICY_PATH = Path(__file__).resolve().parents[2] / "data" / "management_policy.yaml"
+_policy_cache: Optional[dict] = None
+
+
+def _load_policy() -> dict:
+    global _policy_cache
+    if _policy_cache is not None:
+        return _policy_cache
+    if not _POLICY_PATH.exists():
+        _policy_cache = {}
+        return _policy_cache
+    try:
+        import yaml
+        raw = yaml.safe_load(_POLICY_PATH.read_text(encoding="utf-8"))
+        _policy_cache = raw if isinstance(raw, dict) else {}
+    except Exception as e:
+        logger.warning(f"management_policy.yaml 読込失敗: {e}")
+        _policy_cache = {}
+    return _policy_cache
+
+
 def reload() -> None:
     """キャッシュをクリアして再読込"""
-    global _cache
+    global _cache, _policy_cache
     _cache = None
+    _policy_cache = None
     _load()
+    _load_policy()
 
 
 def _format_rules(rules: list) -> str:
@@ -61,10 +87,18 @@ def _find_dept_group(dept: Optional[str], data: dict) -> Optional[dict]:
 def build_alert_context(alert: dict) -> str:
     """アラート用の追加コンテキストを生成。空なら空文字。"""
     data = _load()
-    if not data:
+    policy = _load_policy()
+    if not data and not policy:
         return ""
 
     parts = []
+
+    # 今期の経営方針（最優先・業務方向性）。全アラートの評価軸/打ち手の優先順位を枠づける。
+    priorities = (policy or {}).get("priorities", [])
+    if priorities:
+        parts.append("【今期の経営方針（最優先）】")
+        parts.append(_format_rules(priorities))
+        parts.append("")   # 方針と評価方針の間に空行
 
     # グローバルルール
     global_rules = data.get("global_rules", [])
@@ -79,7 +113,7 @@ def build_alert_context(alert: dict) -> str:
         parts.append(f"\n【{kpi_id} の評価ルール】")
         parts.append(_format_rules(kpi_rules))
 
-    # 診療科グループルール
+    # 診療科グループルール ＋ 打ち手（レバー）
     dept = (alert.get("meta") or {}).get("dept")
     group = _find_dept_group(dept, data)
     if group:
@@ -87,6 +121,11 @@ def build_alert_context(alert: dict) -> str:
         if group_rules:
             parts.append(f"\n【{dept} の評価方針】")
             parts.append(_format_rules(group_rules))
+        # A1: この群が動かせる打ち手。action の起点にさせる（発明ではなく選択＋文脈化）。
+        group_levers = group.get("levers", [])
+        if group_levers:
+            parts.append(f"\n【{dept} で使える打ち手（レバー）】（action はこの中から状況に合うものを選ぶ）")
+            parts.append(_format_rules(group_levers))
 
     return "\n".join(parts)
 

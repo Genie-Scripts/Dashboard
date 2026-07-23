@@ -54,13 +54,23 @@ SYSTEM_PROMPT = """あなたは病院経営会議向けの要約ライターで�
 3. 推測・仮定・原因断定はしない
 4. 出力は指定 JSON スキーマのみ。前置きや説明文を付けない
 5. 日本語、簡潔・丁寧・事務的なトーン
+6. headline は体言止めの見出し（15字前後）。事実文をそのまま写さず、要点だけを圧縮する
+7. action は「何を・どの単位で」動かすかが分かる具体策にする。「検討してください」等の
+   一般的な決まり文句だけで終えない。文脈に【打ち手（レバー）】が示されていれば、
+   その中から状況に合うものを選んで言い換える
 
 【出力スキーマ】
 {
-  "headline": "20字以内の見出し（体言止め可）",
+  "headline": "20字以内の見出し（体言止め・15字前後）",
   "body": "事実を述べる本文 60〜90字（理事会で読み上げ可能な丁寧な日本語）",
   "action": "推奨アクション 50〜80字（具体的・実行可能）"
-}"""
+}
+
+【良い例 / 悪い例】（例文は写さず、与えられた事実の言葉で言い換えること）
+- 見出し 悪い例:「新入院数が目標を大きく上回っている」← 事実文の丸写しで冗長
+  見出し 良い例:「新入院、目標を超過」← 体言止めで要点のみ
+- アクション 悪い例:「現状を分析し対策を検討してください」← どの部門にも当てはまる決まり文句
+  アクション 良い例:「増加要因を確認し、受け入れ体制を維持する具体策を関係部署と共有する」← 何をするかが分かる"""
 
 
 def _build_user_prompt(alert: dict) -> str:
@@ -68,13 +78,22 @@ def _build_user_prompt(alert: dict) -> str:
     facts_block = "\n".join(f"- {f}" for f in alert["facts"])
     context = build_alert_context(alert)
     context_block = f"\n\n{context}" if context else ""
+    # B4: 継続性（前回レポートにも在ったか）。数値は出さず定性的に伝え、継続課題では
+    # action を「前回対策の効果確認・見直し」へエスカレートさせる（narrate_alerts が付与）。
+    cont = alert.get("_continuity")
+    cont_block = ""
+    if cont and not cont.get("is_new"):
+        cont_block = ("\n\n【継続性】この課題は前回のレポートでも指摘されており、継続しています。"
+                      "action には前回の対策の効果確認と打ち手の見直しを含めてください（回数などの数値は書かない）。")
+    elif cont and cont.get("is_new"):
+        cont_block = "\n\n【継続性】この課題は今回のレポートが初出です。"
     return f"""以下の確定事実を翻訳し、JSON を1つだけ出力してください。
 
 【アラート種別】{alert['category']}（重要度: {alert['severity']}）
 
 【確定事実】
 {facts_block}
-{context_block}
+{context_block}{cont_block}
 【注意】
 - headline/body/action の3キーを持つ JSON を出力すること
 - 事実にない内容（具体数値、原因、人物）を補わないこと
@@ -105,22 +124,73 @@ def _extract_json(text: str) -> Optional[dict]:
     }
 
 
-def _narrate_one(alert: dict, model: str, temperature: float) -> Optional[dict]:
-    """単一アラートを LLM で翻訳"""
-    try:
-        content = chat_json(
-            system=SYSTEM_PROMPT,
-            user=_build_user_prompt(alert),
-            model=model,
-            temperature=temperature,
-            max_tokens=DEFAULT_NUM_PREDICT,
-        )
-    except Exception as e:
-        # oMLX 未起動 / openai 未インストール / モデル未取得 すべてここで無害に縮退
-        logger.warning(f"oMLX 呼び出し失敗 ({alert['id']}): {e}")
-        return None
+# ── B2: 見出し品質の機械ガード（生成後チェック＋1回リトライ）──
+# 汎用アラートの headline は「事実文の丸写し」「冗長」が出やすい（A/B実測）。narrate_* 系が
+# 持つ _generate_checked 相当の品質床を、この経路にも軽量版で入れる。body/action の数字ガードは
+# 事実由来のエコー（「直近4週」等）を誤棄却するため掛けず、見出しの規律に絞る（false-drop 回避）。
+_HEADLINE_MAX = 24   # 「20字以内」の指示への許容上限（多少の超過は許すが暴走は弾く）
 
-    return _extract_json(content)
+
+def _norm_ja(s: str) -> str:
+    """比較用の正規化：空白・句読点・記号を除去。"""
+    return re.sub(r"[\s、。，．・「」『』（）()：:；;…—\-]", "", str(s or ""))
+
+
+def _headline_echoes_fact(headline: str, facts: list) -> bool:
+    """見出しが事実文のほぼ丸写しか（正規化後に一方が他方へ内包される）。"""
+    h = _norm_ja(headline)
+    if len(h) < 6:                     # 短い体言止めは元々写しでない
+        return False
+    for f in facts or []:
+        nf = _norm_ja(f)
+        if nf and (h in nf or nf in h):
+            return True
+    return False
+
+
+def _alert_reject_reason(obj: Optional[dict], alert: dict) -> Optional[str]:
+    """{headline,body,action} の機械検査。棄却理由を返す（None=採択）。"""
+    if not obj:
+        return "parse"
+    if not (obj.get("headline", "").strip() and obj.get("body", "").strip()
+            and obj.get("action", "").strip()):
+        return "empty"
+    head = obj["headline"]
+    if len(head) > _HEADLINE_MAX:
+        return "headline_long"
+    if _headline_echoes_fact(head, alert.get("facts")):
+        return "headline_echo"
+    return None
+
+
+_ALERT_RETRY_HINT = (
+    "\n\n【再出力の注意】前回の見出しが長い/事実文の写しでした。"
+    "headline は体言止めで15字前後に圧縮し、action は具体的な打ち手にしてください。")
+
+
+def _narrate_one(alert: dict, model: str, temperature: float) -> Optional[dict]:
+    """単一アラートを LLM で翻訳。品質床（見出し）を機械検査し、外れたら温度を下げて
+    1回だけ再試行する。2回とも外れてもパース成功した出力は返す（narrative を落とさない
+    fail-soft）。seed はプロンプト内容の CRC32 で決定論化＝同じ事実は同じ文（月次安定）。"""
+    system = SYSTEM_PROMPT
+    user = _build_user_prompt(alert)
+    base_seed = zlib.crc32((system + user).encode("utf-8")) & 0x7FFFFFFF
+    best = None
+    for attempt, (temp, hint) in enumerate(((temperature, ""), (RETRY_TEMPERATURE, _ALERT_RETRY_HINT))):
+        try:
+            content = chat_json(system=system, user=user + hint, model=model,
+                                temperature=temp, max_tokens=DEFAULT_NUM_PREDICT,
+                                seed=base_seed + attempt)
+        except Exception as e:
+            # oMLX 未起動 / openai 未インストール / モデル未取得 = インフラ起因。再試行しない。
+            logger.warning(f"oMLX 呼び出し失敗 ({alert['id']}): {e}")
+            return best
+        obj = _extract_json(content)
+        if obj is not None and best is None:
+            best = obj              # パースできた最初の出力を保険に保持（品質不足でも None より良い）
+        if _alert_reject_reason(obj, alert) is None:
+            return obj              # 品質床クリア
+    return best                     # 2回とも品質床未達なら best-effort
 
 
 # ────────────────────────────────────
@@ -1169,27 +1239,87 @@ def narrate_hospital_summary(facts: list[str], lever: str,
         model=model, temperature=temperature, quiet=quiet)
 
 
+# ── B4: アラート継続性の台帳（前回レポートにも在ったか＝継続 / 初出）──
+# alert['id'] は run 間で安定（kpi_/dept_admission_/ward_inpatient_/momentum_）。直近の過去
+# スナップショットと突き合わせて streak を数え、継続課題では action を「前回対策の効果確認・
+# 見直し」へエスカレートさせる（プロンプトで定性的に指示・数値は出さない）。状態は data/ 配下
+# （gitignore）に置き、opt-in（state_dir と base_date が揃ったときだけ）。全て fail-soft。
+
+def alert_state_dir() -> Path:
+    """継続台帳の既定ディレクトリ（Dashboard/data/_alert_state・gitignore 済）。"""
+    return Path(__file__).resolve().parents[2] / "data" / "_alert_state"
+
+
+def load_prev_alert_streaks(state_dir, base_date_str: str) -> dict:
+    """base_date より前の最新スナップショットの {id: streak} を返す。無ければ空 dict。"""
+    try:
+        p = Path(state_dir)
+        if not p.is_dir():
+            return {}
+        snaps = {f.stem[len("alerts_"):]: f for f in p.glob("alerts_*.json")}
+        past = [d for d in snaps if d < base_date_str]   # ISO日付は文字列比較で時系列一致
+        if not past:
+            return {}
+        data = json.loads(snaps[max(past)].read_text(encoding="utf-8"))
+        streaks = data.get("streaks", {}) if isinstance(data, dict) else {}
+        return streaks if isinstance(streaks, dict) else {}
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"アラート継続台帳の読込失敗: {e}")
+        return {}
+
+
+def save_alert_snapshot(state_dir, base_date_str: str, streaks: dict) -> None:
+    """今回の {id: streak} を保存（同一基準日は上書き＝再ビルドで増殖しない）。"""
+    try:
+        p = Path(state_dir)
+        p.mkdir(parents=True, exist_ok=True)
+        (p / f"alerts_{base_date_str}.json").write_text(
+            json.dumps({"base_date": base_date_str, "streaks": streaks},
+                       ensure_ascii=False, indent=1), encoding="utf-8")
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"アラート継続台帳の保存失敗: {e}")
+
+
 def narrate_alerts(alerts: list[dict],
                     model: str = DEFAULT_MODEL,
                     temperature: float = DEFAULT_TEMPERATURE,
-                    quiet: bool = False) -> list[dict]:
+                    quiet: bool = False,
+                    state_dir=None,
+                    base_date=None) -> list[dict]:
     """
     各アラートに `narrative` フィールド（dict or None）を付与して返す。
 
     - narrative が None のアラートは、テンプレート側で title_fallback と
       facts を使って代替表示する前提。
     - LLM 未起動時は全て None になるが、例外は投げない。
+    - state_dir と base_date を渡すと B4 継続性を有効化：前回レポートにも在った課題は
+      streak を数えて action をエスカレートし、`continuity`（{streak,is_new}）を各要素へ付す。
     """
     if not alerts:
         return alerts
 
+    # B4 継続性（opt-in）。base_date は Timestamp/datetime/str いずれも受ける。
+    prev, bstr, new_streaks = {}, None, {}
+    if state_dir is not None and base_date is not None:
+        bstr = base_date.strftime("%Y-%m-%d") if hasattr(base_date, "strftime") else str(base_date)
+        prev = load_prev_alert_streaks(state_dir, bstr)
+
     enriched = []
     for a in alerts:
-        n = _narrate_one(a, model=model, temperature=temperature)
         a2 = dict(a)
+        if bstr is not None:
+            aid = a.get("id", "")
+            streak = prev.get(aid, 0) + 1
+            new_streaks[aid] = streak
+            a2["_continuity"] = {"streak": streak, "is_new": prev.get(aid, 0) == 0}
+        n = _narrate_one(a2, model=model, temperature=temperature)
         a2["narrative"] = n
+        if "_continuity" in a2:
+            a2["continuity"] = a2.pop("_continuity")   # 内部→公開（テンプレの継続バッジ等に使える）
         enriched.append(a2)
         if not quiet:
-            status = "✓" if n else "—"
-            print(f"    [AI] {status} {a['id']}")
+            print(f"    [AI] {'✓' if n else '—'} {a['id']}")
+
+    if bstr is not None:
+        save_alert_snapshot(state_dir, bstr, new_streaks)
     return enriched

@@ -452,14 +452,15 @@ def _build_ai_alerts(adm, surg, targets, surg_targets, base_date) -> list:
     """AIアラート検知 + LLM ナラティブ生成。失敗しても空リストを返す。"""
     try:
         from .alerts import detect_alerts
-        from .ai_narrative import narrate_alerts
+        from .ai_narrative import narrate_alerts, alert_state_dir
     except ImportError:
         return []
     try:
         raw = detect_alerts(adm, surg, targets, surg_targets, base_date)
         if not raw:
             return []
-        return narrate_alerts(raw)
+        # B4: 継続台帳を有効化（前回レポートにも在った課題は action をエスカレート）。
+        return narrate_alerts(raw, state_dir=alert_state_dir(), base_date=base_date)
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning(f"AI アラート生成スキップ: {e}")

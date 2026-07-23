@@ -549,6 +549,7 @@ footer {
     <li>「PDF再作成」ボタンで差し替え反映（生成キャッシュが効くため数秒）</li>
     <li>画面内の「できあがりPDF」リンクから開いて印刷</li>
   </ol>
+  <p class="lede" style="margin-top:-6px"><strong>「すべてAI文に戻す」を押したとき：</strong>これは画面上の下書きを戻すだけで、<code>overrides.md</code> にはまだ書き込まれていません。<strong>必ず「保存」してから「PDF再作成」</strong>を押してください（保存を挟まないと戻したことが反映されず、ボタンが効かないように見えます）。また「PDF再作成」は <code>./build_reports.sh</code> で開いたレビュー画面でのみ有効です。ファイルとして直接開いた場合や「サーバ終了」と表示された場合は、ターミナルで <code>./build_reports.sh</code> を再実行すれば反映されます。</p>
   <p class="lede" style="margin-top:-6px">レビューサーバは無操作120分で自動終了します。手動で止めたい場合はターミナルで <code>Ctrl+C</code>。</p>
 
   <div class="table-wrap">
@@ -571,6 +572,31 @@ footer {
 body: 週末の在院がやや落ち込み、直近4週で悪化傾向にあります。
 action: 手術件数を増やして平均を上げていきましょう。加えて金曜に集中する
         退院の一部を日〜月曜へ分散し、週末の在院数を安定させてください。</div>
+
+  <h3>コメントの質を設定・改善する</h3>
+  <p>AIの「今週の一手」は次の3つで底上げできます。いずれも数値・事実はデータ由来のまま、<strong>言い回しと打ち手の質だけ</strong>を上げる仕組みです（AIに事実を創作させない設計）。</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>やること</th><th>ファイル</th><th>効果</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>今期の経営方針を書く</td>
+          <td><code>data/management_policy.yaml</code><br><span class="mono">（config/management_policy.example.yaml をコピーして編集）</span></td>
+          <td>「今期は手術件数を最優先」等の方針を書くと、AIの見出し・打ち手の優先順位がそれに揃う。<strong>院内非公開</strong>（<code>data/</code> は非公開・GitHubに載らない）</td>
+        </tr>
+        <tr>
+          <td>診療科の打ち手（レバー）を定義</td>
+          <td><code>config/evaluation_rules.yaml</code> の各群 <code>levers:</code></td>
+          <td>「手術枠の再配分」等その群が実際に動かせる手を列挙すると、AIの action が決まり文句でなくその中から具体化される</td>
+        </tr>
+        <tr>
+          <td>人の添削を蓄積・活用</td>
+          <td><span class="mono">scripts/mine_report_edits.py</span></td>
+          <td>レビューで直した一手は自動で記録される。<code>python scripts/mine_report_edits.py</code> で「AI原文→人の最終文」の突き合わせ（<span class="mono">_state/edits_digest.md</span>）が出る。よく直す打ち手はレバーへ昇格すると次から精度が上がる</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
 
   <h3>出力ファイル</h3>
   <div class="table-wrap">
