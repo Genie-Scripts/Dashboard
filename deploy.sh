@@ -9,15 +9,17 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 LOG="/tmp/dashboard_deploy.log"
 echo "=== $(date '+%Y/%m/%d %H:%M:%S') deploy 開始 ===" >> "$LOG"
 
-# 通知関数
+# 通知関数（GENIE_HEADLESS=1＝業務ハブからの実行時は osascript を使わずログのみ＝背景実行で固まらない）
 notify() {
+  if [ "${GENIE_HEADLESS:-}" = "1" ]; then echo "🔔 $1 / $2" >> "$LOG"; return; fi
   osascript -e "display notification \"$1\" with title \"診療ダッシュボード\" subtitle \"$2\"" 2>/dev/null || true
 }
 
-# エラーダイアログ関数
+# エラーダイアログ関数（ヘッドレス時はブロッキングする display dialog を出さずログのみ）
 error_dialog() {
-  osascript -e "display dialog \"$1\" buttons {\"OK\"} with title \"エラー\" with icon caution" 2>/dev/null || true
   echo "❌ $1" >> "$LOG"
+  if [ "${GENIE_HEADLESS:-}" = "1" ]; then return; fi
+  osascript -e "display dialog \"$1\" buttons {\"OK\"} with title \"エラー\" with icon caution" 2>/dev/null || true
 }
 
 # 予期せぬエラー時に実行
