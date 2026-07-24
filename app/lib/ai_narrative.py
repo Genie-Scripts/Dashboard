@@ -31,6 +31,11 @@ from typing import Optional
 from .llm import DEFAULT_MODEL, chat_json
 from .config import surgery_metric_label
 
+try:
+    from app.lib import fewshot  # P3: 添削フィードバックの few-shot 注入（失敗時は完全無効）
+except Exception:  # noqa: BLE001
+    fewshot = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -494,7 +499,16 @@ def _build_leveling_prompt(unit: dict, entity: str, max_room: float, dd: Optiona
     if dip: facts.append(f"在院の落ち込み方: {dip}")
     thin = _q_thin_latewk_adm(dd)
     if thin: facts.append(f"平日の入院の谷: 週末前の{thin}の予定入院が薄い")
-    if peer: facts.append(f"同種の{label}の中での週末在院の維持: {peer}に位置する")
+    # 診療科軸は「同種の診療科」でなく具体的な群名を渡す（P2 環流・上記 admission と同じ）。
+    if peer:
+        grp = None
+        if entity == "dept":
+            try:
+                from .eval_rules import dept_group_label
+                grp = dept_group_label(unit.get("name"))
+            except Exception:  # noqa: BLE001
+                grp = None
+        facts.append(f"{grp or '同種'}の{label}の中での週末在院の維持: {peer}に位置する")
     if delta: facts.append(f"前回レポートとの比較: {delta}")
     facts_block = "\n".join(f"- {f}" for f in facts)
     # レバーは事実に適応：週後半集中なら退院分散、補充が弱ければ週末入院強化を主にする
@@ -817,12 +831,15 @@ def narrate_leveling_actions(weekend_leveling: dict,
         def _one(u, entity=entity, det=det, max_room=max_room):
             delta = (deltas or {}).get(u["name"])
             banned = _LEVELING_BANNED if delta else _LEVELING_BANNED + ("前回",)
+            # P3: 添削 few-shot（診療科軸のみ・leveling は水準トークンを持たないため topic一致のみ）
+            fs = (fewshot.examples_block("leveling", None, banned, u["name"])
+                  if (fewshot and entity == "dept") else "")
             return _generate_checked(
                 f"leveling {entity}:{u['name']}",
                 system=LEVELING_ACTION_SYSTEM_PROMPT,
                 user=_build_leveling_prompt(u, entity, max_room, det.get(u["name"]),
                                             peer=(peers or {}).get(u["name"]),
-                                            delta=delta),
+                                            delta=delta) + fs,
                 banned=banned, allow=_unit_allow(u["name"]),
                 model=model, temperature=temperature, quiet=quiet)
 
@@ -916,7 +933,15 @@ def _build_admission_prompt(unit_name: str, entity: str, state: str,
                             holiday: Optional[str] = None) -> str:
     label = "診療科" if entity == "dept" else "病棟"
     lines = [f"- {state}"]
-    if peer:    lines.append(f"- 同種の診療科の中では{peer}に位置する")
+    # 「同種の診療科」は人手 override が例外なく「内科系/外科系診療科」へ書き換えていた
+    # （P2 環流）。プロンプト側で最初から具体名を渡す。未知科は従来表現へフォールバック。
+    if peer:
+        try:
+            from .eval_rules import dept_group_label
+            grp = dept_group_label(unit_name) if entity == "dept" else None
+        except Exception:  # noqa: BLE001
+            grp = None
+        lines.append(f"- {grp or '同種'}の診療科の中では{peer}に位置する")
     if yoy:     lines.append(f"- 前年同期との比較: {yoy}")
     if delta:   lines.append(f"- 前回レポートとの比較: {delta}")
     if mix:     lines.append(f"- 入院の内訳: {mix}")
@@ -993,11 +1018,14 @@ def narrate_admission_action(unit_name: str, entity: str, na, na_tgt, trend: Opt
         banned = banned + ("前回",)
     if holiday is None:
         banned = banned + ("祝日", "連休")
+    # P3: 添削 few-shot（診療科軸のみ・病棟は事実の語彙が異なるため対象外）
+    fs = (fewshot.examples_block("admission", fewshot.state_token(state), banned, unit_name)
+          if (fewshot and entity == "dept") else "")
     return _generate_checked(
         f"admission {entity}:{unit_name}",
         system=ADMISSION_ACTION_SYSTEM_PROMPT,
         user=_build_admission_prompt(unit_name, entity, state, peer=peer, yoy=yoy,
-                                     delta=delta, mix=mix, holiday=holiday),
+                                     delta=delta, mix=mix, holiday=holiday) + fs,
         banned=banned, allow=_unit_allow(unit_name),
         model=model, temperature=temperature, quiet=quiet)
 
@@ -1034,11 +1062,14 @@ def narrate_surgery_action(dept_name: str, sv, surg_tgt, trend: Optional[str] = 
         banned = banned + ("前回",)
     if holiday is None:
         banned = banned + ("祝日", "連休")
+    # P3: 添削 few-shot（全麻トピックは診療科軸に固定なので entity 条件は不要）
+    fs = (fewshot.examples_block("surgery", fewshot.state_token(state), banned, dept_name)
+          if fewshot else "")
     return _generate_checked(
         f"surgery dept:{dept_name}",
         system=system,
         user=_build_surgery_prompt(dept_name, state, metric_label=label, peer=peer, yoy=yoy,
-                                   delta=delta, or_load=or_load, holiday=holiday),
+                                   delta=delta, or_load=or_load, holiday=holiday) + fs,
         banned=banned, allow=_unit_allow(dept_name),
         model=model, temperature=temperature, quiet=quiet)
 

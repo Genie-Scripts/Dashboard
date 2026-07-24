@@ -84,6 +84,26 @@ def _find_dept_group(dept: Optional[str], data: dict) -> Optional[dict]:
     return None
 
 
+# dept_group_rules のキー → プロンプトに書く群の呼び名。
+# 人手 override が「同種診療科」→「内科系診療科」へ4件とも書き換えていたため、
+# プロンプト側で最初から具体名を渡す（添削フィードバックループ P2 の環流）。
+_GROUP_LABELS = {"surgical": "外科系", "medical": "内科系", "emergency": "救急"}
+
+
+def dept_group_label(dept: Optional[str]) -> Optional[str]:
+    """診療科名 → 「内科系」「外科系」「救急」。未知/読込失敗は None（呼び出し側で従来表現）。"""
+    try:
+        data = _load()
+        if not data:
+            return None
+        for key, group in (data.get("dept_group_rules") or {}).items():
+            if isinstance(group, dict) and dept in (group.get("depts") or []):
+                return _GROUP_LABELS.get(key)
+    except Exception:  # noqa: BLE001
+        return None
+    return None
+
+
 def build_alert_context(alert: dict) -> str:
     """アラート用の追加コンテキストを生成。空なら空文字。"""
     data = _load()

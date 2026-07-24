@@ -518,6 +518,14 @@ def main():
         except Exception as e:  # noqa: BLE001
             log(f"添削フィードバック捕捉スキップ: {e}", "warn")
 
+        # ── P3: few-shot 添削コーパスの再構築（ai→manual ペアを毎回全再構築・fail-soft）──
+        try:
+            from app.lib import fewshot
+            n_fs = fewshot.rebuild_corpus(state_dir)
+            log(f"few-shot 添削コーパス再構築: {n_fs}件")
+        except Exception as e:  # noqa: BLE001
+            log(f"few-shot 添削コーパス再構築スキップ: {e}", "warn")
+
         # ── A1: 一手の確定値スナップショット（dept.html への掲載用・オーバーライド適用後）──
         _MOVE_KEYS = ("body", "action", "surg_line", "util_line", "nadm_line", "topic", "src")
         def _move_lite(m):
