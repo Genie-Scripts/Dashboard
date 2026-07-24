@@ -359,7 +359,9 @@ def _fallback_move(unit: dict, dd: Optional[dict], entity: str) -> dict:
 
     if room <= 0.5:
         body = "週末も平日とほぼ同じ在院を保てています。今の入退院のリズムが手本になっています。"
-        action = "現状維持。週末の入退院リズムをこのまま継続しましょう。"
+        # 添削フィードバックループ P2: 人手 override は「現状維持。」で完結する action を
+        # 例外なく書き換え、良好時でも次に伸ばす一手を添えていた（救急科・総合内科）。
+        action = "週末の入退院リズムはこのまま継続しつつ、在院水準のさらなる底上げを図りましょう。"
         return {"body": body, "action": action}
 
     causes = []
@@ -430,7 +432,8 @@ def _fallback_move_emergency_leveling(unit: dict) -> dict:
     room = unit.get("room_per_week", 0) or 0
     if room <= 0.5:
         return {"body": "週末も平日とほぼ同じ在院を保てています。今の受け入れ体制が手本になっています。",
-                "action": "現状維持。週末も平日と同水準の受け入れ体制を継続しましょう。"}
+                # 添削由来（P2）: 「現状維持。」で完結させない
+                "action": "週末も平日と同水準の受け入れ体制を継続しつつ、受け入れ余力のさらなる拡大を図りましょう。"}
     return {"body": "週末は在院がやや落ち込みやすい状況です。",
             "action": "転棟・転出（下り搬送）の判断を迅速化し、週末の受け入れ余地を確保しましょう。"}
 
@@ -1538,7 +1541,8 @@ def _fallback_move_hospital(topic: str, state: Optional[str], ret: Optional[floa
         move = _fallback_move_surgery(state)
     elif ret is not None and round(ret * 100, 1) >= TARGET_WEEKEND_RETENTION:
         move = {"body": "病院全体として週末も平日と同水準の在院を保てており、目標を確保できています。",
-                "action": "現状維持。週末の入退院リズムをこのまま継続しましょう。"}
+                # 添削由来（P2）: 「現状維持。」で完結させない
+                "action": "週末の入退院リズムはこのまま継続しつつ、在院水準のさらなる底上げを図りましょう。"}
     else:
         move = {"body": f"病院全体の週末在院の維持率は{state or '目標を下回っている'}状況です。",
                 "action": "金曜に集中しがちな退院を平日へ分散し、週末の入院受け入れで空床を補充しましょう。"}
