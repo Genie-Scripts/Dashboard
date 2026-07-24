@@ -28,7 +28,9 @@ trap 'error_dialog "予期せぬエラーで停止しました。詳細は $LOG 
 # ── 0a. oMLX（要約LLM・OpenAI互換）の起動確認 ──
 # 要約LLMは oMLX(127.0.0.1:8000) に統一（旧 Ollama から移行）。非Docker・ホスト実行なので localhost。
 # export して python(generate_html.py / app/lib/llm.py)へ確実に渡す。
-export OMLX_BASE_URL="${OMLX_BASE_URL:-http://localhost:8000/v1}"
+# 案1 P2: 既定を LLMブローカー(:8936) 経由にする（透過プロキシなので応答は同一・直列化/入場制御の恩恵を受ける）。
+# 明示指定すればそちらが優先＝切り戻しは OMLX_BASE_URL=http://localhost:8000/v1 で可能。
+export OMLX_BASE_URL="${OMLX_BASE_URL:-http://127.0.0.1:8936/v1}"
 export OMLX_MODEL="${OMLX_MODEL:-Llama-3.1-Swallow-8B-Instruct-v0.5}"
 # APIキーは ~/.omlx/settings.json から取得（取れなければ llm.py の既定にフォールバック）
 _omlx_key="$(python3 -c "import json,os;print(json.load(open(os.path.expanduser('~/.omlx/settings.json')))['auth']['api_key'])" 2>/dev/null || true)"

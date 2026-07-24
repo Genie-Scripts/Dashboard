@@ -25,6 +25,7 @@ import pandas as pd
 
 from .config import (
     SURGERY_DISPLAY_DEPTS, SURGERY_EVAL_DEPTS, surgery_metric_label, EMERGENCY_WARDS,
+    CRITICAL_CARE_WARDS, ER_DEPTS,
     TARGET_INPATIENT_ALLDAY, TARGET_ADMISSION_WEEKLY, TARGET_GA_DAILY,
     TARGET_WEEKEND_RETENTION, FEE_REVISION_DATE, FEE_REVISION_PROFIT_UPLIFT,
 )
@@ -40,6 +41,8 @@ from .charts import build_dow_unit_detail, _dow_unit_candidates
 from .ai_narrative import (
     narrate_leveling_actions, narrate_admission_action, narrate_surgery_action,
     narrate_emergency_leveling_action, narrate_emergency_admission_action,
+    narrate_critical_care_leveling_action, narrate_critical_care_admission_action,
+    narrate_er_leveling_action, narrate_er_admission_action,
     narrate_hospital_summary, NARRATE_WORKERS,
     _q_latewk_discharge, _q_weekend_adm, _q_census_dip, _q_thin_latewk_adm,
     _leveling_levers, _q_state_trend, _q_target_gap, _q_target_gap_trend, _q_yoy,
@@ -528,6 +531,22 @@ def _select_hospital_topic(topic_scores: dict) -> str:
             "surgery": SURGERY_TOPIC_MIN_SCORE_HOSPITAL}
     eligible = {k: v for k, v in topic_scores.items() if v >= mins.get(k, ACTION_TOPIC_MIN_SCORE)}
     return max(eligible, key=eligible.get) if eligible else "leveling"
+
+
+def _special_narration_kind(entity: str, code: str, name: str) -> Optional[str]:
+    """特例ユニットの種別を返す（予定入院/紹介という業務前提が無く専用文言を使う）。
+    None=通常。"emergency"=救命救急病棟(4A/4C)・"critical_care"=重症ケア病棟(ICU/HCU)・
+    "er_dept"=救急科。トピック(leveling/admission)の選定は共通ロジックのままで、
+    呼び出す narrate_* だけを差し替える（週末平準化バッチの skip 判定と一手ディスパッチの
+    両方で同じ判定を使い、二重管理を避ける）。"""
+    if entity == "ward":
+        if code in EMERGENCY_WARDS:
+            return "emergency"
+        if code in CRITICAL_CARE_WARDS:
+            return "critical_care"
+    elif entity == "dept" and name in ER_DEPTS:
+        return "er_dept"
+    return None
 
 
 # ── P2-b: 同種科内の相対位置（上位/中位/下位・診療科軸のみ） ──
@@ -1133,7 +1152,10 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
                 "wadm": (_q_weekend_adm(dd0) or {}).get("level"),
                 "thin": _q_thin_latewk_adm(dd0),
             }
-            is_em0 = entity == "ward" and code0 in EMERGENCY_WARDS
+            # 特例ユニット（救急病棟/重症ケア病棟/救急科）は「予定入院・紹介」前提の
+            # 差分ナラティブ・平準化バッチ生成をどれも使わない＝anchor を渡さず skip する。
+            special0 = _special_narration_kind(entity, code0, name0)
+            is_em0 = special0 is not None
             unit_meta[name0] = {
                 "tags": tags,
                 "anchor": None if is_em0 else anchor_units.get(f"{entity}:{name0}"),
@@ -1252,24 +1274,28 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
 
             # ① 差分ナラティブ: 選定トピックに次元が一致する差分を優先して1文に確定
             # （leveling は上のバッチと同じ選び方に一致・admission/surgery は topic整合を採り直す）。
-            is_emergency = entity == "ward" and code in EMERGENCY_WARDS
+            special = _special_narration_kind(entity, code, name)
+            is_emergency = special is not None   # 特例(救急病棟/重症ケア病棟/救急科)の総称
             d_txt = (None if is_emergency
                      else _pick_delta(unit_meta[name]["anchor"], unit_meta[name]["tags"],
                                       topic=topic))
 
-            # 救命救急センター系病棟(4A/4C)は「予定入院」「地域医療連携」という業務前提が
-            # 成り立たないため、トピック(leveling/admission)は共通ロジックで選びつつ、
-            # 文言だけ専用プロンプト/定型文（narrate_emergency_*）に差し替える。
-            # ここでは呼び出す narrate_* と引数だけを確定し、実際の呼び出しはパス2でまとめて
-            # 並列に行う（topic=="leveling"(非救急)は LLM を呼ばないため call=None のまま）。
+            # 特例ユニットは「予定入院」「地域医療連携」という業務前提が成り立たないため、
+            # トピック(leveling/admission)は共通ロジックで選びつつ、文言だけ種別ごとの専用
+            # プロンプト（narrate_emergency_* / narrate_critical_care_* / narrate_er_*）に差し替える。
+            # ここでは呼び出す narrate_* と引数だけを確定し、実際の呼び出しはパス2で並列に行う。
+            _SPECIAL_CALLS = {
+                "emergency":     (narrate_emergency_admission_action, narrate_emergency_leveling_action),
+                "critical_care": (narrate_critical_care_admission_action, narrate_critical_care_leveling_action),
+                "er_dept":       (narrate_er_admission_action, narrate_er_leveling_action),
+            }
             call = None
-            if is_emergency:
+            if special:
+                adm_fn, lev_fn = _SPECIAL_CALLS[special]
                 if topic == "admission":
-                    call = (narrate_emergency_admission_action,
-                            (name, na_gap, na_tgt_gap), {"trend": na_trend, "quiet": quiet})
+                    call = (adm_fn, (name, na_gap, na_tgt_gap), {"trend": na_trend, "quiet": quiet})
                 else:
-                    call = (narrate_emergency_leveling_action,
-                            (name, ret, u.get("room_delta_4w")), {"quiet": quiet})
+                    call = (lev_fn, (name, ret, u.get("room_delta_4w")), {"quiet": quiet})
             elif topic == "admission":
                 mix = _q_planned_mix(adm, base_date, name) if entity == "dept" else None
                 call = (narrate_admission_action,
@@ -1294,7 +1320,7 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
                 "na_trend": na_trend, "surg_trend": surg_trend,
                 "na_yoy": na_yoy, "surg_yoy": surg_yoy, "na_state": na_state,
                 "surg_state": surg_state, "na_peer": na_peer, "surg_peer": surg_peer,
-                "is_emergency": is_emergency, "d_txt": d_txt,
+                "is_emergency": is_emergency, "special": special, "d_txt": d_txt,
             })
 
         # パス2（並列）: パス1で記録した narrate_* 呼び出しを NARRATE_WORKERS 並列で実行する。
@@ -1328,13 +1354,15 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
             na_yoy, surg_yoy = st["na_yoy"], st["surg_yoy"]
             na_state, surg_state = st["na_state"], st["surg_state"]
             na_peer, surg_peer = st["na_peer"], st["surg_peer"]
-            is_emergency, d_txt = st["is_emergency"], st["d_txt"]
+            is_emergency, special, d_txt = st["is_emergency"], st["special"], st["d_txt"]
 
             # unit_ai and narrate_xxx(...) と等価（unit_ai=False は call を記録していないので
             # ai_results に無く、そのケースは ai_out=False として下の `or fallback` に落ちる）。
             ai_out = ai_results.get(idx) if unit_ai else False
 
-            if is_emergency:
+            if special:
+                # oMLX 未起動/棄却時の定型文は救急病棟用を全特例で共用する（いずれも
+                # 「予定入院・紹介」を含まない受け入れ体制ベースの安全な文言。稀な縮退経路）。
                 if topic == "admission":
                     move = ai_out or _fallback_move_emergency_admission(na_state)
                 else:
@@ -1354,7 +1382,7 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
 
             # 計測用メタ（テンプレは参照しない）: topic=選定トピック、src=ai(採択)/tpl(定型文)。
             # scripts/report_comment_diversity.py が fallback 率・重複率を axis×topic で集計する。
-            move = {**move, "topic": ("emergency-" if is_emergency else "") + topic,
+            move = {**move, "topic": (f"{special}-" if special else "") + topic,
                     "src": move.get("src", "tpl"), "delta": d_txt}
 
             # P3: 未達が複数ある科は、主トピックの一手に加えて副トピックを本文へ軽く併記

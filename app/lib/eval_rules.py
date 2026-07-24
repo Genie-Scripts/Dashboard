@@ -90,8 +90,16 @@ def _find_dept_group(dept: Optional[str], data: dict) -> Optional[dict]:
 _GROUP_LABELS = {"surgical": "外科系", "medical": "内科系", "emergency": "救急"}
 
 
+# 群には入れない特例科の peer 表示ラベル。眼科は全手術KPIの特例（surgical 群に入れると
+# 全麻前提の rules/levers が適用されてしまうため未登録のまま）だが、手術実績は外科系の
+# 中で順位付けされるので peer 表示は「外科系」にする。
+_SPECIAL_PEER_LABELS = {"眼科": "外科系"}
+
+
 def dept_group_label(dept: Optional[str]) -> Optional[str]:
     """診療科名 → 「内科系」「外科系」「救急」。未知/読込失敗は None（呼び出し側で従来表現）。"""
+    if dept in _SPECIAL_PEER_LABELS:
+        return _SPECIAL_PEER_LABELS[dept]
     try:
         data = _load()
         if not data:

@@ -72,7 +72,8 @@ is_review_server() {
 
 # ── oMLX（一手AIの要約LLM・OpenAI互換）の起動確認・環境設定 ──
 # 未起動でも build_dept_reports.py が定型文へ自動フォールバックするので致命ではない。
-export OMLX_BASE_URL="${OMLX_BASE_URL:-http://localhost:8000/v1}"
+# 案1 P2: 既定を LLMブローカー(:8936) 経由へ（切り戻しは OMLX_BASE_URL=http://localhost:8000/v1）。
+export OMLX_BASE_URL="${OMLX_BASE_URL:-http://127.0.0.1:8936/v1}"
 export OMLX_MODEL="${OMLX_MODEL:-Llama-3.1-Swallow-8B-Instruct-v0.5}"
 _omlx_key="$(python3 -c "import json,os;print(json.load(open(os.path.expanduser('~/.omlx/settings.json')))['auth']['api_key'])" 2>/dev/null || true)"
 [ -n "$_omlx_key" ] && export OMLX_API_KEY="$_omlx_key"

@@ -1092,19 +1092,19 @@ _EMERGENCY_ADMISSION_BANNED_BASE = ("予定入院", "紹介", "地域医療連�
 _EMERGENCY_ADMISSION_BANNED = _EMERGENCY_ADMISSION_BANNED_BASE + ("傾向",)
 _EMERGENCY_ADMISSION_BANNED_TREND_OK = _EMERGENCY_ADMISSION_BANNED_BASE
 
-EMERGENCY_LEVELING_SYSTEM_PROMPT = """あなたは病院の病床管理を支援する要約ライターです。救命救急センター系病棟（緊急入院・院内転棟が中心で予定入院はほぼ無い病棟）の「週末（土日）に在院が落ち込む状況」への“今週の一手”を、与えられた事実だけから日本語で書きます。以下を厳守してください。
+EMERGENCY_LEVELING_SYSTEM_PROMPT = """あなたは病院の病床管理を支援する要約ライターです。救命救急センター系病棟（緊急入院・院内転棟が中心で予定入院はほぼ無い病棟）の「週末（土日）に在院・稼働が落ち込む状況」への“今週の一手”を、与えられた事実だけから日本語で書きます。以下を厳守してください。
 
 【厳守事項】
 1. 与えられた事実のみを使う。新しい数値・原因・固有名を足さない。本文に数値を再引用しない（定性語のみ使う）。
 2. この病棟は緊急入院・院内転棟が中心で「予定入院」「地域医療連携（紹介元）」は存在しない。それらは絶対に提案しない。
-3. ねらいは週末も受け入れ体制を維持し在院を保つこと。具体策は「転棟・転出（下り搬送）判断を迅速化して受け入れ余地を確保する」「週末の受け入れ体制（病床運用・当直）を平日と同水準に保つ」など、運用面の一般的な対応にとどめる。
+3. **最終目標は病床稼働率を高く保つこと**。救急受け入れのための空床確保はそのための手段。具体策は「ICU・HCU との連携（転入・転出のタイミング調整）で高稼働を保ちつつ救急受け入れの余地を作る」「転棟・転出（下り搬送）判断を迅速化する」「週末の病床運用・当直体制を平日と同水準に保つ」など運用面の一般的な対応にとどめる。
 4. 在院日数の延長や早期退院の促進は提案しない（禁止）。
 5. 出力は指定 JSON のみ。前置き・説明・``` を付けない。簡潔・丁寧・事務的なトーン。
 
 【出力スキーマ】
 {
-  "body": "週末在院の状況を述べる本文 50〜80字（数値を使わない定性的記述）",
-  "action": "今週の一手 40〜70字（転棟判断の迅速化・週末受け入れ体制の維持。予定入院/紹介は書かない）"
+  "body": "週末の在院・稼働の状況を述べる本文 50〜80字（数値を使わない定性的記述）",
+  "action": "今週の一手 40〜70字（ICU/HCU連携での病床管理・転棟判断の迅速化・週末体制の維持。予定入院/紹介は書かない）"
 }"""
 
 EMERGENCY_ADMISSION_SYSTEM_PROMPT = """あなたは病院経営を支援する要約ライターです。救命救急センター系病棟（緊急入院・院内転棟が中心で予定入院・紹介受け入れという概念が無い病棟）の「新規受け入れ（緊急入院・転棟）」の状況への“今週の一手”を、与えられた事実だけから日本語で書きます。以下を厳守してください。
@@ -1112,15 +1112,15 @@ EMERGENCY_ADMISSION_SYSTEM_PROMPT = """あなたは病院経営を支援する�
 【厳守事項】
 1. 与えられた事実のみを使う。新しい数値・原因・固有名を足さない。本文に数値を再引用しない（定性語のみ使う）。
 2. この病棟は緊急入院・院内転棟が中心で「予定入院」「地域医療連携（紹介元）」は存在しない。それらは絶対に提案しない。
-3. ねらいは受け入れ件数（緊急入院・転棟）を目標水準へ近づけること。具体策は「後方病床（転棟・転出先）との調整による受け入れ余地の確保」「病床運用（当直含む）の見直し」など、運用面の一般的な対応にとどめる。
+3. **最終目標は病床稼働率を高く保つこと**。救急・緊急転棟の受け入れはそのための中心手段。具体策は「ICU・HCU との連携で重症患者の転入・転出を円滑にし、高稼働を保ちつつ受け入れ余地を確保する」「後方病床（転棟・転出先）との調整」「病床運用（当直含む）の見直し」など運用面の一般的な対応にとどめる。
 4. 特定の疾患・術式・患者を名指しした医療行為の指示はしない（臨床判断はしない）。
 5. 事実に「直近は改善に向かっている／さらに落ち込んでいる」等の傾向が含まれる場合はそのまま使ってよい（渡された傾向以外を書き足さない）。事実に含まれる対比（「〜が」等）はそのまま保ち、現状と傾向が食い違うときは逆接でつなぐ（順接で誤接続しない）。
 6. 出力は指定 JSON のみ。前置き・説明・``` を付けない。簡潔・丁寧・事務的なトーン。
 
 【出力スキーマ】
 {
-  "body": "受け入れ状況を述べる本文 50〜80字（数値を使わない定性的記述）",
-  "action": "今週の一手 40〜70字（後方病床調整・病床運用見直し等。予定入院/紹介/具体的な数値は書かない）"
+  "body": "受け入れ・稼働の状況を述べる本文 50〜80字（数値を使わない定性的記述）",
+  "action": "今週の一手 40〜70字（ICU/HCU連携での病床管理・後方病床調整・病床運用見直し等。予定入院/紹介/具体的な数値は書かない）"
 }"""
 
 
@@ -1183,6 +1183,207 @@ def narrate_emergency_admission_action(ward_name: str, na, na_tgt, trend: Option
         system=EMERGENCY_ADMISSION_SYSTEM_PROMPT,
         user=_build_emergency_admission_prompt(ward_name, state),
         banned=banned, allow=_unit_allow(ward_name),
+        model=model, temperature=temperature, quiet=quiet)
+
+
+# ────────────────────────────────────
+# 重症ケア病棟（ICU=04B / HCU=04D）専用の「今週の一手」
+# ────────────────────────────────────
+# ICU/HCU は新入院患者数よりも在院患者数・病床稼働率の増が最終目標。院内急変・緊急手術後の
+# 受け入れが中心で、予定入院・紹介という業務前提が無い。4A/4C（救急受け入れが主軸）とは
+# 目標が異なるため専用プロンプトにする（「救急搬送の受け入れ」ではなく「重症管理での高稼働」）。
+_CRITICAL_CARE_LEVELING_BANNED = ("延伸", "早期退院", "予定入院", "紹介", "地域医療連携", "前年", "前回")
+_CRITICAL_CARE_ADMISSION_BANNED_BASE = ("予定入院", "紹介", "地域医療連携", "前年", "前回")
+_CRITICAL_CARE_ADMISSION_BANNED = _CRITICAL_CARE_ADMISSION_BANNED_BASE + ("傾向",)
+_CRITICAL_CARE_ADMISSION_BANNED_TREND_OK = _CRITICAL_CARE_ADMISSION_BANNED_BASE
+
+CRITICAL_CARE_LEVELING_SYSTEM_PROMPT = """あなたは病院の病床管理を支援する要約ライターです。重症ケア病棟（ICU/HCU。院内急変・緊急手術後の重症患者を管理し、予定入院はほぼ無い病棟）の「週末（土日）に在院・稼働が落ち込む状況」への“今週の一手”を、与えられた事実だけから日本語で書きます。以下を厳守してください。
+
+【厳守事項】
+1. 与えられた事実のみを使う。新しい数値・原因・固有名を足さない。本文に数値を再引用しない（定性語のみ使う）。
+2. この病棟は院内急変・緊急手術後の受け入れが中心で「予定入院」「地域医療連携（紹介元）」は存在しない。それらは絶対に提案しない。
+3. **最終目標は在院患者数・病床稼働率を高く保つこと**。具体策は「手術部・救急・一般病棟との連携で院内急変・緊急術後の受け入れを絶やさない」「後方病床（一般病棟）への転棟タイミングを適正化して高稼働を保つ」「週末も重症管理の運用・当直体制を平日と同水準に保つ」など運用面の一般的な対応にとどめる。
+4. 在院日数の延長や早期退院の促進は提案しない（禁止）。
+5. 出力は指定 JSON のみ。前置き・説明・``` を付けない。簡潔・丁寧・事務的なトーン。
+
+【出力スキーマ】
+{
+  "body": "週末の在院・稼働の状況を述べる本文 50〜80字（数値を使わない定性的記述）",
+  "action": "今週の一手 40〜70字（院内急変・緊急術後受け入れの維持、転棟タイミングの適正化、週末体制の維持。予定入院/紹介は書かない）"
+}"""
+
+CRITICAL_CARE_ADMISSION_SYSTEM_PROMPT = """あなたは病院経営を支援する要約ライターです。重症ケア病棟（ICU/HCU。院内急変・緊急手術後の重症患者を管理し、予定入院・紹介という概念が無い病棟）の「新規受け入れ（院内急変・緊急術後・重症化）」の状況への“今週の一手”を、与えられた事実だけから日本語で書きます。以下を厳守してください。
+
+【厳守事項】
+1. 与えられた事実のみを使う。新しい数値・原因・固有名を足さない。本文に数値を再引用しない（定性語のみ使う）。
+2. この病棟は院内急変・緊急手術後の受け入れが中心で「予定入院」「地域医療連携（紹介元）」は存在しない。それらは絶対に提案しない。
+3. **最終目標は在院患者数・病床稼働率を高く保つこと**。受け入れ（院内急変・緊急術後）はそのための中心手段。具体策は「手術部・救急・一般病棟との連携で重症患者の受け入れを円滑にする」「後方病床の調整で高稼働を保ちつつ受け入れ余地を確保する」など運用面の一般的な対応にとどめる。
+4. 特定の疾患・術式・患者を名指しした医療行為の指示はしない（臨床判断はしない）。
+5. 事実に「直近は改善に向かっている／さらに落ち込んでいる」等の傾向が含まれる場合はそのまま使ってよい（渡された傾向以外を書き足さない）。事実に含まれる対比（「〜が」等）はそのまま保ち、現状と傾向が食い違うときは逆接でつなぐ（順接で誤接続しない）。
+6. 出力は指定 JSON のみ。前置き・説明・``` を付けない。簡潔・丁寧・事務的なトーン。
+
+【出力スキーマ】
+{
+  "body": "受け入れ・稼働の状況を述べる本文 50〜80字（数値を使わない定性的記述）",
+  "action": "今週の一手 40〜70字（手術部/救急/一般病棟との連携、後方病床調整。予定入院/紹介/具体的な数値は書かない）"
+}"""
+
+
+def _build_critical_care_leveling_prompt(ward_name: str, state: str) -> str:
+    return f"""以下の事実から、病棟「{ward_name}」（重症ケア＝ICU/HCU・院内急変/緊急術後が中心）の“今週の一手”を JSON で1つだけ出力してください。
+
+【対象】病棟: {ward_name}（重症ケア病棟）
+【週末(土日)の在院・稼働の状況】
+- {state}
+
+【書き方】
+- body=週末の在院・稼働の状況の要約（数値を使わない定性的記述）。
+- action=今週の一手（院内急変・緊急術後受け入れの維持、後方病床への転棟タイミングの適正化、週末体制の維持）。予定入院・紹介は書かない。
+- JSON 以外（```・前置き・末尾コメント）を出力しない。"""
+
+
+def _build_critical_care_admission_prompt(ward_name: str, state: str) -> str:
+    return f"""以下の事実から、病棟「{ward_name}」（重症ケア＝ICU/HCU・院内急変/緊急術後が中心）の新規受け入れに関する“今週の一手”を JSON で1つだけ出力してください。
+
+【対象】病棟: {ward_name}（重症ケア病棟）
+【新規受け入れ（院内急変・緊急術後、直近7日）の状況】
+- {state}
+
+【書き方】
+- body=受け入れ・稼働の状況の要約（数値を使わない定性的記述）。
+- action=今週の一手（手術部/救急/一般病棟との連携、後方病床調整で高稼働と受け入れ余地を両立）。予定入院・紹介・具体的な数値は書かない。
+- JSON 以外（```・前置き・末尾コメント）を出力しない。"""
+
+
+def narrate_critical_care_leveling_action(ward_name: str, retention, room_delta,
+                                          model: str = DEFAULT_MODEL,
+                                          temperature: float = DEFAULT_TEMPERATURE,
+                                          quiet: bool = False) -> Optional[dict]:
+    """重症ケア病棟(ICU/HCU)向け・週末在院/稼働トピックの「今週の一手」を生成する。"""
+    state = _q_state_trend(retention, room_delta)
+    return _generate_checked(
+        f"critical-care-leveling ward:{ward_name}",
+        system=CRITICAL_CARE_LEVELING_SYSTEM_PROMPT,
+        user=_build_critical_care_leveling_prompt(ward_name, state),
+        banned=_CRITICAL_CARE_LEVELING_BANNED, allow=_unit_allow(ward_name),
+        model=model, temperature=temperature, quiet=quiet)
+
+
+def narrate_critical_care_admission_action(ward_name: str, na, na_tgt, trend: Optional[str] = None,
+                                           model: str = DEFAULT_MODEL,
+                                           temperature: float = DEFAULT_TEMPERATURE,
+                                           quiet: bool = False) -> Optional[dict]:
+    """重症ケア病棟(ICU/HCU)向け・新規受け入れトピックの「今週の一手」を生成する。"""
+    state = _q_target_gap_trend(na, na_tgt, trend)
+    if state is None:
+        return None
+    banned = (_CRITICAL_CARE_ADMISSION_BANNED_TREND_OK if trend in ("上昇", "低下")
+             else _CRITICAL_CARE_ADMISSION_BANNED)
+    return _generate_checked(
+        f"critical-care-admission ward:{ward_name}",
+        system=CRITICAL_CARE_ADMISSION_SYSTEM_PROMPT,
+        user=_build_critical_care_admission_prompt(ward_name, state),
+        banned=banned, allow=_unit_allow(ward_name),
+        model=model, temperature=temperature, quiet=quiet)
+
+
+# ────────────────────────────────────
+# 救急科（診療科）専用の「今週の一手」
+# ────────────────────────────────────
+# 救急科は外科系・内科系いずれにも属さない。北極星は救急受け入れ＝2次・3次救急の受け入れ増、
+# 救急車の応需台数増、ER滞在時間の短縮。予定入院・紹介・地域連携という業務前提が無い。
+_ER_LEVELING_BANNED = ("延伸", "早期退院", "予定入院", "紹介", "地域医療連携", "前年", "前回")
+_ER_ADMISSION_BANNED_BASE = ("予定入院", "紹介", "地域医療連携", "前年", "前回")
+_ER_ADMISSION_BANNED = _ER_ADMISSION_BANNED_BASE + ("傾向",)
+_ER_ADMISSION_BANNED_TREND_OK = _ER_ADMISSION_BANNED_BASE
+
+ER_ADMISSION_SYSTEM_PROMPT = """あなたは病院経営を支援する要約ライターです。救急科（救急外来ERと救急搬送の受け入れが中心。予定入院・紹介という概念が無い）の「救急受け入れ」の状況への“今週の一手”を、与えられた事実だけから日本語で書きます。以下を厳守してください。
+
+【厳守事項】
+1. 与えられた事実のみを使う。新しい数値・原因・固有名を足さない。本文に数値を再引用しない（定性語のみ使う）。
+2. 救急科は「予定入院」「地域医療連携（紹介元）」という業務前提が無い。それらは絶対に提案しない。
+3. **北極星は救急受け入れ＝2次・3次救急の受け入れ増、救急車の応需台数増、救急外来（ER）滞在時間の短縮**。具体策は「応需率を高める受け入れ判断・病床確保」「入院病棟・後方病床との連携でER滞在時間を短縮する」「救急車受け入れ台数の増加に向けた受け入れ体制の維持・強化」など運用面の一般的な対応にとどめる。
+4. 特定の疾患・患者を名指しした医療行為の指示はしない（臨床判断はしない）。
+5. 事実に「直近は改善に向かっている／さらに落ち込んでいる」等の傾向が含まれる場合はそのまま使ってよい（渡された傾向以外を書き足さない）。事実に含まれる対比（「〜が」等）はそのまま保ち、現状と傾向が食い違うときは逆接でつなぐ（順接で誤接続しない）。
+6. 出力は指定 JSON のみ。前置き・説明・``` を付けない。簡潔・丁寧・事務的なトーン。
+
+【出力スキーマ】
+{
+  "body": "救急受け入れの状況を述べる本文 50〜80字（数値を使わない定性的記述）",
+  "action": "今週の一手 40〜70字（応需率向上・救急車受け入れ増・ER滞在時間短縮・後方病床連携。予定入院/紹介/具体的な数値は書かない）"
+}"""
+
+ER_LEVELING_SYSTEM_PROMPT = """あなたは病院の病床管理を支援する要約ライターです。救急科（救急外来ERと救急搬送の受け入れが中心）の「週末（土日）に受け入れ・在院が落ち込む状況」への“今週の一手”を、与えられた事実だけから日本語で書きます。以下を厳守してください。
+
+【厳守事項】
+1. 与えられた事実のみを使う。新しい数値・原因・固有名を足さない。本文に数値を再引用しない（定性語のみ使う）。
+2. 救急科は「予定入院」「地域医療連携（紹介元）」という業務前提が無い。それらは絶対に提案しない。
+3. ねらいは週末も救急受け入れを落とさないこと（北極星＝2次・3次救急の受け入れ、救急車応需台数、ER滞在時間の短縮）。具体策は「週末も応需体制・後方病床を保ち救急受け入れを維持する」「入院病棟との連携でER滞在時間を短縮し受け入れ余地を作る」など運用面の一般的な対応にとどめる。
+4. 在院日数の延長や早期退院の促進は提案しない（禁止）。
+5. 出力は指定 JSON のみ。前置き・説明・``` を付けない。簡潔・丁寧・事務的なトーン。
+
+【出力スキーマ】
+{
+  "body": "週末の救急受け入れ・在院の状況を述べる本文 50〜80字（数値を使わない定性的記述）",
+  "action": "今週の一手 40〜70字（週末の応需体制維持・後方病床連携でのER滞在短縮。予定入院/紹介は書かない）"
+}"""
+
+
+def _build_er_admission_prompt(dept_name: str, state: str) -> str:
+    return f"""以下の事実から、診療科「{dept_name}」（救急外来ER・救急搬送の受け入れが中心）の救急受け入れに関する“今週の一手”を JSON で1つだけ出力してください。
+
+【対象】診療科: {dept_name}（救急科）
+【救急受け入れの状況】
+- {state}
+
+【書き方】
+- body=救急受け入れの状況の要約（数値を使わない定性的記述）。
+- action=今週の一手（応需率向上・救急車受け入れ増・ER滞在時間短縮・後方病床連携）。予定入院・紹介・具体的な数値は書かない。
+- JSON 以外（```・前置き・末尾コメント）を出力しない。"""
+
+
+def _build_er_leveling_prompt(dept_name: str, state: str) -> str:
+    return f"""以下の事実から、診療科「{dept_name}」（救急外来ER・救急搬送の受け入れが中心）の“今週の一手”を JSON で1つだけ出力してください。
+
+【対象】診療科: {dept_name}（救急科）
+【週末(土日)の受け入れ・在院の状況】
+- {state}
+
+【書き方】
+- body=週末の救急受け入れ・在院の状況の要約（数値を使わない定性的記述）。
+- action=今週の一手（週末の応需体制維持、入院病棟との連携でER滞在短縮）。予定入院・紹介は書かない。
+- JSON 以外（```・前置き・末尾コメント）を出力しない。"""
+
+
+def narrate_er_admission_action(dept_name: str, na, na_tgt, trend: Optional[str] = None,
+                                model: str = DEFAULT_MODEL,
+                                temperature: float = DEFAULT_TEMPERATURE,
+                                quiet: bool = False) -> Optional[dict]:
+    """救急科向け・救急受け入れトピックの「今週の一手」を生成する。"""
+    state = _q_target_gap_trend(na, na_tgt, trend)
+    if state is None:
+        return None
+    banned = (_ER_ADMISSION_BANNED_TREND_OK if trend in ("上昇", "低下")
+             else _ER_ADMISSION_BANNED)
+    return _generate_checked(
+        f"er-admission dept:{dept_name}",
+        system=ER_ADMISSION_SYSTEM_PROMPT,
+        user=_build_er_admission_prompt(dept_name, state),
+        banned=banned, allow=_unit_allow(dept_name),
+        model=model, temperature=temperature, quiet=quiet)
+
+
+def narrate_er_leveling_action(dept_name: str, retention, room_delta,
+                               model: str = DEFAULT_MODEL,
+                               temperature: float = DEFAULT_TEMPERATURE,
+                               quiet: bool = False) -> Optional[dict]:
+    """救急科向け・週末受け入れ/在院トピックの「今週の一手」を生成する。"""
+    state = _q_state_trend(retention, room_delta)
+    return _generate_checked(
+        f"er-leveling dept:{dept_name}",
+        system=ER_LEVELING_SYSTEM_PROMPT,
+        user=_build_er_leveling_prompt(dept_name, state),
+        banned=_ER_LEVELING_BANNED, allow=_unit_allow(dept_name),
         model=model, temperature=temperature, quiet=quiet)
 
 
