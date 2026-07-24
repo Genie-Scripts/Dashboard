@@ -27,12 +27,16 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 LOG="/tmp/dept_reports.log"
 echo "=== $(date '+%Y/%m/%d %H:%M:%S') 部門レポート生成 開始 ===" >> "$LOG"
 
+# GENIE_HEADLESS=1＝業務ハブ（orchestrator ジョブ）からの背景実行時は osascript を使わず
+# ログのみにする（display dialog はブロッキングのためハブ実行が固まる。deploy.sh と同じ対処）。
 notify() {
+  if [ "${GENIE_HEADLESS:-}" = "1" ]; then echo "🔔 $1 / $2" >> "$LOG"; return; fi
   osascript -e "display notification \"$1\" with title \"部門別レポートPDF\" subtitle \"$2\"" 2>/dev/null || true
 }
 error_dialog() {
-  osascript -e "display dialog \"$1\" buttons {\"OK\"} with title \"エラー\" with icon caution" 2>/dev/null || true
   echo "❌ $1" >> "$LOG"
+  if [ "${GENIE_HEADLESS:-}" = "1" ]; then return; fi
+  osascript -e "display dialog \"$1\" buttons {\"OK\"} with title \"エラー\" with icon caution" 2>/dev/null || true
 }
 trap 'error_dialog "予期せぬエラーで停止しました。詳細は $LOG を確認してください。"' ERR
 
