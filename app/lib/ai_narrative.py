@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Optional
 
 from .llm import DEFAULT_MODEL, chat_json
-from .config import surgery_metric_label
+from .config import surgery_metric_label, UNIT_ROLE_LEVERS, WARD_BANNED_LEVER_TERMS
 
 try:
     from app.lib import fewshot  # P3: 添削フィードバックの few-shot 注入（失敗時は完全無効）
@@ -831,6 +831,11 @@ def narrate_leveling_actions(weekend_leveling: dict,
         def _one(u, entity=entity, det=det, max_room=max_room):
             delta = (deltas or {}).get(u["name"])
             banned = _LEVELING_BANNED if delta else _LEVELING_BANNED + ("前回",)
+            # 病棟軸は紹介・地域医療連携を業務として持たない（診療科の打ち手）。平準化の
+            # レバー文自体は病棟向けに書いてあるが、モデルが一般知識から補うことがあるため
+            # 新入院トピックと同じ機械ガードを掛ける（棄却時は決定論の定型文へ縮退）。
+            if entity == "ward":
+                banned = banned + WARD_BANNED_LEVER_TERMS
             # P3: 添削 few-shot（診療科軸のみ・leveling は水準トークンを持たないため topic一致のみ）
             fs = (fewshot.examples_block("leveling", None, banned, u["name"])
                   if (fewshot and entity == "dept") else "")
@@ -878,6 +883,14 @@ _ADMISSION_BANNED_BASE = ("診断", "処方", "投与", "術式", "手術を追�
                           "稼働", "占有率", "逼迫", "余地が限られ")
 _ADMISSION_BANNED = _ADMISSION_BANNED_BASE + ("傾向",)          # 傾向を渡さない場合（従来どおり）
 _ADMISSION_BANNED_TREND_OK = _ADMISSION_BANNED_BASE             # 傾向を事実として渡した場合
+
+# 一般病棟（特例でない病棟）は外来・地域連携の窓口を持たないため「紹介」「地域医療連携」を
+# 業務として持たない。LLM は一般知識から紹介元への働きかけを補いやすいため、プロンプト指示
+# （厳守事項）に加えて生成後の禁止語でも機械的に弾く多重防衛にする
+# （WARD_BANNED_LEVER_TERMS = config 側の単一の真実）。
+_WARD_ADMISSION_BANNED_BASE = _ADMISSION_BANNED_BASE + WARD_BANNED_LEVER_TERMS
+_WARD_ADMISSION_BANNED = _WARD_ADMISSION_BANNED_BASE + ("傾向",)
+_WARD_ADMISSION_BANNED_TREND_OK = _WARD_ADMISSION_BANNED_BASE
 _SURGERY_BANNED_BASE = ("診断", "処方", "投与", "術式を追加")
 _SURGERY_BANNED = _SURGERY_BANNED_BASE + ("傾向",)
 _SURGERY_BANNED_TREND_OK = _SURGERY_BANNED_BASE
@@ -902,6 +915,41 @@ ADMISSION_ACTION_SYSTEM_PROMPT = """あなたは病院経営を支援する要�
 {"body":"新入院は目標をわずかに下回るものの、直近は持ち直しつつあります。","action":"紹介元への働きかけを続け、予定入院枠の調整でこの流れを確かにしましょう。"}
 状況「目標を明確に下回り、直近もさらに落ち込んでいる」→
 {"body":"新入院が目標を明確に下回り、足元でも弱含みが続いています。","action":"紹介受け入れの重点化と予定入院枠の前倒しで、患者数増に取り組みましょう。"}"""
+
+# 一般病棟（特例でない＝EMERGENCY_WARDS/CRITICAL_CARE_WARDSでない病棟）向け。
+# 病棟は外来・地域連携の窓口を持たないため「紹介元への働きかけ」「地域医療連携の強化」
+# 「予定入院枠の前倒し」は病棟の業務として成立しない（いずれも診療科の打ち手）。
+# 病棟が動かせる打ち手は UNIT_ROLE_LEVERS["ward"] の4項目（病床管理・受け入れ・
+# 転棟/退院タイミング調整・担当診療科との連携）に限定する。文言はプロンプトと
+# dept_report の定型文（_fallback_move_ward_admission）で乖離しないよう config を単一の
+# 真実にし、ここでは列挙するだけにとどめる。
+_WARD_LEVERS_ENUM = "、".join(
+    f"({i + 1}) {lever}" for i, lever in enumerate(UNIT_ROLE_LEVERS["ward"])
+)
+# JSON例に "{" "}" を含むため f-string にはせず、レバー列挙部分だけ通常の文字列連結で挿む
+# （f-string にすると出力スキーマ中の波括弧が format プレースホルダとして誤解釈される）。
+WARD_ADMISSION_ACTION_SYSTEM_PROMPT = ("""あなたは病院経営を支援する要約ライターです。各病棟の「新規受け入れ（新入院・他病棟からの転入）」の状況への“今週の一手”を、与えられた事実だけから日本語で書きます。以下を厳守してください。
+
+【厳守事項】
+1. 与えられた事実のみを使う。新しい数値・原因・固有名を足さない。本文に数値を再引用しない（定性語のみ使う）。
+2. ねらいは病棟の新規受け入れ（新入院・他病棟からの転入）を目標水準へ近づけること。具体策は次の4つの範囲に限定する: """
+    + _WARD_LEVERS_ENUM +
+    """。病棟は外来・地域連携の窓口を持たないため「紹介元への働きかけ」「地域医療連携の強化」「予定入院枠の前倒し」は提案しない（いずれも診療科の打ち手）。目標未達のときの action は「新規の受け入れを増やしましょう」のような直接的な呼びかけで締める。
+3. 特定の疾患・術式・患者を名指しした医療行為の指示はしない（臨床判断はしない）。
+4. 事実に「直近は改善に向かっている／さらに落ち込んでいる」等の傾向が含まれる場合はそのまま使ってよい（渡された傾向以外を書き足さない）。事実に含まれる対比（「〜が」等）はそのまま保ち、現状と傾向が食い違うときは逆接でつなぐ（順接で誤接続しない）。
+5. 出力は指定 JSON のみ。前置き・説明・``` を付けない。簡潔・丁寧・事務的なトーン。
+
+【出力スキーマ】
+{
+  "body": "新規受け入れの状況を述べる本文 50〜80字（数値を使わない定性的記述）",
+  "action": "今週の一手 40〜70字（病床管理・受け入れ・退院/転棟のタイミング調整に限る。紹介/地域医療連携は書かない）"
+}
+
+【出力例】（状況が変われば本文・一手も変える。丸暗記せず状況に合わせること）
+状況「目標をわずかに下回るが、直近は改善に向かっている」→
+{"body":"新規の受け入れは目標をわずかに下回るものの、直近は持ち直しつつあります。","action":"空床の把握を細かく行い、緊急入院・転入の受け入れを続けてこの流れを確かにしましょう。"}
+状況「目標を明確に下回り、直近もさらに落ち込んでいる」→
+{"body":"新規の受け入れが目標を明確に下回り、足元でも弱含みが続いています。","action":"ベッドコントロールを強化し、退院・転棟のタイミング調整で受け入れ余地を広げましょう。"}""")
 
 SURGERY_ACTION_SYSTEM_PROMPT = """あなたは病院経営を支援する要約ライターです。各診療科の「全身麻酔手術件数」の状況への“今週の一手”を、与えられた事実だけから日本語で書きます。以下を厳守してください。
 
@@ -961,6 +1009,30 @@ def _build_admission_prompt(unit_name: str, entity: str, state: str,
 - JSON 以外（```・前置き・末尾コメント）を出力しない。"""
 
 
+def _build_ward_admission_prompt(ward_name: str, state: str,
+                                 yoy: Optional[str] = None,
+                                 delta: Optional[str] = None,
+                                 holiday: Optional[str] = None) -> str:
+    # 一般病棟向け。peer/mix は診療科軸専用の事実（同種診療科内の相対位置・予定/緊急の
+    # 内訳）で病棟軸では算出していないため渡さない。
+    lines = [f"- {state}"]
+    if yoy:     lines.append(f"- 前年同期との比較: {yoy}")
+    if delta:   lines.append(f"- 前回レポートとの比較: {delta}")
+    if holiday: lines.append(f"- 補足: {holiday}")
+    facts = "\n".join(lines)
+    return f"""以下の事実から、病棟「{ward_name}」の新規受け入れ（新入院・転入）に関する“今週の一手”を JSON で1つだけ出力してください。
+
+【対象】病棟: {ward_name}
+【新規受け入れ（直近7日）の状況】
+{facts}
+
+【書き方】
+- body=新規受け入れの状況の要約（数値を使わない定性的記述）。前年同期比較・前回レポート比較が与えられていれば軽く織り込んでよい（目標未達でも前年や前回を上回るなら、その点は前向きに触れる）。
+- 「補足」に祝日の記載があれば、水準の低さを断定的に責めず、その影響に軽く触れてよい。
+- action=今週の一手（病床管理（空床の把握・ベッドコントロール）、緊急入院・転入の受け入れ、退院・転棟のタイミング調整など病棟が動かせる運用対応のみ。紹介元への働きかけ・地域医療連携・予定入院枠の前倒しは書かない）。
+- JSON 以外（```・前置き・末尾コメント）を出力しない。"""
+
+
 def _build_surgery_prompt(dept_name: str, state: str,
                           metric_label: str = "全身麻酔手術",
                           peer: Optional[str] = None,
@@ -1005,10 +1077,27 @@ def narrate_admission_action(unit_name: str, entity: str, na, na_tgt, trend: Opt
     yoy: 前年同期比較（_q_yoy の確定文・BチャートのCur/prevから）。
     delta: 前回レポート比較（①差分ナラティブ）。mix: 予定/緊急の内訳（①-2）。
     holiday: 連休文脈（①-4）。いずれも渡さない場合は対応語を禁止語にする（連動緩和）。
+    entity == "ward"（特例でない一般病棟）は紹介・地域医療連携を業務として持たないため、
+    専用プロンプト（WARD_ADMISSION_ACTION_SYSTEM_PROMPT）に差し替える。entity == "dept" の
+    経路は本分岐追加前とバイト単位で不変（生成キャッシュのキー・決定論 seed を壊さないため）。
     """
     state = _q_target_gap_trend(na, na_tgt, trend)
     if state is None:
         return None
+    if entity == "ward":
+        banned = _WARD_ADMISSION_BANNED_TREND_OK if trend in ("上昇", "低下") else _WARD_ADMISSION_BANNED
+        if yoy is None:
+            banned = banned + ("前年",)
+        if delta is None:
+            banned = banned + ("前回",)
+        if holiday is None:
+            banned = banned + ("祝日", "連休")
+        return _generate_checked(
+            f"admission {entity}:{unit_name}",
+            system=WARD_ADMISSION_ACTION_SYSTEM_PROMPT,
+            user=_build_ward_admission_prompt(unit_name, state, yoy=yoy, delta=delta, holiday=holiday),
+            banned=banned, allow=_unit_allow(unit_name),
+            model=model, temperature=temperature, quiet=quiet)
     banned = _ADMISSION_BANNED_TREND_OK if trend in ("上昇", "低下") else _ADMISSION_BANNED
     if yoy is None:
         # 「傾向」と同じ連動緩和: 前年比較を事実として渡していないのに「前年」を書いたら捏造

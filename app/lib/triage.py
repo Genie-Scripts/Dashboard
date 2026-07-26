@@ -22,6 +22,7 @@ from .config import (
     NADM_DISPLAY_DEPTS, SURGERY_DISPLAY_DEPTS,
     SURGERY_EVAL_DEPTS, surgery_metric_label,
     WARD_NAMES, WARD_HIDDEN,
+    unit_narration_kind, UNIT_ROLE_LEVERS, WARD_BANNED_LEVER_TERMS,
 )
 from .metrics import (
     rolling7_new_admission, rolling7_surgery, rolling28_surgery_dept,
@@ -101,6 +102,10 @@ TRIAGE_SYSTEM_PROMPT = """あなたは病院経営会議向けの要約ライタ
 13. 【状況】に「悪化傾向（失速）」かつ目標達成中とある場合は、未達の挽回ではなく、
     達成水準の維持と失速要因の点検を主題にすること。「改善傾向」かつ未達とある場合は、
     まず改善を肯定したうえで勢いの維持・加速を促すこと。
+14. 【このユニットで使える打ち手（レバー）】が示されている場合、suggestion はその範囲に
+    限定すること。病棟・救急科などのユニットは紹介患者の獲得・地域医療連携を業務として
+    担わないため、規則10・12がいう「紹介患者の確保」「地域医療連携」は診療科専用の
+    レバーであり、これらのユニットには提案しないこと。本規則14は規則10・12より優先する。
 
 【出力スキーマ】
 {
@@ -488,6 +493,18 @@ def pick_targets(scored: list[dict], adm: pd.DataFrame,
 # LLM ナラティブ
 # ════════════════════════════════════════
 
+def _unit_kind(item: dict) -> Optional[str]:
+    """item の「ユニット役割」種別を返す。診療科（内科系/外科系。救急科を除く）は None。
+
+    unit_narration_kind() を単一の真実として使い、特例（emergency/critical_care/er_dept）
+    でない一般病棟は "ward" として返す（診療科向けレバーとの取り違えを防ぐため）。
+    """
+    kind = unit_narration_kind(item["entity_type"], item.get("ward_code"), item["name"])
+    if kind is not None:
+        return kind
+    return "ward" if item.get("entity_type") == "ward" else None
+
+
 def _build_triage_prompt(item: dict) -> str:
     facts_block = "\n".join(f"- {f}" for f in item["facts"])
     wow_line = f"\n・前週同曜日比: {item['wow_hint']}" if item.get("wow_hint") else ""
@@ -495,11 +512,31 @@ def _build_triage_prompt(item: dict) -> str:
                    "手術実績を主軸に肯定的に評価し、在院患者数や退院曜日の偏りは"
                    "強く指摘しないこと。") if item.get("surgery_strong") else ""
     entity_label = item.get("entity_label", "科")
+    kind = _unit_kind(item)
     goal_map = {
         "inp": "在院患者数の増加（レバー: 新入院・紹介患者の確保）",
         "op":  f"{surgery_metric_label(item['name'])}件数の増加（レバー: 手術枠の活用・予約調整）",
+        "ward": "在院患者数の増加（レバー: 病床管理〔空床の把握・ベッドコントロール〕・"
+                "緊急入院や転入の受け入れ・退院や転棟のタイミング調整）",
+        "emergency": "病床稼働率の維持（レバー: 救急・緊急入院の受け入れ、転棟・転出判断の"
+                     "迅速化、週末の受け入れ体制維持）",
+        "critical_care": "在院患者数・病床稼働率の維持（レバー: 院内急変・緊急術後の受け入れ、"
+                          "手術部/救急/一般病棟との連携、後方病床への転棟タイミングの適正化）",
+        "er_dept": "救急受け入れの増加（レバー: 救急車の応需台数増、受入体制の維持・強化、"
+                   "後方病床連携でのER滞在時間短縮）",
     }
-    goal_line = goal_map.get(item.get("primary_kpi"), "")
+    # 診療科（kind=None）は従来どおり primary_kpi で引く。ユニット役割が判る場合はそちらを優先。
+    goal_line = goal_map.get(kind, "") if kind is not None else goal_map.get(item.get("primary_kpi"), "")
+    # 診療科以外（病棟・特例ユニット）は使える打ち手を明示し、診療科専用レバーを禁止する
+    levers_block = ""
+    if kind is not None:
+        levers_text = "\n".join(f"- {lv}" for lv in UNIT_ROLE_LEVERS.get(kind, []))
+        levers_block = (
+            f"\n\n【このユニットで使える打ち手（レバー）】\n{levers_text}"
+            "\n\n【禁止】このユニットは紹介患者の獲得・地域医療連携を業務として担わない"
+            "（いずれも診療科の打ち手）。『紹介元への働きかけ』『地域医療連携の強化』"
+            "『紹介患者の確保』は suggestion に書かないこと。"
+        )
     if item.get("status_kind") == "watch":
         trend_note = ("\n\n【状況】目標は達成しているが、北極星KPIが直近で悪化傾向（失速）。"
                       "未達ではないため『挽回』ではなく、達成水準の維持と失速要因の点検を促すこと。")
@@ -518,7 +555,7 @@ def _build_triage_prompt(item: dict) -> str:
 【この{entity_label}の目標KPI】{goal_line}
 
 【確定事実】
-{facts_block}{wow_line}{strong_note}{trend_note}
+{facts_block}{wow_line}{strong_note}{trend_note}{levers_block}
 
 【注意】
 - priority は必ず "{item['priority']}" を出力すること（Python で再検証する）
@@ -566,15 +603,38 @@ def _extract_triage_json(text: str, entity_name: str = "") -> Optional[dict]:
     }
 
 
+def _fallback_suggestion(item: dict) -> str:
+    """LLM 失敗時の定型 suggestion。診療科（kind=None）は従来どおり FALLBACK_SUGGESTIONS、
+    病棟・特例ユニットは役割別のレバーに基づく文言（紹介・地域医療連携を含めない）。"""
+    kind = _unit_kind(item)
+    if kind == "ward":
+        return "空床の把握とベッドコントロールを徹底し、緊急入院・転入の受け入れ拡大を推奨します"
+    if kind == "emergency":
+        return "救急・緊急入院の受け入れ体制の維持と、転棟・転出判断の迅速化を推奨します"
+    if kind == "critical_care":
+        return "院内急変・緊急術後の受け入れ維持と、後方病床への転棟タイミングの適正化を推奨します"
+    if kind == "er_dept":
+        return "救急車の応需台数増と、後方病床連携によるER滞在時間の短縮を推奨します"
+
+    # 診療科（内科系/外科系）は従来どおり
+    if item.get("primary_is_fallback"):
+        key = "adm"
+    elif item.get("primary_kpi") == "op":
+        key = "op"
+    else:
+        key = "inp"
+    return FALLBACK_SUGGESTIONS[key]
+
+
 def _make_fallback_narrative(item: dict) -> dict:
     """LLM 失敗時の Python 定型文 fallback（北極星KPI主体・水準×傾向）"""
     # 北極星KPIが測れずフォールバック中の科は新入院を主題にする
     if item.get("primary_is_fallback"):
-        kpi, key = "新入院", "adm"
+        kpi = "新入院"
     elif item.get("primary_kpi") == "op":
-        kpi, key = surgery_metric_label(item["name"]), "op"
+        kpi = surgery_metric_label(item["name"])
     else:
-        kpi, key = "在院患者数", "inp"
+        kpi = "在院患者数"
 
     # 達成中だが悪化傾向 → 早期警戒（挽回ではなく維持・点検）
     if item.get("status_kind") == "watch":
@@ -582,7 +642,7 @@ def _make_fallback_narrative(item: dict) -> dict:
             "priority":    item["priority"],
             "headline":    f"{kpi}が悪化傾向（達成中）",
             "observation": f"{kpi}は目標を満たしていますが、直近で悪化傾向です",
-            "suggestion":  f"達成水準の維持に向け、{FALLBACK_SUGGESTIONS[key]}",
+            "suggestion":  f"達成水準の維持に向け、{_fallback_suggestion(item)}",
         }
     # 未達だが改善傾向 → まず肯定し勢いの維持
     if item.get("improving"):
@@ -590,18 +650,18 @@ def _make_fallback_narrative(item: dict) -> dict:
             "priority":    item["priority"],
             "headline":    f"{kpi}は改善傾向（なお未達）",
             "observation": f"{kpi}は目標を下回るものの、改善傾向です",
-            "suggestion":  f"この勢いを維持し、{FALLBACK_SUGGESTIONS[key]}",
+            "suggestion":  f"この勢いを維持し、{_fallback_suggestion(item)}",
         }
     return {
         "priority":    item["priority"],
         "headline":    f"{kpi}が目標未達",
         "observation": f"{kpi}が目標を下回っています",
-        "suggestion":  FALLBACK_SUGGESTIONS[key],
+        "suggestion":  _fallback_suggestion(item),
     }
 
 
-def _narrate_one(item: dict, model: str, temperature: float) -> Optional[dict]:
-    """単一科を LLM で翻訳。失敗時は None"""
+def _narrate_one_call(item: dict, model: str, temperature: float) -> Optional[dict]:
+    """単一科を LLM で翻訳（1回呼び出し）。失敗時は None"""
     try:
         content = chat_json(
             system=TRIAGE_SYSTEM_PROMPT,
@@ -622,6 +682,34 @@ def _narrate_one(item: dict, model: str, temperature: float) -> Optional[dict]:
     # priority は Python 側で強制上書き（LLM は参考のみ）
     result["priority"] = item["priority"]
     return result
+
+
+def _contains_banned_lever(result: dict) -> bool:
+    """headline/observation/suggestion の連結に診療科専用レバー語が含まれるか"""
+    combined = f"{result.get('headline', '')}{result.get('observation', '')}{result.get('suggestion', '')}"
+    return any(term in combined for term in WARD_BANNED_LEVER_TERMS)
+
+
+def _narrate_one(item: dict, model: str, temperature: float) -> Optional[dict]:
+    """単一科を LLM で翻訳。失敗時は None
+
+    診療科以外（病棟・特例ユニット）は生成後の機械ガード（多重防衛）を通す。
+    ローカルLLM(Swallow-8B)はプロンプトの指示だけでは一般知識から「紹介元への
+    働きかけ」等を書きがちなため、禁止語（WARD_BANNED_LEVER_TERMS）を検出したら
+    温度を下げて1回だけ再試行し、それでも駄目なら None を返す（呼び出し元
+    narrate_triage が Python 定型文へ無害縮退する）。診療科の経路はガード無し（従来どおり）。
+    """
+    result = _narrate_one_call(item, model, temperature)
+    if _unit_kind(item) is None or result is None:
+        return result
+    if not _contains_banned_lever(result):
+        return result
+
+    logger.warning(f"triage 出力に禁止語検出、温度を下げて再試行 ({item['name']})")
+    retry = _narrate_one_call(item, model, 0.1)
+    if retry is not None and not _contains_banned_lever(retry):
+        return retry
+    return None
 
 
 def narrate_triage(items: list[dict],

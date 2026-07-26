@@ -155,6 +155,24 @@ def build_alert_context(alert: dict) -> str:
             parts.append(f"\n【{dept} で使える打ち手（レバー）】（action はこの中から状況に合うものを選ぶ）")
             parts.append(_format_rules(group_levers))
 
+    # 病棟グループルール ＋ 打ち手（レバー）。病棟は紹介・地域医療連携の窓口を持たないため、
+    # 診療科と同じ書式で、役割別（general/emergency/critical_care）のレバーに限定して注入する。
+    ward = (alert.get("meta") or {}).get("ward")
+    if ward:
+        from . import config
+        ward_code = (alert.get("meta") or {}).get("ward_code")
+        kind = config.unit_narration_kind("ward", ward_code, ward) or "general"
+        ward_group = (data.get("ward_group_rules") or {}).get(kind)
+        if isinstance(ward_group, dict):
+            ward_rules = ward_group.get("rules", [])
+            if ward_rules:
+                parts.append(f"\n【{ward} の評価方針】")
+                parts.append(_format_rules(ward_rules))
+            ward_levers = ward_group.get("levers", [])
+            if ward_levers:
+                parts.append(f"\n【{ward} で使える打ち手（レバー）】（action はこの中から状況に合うものを選ぶ）")
+                parts.append(_format_rules(ward_levers))
+
     return "\n".join(parts)
 
 

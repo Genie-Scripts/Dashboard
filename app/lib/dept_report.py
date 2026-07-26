@@ -24,8 +24,7 @@ from typing import Optional
 import pandas as pd
 
 from .config import (
-    SURGERY_DISPLAY_DEPTS, SURGERY_EVAL_DEPTS, surgery_metric_label, EMERGENCY_WARDS,
-    CRITICAL_CARE_WARDS, ER_DEPTS,
+    SURGERY_DISPLAY_DEPTS, SURGERY_EVAL_DEPTS, surgery_metric_label, unit_narration_kind,
     TARGET_INPATIENT_ALLDAY, TARGET_ADMISSION_WEEKLY, TARGET_GA_DAILY,
     TARGET_WEEKEND_RETENTION, FEE_REVISION_DATE, FEE_REVISION_PROFIT_UPLIFT,
 )
@@ -415,6 +414,22 @@ def _fallback_move_admission(state: Optional[str], peer: Optional[str] = None) -
             "action": "地域医療連携での紹介受け入れ強化や予定入院枠の調整で、新入院の患者数増に取り組みましょう。"}
 
 
+def _fallback_move_ward_admission(state: Optional[str]) -> dict:
+    """一般病棟（特例でない病棟）向け・新規受け入れトピックの定型文（oMLX未起動/棄却時）。
+    病棟は外来・地域連携の窓口を持たないため紹介・地域医療連携は一切含めない。actionは
+    UNIT_ROLE_LEVERS["ward"]の語彙（空床の把握・ベッドコントロール、緊急入院/転入の受け入れ、
+    退院・転棟のタイミング調整）で書く。peerは病棟軸に無いため引数を持たない。"""
+    if _is_met(state) and "鈍って" in state:
+        return {"body": f"新規の受け入れは{state}状況です。",
+                "action": "空床の把握とベッドコントロールを続けつつ、直近の受け入れ状況を注視しましょう。"}
+    if _is_met(state):
+        return {"body": "新規の受け入れは直近で目標水準を確保できています。",
+                "action": "空床の把握とベッドコントロールを続け、緊急入院・転入の受け入れ体制を維持しましょう。"}
+    # state 自体が「直近は〜」の傾向を含むため接頭辞「直近で」は付けない（重複回避）
+    return {"body": f"新規の受け入れは{state or '目標を下回っている'}状況です。",
+            "action": "空床の把握を細かく行い、緊急入院・転入の受け入れと退院・転棟のタイミング調整で新規の受け入れを増やしましょう。"}
+
+
 def _fallback_move_surgery(state: Optional[str], peer: Optional[str] = None,
                            label: str = "全身麻酔手術") -> dict:
     """手術トピックの定型文（oMLX未起動/ハルシネーション棄却時）。peer=同種科内の相対位置。
@@ -538,15 +553,9 @@ def _special_narration_kind(entity: str, code: str, name: str) -> Optional[str]:
     None=通常。"emergency"=救命救急病棟(4A/4C)・"critical_care"=重症ケア病棟(ICU/HCU)・
     "er_dept"=救急科。トピック(leveling/admission)の選定は共通ロジックのままで、
     呼び出す narrate_* だけを差し替える（週末平準化バッチの skip 判定と一手ディスパッチの
-    両方で同じ判定を使い、二重管理を避ける）。"""
-    if entity == "ward":
-        if code in EMERGENCY_WARDS:
-            return "emergency"
-        if code in CRITICAL_CARE_WARDS:
-            return "critical_care"
-    elif entity == "dept" and name in ER_DEPTS:
-        return "er_dept"
-    return None
+    両方で同じ判定を使い、二重管理を避ける）。判定は config.unit_narration_kind に一元化
+    （triage/eval_rules と同じ判定を共有するための単一の真実。ここは薄いラッパー）。"""
+    return unit_narration_kind(entity, code=code, name=name)
 
 
 # ── P2-b: 同種科内の相対位置（上位/中位/下位・診療科軸のみ） ──
@@ -1368,7 +1377,12 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
                 else:
                     move = ai_out or _fallback_move_emergency_leveling(u)
             elif topic == "admission":
-                move = ai_out or _fallback_move_admission(na_state, peer=na_peer)
+                # 一般病棟（特例でない病棟）は紹介・地域医療連携を業務として持たないため、
+                # oMLX未起動/棄却時の定型文も専用版（_fallback_move_ward_admission）を使う。
+                if entity == "ward":
+                    move = ai_out or _fallback_move_ward_admission(na_state)
+                else:
+                    move = ai_out or _fallback_move_admission(na_state, peer=na_peer)
             elif topic == "surgery":
                 move = ai_out or _fallback_move_surgery(surg_state, peer=surg_peer,
                                                         label=surgery_metric_label(name))
