@@ -277,7 +277,10 @@ h4{font-weight:var(--jp-head)!important}
   {# ── KPIカード×3（⑤部門別リンクカード削除済み → 3列均等） ── #}
   <section class="kpi">
     {% for card in kpi_cards %}
-    <a class="kc {{ card.status.css }}" href="{{ card.href }}">
+    <a class="kc {{ card.status.css }}" href="{{ card.href }}"
+       data-metric="{{ card.id }}" data-label="{{ card.label }}" data-period="{{ card.period }}"
+       data-value="{{ card.value }}" data-unit="{{ card.unit }}"
+       {%- if card.dual %} data-value-wd="{{ card.dual.wd.value }}" data-value-hd="{{ card.dual.hd.value }}"{% endif %}>
       <span class="st {{ card.status.css }}">{{ card.status.shape }} {{ card.status.text }}</span>
       <div class="lb">{{ card.icon }} {{ card.label }}</div>
       <div class="sb">{{ card.period }}</div>
