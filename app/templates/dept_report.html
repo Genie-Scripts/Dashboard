@@ -248,7 +248,8 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
   <b>使い方：</b>気になる部門のコメントをクリックして直し、「保存」で
   <b>dept_reports/overrides.md に書き込み</b>（<b>make review</b> で開いていれば保存先は
   自動で正しい場所になります）→「<b>PDF再作成</b>」で差し替えたPDFになります
-  （該当部門はAI生成をスキップ。再作成ボタンは <b>make review</b> で開いたときに使えます。
+  （<b>保存を忘れて「PDF再作成」を押した場合も自動で保存してから再作成します</b>。
+  該当部門はAI生成をスキップ。再作成ボタンは <b>make review</b> で開いたときに使えます。
   ファイルとして直接開いた場合は保存にファイル選択が要り、ターミナルで make reports を
   再実行してください）。この画面を開いている間はレビューサーバが延命されます。もし
   「サーバ終了」と表示されたら <b>build_reports.sh</b>（<b>make review</b>）を再実行すれば復帰し、
@@ -495,6 +496,7 @@ function applyDraft(){
   let d = null;
   try { d = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null"); } catch (e) {}
   if (!d) return;
+  let n = 0;
   cards.forEach(card => {
     const e = d[unitOf(card)];
     if (!e) return;
@@ -502,7 +504,12 @@ function applyDraft(){
       if (e[ed.dataset.kind] != null) ed.innerText = e[ed.dataset.kind];
     });
     card.classList.toggle("removed", !!e.removed);
+    n += 1;
   });
+  // 下書きが残っている＝**まだ overrides.md に書かれていない**変更を画面に戻した状態。
+  // ここで未保存フラグを立てないと、リロード後の再作成が無警告で「保存前の
+  // overrides.md」を読んでしまい、直したはずの文がそのまま出続ける（§6-1 事故）。
+  if (n) unsavedEdits = true;
 }
 
 function buildOverridesText(){
@@ -616,22 +623,28 @@ document.getElementById("btn-reset").addEventListener("click", () => {
   unsavedEdits = true;
   writeDraft();
 });
-document.getElementById("btn-save").addEventListener("click", async () => {
+// 保存の実体（「保存」ボタンと「PDF再作成」の自動保存が共有）。
+// 戻り値 true = overrides.md へ書けた（＝再作成して良い状態）。
+async function doSave(auto){
   const text = buildOverridesText();
   try {
     await saveToFile(text);
     try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
     unsavedEdits = false;
     const t = new Date();
-    flashSaved("✓ 保存しました " +
+    flashSaved("✓ " + (auto ? "未保存の変更を保存しました " : "保存しました ") +
       String(t.getHours()).padStart(2, "0") + ":" + String(t.getMinutes()).padStart(2, "0") +
-      (SERVED ? "（「PDF再作成」で反映）" : "（make reports の再実行で反映）"));
+      (auto ? "（続けて再作成します）"
+            : (SERVED ? "（「PDF再作成」で反映）" : "（make reports の再実行で反映）")));
+    return true;
   } catch (e) {
-    if (e && e.name === "AbortError") return;     // ファイル選択キャンセル
+    if (e && e.name === "AbortError") return false;   // ファイル選択キャンセル
     if (SERVED){ setSrvStatus(false); showModal(text, "server-offline"); }
     else showModal(text);
+    return false;
   }
-});
+}
+document.getElementById("btn-save").addEventListener("click", () => doSave(false));
 document.getElementById("btn-close").addEventListener("click", closeModal);
 document.getElementById("modalbg").addEventListener("click", closeModal);
 document.getElementById("btn-dl").addEventListener("click", () => {
@@ -676,9 +689,17 @@ rbBtn.addEventListener("click", async () => {
     return;
   }
   if (!serverOnline){ setSrvStatus(false); alert(SRV_DOWN_MSG); return; }
-  if (unsavedEdits &&
-      !confirm("保存していない編集があります。保存前の再作成には反映されません。\n" +
-               "このまま再作成しますか？（キャンセルして先に「保存」を推奨）")) return;
+  // 未保存の変更は**自動で保存してから**再作成する。再作成はディスク上の
+  // overrides.md しか読まないため、保存を挟まないと画面の編集は無言で捨てられる。
+  if (unsavedEdits){
+    setRb("保存中…", true);
+    const saved = await doSave(true);
+    if (!saved){                                  // 保存できない＝再作成しても無意味
+      setRb("PDF再作成", false);
+      rbMsg("保存できなかったため再作成を中止しました");
+      return;
+    }
+  }
   setRb("再作成中…", true);
   try { await fetch("/rebuild", {method: "POST"}); }
   catch (e) {
