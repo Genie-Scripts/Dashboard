@@ -49,7 +49,7 @@ from .ai_narrative import (
 )
 from .hospital_summary import render_trend_svg, _ma_series, _surg_series
 from .profit_estimate import fit_profit_estimators, project_dept_monthend
-from .report_overrides import apply_override, is_full_override
+from .report_overrides import apply_override
 
 logger = logging.getLogger(__name__)
 
@@ -1230,17 +1230,16 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
                       for n, m in unit_meta.items()}
         lev_deltas = {n: d for n, d in lev_deltas.items() if d}
 
-        # §6-1: body/action 両方を手動差し替え済みの部門はAI生成を省く（skip=生成だけ省き
-        # 候補選定・max_room は変えない＝他ユニットの決定論を壊さない）。
-        # 加えて、生成しても後段で捨てられるだけのユニット（救急病棟／topicが
-        # admission・surgeryに確定／room<=0.5）も同じ skip で無駄打ちを避ける。
-        full_ov = {u["name"] for u in wl["units"]
-                   if is_full_override((overrides or {}).get((entity, u["name"])))}
+        # §6-1: 生成しても後段で捨てられるだけのユニット（救急病棟／topicが
+        # admission・surgeryに確定／room<=0.5）は無駄打ちを避けるため skip する
+        # （候補選定・max_room は変えない＝他ユニットの決定論を壊さない）。
+        # 全文差し替え済み(override)の部門は、レビューHTMLでAI文と修正文を見比べられる
+        # よう skip しない（旧: full_ov も skip に含めていた）。
         waste_skip = {n for n, m in unit_meta.items() if m["skip_leveling_gen"]}
         if with_ai and n_ai:
             narrate_leveling_actions({entity: wl}, {entity: det}, top_n=n_ai, quiet=quiet,
                                      peers=lev_peers, deltas=lev_deltas,
-                                     skip=full_ov | waste_skip)
+                                     skip=waste_skip)
 
         # P2-b: 同種科内の相対位置(上位/中位/下位)用の達成率マップ（診療科軸のみ・1回）。
         # 新入院＝タイプ別に、全麻＝外科系内で比較する（テーブルと同じ ranking helper を再利用）。
@@ -1268,9 +1267,11 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
             dd = det.get(name)
             room = u.get("room_per_week", 0) or 0
             ret = u.get("retention")
-            # §6-1 人手オーバーライド: 全文差し替えなら以降のAI生成もスキップ
+            # §6-1 人手オーバーライド: 全文差し替えでもAI生成は止めない（AI文をレビューHTMLに
+            # 併載し、修正文と見比べられるようにするため。旧: unit_ai = with_ai and
+            # not is_full_override(ov)）。
             ov = (overrides or {}).get((entity, name))
-            unit_ai = with_ai and not is_full_override(ov)
+            unit_ai = with_ai
 
             if entity == "ward":
                 type_key = "ward"
@@ -1456,6 +1457,11 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
                 also = _secondary_clause(secondary, na_state, surg_state)
                 if also:
                     move = {**move, "body": move["body"].rstrip() + " " + also}
+
+            # §6-1: レビューHTMLでAI文と修正文を見比べられるよう、オーバーライド適用前の
+            # 本文（AI採択 or 定型文フォールバック）を ai_body/ai_action に退避する
+            # （override の有無に関わらず常に行う）。
+            move = {**move, "ai_body": move.get("body", ""), "ai_action": move.get("action", "")}
 
             # §6-1: 人手オーバーライドを move 確定直後の1箇所で適用（src="manual" 刻印・
             # 数値行はこの後に付くデータ由来行なので影響しない）。差し替えはログに残す。
@@ -1665,10 +1671,11 @@ def build_hospital_overview_context(adm, surg, targets, surg_targets, profit_mon
     charts: list = []
 
     # §6-1 人手オーバーライド（軸ラベル [病院全体:◯◯]・unit＝表示名と一致）。
-    # 全文差し替えなら以降のAI生成（narrate_hospital_summary）はスキップ。
+    # 全文差し替えでもAI生成（narrate_hospital_summary）は止めない（per-unitループと同様、
+    # レビューHTMLでAI文と修正文を見比べられるようにするため。旧: with_ai and
+    # not is_full_override(ov)）。
     unit_name = hospital_name or "病院全体"
     ov = (overrides or {}).get(("hospital", unit_name))
-    with_ai = with_ai and not is_full_override(ov)
 
     def add(kind, name, series, ref, ref_label, unit, win, badge, note=""):
         if not series or not series.get("cur") or all(v is None for v in series["cur"]):
@@ -1856,6 +1863,11 @@ def build_hospital_overview_context(adm, surg, targets, surg_targets, profit_mon
         move = {**move, "body": move["body"].rstrip() + " " + h_delta + "。"}
     move = {**move, "topic": h_topic, "src": move.get("src", "tpl"), "leader": leader,
             "delta": h_delta}
+
+    # §6-1: レビューHTMLでAI文と修正文を見比べられるよう、オーバーライド適用前の本文
+    # （AI採択 or 定型文フォールバック）を ai_body/ai_action に退避する（override の
+    # 有無に関わらず常に行う。per-unitループと同じ扱い）。
+    move = {**move, "ai_body": move.get("body", ""), "ai_action": move.get("action", "")}
 
     # §6-1: 人手オーバーライドを move 確定直後の1箇所で適用（src="manual" 刻印）。
     if ov:

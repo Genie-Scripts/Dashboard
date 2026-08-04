@@ -212,6 +212,17 @@ class TestApply(unittest.TestCase):
     def test_default_expires(self):
         self.assertEqual(default_expires(BASE), "2026-07-16")
 
+    def test_ai_body_ai_action_preserved(self):
+        # AI/定型文をレビューHTMLで見比べるための退避フィールド（§改修）。
+        # apply_override は body/action を差し替えるが、退避済みの ai_body/ai_action は
+        # 上書き・削除しない。
+        move = {**self.MOVE, "ai_body": "AI本文(退避)", "ai_action": "AI一手(退避)"}
+        out = apply_override(move, {"body": "手動本文", "action": "手動一手"})
+        self.assertEqual(out["body"], "手動本文")
+        self.assertEqual(out["action"], "手動一手")
+        self.assertEqual(out["ai_body"], "AI本文(退避)")
+        self.assertEqual(out["ai_action"], "AI一手(退避)")
+
 
 if __name__ == "__main__":
     unittest.main()

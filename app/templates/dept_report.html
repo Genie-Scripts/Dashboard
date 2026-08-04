@@ -187,13 +187,25 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
 .move.dirty .move-h .ttl{color:var(--edit)}
 .move.dirty .move-act{border-color:#f0cdae}
 .move.dirty .move-act .arw{color:var(--edit)}
-.tag-manual,.tag-removed{display:none; font-size:8px; font-weight:800; color:#fff;
+.tag-manual,.tag-removed,.tag-aiprev{display:none; font-size:8px; font-weight:800; color:#fff;
   background:var(--edit); border-radius:3px; padding:1px 6px}
 .tag-removed{background:#9aa8b8}
+.tag-aiprev{background:var(--navy)}
 .move.manual .tag-manual{display:inline}
 .move.removed .tag-manual{display:none}
 .move.removed .tag-removed{display:inline}
-.move.removed .ed{opacity:.45; text-decoration:line-through}
+.move.ai-preview .tag-aiprev{display:inline}
+/* AI文プレビュー（純粋な表示切替。dirty/下書き/保存内容には影響しない） */
+.move.ai-preview .ed{background:#eef4fb; border-radius:6px; cursor:default}
+.move.ai-preview .field:hover{background:none}
+.move.ai-preview .field:hover:after{opacity:0}
+.move .ai-toggle,.move .proof-btn{font-size:10px; color:var(--sub); border:1px solid #d4dce6;
+  background:#fff; border-radius:6px; padding:2px 8px; cursor:pointer; margin-left:6px}
+.move .ai-toggle{display:none}
+.move .ai-toggle.show{display:inline-block}
+.move .ai-toggle:disabled,.move .proof-btn:disabled{opacity:.5; cursor:default}
+.move .proof-btn.off{opacity:.45}
+.proof-msg{font-size:9px; font-weight:800; color:var(--sub); margin-left:6px}
 .move .restore{font-size:10px; color:var(--sub); border:1px solid #d4dce6; background:#fff;
   border-radius:6px; padding:2px 8px; cursor:pointer; margin-left:6px; visibility:hidden}
 .move.dirty .restore, .move.manual .restore, .move.removed .restore{visibility:visible}
@@ -209,7 +221,8 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
   border:1px solid #d4dce6; border-radius:8px; padding:10px; color:#243447; background:#f8fafc}
 .modal .row{display:flex; gap:10px; margin-top:12px; justify-content:flex-end}
 @media print{
-  .toolbar,.hint,.restore,.cnt,.modal-bg,.modal,.lock-note,.tag-removed{display:none!important}
+  .toolbar,.hint,.restore,.cnt,.modal-bg,.modal,.lock-note,.tag-removed,
+  .ai-toggle,.proof-btn,.proof-msg,.tag-aiprev{display:none!important}
   body.review{padding:0}
   body.review .sheet{box-shadow:none; margin:0 auto; border-radius:0}
   .move .field:after{display:none}
@@ -255,6 +268,8 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
   「サーバ終了」と表示されたら <b>build_reports.sh</b>（<b>make review</b>）を再実行すれば復帰し、
   この画面は自動で最新版に切り替わります。
   下書きは自動でブラウザに保持され、タブを閉じても消えません。
+  差し替え済みのコメントは「<b>AI文を表示</b>」で元のAI文を見比べられます（表示切替のみで保存内容は変わりません）。
+  「<b>校正</b>」は今の文面のまま言い回しだけをAIに整えてもらうボタンです（内容の変更ではありません。反映後は必ず確認してから保存してください）。
   数値行（全麻/新入院/病床利用率）はデータ由来のため編集対象外です。
   差し替えの有効期限は {{ review_expires }}（基準日+14日）まで＝古い文の残留を防ぎます。<br>
   <b>できあがりPDF：</b>
@@ -288,11 +303,17 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
 {% if review and s %}
 <div class="move{% if m.src == 'manual' %} manual{% endif %}"
      data-unit="{{ {'dept': '診療科', 'ward': '病棟', 'hospital': '病院全体'}[s.axis] }}:{{ s.unit }}"
-     data-src="{{ m.src }}" data-ov-fields="{{ (m.ov_fields or [])|join(',') }}">
+     data-src="{{ m.src }}" data-ov-fields="{{ (m.ov_fields or [])|join(',') }}"
+     data-ai-body="{{ (m.ai_body | default(m.body, true)) | e }}"
+     data-ai-action="{{ (m.ai_action | default(m.action, true)) | e }}">
   <div class="move-h">
     <span class="ttl">この期間の一手</span>
     <span class="tag-manual">手動</span><span class="tag-removed">次回ビルドでAI文に戻る</span>
+    <span class="tag-aiprev">AI文（参考）</span>
     <span class="ai">AI要約／院内データ</span>
+    <button class="ai-toggle" type="button">AI文を表示</button>
+    <button class="proof-btn" type="button">校正</button>
+    <span class="proof-msg"></span>
     <button class="restore" type="button">AI文に戻す</button></div>
   <div class="field"><div class="ed" data-kind="body" data-max="90">{{ m.body }}</div><span class="cnt"></span></div>
   <div class="move-act"><span class="arw">▶</span><div class="field af"><div class="ed" data-kind="action" data-max="70">{{ m.action }}</div><span class="cnt"></span></div></div>
@@ -410,6 +431,8 @@ const DRAFT_KEY = "deptReportOv:" + BASE_DATE;
 const norm = t => t.replace(/\n+/g, " ").trim();
 const cards = [...document.querySelectorAll(".move[data-unit]")];
 const ORIG = {};   // unit -> {body, action, manual, ovFields}
+const AI = {};     // unit -> {body, action}（override適用前のAI/定型文。restore/プレビューの復元先）
+const WORK = {};   // unit -> {body, action}（AI文プレビュー中に退避する編集中テキスト）
 const SERVED = location.protocol === "http:" || location.protocol === "https:";
 let unsavedEdits = false;   // 最後の保存以降に編集があるか（PDF再作成前の確認用）
 let serverOnline = SERVED;  // レビューサーバの死活（ハートビートで追跡）
@@ -436,10 +459,21 @@ async function idbSet(k, v){ const d = await idb(); return new Promise((res, rej
 
 function eds(card){ return [...card.querySelectorAll(".ed")]; }
 function unitOf(card){ return card.dataset.unit; }
+// AI文プレビュー中は .ed に表示中の文がAI文に差し替わっているため、実際の編集内容は
+// WORK に退避してある。dirty判定/下書き/保存はすべてこれ経由で読む＝トグルの表示切替が
+// 他カードの保存処理に混入しない（他カードの編集による writeDraft 等でも安全）。
+function liveText(card, kind){
+  if (card.classList.contains("ai-preview")){
+    const w = WORK[unitOf(card)];
+    if (w && w[kind] != null) return norm(w[kind]);
+  }
+  const ed = card.querySelector(`.ed[data-kind="${kind}"]`);
+  return norm(ed.innerText);
+}
 
 function changedFields(card){
   const o = ORIG[unitOf(card)];
-  return eds(card).filter(ed => norm(ed.innerText) !== o[ed.dataset.kind])
+  return eds(card).filter(ed => liveText(card, ed.dataset.kind) !== o[ed.dataset.kind])
                   .map(ed => ed.dataset.kind);
 }
 function emitFields(card){
@@ -456,7 +490,7 @@ function isPending(card){
 
 function refreshCard(card){
   eds(card).forEach(ed => {
-    const kind = ed.dataset.kind, max = +ed.dataset.max, txt = norm(ed.innerText);
+    const kind = ed.dataset.kind, max = +ed.dataset.max, txt = liveText(card, kind);
     const cnt = ed.parentElement.querySelector(".cnt");
     cnt.textContent = (kind === "body" ? "本文 " : "一手 ") + txt.length + "／" + max + "字";
     cnt.classList.toggle("over", txt.length > max);
@@ -467,6 +501,7 @@ function refreshCard(card){
   btn.textContent = o.manual
     ? (card.classList.contains("removed") ? "差し替えを維持" : "AI文に戻す")
     : "AI文に戻す";
+  refreshAiToggle(card);
   refreshToolbar();
 }
 function refreshToolbar(){
@@ -478,13 +513,55 @@ function refreshToolbar(){
     `<b data-u="${unitOf(c)}">${unitOf(c).split(":")[1]}</b>`).join("・");
 }
 
+// ── AI文/修正文トグル ──（純粋な表示切替。dirty/下書き/保存内容には一切影響しない）
+function aiOf(card, kind){
+  // AIデータが無い/空の場合のみ ORIG（ビルド出力時点の文）へフォールバック
+  const ai = AI[unitOf(card)];
+  return (ai && ai[kind]) ? ai[kind] : ORIG[unitOf(card)][kind];
+}
+function aiDiffers(card){
+  return eds(card).some(ed => liveText(card, ed.dataset.kind) !== aiOf(card, ed.dataset.kind));
+}
+function refreshAiToggle(card){
+  const btn = card.querySelector(".ai-toggle");
+  if (!btn) return;
+  if (card.classList.contains("ai-preview")){
+    btn.textContent = "修正文に戻る";
+    btn.classList.add("show");
+    return;
+  }
+  btn.textContent = "AI文を表示";
+  btn.classList.toggle("show", aiDiffers(card));
+}
+function enterAiPreview(card){
+  if (card.classList.contains("ai-preview")) return;
+  const w = {};
+  eds(card).forEach(ed => {
+    w[ed.dataset.kind] = ed.innerText;
+    ed.innerText = aiOf(card, ed.dataset.kind);
+    ed.contentEditable = "false";
+  });
+  WORK[unitOf(card)] = w;
+  card.classList.add("ai-preview");
+}
+function exitAiPreview(card){
+  if (!card.classList.contains("ai-preview")) return;
+  const w = WORK[unitOf(card)];
+  eds(card).forEach(ed => {
+    if (w && w[ed.dataset.kind] != null) ed.innerText = w[ed.dataset.kind];
+    try { ed.contentEditable = "plaintext-only"; } catch (e) {}
+    if (ed.contentEditable !== "plaintext-only") ed.contentEditable = "true";
+  });
+  card.classList.remove("ai-preview");
+}
+
 // ── 下書き（保存前のブラウザ内退避。保存成功でクリア）──
 function writeDraft(){
   const d = {};
   cards.forEach(card => {
     if (!isPending(card)) return;
     const e = {};
-    eds(card).forEach(ed => { e[ed.dataset.kind] = norm(ed.innerText); });
+    eds(card).forEach(ed => { e[ed.dataset.kind] = liveText(card, ed.dataset.kind); });
     e.removed = card.classList.contains("removed");
     d[unitOf(card)] = e;
   });
@@ -525,7 +602,7 @@ function buildOverridesText(){
     lines.push(`[${unitOf(card)}] expires:${EXPIRES}`);
     eds(card).forEach(ed => {
       if (fields.includes(ed.dataset.kind))
-        lines.push(`${ed.dataset.kind}: ${norm(ed.innerText)}`);
+        lines.push(`${ed.dataset.kind}: ${liveText(card, ed.dataset.kind)}`);
     });
     lines.push("");
     n += 1;
@@ -590,15 +667,32 @@ cards.forEach(card => {
     o[ed.dataset.kind] = norm(ed.innerText);
     try { ed.contentEditable = "plaintext-only"; } catch (e) {}
     if (ed.contentEditable !== "plaintext-only") ed.contentEditable = "true";
-    ed.addEventListener("input", () => { unsavedEdits = true; refreshCard(card); writeDraft(); });
+    // removed(次回ビルドでAI文に戻る)中の編集は「AI文ベースの新しい差し替え」として復活させる
+    // ＝removed のまま編集すると emitFields が [] を返し保存時に黙って捨てられるため。
+    ed.addEventListener("input", () => {
+      unsavedEdits = true; card.classList.remove("removed"); refreshCard(card); writeDraft(); });
     ed.addEventListener("blur", () => { refreshCard(card); writeDraft(); });
   });
   ORIG[unitOf(card)] = o;
+  AI[unitOf(card)] = {body: norm(card.dataset.aiBody || ""), action: norm(card.dataset.aiAction || "")};
+  const aiBtn = card.querySelector(".ai-toggle");
+  if (aiBtn) aiBtn.addEventListener("click", () => {
+    if (card.classList.contains("ai-preview")) exitAiPreview(card);
+    else enterAiPreview(card);
+    refreshAiToggle(card);
+  });
+  const proofBtn = card.querySelector(".proof-btn");
+  if (proofBtn) proofBtn.addEventListener("click", () => proofreadCard(card));
   card.querySelector(".restore").addEventListener("click", () => {
+    exitAiPreview(card);   // プレビュー中の退避テキストは復元先が変わるため一旦解除
     if (o.manual) {
-      card.classList.toggle("removed");           // 解除=次回保存でブロック削除→次ビルドでAI文
+      const removing = !card.classList.contains("removed");
+      card.classList.toggle("removed", removing);  // 解除=次回保存でブロック削除→次ビルドでAI文
+      eds(card).forEach(ed => {
+        ed.innerText = removing ? aiOf(card, ed.dataset.kind) : o[ed.dataset.kind];
+      });
     } else {
-      eds(card).forEach(ed => { ed.innerText = o[ed.dataset.kind]; });
+      eds(card).forEach(ed => { ed.innerText = aiOf(card, ed.dataset.kind); });
     }
     unsavedEdits = true;
     refreshCard(card); writeDraft();
@@ -615,9 +709,10 @@ document.getElementById("elist").addEventListener("click", e => {
 document.getElementById("btn-reset").addEventListener("click", () => {
   if (!confirm("すべての編集を取り消し、手動差し替えも解除します。よろしいですか？")) return;
   cards.forEach(card => {
+    exitAiPreview(card);   // プレビュー中の退避テキストは復元先が変わるため一旦解除
     const o = ORIG[unitOf(card)];
     if (o.manual) card.classList.add("removed");
-    else eds(card).forEach(ed => { ed.innerText = o[ed.dataset.kind]; });
+    eds(card).forEach(ed => { ed.innerText = aiOf(card, ed.dataset.kind); });
     refreshCard(card);
   });
   unsavedEdits = true;
@@ -711,6 +806,51 @@ rbBtn.addEventListener("click", async () => {
   pollRebuild();
 });
 
+// ── 校正（レビューサーバの /proofread。活性条件はPDF再作成ボタンと同じ）──
+async function proofreadCard(card){
+  if (!SERVED){
+    alert("この画面はファイルとして直接開かれているため、校正はできません。\n\n" +
+          "make review（レビューサーバ）で開き直すと使えます。");
+    return;
+  }
+  if (!serverOnline){ setSrvStatus(false); alert(SRV_DOWN_MSG); return; }
+  exitAiPreview(card);   // 校正は常に「今表示中の編集内容」に対して行う
+  const u = unitOf(card);
+  const btn = card.querySelector(".proof-btn");
+  const msgEl = card.querySelector(".proof-msg");
+  const targets = eds(card);
+  const items = targets.map(ed => ({key: u + "|" + ed.dataset.kind, text: norm(ed.innerText)}));
+  if (msgEl) msgEl.textContent = "";
+  btn.disabled = true; btn.textContent = "校正中…";
+  try {
+    const r = await fetch("/proofread", {method: "POST",
+      headers: {"Content-Type": "application/json"}, body: JSON.stringify({items})});
+    if (!r.ok) throw new Error("http-" + r.status);
+    const data = await r.json();
+    const byKey = {};
+    (data.items || []).forEach(it => { byKey[it.key] = it; });
+    let changed = false, err = "";
+    targets.forEach(ed => {
+      const it = byKey[u + "|" + ed.dataset.kind];
+      if (!it) return;
+      if (it.error) err = it.error;
+      if (it.changed && it.text != null){ ed.innerText = it.text; changed = true; }
+    });
+    if (changed){ unsavedEdits = true; refreshCard(card); writeDraft(); }
+    if (msgEl){
+      msgEl.textContent = err ? ("校正失敗: " + err) : (changed ? "✓ 校正を反映しました" : "修正なし");
+      setTimeout(() => { if (msgEl) msgEl.textContent = ""; }, 5000);
+    }
+  } catch (e) {
+    if (msgEl){
+      msgEl.textContent = "校正失敗: 通信エラー";
+      setTimeout(() => { if (msgEl) msgEl.textContent = ""; }, 5000);
+    }
+  } finally {
+    btn.disabled = false; btn.textContent = "校正";
+  }
+}
+
 // ── サーバ死活のハートビート ──
 // 開いている間 GET /rebuild/status を送り続ける＝サーバ側の最終アクセス時刻が更新され、
 // 無操作 idle 自動終了（既定120分）を抑止して延命する。切断（スリープ等）も検知し、
@@ -746,6 +886,10 @@ if (SERVED){
 } else {
   rbBtn.classList.add("off");
   rbBtn.title = "make review（レビューサーバ）で開いたときに使えます";
+  cards.forEach(card => {
+    const pb = card.querySelector(".proof-btn");
+    if (pb){ pb.classList.add("off"); pb.title = "make review（レビューサーバ）で開いたときに使えます"; }
+  });
 }
 </script>
 {% endif %}

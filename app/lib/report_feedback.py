@@ -7,8 +7,9 @@ overrides.md は単一の現行ファイルで保存のたびに上書き＝人�
   - P1 load_edits()/pair_corrections()/build_digest_md(): 貯めた edits から
     ai→manual 遷移＝人の添削ペア(AI原文/人の最終文/変更フィールド)を復元して digest 化する。
 
-override 適用ユニットはその run で AI 生成をスキップする(dept_report.py: unit_ai=... not is_full_override)
-ため、AI原文(src=ai の record)と人の最終文(src=manual の record)は**別 run に跨って**記録され、
+override 適用ユニットも AI 生成は走る(レビューUIのAI文/修正文トグル用に move.ai_body/ai_action へ
+併載)が、capture_edits は override 適用後の最終 body/action しか記録しないため、AI原文(src=ai の
+record)と人の最終文(src=manual の record)は従来どおり**別 run に跨って**記録され、
 pair_corrections が (base_date, axis, unit) で対応づける。
 
 置き場: dept_reports/_state/（.gitignore の dept_reports/ 配下＝公開リポに載らない）。

@@ -199,6 +199,34 @@ def serve_review(output_dir: Path, review_rel: str, port: int, rebuild_argv: lis
                     log(f"overrides.md の保存に失敗: {e}", "err")
                     self._json(500, {"ok": False, "error": str(e)})
                 return
+            # レビューUIの「校正」: 編集文（body/action）を LLM で誤字脱字校正する。
+            # JSON が壊れている場合のみ 400（それ以外は fail-soft で 200 を返す＝
+            # 個々の item の失敗は items[].error に入れて他 item の処理は継続する）。
+            if self.path == "/proofread":
+                try:
+                    n = int(self.headers.get("Content-Length") or 0)
+                    raw = self.rfile.read(n).decode("utf-8") if n > 0 else ""
+                    req = json.loads(raw)
+                except Exception as e:
+                    self._json(400, {"error": f"invalid JSON: {e}"})
+                    return
+                from app.lib.proofread import proofread_text  # lazy import: サーバ起動を重くしない
+                items = req.get("items") if isinstance(req, dict) else None
+                out_items = []
+                for it in (items if isinstance(items, list) else []):
+                    key = it.get("key") if isinstance(it, dict) else None
+                    text = (it.get("text") if isinstance(it, dict) else None) or ""
+                    try:
+                        result = proofread_text(text)
+                        out_items.append({"key": key, "text": result["text"],
+                                          "changed": result["changed"],
+                                          "error": result["error"]})
+                    except Exception as e:
+                        out_items.append({"key": key, "text": text,
+                                          "changed": False, "error": str(e)})
+                log(f"レビューUIから校正 {len(out_items)}件", "ok")
+                self._json(200, {"items": out_items})
+                return
             if self.path != "/rebuild":
                 self.send_error(404)
                 return

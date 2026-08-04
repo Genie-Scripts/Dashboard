@@ -6,8 +6,9 @@ narrate_leveling_actions はバッチで先に全ユニットへ narrative を�
 後段で生成結果を読まずに捨てる）。本テストは build_dept_report_contexts を
 重い前処理・LLM呼び出しをすべてフェイクに差し替えて呼び、
 
-  1. skip されるユニット集合が正しいこと（救急・admission/surgery・room<=0.5・
-     既存の人手オーバーライドの4条件）
+  1. skip されるユニット集合が正しいこと（救急・admission/surgery・room<=0.5 の
+     3条件。2026-08: 人手オーバーライド済み部門は「レビューHTMLでAI文と修正文を
+     見比べたい」という目的からskip対象を外した＝override部門もbatch生成される）
   2. 「生成だけ省く」変更の前後でレポート本文（move の body/action/src/topic）が
      一切変わらないこと（skip を尊重するフェイク vs 尊重せず無駄打ちするフェイクの
      2通りで比較し一致を確認する）
@@ -33,7 +34,8 @@ from app.lib import dept_report as dr  # noqa: E402
 BASE_DATE = pd.Timestamp("2026-07-19")
 
 # 診療科軸: 循環器内科=leveling(通常・skipされない) / 呼吸器内科=admission確定 /
-# 整形外科(外科系)=surgery確定 / 消化器内科=room<=0.5(のびしろ無し) / 腎臓内科=人手オーバーライド。
+# 整形外科(外科系)=surgery確定 / 消化器内科=room<=0.5(のびしろ無し) /
+# 腎臓内科=人手オーバーライド(room>0.5・topic=leveling整合＝batch生成はskipされない)。
 DEPT_UNITS = [
     {"name": "循環器内科", "room_per_week": 10.0, "retention": 0.85, "room_delta_4w": 1.0},
     {"name": "呼吸器内科", "room_per_week": 3.0, "retention": 0.90, "room_delta_4w": 0.5},
@@ -64,7 +66,8 @@ R7_INP = {"by_dept": {}, "by_ward": {}}
 R7_NADM = {"by_dept": {"呼吸器内科": 5}, "by_ward": {"10A病棟": 5}}
 R7_SURG = {"by_dept": {"整形外科": 1}}
 
-# §6-1 人手オーバーライド（全文差し替え＝既存の full_ov skip 対象）
+# §6-1 人手オーバーライド（全文差し替え。2026-08〜: batch skip 対象からは外れ、
+# AI生成自体は行われる＝move.ai_body/ai_action に実AI文が入る）
 OVERRIDES = {("dept", "腎臓内科"): {"body": "手動本文差し替え", "action": "手動一手差し替え"}}
 
 FAKE_PART = {"kind": "A", "name": "ダミー", "badge": None, "note": "", "is_dow": False,
@@ -212,7 +215,11 @@ def _moves_by_unit(contexts):
 
 
 class TestLevelingBatchSkipSet(unittest.TestCase):
-    """skip されるユニット集合が正しいこと（3条件＋既存の人手オーバーライド）。"""
+    """skip されるユニット集合が正しいこと（無駄打ち回避の3条件のみ）。
+
+    2026-08: 人手オーバーライド済み部門（腎臓内科）は「レビューHTMLでAI文と修正文を
+    見比べたい」という目的から skip 対象を外した＝batch生成の対象に含まれる。
+    """
 
     def setUp(self):
         skip_log = []
@@ -222,10 +229,10 @@ class TestLevelingBatchSkipSet(unittest.TestCase):
         self.skip_by_entity = dict(skip_log)
 
     def test_dept_skip_set(self):
-        # 呼吸器内科=admission確定／整形外科=surgery確定／消化器内科=room<=0.5／
-        # 腎臓内科=人手オーバーライド(既存) → いずれもskip。循環器内科(leveling・room>0.5)は非skip。
+        # 呼吸器内科=admission確定／整形外科=surgery確定／消化器内科=room<=0.5 → skip。
+        # 循環器内科(leveling・room>0.5)・腎臓内科(leveling・room>0.5・override) は非skip。
         self.assertEqual(self.skip_by_entity["dept"],
-                         {"呼吸器内科", "整形外科", "消化器内科", "腎臓内科"})
+                         {"呼吸器内科", "整形外科", "消化器内科"})
 
     def test_ward_skip_set(self):
         # 04A=救急病棟／10A病棟=admission確定 → skip。09B病棟(leveling・room>0.5)は非skip。
@@ -251,6 +258,14 @@ class TestLevelingBatchSkipSet(unittest.TestCase):
         moves = _moves_by_unit(self.contexts)
         self.assertEqual(moves[("dept", "腎臓内科")]["body"], "手動本文差し替え")
         self.assertEqual(moves[("dept", "腎臓内科")]["src"], "manual")
+
+    def test_full_override_dept_ai_body_has_real_ai_text(self):
+        # 2026-08: 全文差し替え済みでもAI生成は止めない。ai_body/ai_action には
+        # override適用前の実AI文（このフェイクでは "LEVAI::腎臓内科"）が入り、
+        # 最終 body/action（手動差し替え文）とは別に見比べられる。
+        moves = _moves_by_unit(self.contexts)
+        self.assertEqual(moves[("dept", "腎臓内科")]["ai_body"], "LEVAI::腎臓内科")
+        self.assertEqual(moves[("dept", "腎臓内科")]["ai_action"], "LEVAI-ACT::腎臓内科")
 
     def test_narrate_action_call_counts(self):
         self.assertEqual(self.pipeline.admission_calls, ["呼吸器内科", "10A病棟"])
