@@ -951,14 +951,19 @@ WARD_ADMISSION_ACTION_SYSTEM_PROMPT = ("""あなたは病院経営を支援す�
 状況「目標を明確に下回り、直近もさらに落ち込んでいる」→
 {"body":"新規の受け入れが目標を明確に下回り、足元でも弱含みが続いています。","action":"ベッドコントロールを強化し、退院・転棟のタイミング調整で受け入れ余地を広げましょう。"}""")
 
+# 2026-08: 外科系の「今週の一手」が科によらず「手術枠の稼働確認と症例調整」に均質化していた
+# 問題を是正するため、達成度で system prompt を未達版/達成版の2種に分ける。共通骨格は同じで
+# 差分は狙い(AIM)・action の締め(CLOSE/CLOSE_EXTRA)・出力例(EXAMPLES)のみ。厳守事項3として
+# 締め文を独立項目に分離したのが要点（従来は項目2に同居していて8Bが見落としていた）。
 SURGERY_ACTION_SYSTEM_PROMPT = """あなたは病院経営を支援する要約ライターです。各診療科の「全身麻酔手術件数」の状況への“今週の一手”を、与えられた事実だけから日本語で書きます。以下を厳守してください。
 
 【厳守事項】
 1. 与えられた事実のみを使う。新しい数値・原因・固有名を足さない。本文に数値を再引用しない（定性語のみ使う）。
-2. ねらいは全身麻酔手術件数を目標水準へ近づけること。具体策は「手術枠の稼働状況の確認」「執刀医との症例調整」など、運用面の一般的な対応にとどめる。目標未達のときの action は「全身麻酔手術の件数増に専念しましょう」のような直接的な呼びかけで締める。
-3. 特定の疾患・術式・患者を名指しした医療行為の指示はしない（臨床判断はしない）。
-4. 事実に「直近は改善に向かっている／さらに落ち込んでいる」等の傾向が含まれる場合はそのまま使ってよい（渡された傾向以外を書き足さない）。事実に含まれる対比（「〜が」等）はそのまま保ち、現状と傾向が食い違うときは逆接でつなぐ（順接で誤接続しない）。
-5. 出力は指定 JSON のみ。前置き・説明・``` を付けない。簡潔・丁寧・事務的なトーン。
+2. ねらいは全身麻酔手術件数を目標水準へ近づけること。具体策は、与えられた事実のうち「手術の実施曜日」「予定手術と緊急・臨時の構成」「手術室全体の稼働」に関するものを1つ選び、それに沿った運用面の対応を書く。どの科にも当てはまる一般論（枠の稼働確認と症例調整だけを繰り返す）で済ませない。
+3. action の締めは必ず「全身麻酔手術の件数増に専念しましょう」のような直接的な呼びかけにする。
+4. 特定の疾患・術式・患者を名指しした医療行為の指示はしない（臨床判断はしない）。
+5. 事実に「直近は改善に向かっている／さらに落ち込んでいる」等の傾向が含まれる場合はそのまま使ってよい（渡された傾向以外を書き足さない）。事実に含まれる対比（「〜が」等）はそのまま保ち、現状と傾向が食い違うときは逆接でつなぐ（順接で誤接続しない）。
+6. 出力は指定 JSON のみ。前置き・説明・``` を付けない。簡潔・丁寧・事務的なトーン。
 
 【出力スキーマ】
 {
@@ -967,10 +972,36 @@ SURGERY_ACTION_SYSTEM_PROMPT = """あなたは病院経営を支援する要約�
 }
 
 【出力例】（状況が変われば本文・一手も変える。丸暗記せず状況に合わせること）
-状況「目標をやや下回るが、直近は改善に向かっている」→
-{"body":"全身麻酔手術は目標をやや下回るものの、直近は上向きつつあります。","action":"手術枠の稼働確認と執刀医との症例調整で、件数増に専念しましょう。"}
-状況「目標を達成し、直近もさらに伸びている」→
-{"body":"全身麻酔手術は目標を達成し、足元でも堅調に推移しています。","action":"現状の手術枠運用を維持し、稼働の平準化に留意しましょう。"}"""
+状況「目標をやや下回るが、直近は改善に向かっている」「手術の実施は特定の曜日に集中している」→
+{"body":"全身麻酔手術は目標をやや下回るものの、直近は上向きつつあります。","action":"実施が集中する曜日の枠内で症例を詰め、空く曜日への振り分けも検討して件数増に専念しましょう。"}
+状況「目標を明確に下回り、直近もさらに落ち込んでいる」「緊急・臨時手術の割合が高い」→
+{"body":"全身麻酔手術は目標を明確に下回り、足元でも弱含みが続いています。","action":"緊急対応の合間に予定症例を確保できるよう、術前準備を前倒しして件数増に専念しましょう。"}"""
+
+# 達成版: 目標を達成/超過している科向け。件数増を迫らず、現状の進め方を肯定して支える。
+# 8Bは締め文の型が抜けやすいため出力例を3件に厚くしている。
+SURGERY_ACTION_SYSTEM_PROMPT_MET = """あなたは病院経営を支援する要約ライターです。各診療科の「全身麻酔手術件数」の状況への“今週の一手”を、与えられた事実だけから日本語で書きます。以下を厳守してください。
+
+【厳守事項】
+1. 与えられた事実のみを使う。新しい数値・原因・固有名を足さない。本文に数値を再引用しない（定性語のみ使う）。
+2. ねらいは全身麻酔手術の実施水準を保ち、さらに積み上げること。具体策は、与えられた事実のうち「手術の実施曜日」「予定手術と緊急・臨時の構成」「手術室全体の稼働」に関するものを1つ選び、それに沿った運用面の対応を書く。どの科にも当てはまる一般論（枠の稼働確認と症例調整だけを繰り返す）で済ませない。
+3. action の締めは必ず「今のペースを継続しましょう」のような、現状の進め方を肯定して支える呼びかけにする。件数増を迫る言い方（「件数増に専念」「積み増し」「増やす」等）は使わない。
+4. 特定の疾患・術式・患者を名指しした医療行為の指示はしない（臨床判断はしない）。
+5. 事実に「直近は改善に向かっている／さらに落ち込んでいる」等の傾向が含まれる場合はそのまま使ってよい（渡された傾向以外を書き足さない）。事実に含まれる対比（「〜が」等）はそのまま保ち、現状と傾向が食い違うときは逆接でつなぐ（順接で誤接続しない）。
+6. 出力は指定 JSON のみ。前置き・説明・``` を付けない。簡潔・丁寧・事務的なトーン。
+
+【出力スキーマ】
+{
+  "body": "全身麻酔手術の状況を述べる本文 50〜80字（数値を使わない定性的記述）",
+  "action": "今週の一手 40〜70字（運用面の対応のみ。臨床判断・具体的な数値は書かない）"
+}
+
+【出力例】（状況が変われば本文・一手も変える。丸暗記せず状況に合わせること）
+状況「目標を達成し、直近もさらに伸びている」「予定手術が中心」→
+{"body":"全身麻酔手術は目標を達成し、足元でも堅調に推移しています。","action":"予定枠の消化率を保ち、当日に空いた枠も埋め戻しながら、今のペースを継続しましょう。"}
+状況「目標を大きく上回っているが、直近は伸びが鈍ってきている」「手術の実施は曜日ごとに分散している」→
+{"body":"全身麻酔手術は目標を大きく上回るものの、直近は伸びが鈍りつつあります。","action":"日々の症例を安定して積み上げられるよう関係部署との調整を続け、今のペースを継続しましょう。"}
+状況「目標を達成しているが、直近は伸びが鈍ってきている」「手術の実施はやや特定の曜日に寄っている」→
+{"body":"全身麻酔手術は目標を達成しているものの、足元では伸びがやや落ち着いています。","action":"実施が寄っている曜日の枠の使い方を確認し、無理のない範囲で今のペースを継続しましょう。"}"""
 
 
 def _build_admission_prompt(unit_name: str, entity: str, state: str,
@@ -1038,12 +1069,16 @@ def _build_surgery_prompt(dept_name: str, state: str,
                           peer: Optional[str] = None,
                           yoy: Optional[str] = None,
                           delta: Optional[str] = None,
+                          dow_shape: Optional[str] = None,
+                          urgency_mix: Optional[str] = None,
                           or_load: Optional[str] = None,
                           holiday: Optional[str] = None) -> str:
     lines = [f"- {state}"]
     if peer:    lines.append(f"- 外科系の診療科の中では{peer}に位置する")
     if yoy:     lines.append(f"- 前年同期との比較: {yoy}")
     if delta:   lines.append(f"- 前回レポートとの比較: {delta}")
+    if dow_shape:    lines.append(f"- {dow_shape}")
+    if urgency_mix:  lines.append(f"- {urgency_mix}")
     if or_load: lines.append(f"- 手術室全体の稼働: {or_load}")
     if holiday: lines.append(f"- 補足: {holiday}")
     facts = "\n".join(lines)
@@ -1055,9 +1090,10 @@ def _build_surgery_prompt(dept_name: str, state: str,
 
 【書き方】
 - body={metric_label}の状況の要約（数値を使わない定性的記述）。相対位置・前年同期比較・前回レポート比較が与えられていれば軽く織り込んでよい（目標未達でも前年や前回を上回るなら、その点は前向きに触れる）。
-- 「手術室全体の稼働」が与えられていれば、actionに反映する（空きがあるなら症例の積み増し、埋まっているなら枠の調整・効率化）。
+- 「手術の実施曜日」「予定手術と緊急・臨時の構成」が与えられていれば、action のレバー選びに最優先で反映する（特定曜日に集中しているならその曜日の枠の使い方、緊急・臨時が多いなら予定症例の確保、予定中心なら予定枠の消化）。
+- 「手術室全体の稼働」は補足として使ってよい（空きがあるなら症例の積み増し、埋まっているなら枠の調整・効率化）。
 - 「補足」に祝日の記載があれば、水準の低さを断定的に責めず、その影響に軽く触れてよい。
-- action=今週の一手（手術枠の稼働確認、執刀医との症例調整など運用面の対応）。
+- action=今週の一手（運用面の対応。上で選んだ事実に紐づく具体的な動きを書く）。
 - JSON 以外（```・前置き・末尾コメント）を出力しない。"""
 
 
@@ -1122,6 +1158,7 @@ def narrate_admission_action(unit_name: str, entity: str, na, na_tgt, trend: Opt
 def narrate_surgery_action(dept_name: str, sv, surg_tgt, trend: Optional[str] = None,
                           peer: Optional[str] = None, yoy: Optional[str] = None,
                           delta: Optional[str] = None, or_load: Optional[str] = None,
+                          dow_shape: Optional[str] = None, urgency_mix: Optional[str] = None,
                           holiday: Optional[str] = None,
                           model: str = DEFAULT_MODEL,
                           temperature: float = DEFAULT_TEMPERATURE,
@@ -1133,15 +1170,26 @@ def narrate_surgery_action(dept_name: str, sv, surg_tgt, trend: Optional[str] = 
     peer: 外科系診療科内の相対位置（上位/中位/下位）。
     yoy: 前年同期比較（_q_yoy の確定文・CチャートのCur/prevから）。
     delta: 前回レポート比較（①差分ナラティブ）。or_load: 手術室全体の稼働（①-3）。
+    dow_shape: 手術実施曜日の集中度（dept_report._q_surg_dow_shape）。
+    urgency_mix: 予定/緊急・臨時の構成（dept_report._q_surg_urgency_mix）。いずれも科別の
+    レバー選び用の事実で、action の均質化（枠稼働確認と症例調整の一般論への収束）を防ぐ。
     holiday: 連休文脈（①-4）。前回/祝日は渡さない場合に禁止語へ（連動緩和）。
+
+    達成度 tier（_q_target_gap → _gap_level_tier が exceed/met）のときは、件数増を迫らず
+    現状の進め方を肯定する SURGERY_ACTION_SYSTEM_PROMPT_MET に切り替える（state は
+    _q_target_gap_trend の縮退で tier 情報を失う場合があるため、tier は別途算出する）。
     """
     state = _q_target_gap_trend(sv, surg_tgt, trend)
     if state is None:
         return None
+    # trend が横ばい/None のとき _q_target_gap_trend は水準文へ縮退し tier が state から
+    # 読み取れなくなるため、達成度 tier は _q_target_gap から別途算出する。
+    _lv = _q_target_gap(sv, surg_tgt)
+    _met = _gap_level_tier(_lv) in ("exceed", "met") if _lv is not None else False
     # 眼科=全手術 / 他外科系=全身麻酔手術。12科はラベル不変ゆえプロンプトもバイト等価、
     # 眼科のみ「全身麻酔手術」→「全手術」に差し替える。
     label = surgery_metric_label(dept_name)
-    system = SURGERY_ACTION_SYSTEM_PROMPT
+    system = SURGERY_ACTION_SYSTEM_PROMPT_MET if _met else SURGERY_ACTION_SYSTEM_PROMPT
     if label != "全身麻酔手術":
         system = system.replace("全身麻酔手術", label)
     banned = _SURGERY_BANNED_TREND_OK if trend in ("上昇", "低下") else _SURGERY_BANNED
@@ -1151,6 +1199,10 @@ def narrate_surgery_action(dept_name: str, sv, surg_tgt, trend: Optional[str] = 
         banned = banned + ("前回",)
     if holiday is None:
         banned = banned + ("祝日", "連休")
+    if _met:
+        # 達成版は件数増を迫らない方針のため、棄却されても _fallback_move_surgery の
+        # 達成分岐（「現状の手術枠運用を維持しましょう。」）へ落ちるだけで安全。
+        banned = banned + ("件数増", "積み増し", "増やし")
     # P3: 添削 few-shot（全麻トピックは診療科軸に固定なので entity 条件は不要）
     fs = (fewshot.examples_block("surgery", fewshot.state_token(state), banned, dept_name)
           if fewshot else "")
@@ -1158,7 +1210,8 @@ def narrate_surgery_action(dept_name: str, sv, surg_tgt, trend: Optional[str] = 
         f"surgery dept:{dept_name}",
         system=system,
         user=_build_surgery_prompt(dept_name, state, metric_label=label, peer=peer, yoy=yoy,
-                                   delta=delta, or_load=or_load, holiday=holiday) + fs,
+                                   delta=delta, dow_shape=dow_shape, urgency_mix=urgency_mix,
+                                   or_load=or_load, holiday=holiday) + fs,
         banned=banned, allow=_unit_allow(dept_name),
         model=model, temperature=temperature, quiet=quiet)
 

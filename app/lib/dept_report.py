@@ -735,6 +735,51 @@ def _q_or_load(surg, base_date) -> Optional[str]:
     return "手術室全体の稼働には余裕がある（空き枠がある）"
 
 
+def _q_surg_dow_shape(surg, base_date, dept) -> Optional[str]:
+    """当該科の手術実施曜日の集中度（直近8週・平日・術数対象手術・上位2曜日シェア）。
+    「今週の一手」のレバー選びを科ごとに書き分けるための事実（①-5）。KPI（術数対象）と
+    同じ母集団に揃えるため 術数対象/平日 でフィルタする。
+
+    閾値は暫定値（実データ較正未実施）。境界フリップが目立つ場合は要調整。"""
+    w = surg[(surg["手術実施日"] > base_date - timedelta(days=56))
+            & (surg["手術実施日"] <= base_date)
+            & surg["術数対象"] & surg["平日"]
+            & (surg["実施診療科"] == dept)]
+    n = len(w)
+    if n < 20:
+        return None
+    top2 = w["曜日"].value_counts().head(2).sum()
+    share = top2 / n
+    if share >= 0.70:
+        return "手術の実施は特定の曜日に集中している"
+    if share >= 0.55:
+        return "手術の実施はやや特定の曜日に寄っている"
+    return "手術の実施は曜日ごとに分散している"
+
+
+def _q_surg_urgency_mix(surg, base_date, dept) -> Optional[str]:
+    """当該科の予定/緊急・臨時手術の構成（直近12週・術数対象手術・申込区分ベース）。
+    「今週の一手」のレバー選びを科ごとに書き分けるための事実（①-5）。KPIと同じ母集団に
+    揃えるため 術数対象 でフィルタする（平日は問わない＝緊急・臨時は休日にも発生するため）。
+
+    閾値は暫定値（実データ較正未実施）。境界フリップが目立つ場合は要調整。"""
+    if "申込区分" not in surg.columns:
+        return None
+    w = surg[(surg["手術実施日"] > base_date - timedelta(days=84))
+            & (surg["手術実施日"] <= base_date)
+            & surg["術数対象"]
+            & (surg["実施診療科"] == dept)]
+    n = len(w)
+    if n < 20 or w["申込区分"].isna().all():
+        return None
+    ratio = w["申込区分"].isin(["緊急", "臨時"]).sum() / n
+    if ratio >= 0.25:
+        return "緊急・臨時手術の割合が高い"
+    if ratio >= 0.12:
+        return "予定手術と緊急・臨時手術が混在する"
+    return "予定手術が中心"
+
+
 def _q_holiday_week(adm, base_date) -> Optional[str]:
     """直近7日窓に祝日（暦上の平日だが営業日でない日＝GW/年末年始含む）を含むか。
     含む週の未達を科の不調と誤読させないためのフェアネス文脈（①-4）。"""
@@ -1312,10 +1357,16 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
                         {"trend": na_trend, "peer": na_peer, "yoy": na_yoy, "delta": d_txt,
                          "mix": mix, "holiday": holiday_fact, "quiet": quiet})
             elif topic == "surgery":
+                dow_shape = _q_surg_dow_shape(surg, base_date, name)
+                urgency_mix = _q_surg_urgency_mix(surg, base_date, name)
+                # 眼科は術数対象手術の99.6%が稼働対象手術室（OP-1..10,12）の外（外来手術センター等）
+                # で行われるため、手術室全体の稼働を根拠にすると事実に無い話になる。渡さない。
+                or_for_dept = None if surgery_metric_label(name) != "全身麻酔手術" else or_fact
                 call = (narrate_surgery_action,
                         (name, sv_gap, surg_tgt_gap),
                         {"trend": surg_trend, "peer": surg_peer, "yoy": surg_yoy, "delta": d_txt,
-                         "or_load": or_fact, "holiday": holiday_fact, "quiet": quiet})
+                         "or_load": or_for_dept, "dow_shape": dow_shape, "urgency_mix": urgency_mix,
+                         "holiday": holiday_fact, "quiet": quiet})
 
             idx = len(unit_states)
             if unit_ai and call is not None:

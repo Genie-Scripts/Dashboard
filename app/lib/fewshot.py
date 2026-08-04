@@ -125,6 +125,25 @@ def rebuild_corpus(state_dir) -> int:
             }   # 同キー再出現時は上書き（最後勝ち）
         rows = list(rows_by_key.values())
 
+        # 同一トピック内で human_action が完全一致する行が複数あれば、base_date が
+        # 最新の1件だけ残す（同着はファイル後方＝後勝ち）。人手オーバーライドは
+        # expires=基準日+14で運用されるため、同一の添削文が最大14日分 manual として
+        # 再捕捉され、実質は少数ユニットの定型文がコーパスを水増しする自己強化ループ
+        # になっていた。human_action が空文字の行は判定不能として重複排除の対象外
+        # とする（空文字同士を同一視して間引かない）。
+        dedup: dict = {}
+        empties = []
+        for row in rows:
+            action = row.get("human_action") or ""
+            if not action:
+                empties.append(row)
+                continue
+            key = (row.get("topic"), action)
+            prev = dedup.get(key)
+            if prev is None or (row.get("base_date") or "") >= (prev.get("base_date") or ""):
+                dedup[key] = row
+        rows = list(dedup.values()) + empties
+
         state_dir.mkdir(parents=True, exist_ok=True)
         path = state_dir / CORPUS_NAME
         with path.open("w", encoding="utf-8") as f:
@@ -224,6 +243,26 @@ def _mask(text: Optional[str], self_name: str, known_names: set) -> str:
     return result
 
 
+def _char_trigrams(s: Optional[str]) -> set:
+    """文字3-gram集合。3文字未満は文字列全体を1要素として扱う（空文字なら空集合）。"""
+    s = s or ""
+    if len(s) < 3:
+        return {s} if s else set()
+    return {s[i:i + 3] for i in range(len(s) - 2)}
+
+
+def _trigram_jaccard(a: Optional[str], b: Optional[str]) -> float:
+    """文字3-gram Jaccard類似度（0=語彙が重ならない〜1=完全一致）。examples_blockの
+    2件目選択（MMR的多様性選択）用の小さなヘルパ。どちらかが空/計算不能なら0.0。"""
+    sa, sb = _char_trigrams(a), _char_trigrams(b)
+    if not sa or not sb:
+        return 0.0
+    union = len(sa | sb)
+    if not union:
+        return 0.0
+    return len(sa & sb) / union
+
+
 # ════════════════════════════════════════════════════════════
 # few-shot ブロック整形
 # ════════════════════════════════════════════════════════════
@@ -311,7 +350,13 @@ def examples_block(topic: str, token: Optional[str], banned: tuple, unit_name: s
         cands.sort(key=lambda r: r.get("base_date") or "", reverse=True)
         cands.sort(key=_score)
 
-        # 同ユニットは1件まで（多様性）
+        # 同ユニットは1件まで（多様性）。1件目は現行のまま（token一致→隣接階級→
+        # base_date降順の先頭）。2件目は候補プール（1件目のユニットを除く）の中から
+        # 「1件目のhuman_actionと文字3-gram Jaccard類似度が最小」のものを選ぶ
+        # （MMR的多様性選択）。人手添削コーパスは同型の定型文が多く、単純に上位2件を
+        # 採ると同型の例が並びやすいため。候補が1件しかない/類似度が計算不能（同率）
+        # なら remaining の先頭が選ばれ、現行どおりの並び順選択にフォールバックする。
+        # 3件目以降（現状は呼ばれない）は元の並び順選択にフォールバックする。
         seen_units, selected = set(), []
         for r in cands:
             u = r.get("unit")
@@ -319,8 +364,26 @@ def examples_block(topic: str, token: Optional[str], banned: tuple, unit_name: s
                 continue
             seen_units.add(u)
             selected.append(r)
+            break
+
+        if selected and k >= 2:
+            base_action = selected[0].get("human_action") or ""
+            remaining = [r for r in cands if r.get("unit") not in seen_units]
+            if remaining:
+                pick = min(remaining, key=lambda r: _trigram_jaccard(
+                    base_action, r.get("human_action") or ""))
+                seen_units.add(pick.get("unit"))
+                selected.append(pick)
+
+        for r in cands:
             if len(selected) >= k:
                 break
+            u = r.get("unit")
+            if u in seen_units:
+                continue
+            seen_units.add(u)
+            selected.append(r)
+
         if not selected:
             return ""
 

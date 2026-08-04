@@ -208,6 +208,71 @@ class TestLevelingTopicOnlyK1(unittest.TestCase):
             self.assertEqual(block.count("AI案"), 1)
 
 
+class TestRebuildCorpusDedupHumanAction(unittest.TestCase):
+    def test_same_topic_duplicate_human_action_keeps_latest_only(self):
+        """人手オーバーライドの expires=+14日 再捕捉で同一の添削文が複数ユニット・
+        複数base_dateに渡って複製される自己強化ループを断つ。同一トピック内で
+        human_actionが完全一致する行は base_date が最新の1件だけ残す。"""
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            dup_action = "件数増に専念しましょう。"
+            capture_edits(d, "2026-07-01", [
+                _ctx("科イ", "ai", "AI本文イ", "AI打ち手イ", "surgery", {"surg": "poor"})])
+            capture_edits(d, "2026-07-01", [
+                _ctx("科イ", "manual", "人本文イ", dup_action, "surgery", {"surg": "poor"})])
+            capture_edits(d, "2026-07-08", [
+                _ctx("科ロ", "ai", "AI本文ロ", "AI打ち手ロ", "surgery", {"surg": "poor"})])
+            capture_edits(d, "2026-07-08", [
+                _ctx("科ロ", "manual", "人本文ロ", dup_action, "surgery", {"surg": "poor"})])
+            capture_edits(d, "2026-07-15", [
+                _ctx("科ハ", "ai", "AI本文ハ", "AI打ち手ハ", "surgery", {"surg": "poor"})])
+            capture_edits(d, "2026-07-15", [
+                _ctx("科ハ", "manual", "人本文ハ", dup_action, "surgery", {"surg": "poor"})])
+            # 別トピックの重複は対象外（トピック横断では排除しない）
+            capture_edits(d, "2026-07-01", [
+                _ctx("架空科A", "ai", "AI本文A", "AI打ち手A", "admission", {"na": "close"})])
+            capture_edits(d, "2026-07-01", [
+                _ctx("架空科A", "manual", "人の本文A", "人の打ち手A", "admission", {"na": "close"})])
+
+            n = fewshot.rebuild_corpus(d)
+            self.assertEqual(n, 2)   # surgeryの3件は1件に圧縮 + admissionの1件
+            rows = fewshot.load_corpus(d)
+            surg_rows = [r for r in rows if r["topic"] == "surgery"]
+            self.assertEqual(len(surg_rows), 1)
+            self.assertEqual(surg_rows[0]["unit"], "科ハ")        # base_dateが最新のものが残る
+            self.assertEqual(surg_rows[0]["base_date"], "2026-07-15")
+
+
+class TestExamplesBlockDiversitySelection(unittest.TestCase):
+    def test_second_pick_prefers_dissimilar_human_action(self):
+        """1件目は現行どおり（token一致・base_date最新）。2件目は1件目と3-gram
+        Jaccard類似度が最小の候補を選ぶ（MMR的多様性選択）。似た文言の候補ではなく、
+        最も異なる文言の候補が採用されることを確認する。"""
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            near_dup = "全麻手術件数増に専念しましょう。"
+            near_dup_variant = near_dup + "ぜひお願いします。"
+            distinct = "地域医療連携先への紹介強化と予定入院枠の調整を進めましょう。"
+            capture_edits(d, "2026-07-15", [
+                _ctx("科イ", "ai", "AI本文イ", "AI打ち手イ", "admission", {"na": "poor"})])
+            capture_edits(d, "2026-07-15", [
+                _ctx("科イ", "manual", "人本文イ", near_dup, "admission", {"na": "poor"})])
+            capture_edits(d, "2026-07-08", [
+                _ctx("科ロ", "ai", "AI本文ロ", "AI打ち手ロ", "admission", {"na": "poor"})])
+            capture_edits(d, "2026-07-08", [
+                _ctx("科ロ", "manual", "人本文ロ", near_dup_variant, "admission", {"na": "poor"})])
+            capture_edits(d, "2026-07-01", [
+                _ctx("科ハ", "ai", "AI本文ハ", "AI打ち手ハ", "admission", {"na": "poor"})])
+            capture_edits(d, "2026-07-01", [
+                _ctx("科ハ", "manual", "人本文ハ", distinct, "admission", {"na": "poor"})])
+            fewshot.rebuild_corpus(d)
+
+            block = fewshot.examples_block("admission", "poor", (), "架空科Z", state_dir=d, k=2)
+            self.assertIn(near_dup, block)             # 1件目=最新(科イ)は現行どおり
+            self.assertIn(distinct, block)              # 2件目=最も異なる文言(科ハ)が選ばれる
+            self.assertNotIn(near_dup_variant, block)    # 似た文言(科ロ)は選ばれない
+
+
 class TestPromptBytesIdenticalWhenNoExamples(unittest.TestCase):
     """fewshot 無効時、ai_narrative の配線が user 以外を触っていないことの回帰
     （追記が空文字列＝従来プロンプトとバイト単位で同一）。"""

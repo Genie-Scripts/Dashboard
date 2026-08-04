@@ -186,6 +186,8 @@ class _Pipeline:
             mock.patch.object(dr, "_unit_profit_series", self._fake_none),
             mock.patch.object(dr, "_q_planned_mix", self._fake_none),
             mock.patch.object(dr, "_q_or_load", self._fake_none),
+            mock.patch.object(dr, "_q_surg_dow_shape", self._fake_none),
+            mock.patch.object(dr, "_q_surg_urgency_mix", self._fake_none),
             mock.patch.object(dr, "_q_holiday_week", self._fake_none),
             mock.patch.object(dr, "narrate_leveling_actions", self.leveling_fake),
             mock.patch.object(dr, "narrate_admission_action", admission_fake),
