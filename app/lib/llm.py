@@ -66,13 +66,16 @@ def _get_client():
     global _client
     if _client is None:
         from openai import OpenAI  # 遅延 import: 未導入でも import 時には落とさない
-        _client = OpenAI(base_url=BASE_URL, api_key=API_KEY, timeout=TIMEOUT_SEC)
+        # X-Genie-Client: broker(:8936)のJSONログでリクエスト元を特定するため（直:8000時は
+        # 未知ヘッダとして無視される想定）。全リクエストへ一律付与する。
+        _client = OpenAI(base_url=BASE_URL, api_key=API_KEY, timeout=TIMEOUT_SEC,
+                          default_headers={"X-Genie-Client": "dashboard"})
     return _client
 
 
 def chat_json(system: str, user: str, model: str,
               temperature: float = 0.2, max_tokens: int = 256,
-              seed: int = None) -> str:
+              seed: int = None, client_label: str | None = None) -> str:
     """system/user を渡し、アシスタント応答の content 文字列を返す。
 
     旧 ollama の `format="json"` 相当として response_format(json_object) を付ける。
@@ -82,6 +85,11 @@ def chat_json(system: str, user: str, model: str,
     seed: oMLX は OpenAI 互換の seed に対応（実測 2026-07-04: 同一seed→同一出力）。
     呼び出し側がプロンプト内容から決定論的に与えると「同じ事実→同じ文」の再現性が得られる。
     None なら従来どおり非決定論。
+
+    client_label: broker(:8936)のJSONログ `client` フィールドを呼び出し元単位で上書きする
+    （既定 None は `_get_client()` の `X-Genie-Client: dashboard` のまま）。WeeklyReport が
+    本関数を再利用しているため（`WeeklyReport/studio/report_llm.py`）、混同を避けたい
+    呼び出し元だけが指定する（例: `client_label="weeklyreport"`）。
     """
     client = _get_client()
     messages = [
@@ -89,6 +97,7 @@ def chat_json(system: str, user: str, model: str,
         {"role": "user", "content": user},
     ]
     extra = {} if seed is None else {"seed": seed}
+    extra_headers = {"X-Genie-Client": client_label} if client_label else None
     # 協調層: focus を取ってからロードし、業務ハブの重い並行要求（会議議事録80B 等）と
     # 直列化して 507 を避ける。Dashboard の生成は基本バッチなので priority=batch。
     _coord = genie_llm.session(model, priority="batch") if genie_llm else contextlib.nullcontext()
@@ -100,6 +109,7 @@ def chat_json(system: str, user: str, model: str,
                 temperature=temperature,
                 max_tokens=max_tokens,
                 response_format={"type": "json_object"},
+                extra_headers=extra_headers,
                 **extra,
             )
         except Exception:
@@ -109,6 +119,7 @@ def chat_json(system: str, user: str, model: str,
                 messages=messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
+                extra_headers=extra_headers,
                 **extra,
             )
     return res.choices[0].message.content or ""
