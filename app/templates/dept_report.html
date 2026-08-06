@@ -210,6 +210,17 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
   border-radius:6px; padding:2px 8px; cursor:pointer; margin-left:6px; visibility:hidden}
 .move.dirty .restore, .move.manual .restore, .move.removed .restore{visibility:visible}
 .lock-note{font-size:8.5px; color:#9aa8b8; margin-top:4px}
+/* 校正の差分確認UI（P2・即置換の是正）: GenieProofread.diffChars/renderDiff が
+   `.pr-ins`/`.pr-del` を付与する（vendored genie-proofread.js 側で固定・変更不可）ので、
+   ここでは Dashboard の色トークンで上書きするだけに留める。 */
+.move .pr-row{display:flex; align-items:flex-start; gap:6px; margin-top:4px; padding:5px 7px;
+  background:#f7f9fc; border:1px solid var(--ln); border-radius:6px; font-size:10px; line-height:1.5}
+.move .pr-row .pr-txt{flex:1; white-space:pre-wrap; word-break:break-word; color:var(--ink)}
+.move .pr-row .pr-ins{color:var(--edit); background:rgba(224,122,47,.14); border-radius:2px}
+.move .pr-row .pr-del{color:var(--mu); text-decoration:line-through}
+.move .pr-row button{font-size:10px; border:1px solid #d4dce6; background:#fff; border-radius:6px;
+  padding:2px 8px; cursor:pointer; white-space:nowrap; font-family:inherit}
+.move .pr-row .pr-go{border-color:var(--navy); color:var(--navy); font-weight:800}
 /* フォールバックモーダル（File System Access API 不可時） */
 .modal-bg{display:none; position:fixed; inset:0; background:rgba(15,25,40,.45); z-index:100}
 .modal{display:none; position:fixed; top:8vh; left:50%; transform:translateX(-50%); width:720px;
@@ -222,7 +233,7 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
 .modal .row{display:flex; gap:10px; margin-top:12px; justify-content:flex-end}
 @media print{
   .toolbar,.hint,.restore,.cnt,.modal-bg,.modal,.lock-note,.tag-removed,
-  .ai-toggle,.proof-btn,.proof-msg,.tag-aiprev{display:none!important}
+  .ai-toggle,.proof-btn,.proof-msg,.tag-aiprev,.pr-row{display:none!important}
   body.review{padding:0}
   body.review .sheet{box-shadow:none; margin:0 auto; border-radius:0}
   .move .field:after{display:none}
@@ -269,7 +280,7 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
   この画面は自動で最新版に切り替わります。
   下書きは自動でブラウザに保持され、タブを閉じても消えません。
   差し替え済みのコメントは「<b>AI文を表示</b>」で元のAI文を見比べられます（表示切替のみで保存内容は変わりません）。
-  「<b>校正</b>」は今の文面のまま言い回しだけをAIに整えてもらうボタンです（内容の変更ではありません。反映後は必ず確認してから保存してください）。
+  「<b>校正</b>」は今の文面の誤字脱字・変換ミスだけをAIに点検させるボタンです。修正案は欄の下に<b>差分</b>（挿入=ハイライト・削除=取り消し線）で提示され、［置換］を押した箇所だけ反映されます（勝手に書き換えません）。
   数値行（全麻/新入院/病床利用率）はデータ由来のため編集対象外です。
   差し替えの有効期限は {{ review_expires }}（基準日+14日）まで＝古い文の残留を防ぎます。<br>
   <b>できあがりPDF：</b>
@@ -423,6 +434,321 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
   </div>
 </div>
 <script>
+/* inline vendored copy — 正本 = gateway/home/genie-proofread.js（手編集禁止。更新は正本を直してから
+   このブロックへ全文を貼り直すこと）。Dashboard は PUBLIC のネスト独立 repo で serve_review に静的配信
+   ルートを追加しない方針のため、テンプレートへ直接埋め込む（gateway/開発プラン_LLM校正.md §3-2）。
+   以下、正本ファイルの内容そのまま（このコメント行のみ追加）。 */
+/* genie-proofread.js — LLM校正（誤字脱字チェック `/proofread`）の共通クライアント部品。
+ * 依存フリー（他JSを import しない・素のIIFE）。正本はこの1ファイルで、Mail/週報/Dashboard 等
+ * 各アプリへは vendored コピーを配る前提（voice-mic.js と同じ配布ポリシー・
+ * [[photo-image-edit-plan]] 系ではなく [[voice-input-plan]] の standalone コピー方式を踏襲）。
+ * ハブ固有のAPI・DOM前提は持ち込まない。仕様: gateway/開発プラン_LLM校正.md §2-2(API契約)・§2-5(UX)。
+ *
+ * 公開API: window.GenieProofread = { diffChars, renderDiff, proofread, feedback, attachProofread }
+ */
+(function () {
+  'use strict';
+  if (window.GenieProofread) return; // 二重ロード防止（vendored コピー間の衝突を避ける）
+
+  // ── 1. 文字単位 LCS diff ──────────────────────────────────────────────
+  // 日本語には分かち書きが無いため char 単位が正解（外部ライブラリ不使用）。
+  // O(n*m) DP をフラットな Int32Array（1次元）で保持し、通常の入れ子 Array より高速・省メモリにする。
+  // 最大 4000字×4000字（総字数上限＝サーバの PROOFREAD_MAX_CHARS）でも数十msに収まる想定。
+  function diffChars(a, b) {
+    a = a == null ? '' : String(a);
+    b = b == null ? '' : String(b);
+    const n = a.length, m = b.length;
+    if (n === 0 && m === 0) return [];
+    if (n === 0) return [{ op: 'ins', text: b }];
+    if (m === 0) return [{ op: 'del', text: a }];
+
+    const w = m + 1;
+    const dp = new Int32Array((n + 1) * w);
+    for (let i = 1; i <= n; i++) {
+      const ac = a.charCodeAt(i - 1);
+      const row = i * w, prev = (i - 1) * w;
+      for (let j = 1; j <= m; j++) {
+        if (ac === b.charCodeAt(j - 1)) {
+          dp[row + j] = dp[prev + j - 1] + 1;
+        } else {
+          const up = dp[prev + j], left = dp[row + j - 1];
+          dp[row + j] = up >= left ? up : left;
+        }
+      }
+    }
+
+    // 末尾からバックトラックして eq/del/ins の列を復元する。
+    const ops = [];
+    let i = n, j = m;
+    while (i > 0 && j > 0) {
+      if (a.charCodeAt(i - 1) === b.charCodeAt(j - 1)) {
+        ops.push(['eq', a[i - 1]]); i--; j--;
+      } else if (dp[(i - 1) * w + j] >= dp[i * w + j - 1]) {
+        ops.push(['del', a[i - 1]]); i--;
+      } else {
+        ops.push(['ins', b[j - 1]]); j--;
+      }
+    }
+    while (i > 0) { ops.push(['del', a[i - 1]]); i--; }
+    while (j > 0) { ops.push(['ins', b[j - 1]]); j--; }
+    ops.reverse();
+
+    // 連続する同opをまとめてセグメント化。
+    const segs = [];
+    for (let k = 0; k < ops.length; k++) {
+      const op = ops[k][0], ch = ops[k][1];
+      const last = segs[segs.length - 1];
+      if (last && last.op === op) last.text += ch;
+      else segs.push({ op: op, text: ch });
+    }
+    return segs;
+  }
+
+  // ── 2. 差分描画（XSS防止のため textContent/createTextNode のみ使用・innerHTMLに本文を入れない）──
+  function renderDiff(container, segments) {
+    if (!container) return;
+    container.textContent = '';
+    (segments || []).forEach(function (seg) {
+      if (!seg || !seg.text) return;
+      if (seg.op === 'eq') {
+        container.appendChild(document.createTextNode(seg.text));
+        return;
+      }
+      const span = document.createElement('span');
+      span.className = seg.op === 'del' ? 'pr-del' : 'pr-ins';
+      span.appendChild(document.createTextNode(seg.text));
+      container.appendChild(span);
+    });
+  }
+
+  // ── 3. サーバ呼び出し（薄いラッパ・UI側タイムアウト既定120秒＝refineと同値）──────────────
+  function proofread(items, context, opts) {
+    opts = opts || {};
+    const endpoint = opts.endpoint || '/api/proofread';
+    const controller = new AbortController();
+    const timer = setTimeout(function () { controller.abort(); }, opts.timeoutMs || 120000);
+    return fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: items || [], context: context || 'generic' }),
+      signal: controller.signal,
+    }).then(function (r) {
+      return r.json().catch(function () { return { ok: false, error: 'invalid_json' }; })
+        .then(function (d) {
+          if (!r.ok && d.ok !== false) d = { ok: false, error: 'http_' + r.status };
+          return d;
+        });
+    }).finally(function () { clearTimeout(timer); });
+  }
+
+  // ── 4. 採否フィードバック（測定器・§2-6。beaconで撃つ・fail-soft）────────────────────────
+  function feedback(endpoint, id, key, action) {
+    if (!id) return; // fail-soft: idが無ければ測定不能なだけで機能は止めない
+    const url = endpoint || '/api/proofread/feedback';
+    const payload = JSON.stringify({ id: id, key: key, action: action });
+    try {
+      if (navigator.sendBeacon) {
+        const ok = navigator.sendBeacon(url, new Blob([payload], { type: 'application/json' }));
+        if (ok) return;
+      }
+    } catch (e) { /* sendBeacon不可はfetchへフォールバック */ }
+    try {
+      fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload, keepalive: true })
+        .catch(function () {});
+    } catch (e) { /* fail-soft: 測定器の失敗で本体機能を止めない */ }
+  }
+
+  // ── 5. 自己完結CSS（vendored コピーで崩れないよう1回だけ注入・genie.css の変数があれば使い、
+  //      無くてもフォールバック値で成立する書き方＝ var(--accent, #b5654a) の形）────────────────
+  function ensureStyle() {
+    if (document.getElementById('genie-proofread-style')) return;
+    const style = document.createElement('style');
+    style.id = 'genie-proofread-style';
+    style.textContent =
+      '.pr-btn{background:#fff;color:var(--accent-d,#a84d30);border:1px solid var(--accent-l,#d97757);' +
+      'cursor:pointer;padding:9px 16px;border-radius:9px;font-size:.9rem;font-family:inherit}' +
+      '.pr-btn:hover{background:#faf6f3}' +
+      '.pr-btn.busy{opacity:.6;cursor:progress}' +
+      '.pr-spin{display:inline-block;width:12px;height:12px;margin-right:6px;vertical-align:-2px;' +
+      'border:2px solid var(--accent-l,#d97757);border-top-color:transparent;border-radius:50%;' +
+      'animation:pr-spin .8s linear infinite}' +
+      '@keyframes pr-spin{to{transform:rotate(360deg)}}' +
+      '.pr-card{margin-top:10px;background:var(--card,#fff);border:1px solid var(--line,#e5ddd3);' +
+      'border-radius:10px;padding:12px}' +
+      '.pr-diff{white-space:pre-wrap;word-break:break-word;font-size:.92rem;line-height:1.7;' +
+      'border:1px solid var(--line,#e5ddd3);border-radius:8px;padding:10px;background:var(--bg,#faf8f4)}' +
+      '.pr-del{color:var(--muted,#8a8378);text-decoration:line-through;background:#f1ece6}' +
+      '.pr-ins{color:var(--accent-d,#a84d30);background:#f5e6de;border-radius:2px}' +
+      '.pr-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}' +
+      '.pr-run{background:var(--accent,#c96442);color:#fff;border:none;cursor:pointer;padding:9px 16px;' +
+      'border-radius:9px;font-size:.9rem;font-family:inherit}' +
+      '.pr-raw,.pr-cancel{background:#fff;color:var(--accent-d,#a84d30);border:1px solid var(--accent-l,#d97757);' +
+      'cursor:pointer;padding:9px 16px;border-radius:9px;font-size:.9rem;font-family:inherit}' +
+      '.pr-raw:hover,.pr-cancel:hover{background:#faf6f3}' +
+      '.pr-note{color:var(--muted,#8a8378);font-size:.85rem;margin:0 0 8px}' +
+      '.pr-undo{color:var(--accent-d,#a84d30);font-size:.85rem;margin-top:8px;cursor:pointer;' +
+      'text-decoration:underline;background:none;border:none;padding:0;font-family:inherit}' +
+      '.pr-toast{position:fixed;right:20px;bottom:20px;z-index:99999;background:#1f2937;color:#fff;' +
+      'padding:10px 16px;border-radius:8px;font-size:13px;box-shadow:0 6px 18px rgba(0,0,0,.2)}';
+    document.head.appendChild(style);
+  }
+  ensureStyle(); // スクリプト読み込み時に1回だけ注入（diffChars/renderDiffを直接使う呼び出し元にも効くように）
+
+  function toast(message) {
+    const t = document.createElement('div');
+    t.className = 'pr-toast';
+    t.textContent = message;
+    document.body.appendChild(t);
+    setTimeout(function () { t.remove(); }, 3200);
+  }
+
+  // ── 6. attachProofread(inputEl, opts): 動線一式（§2-5）。textarea/contenteditable 両対応。────
+  // P0時点ではハブパネルが diffChars/renderDiff/proofread を直接使うため実戦配線は無いが、
+  // P1（Mail/週報）で使う本体としてここで仕様どおり実装しておく。
+  function attachProofread(inputEl, opts) {
+    opts = opts || {};
+    if (!inputEl || inputEl.dataset.proofreadAttached) return;
+    inputEl.dataset.proofreadAttached = '1';
+    const context = opts.context || 'generic';
+    const endpoint = opts.endpoint || '/api/proofread';
+    const feedbackEndpoint = opts.feedbackEndpoint || '/api/proofread/feedback';
+    const btnHost = opts.btnHost;
+    const anchor = opts.host || null; // attachRefineと同じ「アンカーの直前に挿入」の考え方（既定は入力欄の直後）
+    if (!btnHost) return; // 必須（校正ボタンの設置先が無ければ何もしない）
+    const editable = inputEl.isContentEditable === true;
+
+    function getText() { return editable ? inputEl.textContent : inputEl.value; }
+    function setText(t) {
+      if (editable) inputEl.textContent = t; else inputEl.value = t;
+      // 週報・Dashboard の既存 dirty 追跡／自動保存リスナーを発火させるため input を dispatch する（§5-8）。
+      // change も併せて dispatch する: blur ベースの保存リスナー（週報 #dPolicy の /api/state patch 等）は
+      // change しか聴いておらず、input だけだと「適用→ドロワー再展開で補正が消える」永続化ギャップになる。
+      // ユーザー編集も最終的に input→(blur時)change の両方を発火するので、両方送るのが実挙動と等価。
+      inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+      inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    function insertCard(card) {
+      if (anchor && anchor.parentNode) { anchor.parentNode.insertBefore(card, anchor); }
+      else { inputEl.parentNode.insertBefore(card, inputEl.nextSibling); }
+    }
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pr-btn';
+    btn.title = '誤字脱字を校正';
+    btn.setAttribute('aria-label', '誤字脱字を校正');
+    btn.textContent = '校正';
+    btnHost.appendChild(btn);
+
+    let card = null;
+    function removeCard() { if (card) { card.remove(); card = null; } }
+
+    function renderFailCard(message) {
+      removeCard();
+      card = document.createElement('div');
+      card.className = 'pr-card';
+      const note = document.createElement('div');
+      note.className = 'pr-note';
+      note.textContent = message;
+      card.appendChild(note);
+      const actions = document.createElement('div');
+      actions.className = 'pr-actions';
+      const closeBtn = document.createElement('button');
+      closeBtn.type = 'button'; closeBtn.className = 'pr-cancel'; closeBtn.textContent = '閉じる';
+      closeBtn.addEventListener('click', removeCard);
+      actions.appendChild(closeBtn);
+      card.appendChild(actions);
+      insertCard(card);
+    }
+
+    function renderUndoCard(before) {
+      removeCard();
+      card = document.createElement('div');
+      card.className = 'pr-card';
+      const undoBtn = document.createElement('button');
+      undoBtn.type = 'button'; undoBtn.className = 'pr-undo'; undoBtn.textContent = '↺ 元に戻す';
+      undoBtn.addEventListener('click', function () {
+        setText(before);
+        removeCard(); // 1段階のみ（§2-1原則3）
+      });
+      card.appendChild(undoBtn);
+      insertCard(card);
+    }
+
+    function renderDiffCard(id, key, before, after) {
+      removeCard();
+      card = document.createElement('div');
+      card.className = 'pr-card';
+      const diffBox = document.createElement('div');
+      diffBox.className = 'pr-diff';
+      renderDiff(diffBox, diffChars(before, after));
+      card.appendChild(diffBox);
+      const actions = document.createElement('div');
+      actions.className = 'pr-actions';
+      const runBtn = document.createElement('button');
+      runBtn.type = 'button'; runBtn.className = 'pr-run'; runBtn.textContent = '置き換える';
+      runBtn.addEventListener('click', function () {
+        setText(after); // 適用文＝確認文（§2-1原則3）: 差分カードで見せた文字列そのものを適用
+        feedback(feedbackEndpoint, id, key, 'apply');
+        renderUndoCard(before);
+      });
+      const cancelBtn = document.createElement('button');
+      cancelBtn.type = 'button'; cancelBtn.className = 'pr-cancel'; cancelBtn.textContent = 'やめる';
+      cancelBtn.addEventListener('click', function () {
+        feedback(feedbackEndpoint, id, key, 'reject');
+        removeCard();
+      });
+      actions.appendChild(runBtn); actions.appendChild(cancelBtn);
+      card.appendChild(actions);
+      insertCard(card);
+    }
+
+    btn.addEventListener('click', function () {
+      if (btn.classList.contains('busy')) return;
+      const raw = getText();
+      if (!raw || !raw.trim()) return; // 空欄は無視（§2-5-2）
+      if (raw.length > 4000) { toast('4000字までです'); return; } // サーバ400を待たずクライアント側で弾く
+      btn.classList.add('busy'); btn.disabled = true;
+      const origHtml = btn.innerHTML;
+      btn.innerHTML = '<span class="pr-spin"></span>校正中…';
+      removeCard();
+      proofread([{ key: 'main', text: raw }], context, { endpoint: endpoint, timeoutMs: 120000 })
+        .then(function (d) {
+          if (!d || d.ok === false) {
+            renderFailCard((d && d.error) || '校正できませんでした（原文のまま）');
+            return;
+          }
+          const item = (d.items || [])[0];
+          if (!item) { renderFailCard('校正できませんでした（原文のまま）'); return; }
+          if (item.llm_fallback) {
+            renderFailCard('校正できませんでした（原文のまま）');
+          } else if (item.over_rewrite) {
+            renderFailCard('書き換わりすぎを検知したため適用しません');
+          } else if (!item.changed) {
+            toast('修正なし ✓');
+          } else {
+            renderDiffCard(d.id, 'main', raw, item.corrected);
+          }
+        })
+        .catch(function () {
+          renderFailCard('校正できませんでした（原文のまま）');
+        })
+        .finally(function () {
+          btn.classList.remove('busy'); btn.disabled = false; btn.innerHTML = origHtml;
+        });
+    });
+  }
+
+  window.GenieProofread = {
+    diffChars: diffChars,
+    renderDiff: renderDiff,
+    proofread: proofread,
+    feedback: feedback,
+    attachProofread: attachProofread,
+  };
+})();
+</script>
+<script>
 "use strict";
 // §6-1 一手レビューUI。ビルド出力の文面を原文(ORIG)として起動時に取り込み、
 // 編集差分だけを overrides.md 形式で書き出す（保存＝ファイル全体の書き換え）。
@@ -535,6 +861,7 @@ function refreshAiToggle(card){
 }
 function enterAiPreview(card){
   if (card.classList.contains("ai-preview")) return;
+  clearProofRows(card);   // AI文プレビューへ切替＝直前の校正差分提案は文脈が変わるため畳む
   const w = {};
   eds(card).forEach(ed => {
     w[ed.dataset.kind] = ed.innerText;
@@ -546,6 +873,7 @@ function enterAiPreview(card){
 }
 function exitAiPreview(card){
   if (!card.classList.contains("ai-preview")) return;
+  clearProofRows(card);
   const w = WORK[unitOf(card)];
   eds(card).forEach(ed => {
     if (w && w[ed.dataset.kind] != null) ed.innerText = w[ed.dataset.kind];
@@ -806,6 +1134,34 @@ rbBtn.addEventListener("click", async () => {
   pollRebuild();
 });
 
+// ── 校正の差分確認UI（P2・gateway/開発プラン_LLM校正.md §2-1原則3の是正: 即置換をやめ、
+//    差分を見せてから明示適用にする）。API契約はサーバ側のまま（items一括・修正文キーは`text`）、
+//    使うのは vendored GenieProofread.diffChars/renderDiff のみ（attachProofreadは使わない＝
+//    既存の一括校正ボタン＋バッチAPIの流れをそのまま活かす）。
+function clearProofRows(card){
+  card.querySelectorAll(".pr-row").forEach(el => el.remove());
+}
+function insertProofRow(ed, before, after, onApply){
+  // `.ed` の直下（body欄は.field、action欄は.move-actごと）へ軽量な1行差分を挿入。
+  const anchor = ed.closest(".move-act") || ed.closest(".field");
+  if (!anchor || !anchor.parentNode) return;
+  const row = document.createElement("div");
+  row.className = "pr-row";
+  const txt = document.createElement("span");
+  txt.className = "pr-txt";
+  GenieProofread.renderDiff(txt, GenieProofread.diffChars(before, after));
+  const goBtn = document.createElement("button");
+  goBtn.type = "button"; goBtn.textContent = "置換";
+  goBtn.className = "pr-go";
+  const noBtn = document.createElement("button");
+  noBtn.type = "button"; noBtn.textContent = "×";
+  noBtn.className = "pr-no";
+  goBtn.addEventListener("click", () => { onApply(); row.remove(); });
+  noBtn.addEventListener("click", () => { row.remove(); });
+  row.appendChild(txt); row.appendChild(goBtn); row.appendChild(noBtn);
+  anchor.insertAdjacentElement("afterend", row);
+}
+
 // ── 校正（レビューサーバの /proofread。活性条件はPDF再作成ボタンと同じ）──
 async function proofreadCard(card){
   if (!SERVED){
@@ -815,6 +1171,7 @@ async function proofreadCard(card){
   }
   if (!serverOnline){ setSrvStatus(false); alert(SRV_DOWN_MSG); return; }
   exitAiPreview(card);   // 校正は常に「今表示中の編集内容」に対して行う
+  clearProofRows(card);  // 前回の未処理の差分提案が残っていたら一旦たたむ
   const u = unitOf(card);
   const btn = card.querySelector(".proof-btn");
   const msgEl = card.querySelector(".proof-msg");
@@ -829,16 +1186,24 @@ async function proofreadCard(card){
     const data = await r.json();
     const byKey = {};
     (data.items || []).forEach(it => { byKey[it.key] = it; });
-    let changed = false, err = "";
+    let proposed = 0, err = "";
     targets.forEach(ed => {
       const it = byKey[u + "|" + ed.dataset.kind];
       if (!it) return;
       if (it.error) err = it.error;
-      if (it.changed && it.text != null){ ed.innerText = it.text; changed = true; }
+      if (it.changed && it.text != null){
+        const before = norm(ed.innerText), after = it.text;
+        proposed += 1;
+        insertProofRow(ed, before, after, () => {
+          ed.textContent = after;   // 適用文＝確認文: 差分カードで見せた文字列そのものを適用
+          ed.dispatchEvent(new Event("input", {bubbles: true}));
+          ed.dispatchEvent(new Event("change", {bubbles: true}));
+        });
+      }
     });
-    if (changed){ unsavedEdits = true; refreshCard(card); writeDraft(); }
     if (msgEl){
-      msgEl.textContent = err ? ("校正失敗: " + err) : (changed ? "✓ 校正を反映しました" : "修正なし");
+      msgEl.textContent = err ? ("校正失敗: " + err)
+        : (proposed ? ("✓ " + proposed + "件の修正案（下の［置換］で反映）") : "修正なし");
       setTimeout(() => { if (msgEl) msgEl.textContent = ""; }, 5000);
     }
   } catch (e) {
