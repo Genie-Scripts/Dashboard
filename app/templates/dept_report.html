@@ -444,7 +444,7 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
  * [[photo-image-edit-plan]] 系ではなく [[voice-input-plan]] の standalone コピー方式を踏襲）。
  * ハブ固有のAPI・DOM前提は持ち込まない。仕様: gateway/開発プラン_LLM校正.md §2-2(API契約)・§2-5(UX)。
  *
- * 公開API: window.GenieProofread = { diffChars, renderDiff, proofread, feedback, attachProofread }
+ * 公開API: window.GenieProofread = { diffChars, renderDiff, proofread, proofreadChunked, feedback, attachProofread }
  */
 (function () {
   'use strict';
@@ -521,12 +521,69 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
     });
   }
 
-  // ── 3. サーバ呼び出し（薄いラッパ・UI側タイムアウト既定120秒＝refineと同値）──────────────
+  // ── 3. 長文チャンク分割（Draft/static/draft.js の buildChunks/lastBoundary/findSplitPoint を
+  //      ロジック逐語で移植・proofreadChunked が使う）。サーバ総字数上限（PROOFREAD_MAX_CHARS=4000）
+  //      よりだいぶ小さい単位に区切ることで、1リクエストが必ず単独でサーバ上限に収まるようにする。
+  //      段落境界（空行優先→改行→最終手段で強制分割）で切るため chunks.join('') は常に原文と一致する。
+  const PR_CHUNK_MAX_CHARS = 800;
+
+  function buildChunks(text, maxChunkChars) {
+    const chunks = [];
+    let rest = text;
+    while (rest.length > maxChunkChars) {
+      const cut = findSplitPoint(rest, maxChunkChars);
+      chunks.push(rest.slice(0, cut));
+      rest = rest.slice(cut);
+    }
+    chunks.push(rest);
+    return chunks;
+  }
+
+  function lastBoundary(win, regex) {
+    regex.lastIndex = 0;
+    let m;
+    let last = -1;
+    while ((m = regex.exec(win))) {
+      last = m.index + m[0].length;
+      if (m[0].length === 0) break; // 理論上到達しない安全策（無限ループ防止）
+    }
+    return last;
+  }
+
+  function findSplitPoint(s, maxLen) {
+    const win = s.slice(0, maxLen);
+    // 1) 空行（段落）境界を優先。2) 無ければ改行境界。3) それも無ければ maxLen で強制分割。
+    let idx = lastBoundary(win, /\n{2,}/g);
+    if (idx > 0) return idx;
+    idx = lastBoundary(win, /\n/g);
+    if (idx > 0) return idx;
+    let cut = maxLen;
+    // サロゲートペア（絵文字等）の分断防止: 高サロゲートの直後で切れていたら1文字戻す。
+    if (cut > 0 && cut < s.length) {
+      const code = s.charCodeAt(cut - 1);
+      if (code >= 0xd800 && code <= 0xdbff) cut -= 1;
+    }
+    return cut > 0 ? cut : maxLen;
+  }
+
+  // ── 4. サーバ呼び出し（薄いラッパ・UI側タイムアウト既定120秒＝refineと同値）──────────────
+  // opts.signal: 呼び出し元の AbortSignal を渡すと内部の controller へ連鎖する（既に abort 済みなら
+  // 即abort・そうでなければ 'abort' イベントで連鎖）。省略時の挙動は従来どおり（既存呼び出しは無変更）。
   function proofread(items, context, opts) {
     opts = opts || {};
     const endpoint = opts.endpoint || '/api/proofread';
     const controller = new AbortController();
     const timer = setTimeout(function () { controller.abort(); }, opts.timeoutMs || 120000);
+    const extSignal = opts.signal;
+    let onExtAbort = null;
+    if (extSignal) {
+      if (extSignal.aborted) {
+        controller.abort();
+      } else {
+        onExtAbort = function () { controller.abort(); };
+        extSignal.addEventListener('abort', onExtAbort);
+      }
+    }
     return fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -538,10 +595,153 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
           if (!r.ok && d.ok !== false) d = { ok: false, error: 'http_' + r.status };
           return d;
         });
-    }).finally(function () { clearTimeout(timer); });
+    }).finally(function () {
+      clearTimeout(timer);
+      if (extSignal && onExtAbort) extSignal.removeEventListener('abort', onExtAbort);
+    });
   }
 
-  // ── 4. 採否フィードバック（測定器・§2-6。beaconで撃つ・fail-soft）────────────────────────
+  // ── 5. proofreadChunked(text, context, opts): 長文を PR_CHUNK_MAX_CHARS 単位に分割し、
+  //      ブローカー直列規律に従って逐次送信する（並列禁止）。ETAは実測レートで自己較正する。
+  //      戻り値はハンドル { promise, abort(), retryChunk(i) }。
+  function classifyChunkResult(key, chunk, d) {
+    const id = d && d.id;
+    const item = d && d.ok !== false ? (d.items || [])[0] : null;
+    const usable = !!(item && item.corrected && !item.llm_fallback && !item.over_rewrite);
+    if (!usable) {
+      const reason = (item && item.over_rewrite) ? 'over_rewrite' : 'error';
+      return { key: key, id: id, orig: chunk, corrected: chunk, changed: false, diff_count: 0, failed: true, reason: reason };
+    }
+    const changed = !!item.changed;
+    return {
+      key: key, id: id, orig: chunk, corrected: item.corrected, changed: changed,
+      diff_count: changed ? (typeof item.diff_count === 'number' ? item.diff_count : undefined) : 0,
+      failed: false, reason: null,
+    };
+  }
+
+  function failedChunkResult(key, chunk) {
+    return { key: key, id: null, orig: chunk, corrected: chunk, changed: false, diff_count: 0, failed: true, reason: 'error' };
+  }
+
+  function buildChunkedSummary(results, aborted, elapsedMs) {
+    let corrected = '';
+    let changedCount = 0;
+    let failedCount = 0;
+    let diffTotal = 0;
+    let diffKnown = true;
+    results.forEach(function (r) {
+      if (!r) return;
+      corrected += r.corrected;
+      if (r.changed) {
+        changedCount++;
+        if (typeof r.diff_count === 'number') diffTotal += r.diff_count;
+        else diffKnown = false;
+      }
+      if (r.failed) failedCount++;
+    });
+    return {
+      chunks: results.slice(),
+      corrected: corrected,
+      changedCount: changedCount,
+      failedCount: failedCount,
+      diffTotal: diffKnown ? diffTotal : null,
+      aborted: !!aborted,
+      elapsedMs: elapsedMs,
+    };
+  }
+
+  function proofreadChunked(text, context, opts) {
+    opts = opts || {};
+    const endpoint = opts.endpoint;
+    const onProgress = typeof opts.onProgress === 'function' ? opts.onProgress : function () {};
+    const onChunk = typeof opts.onChunk === 'function' ? opts.onChunk : function () {};
+    const chunks = text.length <= PR_CHUNK_MAX_CHARS ? [text] : buildChunks(text, PR_CHUNK_MAX_CHARS);
+    const total = chunks.length;
+    const charsTotal = text.length;
+    const results = new Array(total).fill(null);
+    const controller = new AbortController();
+    const startedAt = Date.now();
+    let rate = 22; // ms/字の初期見積り（校正Automatorレシピの実測値と同値）
+
+    const extSignal = opts.signal;
+    if (extSignal) {
+      if (extSignal.aborted) controller.abort();
+      else extSignal.addEventListener('abort', function () { controller.abort(); });
+    }
+
+    function charsUpTo(idx) {
+      let n = 0;
+      for (let k = 0; k < idx; k++) n += chunks[k].length;
+      return n;
+    }
+
+    function emitProgress(done) {
+      const charsDone = charsUpTo(done);
+      const elapsedMs = Date.now() - startedAt;
+      const remainingChars = charsTotal - charsDone;
+      const remainingRequests = total - done;
+      const etaSeconds = Math.ceil((rate * remainingChars) / 1000 + remainingRequests * 1);
+      onProgress({ done: done, total: total, charsDone: charsDone, charsTotal: charsTotal, elapsedMs: elapsedMs, etaSeconds: etaSeconds });
+    }
+
+    emitProgress(0); // 開始時
+
+    let doneCount = 0;
+    let chain = Promise.resolve();
+    chunks.forEach(function (chunk, i) {
+      chain = chain.then(function () {
+        if (controller.signal.aborted) return; // 中断後は以降のチャンクを送らない
+        return proofread([{ key: 'c' + i, text: chunk }], context, { endpoint: endpoint, timeoutMs: 120000, signal: controller.signal })
+          .then(function (d) {
+            if (controller.signal.aborted) return; // 応答が返っても中断後なら結果を確定させない
+            results[i] = classifyChunkResult('c' + i, chunk, d);
+            doneCount++;
+            onChunk(i, results[i]);
+            const charsDone = charsUpTo(i + 1);
+            if (charsDone > 0) rate = (Date.now() - startedAt) / charsDone;
+            emitProgress(doneCount);
+          }, function () {
+            if (controller.signal.aborted) return; // abortによる例外は失敗チャンクとして記録しない
+            results[i] = failedChunkResult('c' + i, chunk);
+            doneCount++;
+            onChunk(i, results[i]);
+            const charsDone = charsUpTo(i + 1);
+            if (charsDone > 0) rate = (Date.now() - startedAt) / charsDone;
+            emitProgress(doneCount);
+          });
+      });
+    });
+    const promise = chain.then(function () {
+      return buildChunkedSummary(results, controller.signal.aborted, Date.now() - startedAt);
+    });
+
+    function abort() {
+      controller.abort();
+    }
+
+    function retryChunk(i) {
+      const r = results[i];
+      if (!r || !r.failed || r.reason === 'over_rewrite') {
+        return Promise.resolve(buildChunkedSummary(results, controller.signal.aborted, Date.now() - startedAt));
+      }
+      const chunk = chunks[i];
+      return proofread([{ key: 'c' + i, text: chunk }], context, { endpoint: endpoint, timeoutMs: 120000 })
+        .then(function (d) {
+          results[i] = classifyChunkResult('c' + i, chunk, d);
+          onChunk(i, results[i]);
+          return buildChunkedSummary(results, controller.signal.aborted, Date.now() - startedAt);
+        }, function () {
+          results[i] = failedChunkResult('c' + i, chunk);
+          onChunk(i, results[i]);
+          return buildChunkedSummary(results, controller.signal.aborted, Date.now() - startedAt);
+        });
+    }
+
+    return { promise: promise, abort: abort, retryChunk: retryChunk };
+  }
+
+  // ── 6. 採否フィードバック（測定器・§2-6。beaconで撃つ・fail-soft）────────────────────────
   function feedback(endpoint, id, key, action) {
     if (!id) return; // fail-soft: idが無ければ測定不能なだけで機能は止めない
     const url = endpoint || '/api/proofread/feedback';
@@ -558,7 +758,7 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
     } catch (e) { /* fail-soft: 測定器の失敗で本体機能を止めない */ }
   }
 
-  // ── 5. 自己完結CSS（vendored コピーで崩れないよう1回だけ注入・genie.css の変数があれば使い、
+  // ── 7. 自己完結CSS（vendored コピーで崩れないよう1回だけ注入・genie.css の変数があれば使い、
   //      無くてもフォールバック値で成立する書き方＝ var(--accent, #b5654a) の形）────────────────
   function ensureStyle() {
     if (document.getElementById('genie-proofread-style')) return;
@@ -577,6 +777,7 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
       'border-radius:10px;padding:12px}' +
       '.pr-diff{white-space:pre-wrap;word-break:break-word;font-size:.92rem;line-height:1.7;' +
       'border:1px solid var(--line,#e5ddd3);border-radius:8px;padding:10px;background:var(--bg,#faf8f4)}' +
+      '.pr-diff-list{display:flex;flex-direction:column;gap:8px}' +
       '.pr-del{color:var(--muted,#8a8378);text-decoration:line-through;background:#f1ece6}' +
       '.pr-ins{color:var(--accent-d,#a84d30);background:#f5e6de;border-radius:2px}' +
       '.pr-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}' +
@@ -588,6 +789,7 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
       '.pr-note{color:var(--muted,#8a8378);font-size:.85rem;margin:0 0 8px}' +
       '.pr-undo{color:var(--accent-d,#a84d30);font-size:.85rem;margin-top:8px;cursor:pointer;' +
       'text-decoration:underline;background:none;border:none;padding:0;font-family:inherit}' +
+      '.pr-run:disabled,.pr-cancel:disabled,.pr-undo:disabled,.pr-btn:disabled{opacity:.5;cursor:not-allowed}' +
       '.pr-toast{position:fixed;right:20px;bottom:20px;z-index:99999;background:#1f2937;color:#fff;' +
       'padding:10px 16px;border-radius:8px;font-size:13px;box-shadow:0 6px 18px rgba(0,0,0,.2)}';
     document.head.appendChild(style);
@@ -602,9 +804,11 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
     setTimeout(function () { t.remove(); }, 3200);
   }
 
-  // ── 6. attachProofread(inputEl, opts): 動線一式（§2-5）。textarea/contenteditable 両対応。────
-  // P0時点ではハブパネルが diffChars/renderDiff/proofread を直接使うため実戦配線は無いが、
-  // P1（Mail/週報）で使う本体としてここで仕様どおり実装しておく。
+  // ── 8. attachProofread(inputEl, opts): 動線一式（§2-5）。textarea/contenteditable 両対応。────
+  // proofreadChunked ベース: 長文でも段落単位で逐次校正し、進捗・チャンクごとの差分・部分失敗の再試行を
+  // カードに常設表示する（P0-3: 結果はtoastで消えず、閉じる/置き換える/やめるまでカードに残る）。
+  const PR_ATTACH_MAX_CHARS = 20000; // クライアント側の字数上限（サーバのPROOFREAD_MAX_CHARSはリクエスト
+  // 単位＝チャンク単位に効くため、逐次分割前提でここは緩められる）。
   function attachProofread(inputEl, opts) {
     opts = opts || {};
     if (!inputEl || inputEl.dataset.proofreadAttached) return;
@@ -675,60 +879,165 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
       insertCard(card);
     }
 
-    function renderDiffCard(id, key, before, after) {
-      removeCard();
-      card = document.createElement('div');
-      card.className = 'pr-card';
-      const diffBox = document.createElement('div');
-      diffBox.className = 'pr-diff';
-      renderDiff(diffBox, diffChars(before, after));
-      card.appendChild(diffBox);
-      const actions = document.createElement('div');
-      actions.className = 'pr-actions';
-      const runBtn = document.createElement('button');
-      runBtn.type = 'button'; runBtn.className = 'pr-run'; runBtn.textContent = '置き換える';
-      runBtn.addEventListener('click', function () {
-        setText(after); // 適用文＝確認文（§2-1原則3）: 差分カードで見せた文字列そのものを適用
-        feedback(feedbackEndpoint, id, key, 'apply');
-        renderUndoCard(before);
-      });
-      const cancelBtn = document.createElement('button');
-      cancelBtn.type = 'button'; cancelBtn.className = 'pr-cancel'; cancelBtn.textContent = 'やめる';
-      cancelBtn.addEventListener('click', function () {
-        feedback(feedbackEndpoint, id, key, 'reject');
-        removeCard();
-      });
-      actions.appendChild(runBtn); actions.appendChild(cancelBtn);
-      card.appendChild(actions);
-      insertCard(card);
-    }
+    function fmtCount(n) { return n.toLocaleString('ja-JP'); }
+    function fmtSecs(ms) { return Math.round(ms / 1000); }
 
     btn.addEventListener('click', function () {
       if (btn.classList.contains('busy')) return;
       const raw = getText();
       if (!raw || !raw.trim()) return; // 空欄は無視（§2-5-2）
-      if (raw.length > 4000) { toast('4000字までです'); return; } // サーバ400を待たずクライアント側で弾く
+      if (raw.length > PR_ATTACH_MAX_CHARS) { toast(PR_ATTACH_MAX_CHARS + '字までです'); return; } // サーバ400を待たずクライアント側で弾く
       btn.classList.add('busy'); btn.disabled = true;
       const origHtml = btn.innerHTML;
       btn.innerHTML = '<span class="pr-spin"></span>校正中…';
       removeCard();
-      proofread([{ key: 'main', text: raw }], context, { endpoint: endpoint, timeoutMs: 120000 })
-        .then(function (d) {
-          if (!d || d.ok === false) {
-            renderFailCard((d && d.error) || '校正できませんでした（原文のまま）');
-            return;
+
+      const chunksLocal = raw.length <= PR_CHUNK_MAX_CHARS ? [raw] : buildChunks(raw, PR_CHUNK_MAX_CHARS);
+      const total = chunksLocal.length;
+
+      card = document.createElement('div');
+      card.className = 'pr-card';
+      const note = document.createElement('div');
+      note.className = 'pr-note';
+      note.textContent = '校正中… 0/' + total;
+      card.appendChild(note);
+
+      const diffList = document.createElement('div');
+      diffList.className = 'pr-diff-list';
+      const slots = []; // { wrap, diffBox, failNote, retryBtn }
+      let finished = false; // 本走完了前は再試行を無効化（走行中に押させると並行リクエスト=直列規律違反）
+      for (let i = 0; i < total; i++) {
+        const wrap = document.createElement('div');
+        const diffBox = document.createElement('div');
+        diffBox.className = 'pr-diff';
+        wrap.appendChild(diffBox);
+        diffList.appendChild(wrap);
+        slots.push({ wrap: wrap, diffBox: diffBox, failNote: null, retryBtn: null });
+      }
+      card.appendChild(diffList);
+
+      const actions = document.createElement('div');
+      actions.className = 'pr-actions';
+      const cancelBtn = document.createElement('button');
+      cancelBtn.type = 'button'; cancelBtn.className = 'pr-cancel'; cancelBtn.textContent = '中断';
+      actions.appendChild(cancelBtn);
+      card.appendChild(actions);
+      insertCard(card);
+
+      function setActionsBusy(disabled) {
+        Array.prototype.forEach.call(actions.querySelectorAll('button'), function (b) { b.disabled = disabled; });
+        slots.forEach(function (s) { if (s.retryBtn) s.retryBtn.disabled = disabled; });
+      }
+
+      function retrySlot(i) {
+        if (!finished) return; // 本走中は再試行しない（finalize後に有効化される）
+        setActionsBusy(true);
+        const s = slots[i];
+        if (s.failNote) s.failNote.textContent = '再校正中…';
+        handle.retryChunk(i).then(function (summary) {
+          renderSlot(i, summary.chunks[i]);
+          finalize(summary);
+          setActionsBusy(false);
+        });
+      }
+
+      function renderSlotFail(i, result) {
+        const s = slots[i];
+        if (s.failNote) { s.failNote.remove(); s.failNote = null; s.retryBtn = null; }
+        if (!result.failed) return;
+        const fn = document.createElement('div');
+        fn.className = 'pr-note';
+        if (result.reason === 'over_rewrite') {
+          fn.textContent = '⚠ この段落は書き換わりすぎを検知したため原文のままです';
+        } else {
+          fn.textContent = '⚠ この段落は校正できませんでした（原文のまま）';
+          const retryBtn = document.createElement('button');
+          retryBtn.type = 'button'; retryBtn.className = 'pr-undo'; retryBtn.textContent = '再試行';
+          retryBtn.disabled = !finished; // 本走完了後（finalize）に有効化・中断時は無効のまま
+          retryBtn.addEventListener('click', function () { retrySlot(i); });
+          fn.appendChild(document.createTextNode(' '));
+          fn.appendChild(retryBtn);
+          s.retryBtn = retryBtn;
+        }
+        s.wrap.appendChild(fn);
+        s.failNote = fn;
+      }
+
+      function renderSlot(i, result) {
+        renderDiff(slots[i].diffBox, diffChars(result.orig, result.corrected));
+        renderSlotFail(i, result);
+      }
+
+      function finalize(summary) {
+        actions.innerHTML = '';
+        if (summary.aborted) {
+          const doneN = summary.chunks.filter(function (c) { return !!c; }).length;
+          note.textContent = '中断しました（' + doneN + '/' + total + ' 段落まで校正済み・適用しませんでした）';
+          const closeBtn = document.createElement('button');
+          closeBtn.type = 'button'; closeBtn.className = 'pr-cancel'; closeBtn.textContent = '閉じる';
+          closeBtn.addEventListener('click', removeCard);
+          actions.appendChild(closeBtn);
+          return;
+        }
+        if (summary.changedCount === 0 && summary.failedCount === 0) {
+          note.textContent = '誤りは見つかりませんでした（' + fmtCount(raw.length) + '字・' + fmtSecs(summary.elapsedMs) + '秒）';
+          const closeBtn = document.createElement('button');
+          closeBtn.type = 'button'; closeBtn.className = 'pr-cancel'; closeBtn.textContent = '閉じる';
+          closeBtn.addEventListener('click', removeCard);
+          actions.appendChild(closeBtn);
+          return;
+        }
+        if (summary.changedCount > 0) {
+          const countText = summary.diffTotal === null ? '修正あり' : (summary.diffTotal + '箇所の修正');
+          note.textContent = countText + '（' + fmtCount(raw.length) + '字・' + fmtSecs(summary.elapsedMs) + '秒）';
+          const applyBtn = document.createElement('button');
+          applyBtn.type = 'button'; applyBtn.className = 'pr-run'; applyBtn.textContent = '置き換える';
+          applyBtn.addEventListener('click', function () {
+            setText(summary.corrected); // 適用文＝確認文（§2-1原則3）
+            summary.chunks.forEach(function (c) {
+              if (c && c.changed) feedback(feedbackEndpoint, c.id, c.key, 'apply');
+            });
+            renderUndoCard(raw);
+          });
+          const cancelBtn2 = document.createElement('button');
+          cancelBtn2.type = 'button'; cancelBtn2.className = 'pr-cancel'; cancelBtn2.textContent = 'やめる';
+          cancelBtn2.addEventListener('click', function () {
+            summary.chunks.forEach(function (c) {
+              if (c && c.changed) feedback(feedbackEndpoint, c.id, c.key, 'reject');
+            });
+            removeCard();
+          });
+          actions.appendChild(applyBtn); actions.appendChild(cancelBtn2);
+          return;
+        }
+        // changedCount === 0 && failedCount > 0: 再試行ボタンは各slot側に生きたまま残す
+        note.textContent = '校正できなかった段落があります（原文のまま）';
+        const closeBtn = document.createElement('button');
+        closeBtn.type = 'button'; closeBtn.className = 'pr-cancel'; closeBtn.textContent = '閉じる';
+        closeBtn.addEventListener('click', removeCard);
+        actions.appendChild(closeBtn);
+      }
+
+      const handle = proofreadChunked(raw, context, {
+        endpoint: endpoint,
+        onProgress: function (state) {
+          note.textContent = '校正中… ' + state.done + '/' + state.total + '・残り約' + state.etaSeconds + '秒';
+        },
+        onChunk: function (i, result) { renderSlot(i, result); },
+      });
+
+      cancelBtn.addEventListener('click', function () {
+        cancelBtn.disabled = true;
+        handle.abort();
+      });
+
+      handle.promise
+        .then(function (summary) {
+          finished = true;
+          if (!summary.aborted) {
+            slots.forEach(function (s) { if (s.retryBtn) s.retryBtn.disabled = false; });
           }
-          const item = (d.items || [])[0];
-          if (!item) { renderFailCard('校正できませんでした（原文のまま）'); return; }
-          if (item.llm_fallback) {
-            renderFailCard('校正できませんでした（原文のまま）');
-          } else if (item.over_rewrite) {
-            renderFailCard('書き換わりすぎを検知したため適用しません');
-          } else if (!item.changed) {
-            toast('修正なし ✓');
-          } else {
-            renderDiffCard(d.id, 'main', raw, item.corrected);
-          }
+          finalize(summary);
         })
         .catch(function () {
           renderFailCard('校正できませんでした（原文のまま）');
@@ -743,6 +1052,7 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
     diffChars: diffChars,
     renderDiff: renderDiff,
     proofread: proofread,
+    proofreadChunked: proofreadChunked,
     feedback: feedback,
     attachProofread: attachProofread,
   };
