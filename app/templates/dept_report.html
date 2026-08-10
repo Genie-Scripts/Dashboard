@@ -444,7 +444,8 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
  * [[photo-image-edit-plan]] 系ではなく [[voice-input-plan]] の standalone コピー方式を踏襲）。
  * ハブ固有のAPI・DOM前提は持ち込まない。仕様: gateway/開発プラン_LLM校正.md §2-2(API契約)・§2-5(UX)。
  *
- * 公開API: window.GenieProofread = { diffChars, renderDiff, proofread, proofreadChunked, feedback, attachProofread }
+ * 公開API: window.GenieProofread = { diffChars, renderDiff, proofread, proofreadChunked, feedback,
+ *   attachProofread, buildEditUnits, rebuildFromTokens, renderEditableDiff }
  */
 (function () {
   'use strict';
@@ -517,6 +518,111 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
       const span = document.createElement('span');
       span.className = seg.op === 'del' ? 'pr-del' : 'pr-ins';
       span.appendChild(document.createTextNode(seg.text));
+      container.appendChild(span);
+    });
+  }
+
+  // ── 2b. 編集単位モデル（個別採否・UI/UX改修P1-3）─────────────────────────────
+  // diffChars の eq/del/ins セグメント列から、連続する非eqセグメントの塊を1「編集単位」にまとめる。
+  // トークン列: {type:'eq', text} | {type:'unit', del, ins, accepted}（既定accepted=true）。
+  // 不変条件: 全unit accepted のとき rebuildFromTokens(tokens) === corrected と一致する
+  // （diffChars(orig, corrected) をそのまま塊にまとめ直しているだけなので恒等）。
+  function buildEditUnits(segments) {
+    const tokens = [];
+    let i = 0;
+    const segs = segments || [];
+    while (i < segs.length) {
+      const seg = segs[i];
+      if (seg.op === 'eq') {
+        tokens.push({ type: 'eq', text: seg.text });
+        i++;
+        continue;
+      }
+      let del = '', ins = '';
+      while (i < segs.length && segs[i].op !== 'eq') {
+        if (segs[i].op === 'del') del += segs[i].text;
+        else if (segs[i].op === 'ins') ins += segs[i].text;
+        i++;
+      }
+      tokens.push({ type: 'unit', del: del, ins: ins, accepted: true });
+    }
+    return tokens;
+  }
+
+  function rebuildFromTokens(tokens) {
+    let out = '';
+    (tokens || []).forEach(function (t) {
+      if (!t) return;
+      out += t.type === 'eq' ? t.text : (t.accepted ? t.ins : t.del);
+    });
+    return out;
+  }
+
+  // クリック可能な編集単位のspanを1つ分だけ描画し直す（トグル時に全体を作り直さない）。
+  function renderEditUnit(span, tok) {
+    span.textContent = '';
+    if (tok.accepted) {
+      if (tok.del) {
+        const d = document.createElement('span');
+        d.className = 'pr-del';
+        d.appendChild(document.createTextNode(tok.del));
+        span.appendChild(d);
+      }
+      if (tok.ins) {
+        const ins = document.createElement('span');
+        ins.className = 'pr-ins';
+        ins.appendChild(document.createTextNode(tok.ins));
+        span.appendChild(ins);
+      }
+    } else {
+      // 非採用: 残る原文(del)は破線・追加されないins は打ち消し灰色で見せる。del が空の
+      // 純挿入unit（脱字補完）でも ins 側が必ず見えるので、ゼロ幅になって再クリック不能に
+      // ならない（打ち消し=最終文に入らない、という差分表示の既存文法に合わせた対称表示）。
+      if (tok.del) {
+        const r = document.createElement('span');
+        r.className = 'pr-rej';
+        r.appendChild(document.createTextNode(tok.del));
+        span.appendChild(r);
+      }
+      if (tok.ins) {
+        const ri = document.createElement('span');
+        ri.className = 'pr-rej-ins';
+        ri.appendChild(document.createTextNode(tok.ins));
+        span.appendChild(ri);
+      }
+    }
+  }
+
+  // renderDiff の編集可能版。unit トークンはクリック/Enter/Space で accepted をトグルでき、
+  // トグルのたびにそのunitの表示だけを差し替えて onToggle() を呼ぶ（XSS規律=textContent/createTextNodeのみ）。
+  function renderEditableDiff(container, tokens, onToggle) {
+    if (!container) return;
+    const onTog = typeof onToggle === 'function' ? onToggle : function () {};
+    container.textContent = '';
+    (tokens || []).forEach(function (tok) {
+      if (!tok) return;
+      if (tok.type === 'eq') {
+        if (tok.text) container.appendChild(document.createTextNode(tok.text));
+        return;
+      }
+      const span = document.createElement('span');
+      span.className = 'pr-unit';
+      span.setAttribute('role', 'button');
+      span.setAttribute('tabindex', '0');
+      span.title = 'クリックで採否を切り替え';
+      renderEditUnit(span, tok);
+      function toggle() {
+        tok.accepted = !tok.accepted;
+        renderEditUnit(span, tok);
+        onTog();
+      }
+      span.addEventListener('click', toggle);
+      span.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+          e.preventDefault();
+          toggle();
+        }
+      });
       container.appendChild(span);
     });
   }
@@ -742,18 +848,20 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
   }
 
   // ── 6. 採否フィードバック（測定器・§2-6。beaconで撃つ・fail-soft）────────────────────────
-  function feedback(endpoint, id, key, action) {
+  // extra（省略可）: 追加フィールドをpayloadへマージする（P1-3・個別採否のn_total/n_accepted用・後方互換）。
+  function feedback(endpoint, id, key, action, extra) {
     if (!id) return; // fail-soft: idが無ければ測定不能なだけで機能は止めない
     const url = endpoint || '/api/proofread/feedback';
-    const payload = JSON.stringify({ id: id, key: key, action: action });
+    const data = Object.assign({ id: id, key: key, action: action }, extra || {});
+    const body = JSON.stringify(data);
     try {
       if (navigator.sendBeacon) {
-        const ok = navigator.sendBeacon(url, new Blob([payload], { type: 'application/json' }));
+        const ok = navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }));
         if (ok) return;
       }
     } catch (e) { /* sendBeacon不可はfetchへフォールバック */ }
     try {
-      fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload, keepalive: true })
+      fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body, keepalive: true })
         .catch(function () {});
     } catch (e) { /* fail-soft: 測定器の失敗で本体機能を止めない */ }
   }
@@ -780,6 +888,10 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
       '.pr-diff-list{display:flex;flex-direction:column;gap:8px}' +
       '.pr-del{color:var(--muted,#8a8378);text-decoration:line-through;background:#f1ece6}' +
       '.pr-ins{color:var(--accent-d,#a84d30);background:#f5e6de;border-radius:2px}' +
+      '.pr-unit{cursor:pointer;border-radius:2px}' +
+      '.pr-unit:hover{outline:1px dashed var(--accent-l,#d97757)}' +
+      '.pr-rej{border-bottom:1px dashed var(--muted,#8a8378)}' +
+      '.pr-rej-ins{color:var(--muted,#8a8378);text-decoration:line-through;opacity:.65}' +
       '.pr-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}' +
       '.pr-run{background:var(--accent,#c96442);color:#fff;border:none;cursor:pointer;padding:9px 16px;' +
       'border-radius:9px;font-size:.9rem;font-family:inherit}' +
@@ -904,15 +1016,16 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
 
       const diffList = document.createElement('div');
       diffList.className = 'pr-diff-list';
-      const slots = []; // { wrap, diffBox, failNote, retryBtn }
+      const slots = []; // { wrap, diffBox, failNote, retryBtn, tokens }
       let finished = false; // 本走完了前は再試行を無効化（走行中に押させると並行リクエスト=直列規律違反）
+      let hintNode = null; // 「修正箇所をクリックすると採否を切り替えられます」（P1-3・finalize毎に張り替え）
       for (let i = 0; i < total; i++) {
         const wrap = document.createElement('div');
         const diffBox = document.createElement('div');
         diffBox.className = 'pr-diff';
         wrap.appendChild(diffBox);
         diffList.appendChild(wrap);
-        slots.push({ wrap: wrap, diffBox: diffBox, failNote: null, retryBtn: null });
+        slots.push({ wrap: wrap, diffBox: diffBox, failNote: null, retryBtn: null, tokens: null });
       }
       card.appendChild(diffList);
 
@@ -964,12 +1077,21 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
       }
 
       function renderSlot(i, result) {
-        renderDiff(slots[i].diffBox, diffChars(result.orig, result.corrected));
+        const s = slots[i];
+        if (result.changed && !result.failed) {
+          // 個別採否（P1-3）: unit単位で表示・トグル可能に。既定は全採用（見た目は従来と同じ）。
+          s.tokens = buildEditUnits(diffChars(result.orig, result.corrected));
+          renderEditableDiff(s.diffBox, s.tokens, function () {});
+        } else {
+          s.tokens = null;
+          renderDiff(s.diffBox, diffChars(result.orig, result.corrected));
+        }
         renderSlotFail(i, result);
       }
 
       function finalize(summary) {
         actions.innerHTML = '';
+        if (hintNode) { hintNode.remove(); hintNode = null; }
         if (summary.aborted) {
           const doneN = summary.chunks.filter(function (c) { return !!c; }).length;
           note.textContent = '中断しました（' + doneN + '/' + total + ' 段落まで校正済み・適用しませんでした）';
@@ -990,12 +1112,32 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
         if (summary.changedCount > 0) {
           const countText = summary.diffTotal === null ? '修正あり' : (summary.diffTotal + '箇所の修正');
           note.textContent = countText + '（' + fmtCount(raw.length) + '字・' + fmtSecs(summary.elapsedMs) + '秒）';
+          const hasUnits = slots.some(function (s) {
+            return s.tokens && s.tokens.some(function (t) { return t.type === 'unit'; });
+          });
+          if (hasUnits) {
+            hintNode = document.createElement('div');
+            hintNode.className = 'pr-note';
+            hintNode.textContent = '修正箇所をクリックすると採否を切り替えられます';
+            card.insertBefore(hintNode, diffList);
+          }
           const applyBtn = document.createElement('button');
           applyBtn.type = 'button'; applyBtn.className = 'pr-run'; applyBtn.textContent = '置き換える';
           applyBtn.addEventListener('click', function () {
-            setText(summary.corrected); // 適用文＝確認文（§2-1原則3）
-            summary.chunks.forEach(function (c) {
-              if (c && c.changed) feedback(feedbackEndpoint, c.id, c.key, 'apply');
+            // 適用文字列＝表示中のunit状態から**クリック時点で再構築**（適用文＝確認文の原則を維持・§2-1原則3）。
+            let applied = '';
+            summary.chunks.forEach(function (c, i) {
+              if (!c) return;
+              applied += (c.changed && slots[i].tokens) ? rebuildFromTokens(slots[i].tokens) : c.corrected;
+            });
+            setText(applied);
+            summary.chunks.forEach(function (c, i) {
+              if (!c || !c.changed) return;
+              const toks = slots[i].tokens || [];
+              let nTotal = 0, nAccepted = 0;
+              toks.forEach(function (t) { if (t.type === 'unit') { nTotal++; if (t.accepted) nAccepted++; } });
+              const action = nAccepted === 0 ? 'reject' : (nAccepted === nTotal ? 'apply' : 'apply_edited');
+              feedback(feedbackEndpoint, c.id, c.key, action, { n_total: nTotal, n_accepted: nAccepted });
             });
             renderUndoCard(raw);
           });
@@ -1055,6 +1197,9 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
     proofreadChunked: proofreadChunked,
     feedback: feedback,
     attachProofread: attachProofread,
+    buildEditUnits: buildEditUnits,
+    rebuildFromTokens: rebuildFromTokens,
+    renderEditableDiff: renderEditableDiff,
   };
 })();
 </script>
