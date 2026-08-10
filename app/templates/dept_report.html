@@ -658,10 +658,15 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
 
   function findSplitPoint(s, maxLen) {
     const win = s.slice(0, maxLen);
-    // 1) 空行（段落）境界を優先。2) 無ければ改行境界。3) それも無ければ maxLen で強制分割。
+    // 1) 空行（段落）境界を優先。2) 無ければ改行境界。3) 無ければ文末（。！？）境界。
+    // 4) それも無ければ maxLen で強制分割。
+    // 3は2026-08-10実測の劣化対策: 単一段落の長文は文中で強制切断され、文断片の末尾にモデルが
+    // 「。」を補う境界アーティファクトが出る（server側 _proofread_find_split_point と同一規則）。
     let idx = lastBoundary(win, /\n{2,}/g);
     if (idx > 0) return idx;
     idx = lastBoundary(win, /\n/g);
+    if (idx > 0) return idx;
+    idx = lastBoundary(win, /[。！？]/g);
     if (idx > 0) return idx;
     let cut = maxLen;
     // サロゲートペア（絵文字等）の分断防止: 高サロゲートの直後で切れていたら1文字戻す。
