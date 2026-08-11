@@ -12,10 +12,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pandas as pd
 
-from app.lib.report_overrides import (apply_override, default_expires,
-                                      is_full_override, parse_overrides)
+from app.lib.report_overrides import (apply_override, carry_payload,
+                                      default_expires, is_full_override,
+                                      parse_overrides)
 
 BASE = pd.Timestamp("2026-07-02")
+BASE_S = "2026-07-02"
 
 
 def _parse(text, base_date=BASE):
@@ -27,32 +29,35 @@ def _parse(text, base_date=BASE):
 
 class TestParse(unittest.TestCase):
     def test_missing_file(self):
-        ov, notes = parse_overrides(Path("/nonexistent/overrides.md"), BASE)
+        ov, carry, notes = parse_overrides(Path("/nonexistent/overrides.md"), BASE)
         self.assertEqual(ov, {})
+        self.assertEqual(carry, {})
         self.assertEqual(notes, [])
 
     def test_basic_block(self):
-        ov, notes = _parse(
+        ov, carry, notes = _parse(
             "# コメント\n"
-            "[診療科:整形外科] expires:2026-07-16\n"
+            f"[診療科:整形外科] base:{BASE_S} expires:2026-07-16\n"
             "body: 差し替え本文です。\n"
             "action: 差し替え一手です。\n")
         self.assertIn(("dept", "整形外科"), ov)
         blk = ov[("dept", "整形外科")]
         self.assertEqual(blk["body"], "差し替え本文です。")
         self.assertEqual(blk["action"], "差し替え一手です。")
+        self.assertEqual(carry, {})
         self.assertEqual(notes, [])
 
     def test_partial_block_and_ward_axis(self):
-        ov, _ = _parse("[病棟:9階B病棟] expires:2026-07-16\naction: 一手だけ差し替え\n")
+        ov, _c, _n = _parse(
+            f"[病棟:9階B病棟] base:{BASE_S} expires:2026-07-16\naction: 一手だけ差し替え\n")
         blk = ov[("ward", "9階B病棟")]
         self.assertIsNone(blk["body"])
         self.assertEqual(blk["action"], "一手だけ差し替え")
         self.assertFalse(is_full_override(blk))
 
     def test_hospital_axis_block(self):
-        ov, notes = _parse(
-            "[病院全体:○○病院] expires:2026-07-16\n"
+        ov, _c, notes = _parse(
+            f"[病院全体:○○病院] base:{BASE_S} expires:2026-07-16\n"
             "body: 病院全体の差し替え本文。\n"
             "action: 病院全体の差し替え一手。\n")
         self.assertIn(("hospital", "○○病院"), ov)
@@ -63,64 +68,154 @@ class TestParse(unittest.TestCase):
 
     def test_hospital_axis_default_unit(self):
         # REPORT_HOSPITAL_NAME 未設定時の unit（"病院全体"）でもキーが立つ
-        ov, _ = _parse("[病院全体:病院全体] expires:2026-07-16\naction: 一手だけ\n")
+        ov, _c, _n = _parse(
+            f"[病院全体:病院全体] base:{BASE_S} expires:2026-07-16\naction: 一手だけ\n")
         self.assertIn(("hospital", "病院全体"), ov)
 
     def test_expired_block_ignored(self):
-        ov, notes = _parse("[診療科:眼科] expires:2026-07-01\nbody: 期限切れ\n")
+        ov, carry, notes = _parse(
+            f"[診療科:眼科] base:{BASE_S} expires:2026-07-01\nbody: 期限切れ\n")
         self.assertEqual(ov, {})
+        self.assertEqual(carry, {})
         self.assertTrue(any(lv == "info" and "期限切れ" in msg for lv, msg in notes))
 
     def test_expires_on_base_date_still_valid(self):
-        ov, _ = _parse("[診療科:眼科] expires:2026-07-02\nbody: 当日はまだ有効\n")
+        ov, _c, _n = _parse(
+            f"[診療科:眼科] base:{BASE_S} expires:2026-07-02\nbody: 当日はまだ有効\n")
         self.assertIn(("dept", "眼科"), ov)
 
     def test_no_expires_accepted_with_warning(self):
-        ov, notes = _parse("[診療科:眼科]\nbody: 無期限\n")
+        ov, _c, notes = _parse(f"[診療科:眼科] base:{BASE_S}\nbody: 無期限\n")
         self.assertIn(("dept", "眼科"), ov)
         self.assertTrue(any(lv == "warn" and "expires" in msg for lv, msg in notes))
 
     def test_bad_expires_skips_block_failsoft(self):
-        ov, notes = _parse(
-            "[診療科:眼科] expires:07/16\n"
+        ov, carry, notes = _parse(
+            f"[診療科:眼科] base:{BASE_S} expires:07/16\n"
             "body: 壊れた日付\n"
             "\n"
-            "[診療科:皮膚科] expires:2026-07-16\n"
+            f"[診療科:皮膚科] base:{BASE_S} expires:2026-07-16\n"
             "body: こちらは生きる\n")
         self.assertNotIn(("dept", "眼科"), ov)
+        self.assertNotIn(("dept", "眼科"), carry)
         self.assertIn(("dept", "皮膚科"), ov)
         self.assertTrue(any(lv == "warn" and "不正な日付" in msg for lv, msg in notes))
 
     def test_empty_block_skipped(self):
-        ov, notes = _parse("[診療科:眼科] expires:2026-07-16\n")
+        ov, carry, notes = _parse(f"[診療科:眼科] base:{BASE_S} expires:2026-07-16\n")
         self.assertEqual(ov, {})
+        self.assertEqual(carry, {})
         self.assertTrue(any("body/action" in msg for _, msg in notes))
 
     def test_orphan_field_line_ignored(self):
-        ov, notes = _parse("body: ヘッダなし\n")
+        ov, _c, notes = _parse("body: ヘッダなし\n")
         self.assertEqual(ov, {})
         self.assertTrue(any("ヘッダ行" in msg for _, msg in notes))
 
     def test_duplicate_unit_last_wins(self):
-        ov, notes = _parse(
-            "[診療科:眼科] expires:2026-07-16\nbody: 一つ目\n\n"
-            "[診療科:眼科] expires:2026-07-16\nbody: 二つ目（後勝ち）\n")
+        ov, _c, notes = _parse(
+            f"[診療科:眼科] base:{BASE_S} expires:2026-07-16\nbody: 一つ目\n\n"
+            f"[診療科:眼科] base:{BASE_S} expires:2026-07-16\nbody: 二つ目（後勝ち）\n")
         self.assertEqual(ov[("dept", "眼科")]["body"], "二つ目（後勝ち）")
         self.assertTrue(any("複数" in msg for _, msg in notes))
 
     def test_unknown_line_warned_not_fatal(self):
-        ov, notes = _parse(
-            "[診療科:眼科] expires:2026-07-16\n"
+        ov, _c, notes = _parse(
+            f"[診療科:眼科] base:{BASE_S} expires:2026-07-16\n"
             "body: 正常\n"
             "ここに謎の行\n")
         self.assertIn(("dept", "眼科"), ov)
         self.assertTrue(any("解釈できない行" in msg for _, msg in notes))
 
     def test_body_containing_colon_kept_verbatim(self):
-        ov, _ = _parse("[診療科:眼科] expires:2026-07-16\n"
-                       "body: 本文にコロン: があっても1行まるごと本文\n")
+        ov, _c, _n = _parse(f"[診療科:眼科] base:{BASE_S} expires:2026-07-16\n"
+                            "body: 本文にコロン: があっても1行まるごと本文\n")
         self.assertEqual(ov[("dept", "眼科")]["body"],
                          "本文にコロン: があっても1行まるごと本文")
+
+
+class TestBaseReversal(unittest.TestCase):
+    """§6-1反転: base一致のみactive・不一致/無しはcarry（前回添削として保持のみ）。"""
+
+    def test_base_matches_current_goes_active(self):
+        ov, carry, _n = _parse(
+            f"[診療科:整形外科] base:{BASE_S} expires:2026-07-16\n"
+            "body: 今回の差し替え\n")
+        self.assertIn(("dept", "整形外科"), ov)
+        self.assertNotIn(("dept", "整形外科"), carry)
+
+    def test_base_past_goes_carry_not_active(self):
+        ov, carry, _n = _parse(
+            "[診療科:整形外科] base:2026-06-20 expires:2026-07-16\n"
+            "body: 前回の差し替え\n")
+        self.assertNotIn(("dept", "整形外科"), ov)
+        self.assertIn(("dept", "整形外科"), carry)
+        self.assertEqual(carry[("dept", "整形外科")]["base"], pd.Timestamp("2026-06-20"))
+
+    def test_no_base_legacy_goes_carry_with_info_note(self):
+        ov, carry, notes = _parse(
+            "[診療科:整形外科] expires:2026-07-16\nbody: 旧形式の差し替え\n")
+        self.assertNotIn(("dept", "整形外科"), ov)
+        self.assertIn(("dept", "整形外科"), carry)
+        self.assertTrue(any(lv == "info" and "旧形式" in msg for lv, msg in notes))
+
+    def test_expired_block_neither_active_nor_carry(self):
+        ov, carry, _n = _parse(
+            "[診療科:整形外科] base:2026-06-01 expires:2026-06-15\n"
+            "body: とっくに失効\n")
+        self.assertNotIn(("dept", "整形外科"), ov)
+        self.assertNotIn(("dept", "整形外科"), carry)
+
+    def test_multiple_carry_candidates_keep_newest_base(self):
+        ov, carry, _n = _parse(
+            "[診療科:整形外科] base:2026-06-01 expires:2026-07-16\nbody: 一番古い\n\n"
+            "[診療科:整形外科] base:2026-06-20 expires:2026-07-16\nbody: 新しい方\n")
+        self.assertEqual(ov, {})
+        self.assertEqual(carry[("dept", "整形外科")]["body"], "新しい方")
+        self.assertEqual(carry[("dept", "整形外科")]["base"], pd.Timestamp("2026-06-20"))
+
+    def test_current_and_past_block_active_wins_carry_excluded(self):
+        ov, carry, _n = _parse(
+            "[診療科:整形外科] base:2026-06-20 expires:2026-07-16\nbody: 過去\n\n"
+            f"[診療科:整形外科] base:{BASE_S} expires:2026-07-16\nbody: 今回\n")
+        self.assertEqual(ov[("dept", "整形外科")]["body"], "今回")
+        self.assertNotIn(("dept", "整形外科"), carry)
+
+    def test_attr_order_independent(self):
+        ov1, _c1, _n1 = _parse(
+            f"[診療科:整形外科] expires:2026-07-16 base:{BASE_S}\nbody: 順序が逆\n")
+        self.assertIn(("dept", "整形外科"), ov1)
+        self.assertEqual(ov1[("dept", "整形外科")]["body"], "順序が逆")
+
+    def test_unknown_attr_warned_and_ignored(self):
+        ov, _c, notes = _parse(
+            f"[診療科:整形外科] base:{BASE_S} expires:2026-07-16 foo:1\n"
+            "body: 未知属性つき\n")
+        self.assertIn(("dept", "整形外科"), ov)
+        self.assertTrue(any(lv == "warn" and "foo:1" in msg for lv, msg in notes))
+
+    def test_bad_base_date_warns_and_keeps_as_carry(self):
+        ov, carry, notes = _parse(
+            "[診療科:整形外科] base:07/16 expires:2026-07-16\n"
+            "body: base日付が壊れている\n")
+        self.assertNotIn(("dept", "整形外科"), ov)
+        self.assertIn(("dept", "整形外科"), carry)
+        self.assertIsNone(carry[("dept", "整形外科")]["base"])
+        self.assertTrue(any(lv == "warn" and "base:07/16" in msg for lv, msg in notes))
+
+
+class TestCarryPayload(unittest.TestCase):
+    def test_keys_and_values(self):
+        _ov, carry, _n = _parse(
+            "[診療科:整形外科] base:2026-06-20 expires:2026-07-16\n"
+            "action: 前回の一手だけ\n")
+        payload = carry_payload(carry)
+        self.assertIn("診療科:整形外科", payload)
+        v = payload["診療科:整形外科"]
+        self.assertEqual(v["base"], "2026-06-20")
+        self.assertEqual(v["expires"], "2026-07-16")
+        self.assertIsNone(v["body"])
+        self.assertEqual(v["action"], "前回の一手だけ")
 
 
 class TestLevelingSkip(unittest.TestCase):

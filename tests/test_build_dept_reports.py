@@ -15,7 +15,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from scripts.build_dept_reports import find_narr_cache_seed
+from scripts.build_dept_reports import _pin_base_date, find_narr_cache_seed
 
 
 class TestFindNarrCacheSeed(unittest.TestCase):
@@ -83,6 +83,23 @@ class TestFindNarrCacheSeed(unittest.TestCase):
             exclude = Path(d) / "narrative_cache_2026-07-19.json"
             seed = find_narr_cache_seed(Path(d), base_date, exclude)
             self.assertEqual(seed, Path(d) / "narrative_cache_2026-07-12.json")
+
+
+class TestPinBaseDate(unittest.TestCase):
+    """§6-1 基準日ピン留め: レビューUIの「PDF再作成」がレビュー開始時の基準日で回るように。"""
+
+    def test_appends_when_unspecified(self):
+        self.assertEqual(
+            _pin_base_date(["--no-ai", "--keep-html"], "2026-05-31"),
+            ["--no-ai", "--keep-html", "--base-date", "2026-05-31"])
+
+    def test_noop_when_already_specified_space_form(self):
+        argv = ["--base-date", "2026-05-31", "--no-ai"]
+        self.assertEqual(_pin_base_date(argv, "2026-05-31"), argv)
+
+    def test_noop_when_already_specified_equals_form(self):
+        argv = ["--base-date=2026-05-31", "--no-ai"]
+        self.assertEqual(_pin_base_date(argv, "2026-05-31"), argv)
 
 
 if __name__ == "__main__":

@@ -115,6 +115,18 @@ def _strip_serve_argv(argv: list) -> list:
     return out
 
 
+def _pin_base_date(argv: list, date_str: str) -> list:
+    """--base-date が未指定なら末尾に固定して足す（既に指定済みなら何もしない）。
+
+    レビューUIの「PDF再作成」はレビュー中にデータが更新されても、レビューを開いた
+    ときと同じ基準日で再ビルドされるようにする（§6-1: 基準日ピン留め）。
+    """
+    for a in argv:
+        if a == "--base-date" or a.startswith("--base-date="):
+            return argv
+    return argv + ["--base-date", date_str]
+
+
 def serve_review(output_dir: Path, review_rel: str, port: int, rebuild_argv: list,
                  timeout_min: int = 120):
     """§6-1 レビューUI用の軽量ローカルサーバ（127.0.0.1限定）。
@@ -392,13 +404,15 @@ def main():
     # ── §6-1 人手オーバーライド（レビューHTML/手編集の overrides.md）──
     from app.lib.report_overrides import parse_overrides
     overrides_path = Path(args.output_dir) / "overrides.md"
-    overrides = {}
+    overrides, ov_carry = {}, {}
     if not args.no_overrides:
-        overrides, ov_notes = parse_overrides(overrides_path, base_date)
+        overrides, ov_carry, ov_notes = parse_overrides(overrides_path, base_date)
         for level, msg in ov_notes:
             log(f"overrides.md: {msg}", level)
         if overrides:
             log(f"一手の手動差し替え {len(overrides)} 部門（{overrides_path}）")
+        if ov_carry:
+            log(f"前回の添削 {len(ov_carry)} 部門を保持（レビュー画面で再適用できます）")
 
     # ── コンテキスト構築（AI一手は全ユニット）──
     log(f"レポート構築中… axes={axes} AI={'OFF' if args.no_ai else 'ON(全ユニット)'}")
@@ -502,9 +516,12 @@ def main():
         # 直接書き込む（File System Access API）。病院全体サマリを先頭に置く。
         review_sheets = [hosp_ctx] + sorted(
             contexts, key=lambda c: (c["axis"] != "dept", c["order"]))
+        from app.lib.report_overrides import carry_payload
+        prev_json = json.dumps(carry_payload(ov_carry), ensure_ascii=False).replace("</", "<\\/")
         review_html = tmpl.render(
             sheets=review_sheets, review=True,
-            review_base=date_str, review_expires=default_expires(base_date))
+            review_base=date_str, review_expires=default_expires(base_date),
+            review_prev=prev_json)
         review_path = out_root / f"レビュー_{date_str}.html"
         review_path.write_text(review_html, encoding="utf-8")
         n_manual = sum(1 for c in [hosp_ctx] + contexts if c["move"].get("src") == "manual")
@@ -605,7 +622,7 @@ def main():
             log("--serve は --only/--limit（部分ビルド）では使えません", "warn")
         else:
             rebuild_argv = [sys.executable, str(Path(__file__).resolve())] \
-                           + _strip_serve_argv(sys.argv[1:])
+                           + _pin_base_date(_strip_serve_argv(sys.argv[1:]), date_str)
             serve_review(Path(args.output_dir),
                          f"{date_str}/レビュー_{date_str}.html",
                          args.port, rebuild_argv, timeout_min=args.serve_timeout)

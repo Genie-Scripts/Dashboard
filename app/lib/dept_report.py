@@ -1127,10 +1127,12 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
     一手に「前回レポートとの比較」事実が加わる。各コンテキストには "_state"（今回の
     状態タグ）が付き、CLI 側が save_facts_snapshot で次回以降のアンカーとして保存する。
 
-    overrides: report_overrides.parse_overrides の戻り値（(axis, unit)→{body,action}）。
-    §6-1 人手オーバーライド。move 確定直後に差し替え・src="manual" 刻印。全文差し替えの
-    部門は AI 生成をスキップ（再ビルド高速化）。片方だけの差し替えは AI 生成を止めない
-    （決定論seedでレビュー時と同じAI文が再現されるため「承認した文＋修正」が成立する）。
+    overrides: report_overrides.parse_overrides が返す active（(axis, unit)→{body,action}）。
+    §6-1 人手オーバーライド。今回の base_date に base が一致するブロックのみがここに
+    渡る（毎ビルドはAI文が既定＝レビューUIの明示操作で再適用されたものだけがここに来る）。
+    move 確定直後に差し替え・src="manual" 刻印。AI 生成自体はスキップしない（片方だけの
+    差し替えでも決定論seedでレビュー時と同じAI文が再現されるため「承認した文＋修正」が
+    成立する）。
     """
     period_start = (base_date - timedelta(days=WEEKS * 7 - 1)).strftime("%Y/%m/%d")
     period_end = base_date.strftime("%Y/%m/%d")

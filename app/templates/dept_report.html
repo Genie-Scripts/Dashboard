@@ -187,23 +187,25 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
 .move.dirty .move-h .ttl{color:var(--edit)}
 .move.dirty .move-act{border-color:#f0cdae}
 .move.dirty .move-act .arw{color:var(--edit)}
-.tag-manual,.tag-removed,.tag-aiprev{display:none; font-size:8px; font-weight:800; color:#fff;
+.tag-manual,.tag-removed,.tag-aiprev,.tag-prev{display:none; font-size:8px; font-weight:800; color:#fff;
   background:var(--edit); border-radius:3px; padding:1px 6px}
 .tag-removed{background:#9aa8b8}
 .tag-aiprev{background:var(--navy)}
+.tag-prev{background:var(--cen)}
 .move.manual .tag-manual{display:inline}
 .move.removed .tag-manual{display:none}
 .move.removed .tag-removed{display:inline}
 .move.ai-preview .tag-aiprev{display:inline}
+.tag-prev.show{display:inline}
 /* AI文プレビュー（純粋な表示切替。dirty/下書き/保存内容には影響しない） */
 .move.ai-preview .ed{background:#eef4fb; border-radius:6px; cursor:default}
 .move.ai-preview .field:hover{background:none}
 .move.ai-preview .field:hover:after{opacity:0}
-.move .ai-toggle,.move .proof-btn{font-size:10px; color:var(--sub); border:1px solid #d4dce6;
+.move .ai-toggle,.move .proof-btn,.move .use-prev{font-size:10px; color:var(--sub); border:1px solid #d4dce6;
   background:#fff; border-radius:6px; padding:2px 8px; cursor:pointer; margin-left:6px}
-.move .ai-toggle{display:none}
-.move .ai-toggle.show{display:inline-block}
-.move .ai-toggle:disabled,.move .proof-btn:disabled{opacity:.5; cursor:default}
+.move .ai-toggle,.move .use-prev{display:none}
+.move .ai-toggle.show,.move .use-prev.show{display:inline-block}
+.move .ai-toggle:disabled,.move .proof-btn:disabled,.move .use-prev:disabled{opacity:.5; cursor:default}
 .move .proof-btn.off{opacity:.45}
 .proof-msg{font-size:9px; font-weight:800; color:var(--sub); margin-left:6px}
 .move .restore{font-size:10px; color:var(--sub); border:1px solid #d4dce6; background:#fff;
@@ -233,7 +235,7 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
 .modal .row{display:flex; gap:10px; margin-top:12px; justify-content:flex-end}
 @media print{
   .toolbar,.hint,.restore,.cnt,.modal-bg,.modal,.lock-note,.tag-removed,
-  .ai-toggle,.proof-btn,.proof-msg,.tag-aiprev,.pr-row{display:none!important}
+  .ai-toggle,.proof-btn,.proof-msg,.tag-aiprev,.pr-row,.tag-prev,.use-prev{display:none!important}
   body.review{padding:0}
   body.review .sheet{box-shadow:none; margin:0 auto; border-radius:0}
   .move .field:after{display:none}
@@ -273,7 +275,7 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
   <b>dept_reports/overrides.md に書き込み</b>（<b>make review</b> で開いていれば保存先は
   自動で正しい場所になります）→「<b>PDF再作成</b>」で差し替えたPDFになります
   （<b>保存を忘れて「PDF再作成」を押した場合も自動で保存してから再作成します</b>。
-  該当部門はAI生成をスキップ。再作成ボタンは <b>make review</b> で開いたときに使えます。
+  再作成ボタンは <b>make review</b> で開いたときに使えます。
   ファイルとして直接開いた場合は保存にファイル選択が要り、ターミナルで make reports を
   再実行してください）。この画面を開いている間はレビューサーバが延命されます。もし
   「サーバ終了」と表示されたら <b>build_reports.sh</b>（<b>make review</b>）を再実行すれば復帰し、
@@ -282,13 +284,16 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
   差し替え済みのコメントは「<b>AI文を表示</b>」で元のAI文を見比べられます（表示切替のみで保存内容は変わりません）。
   「<b>校正</b>」は今の文面の誤字脱字・変換ミスだけをAIに点検させるボタンです。修正案は欄の下に<b>差分</b>（挿入=ハイライト・削除=取り消し線）で提示され、［置換］を押した箇所だけ反映されます（勝手に書き換えません）。
   数値行（全麻/新入院/病床利用率）はデータ由来のため編集対象外です。
-  差し替えの有効期限は {{ review_expires }}（基準日+14日）まで＝古い文の残留を防ぎます。<br>
+  客観分析は毎回AI文が既定です。前回の添削がある部門には「前回の添削を使う」ボタンが出るので、
+  必要なときだけ再適用・修正してください。前回の添削は {{ review_expires }} まで再利用候補として
+  保持されます（レポートには自動では載りません）。<br>
   <b>できあがりPDF：</b>
   <a href="診療科版_{{ review_base }}.pdf" target="_blank">診療科版</a>・
   <a href="病棟版_{{ review_base }}.pdf" target="_blank">病棟版</a>・
   <a href="病院全体サマリ_{{ review_base }}.pdf" target="_blank">病院全体サマリ</a>
   （再作成後に開いて印刷。開き直すと最新版になります）
 </div>
+<script type="application/json" id="ov-prev">{{ review_prev | default('{}') }}</script>
 {% endif %}
 
 {% macro card(c, hero=false) %}
@@ -321,8 +326,10 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
     <span class="ttl">この期間の一手</span>
     <span class="tag-manual">手動</span><span class="tag-removed">次回ビルドでAI文に戻る</span>
     <span class="tag-aiprev">AI文（参考）</span>
+    <span class="tag-prev">前回の添削あり</span>
     <span class="ai">AI要約／院内データ</span>
     <button class="ai-toggle" type="button">AI文を表示</button>
+    <button class="use-prev" type="button">前回の添削を使う</button>
     <button class="proof-btn" type="button">校正</button>
     <span class="proof-msg"></span>
     <button class="restore" type="button">AI文に戻す</button></div>
@@ -1215,7 +1222,11 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
 const BASE_DATE = "{{ review_base }}", EXPIRES = "{{ review_expires }}";
 const DRAFT_KEY = "deptReportOv:" + BASE_DATE;
 const norm = t => t.replace(/\n+/g, " ").trim();
+const fmtMD = s => { const p = (s || "").split("-"); return p.length === 3 ? `${+p[1]}/${+p[2]}` : (s || ""); };
 const cards = [...document.querySelectorAll(".move[data-unit]")];
+// §6-1反転: 前回の添削（carry・base不一致で今回は未適用）。"診療科:整形外科" 形式キー
+// -> {base, expires, body, action}（body/actionは片方だけの場合 null）。
+const PREV = JSON.parse(document.getElementById("ov-prev").textContent || "{}");
 const ORIG = {};   // unit -> {body, action, manual, ovFields}
 const AI = {};     // unit -> {body, action}（override適用前のAI/定型文。restore/プレビューの復元先）
 const WORK = {};   // unit -> {body, action}（AI文プレビュー中に退避する編集中テキスト）
@@ -1380,14 +1391,18 @@ function applyDraft(){
 function buildOverridesText(){
   const lines = [
     "# 部門レポート 一手の手動差し替え（このファイルは手編集も可）",
-    "# 形式: [診療科:部門名] expires:YYYY-MM-DD ＋ body:/action: 行（片方だけでも可）",
+    "# 形式: [診療科:部門名] base:YYYY-MM-DD expires:YYYY-MM-DD ＋ body:/action: 行（片方だけでも可）",
+    "# base はこの添削が書かれた基準日。今回の基準日と一致するブロックだけ適用されます",
+    "# （base が無い/一致しないブロックは「前回の添削」として保持されるだけで、レポートには載りません）。",
     "# expires を過ぎたブロックは自動で無視。#始まりの行はコメント。",
     "# 生成: レビューUI 基準日 " + BASE_DATE, ""];
   let n = 0;
+  const emitted = new Set();
   cards.forEach(card => {
     const fields = emitFields(card);
     if (!fields.length) return;
-    lines.push(`[${unitOf(card)}] expires:${EXPIRES}`);
+    emitted.add(unitOf(card));
+    lines.push(`[${unitOf(card)}] base:${BASE_DATE} expires:${EXPIRES}`);
     eds(card).forEach(ed => {
       if (fields.includes(ed.dataset.kind))
         lines.push(`${ed.dataset.kind}: ${liveText(card, ed.dataset.kind)}`);
@@ -1396,6 +1411,20 @@ function buildOverridesText(){
     n += 1;
   });
   if (!n) lines.push("# （差し替えなし）");
+  // 今回ブロックを出さなかった前回の添削（carry）はverbatimで再出力し、次回ビルド以降も
+  // 再利用候補として残す（「前回の添削を使う」を押していないカードの分）。
+  const leftover = Object.keys(PREV).filter(u => !emitted.has(u));
+  if (leftover.length){
+    lines.push("# ── 前回の添削（未適用・再利用候補）──");
+    leftover.forEach(u => {
+      const p = PREV[u];
+      const attrs = (p.base ? ` base:${p.base}` : "") + (p.expires ? ` expires:${p.expires}` : "");
+      lines.push(`[${u}]${attrs}`);
+      if (p.body != null) lines.push(`body: ${p.body}`);
+      if (p.action != null) lines.push(`action: ${p.action}`);
+      lines.push("");
+    });
+  }
   return lines.join("\n");
 }
 
@@ -1463,6 +1492,29 @@ cards.forEach(card => {
   });
   ORIG[unitOf(card)] = o;
   AI[unitOf(card)] = {body: norm(card.dataset.aiBody || ""), action: norm(card.dataset.aiAction || "")};
+  // §6-1反転: 前回の添削（carry）があるカードだけ「前回の添削を使う」を出す。
+  const prev = PREV[unitOf(card)];
+  if (prev && (prev.body != null || prev.action != null)){
+    const tagPrev = card.querySelector(".tag-prev");
+    const usePrevBtn = card.querySelector(".use-prev");
+    if (tagPrev){
+      tagPrev.textContent = "前回の添削" + (prev.base ? `（${fmtMD(prev.base)}）` : "");
+      tagPrev.classList.add("show");
+    }
+    if (usePrevBtn){
+      usePrevBtn.classList.add("show");
+      usePrevBtn.addEventListener("click", () => {
+        exitAiPreview(card);   // プレビュー中の退避テキストは復元先が変わるため一旦解除
+        eds(card).forEach(ed => {
+          const v = prev[ed.dataset.kind];
+          if (v != null) ed.innerText = v;
+        });
+        card.classList.remove("removed");
+        unsavedEdits = true;
+        refreshCard(card); writeDraft();
+      });
+    }
+  }
   const aiBtn = card.querySelector(".ai-toggle");
   if (aiBtn) aiBtn.addEventListener("click", () => {
     if (card.classList.contains("ai-preview")) exitAiPreview(card);

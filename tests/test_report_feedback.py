@@ -91,5 +91,31 @@ class TestPairingP1(unittest.TestCase):
         self.assertIn("まだ添削信号がありません", build_digest_md([]))
 
 
+class TestReversalFlow(unittest.TestCase):
+    """§6-1反転後: 新base_dateの初回ビルドは全ユニットai既定 → レビュー保存後の
+    再ビルドでmanualに変わる、という往復でも ai→manual ペアが復元できることを確認する
+    （report_feedback.py 自体はコード変更なし・回帰確認）。"""
+
+    def test_new_base_date_first_build_ai_then_saved_manual_pairs(self):
+        with tempfile.TemporaryDirectory() as d:
+            # 新しい基準日の初回ビルド: overrideは反転によりどのユニットにも適用されない
+            # ＝全ユニット src="ai"（AI文が既定）。
+            capture_edits(d, "2026-08-11", [
+                _ctx("診療科", "整形外科", "ai", "AI本文", "AI打ち手"),
+            ])
+            # レビュー画面で「前回の添削を使う」または手直しして保存 → 同一base_dateで
+            # 再ビルド（PDF再作成）すると src="manual" に遷移する。
+            capture_edits(d, "2026-08-11", [
+                _ctx("診療科", "整形外科", "manual", "AI本文", "添削後の打ち手"),
+            ])
+            pairs = pair_corrections(load_edits(Path(d)))
+            self.assertEqual(len(pairs), 1)
+            p = pairs[0]
+            self.assertTrue(p["had_ai"])
+            self.assertIsNotNone(p["ai_body"])
+            self.assertEqual(p["ai_body"], "AI本文")
+            self.assertEqual(p["human_action"], "添削後の打ち手")
+
+
 if __name__ == "__main__":
     unittest.main()
