@@ -22,6 +22,7 @@ import json
 import logging
 import os
 import re
+import sys
 import threading
 import zlib
 from collections import Counter
@@ -35,6 +36,19 @@ try:
     from app.lib import fewshot  # P3: 添削フィードバックの few-shot 注入（失敗時は完全無効）
 except Exception:  # noqa: BLE001
     fewshot = None
+
+# プロンプト一括管理 P0（開発プラン_プロンプト管理.md）: ai-apps root の prompt_kit を
+# .llm の genie_llm 取り込みと同じ流儀で読む。Dashboard は単体/公開でも動く独立repoのため、
+# 未配置（root 非同居）でも fail-open で従来の SYSTEM_PROMPT 定数のまま動作する。
+try:
+    _ROOT = Path(__file__).resolve().parents[3]  # Dashboard/app/lib → ai-apps root
+    if str(_ROOT) not in sys.path:
+        sys.path.insert(0, str(_ROOT))
+    import prompt_kit
+except Exception:  # noqa: BLE001
+    prompt_kit = None
+
+_PROMPTS_TOML = Path(__file__).resolve().parents[2] / "config" / "prompts.toml"  # Dashboard/config/
 
 logger = logging.getLogger(__name__)
 
@@ -177,7 +191,7 @@ def _narrate_one(alert: dict, model: str, temperature: float) -> Optional[dict]:
     """単一アラートを LLM で翻訳。品質床（見出し）を機械検査し、外れたら温度を下げて
     1回だけ再試行する。2回とも外れてもパース成功した出力は返す（narrative を落とさない
     fail-soft）。seed はプロンプト内容の CRC32 で決定論化＝同じ事実は同じ文（月次安定）。"""
-    system = SYSTEM_PROMPT
+    system = prompt_kit.resolve(_PROMPTS_TOML, "narrative_system", fallback=SYSTEM_PROMPT) if prompt_kit else SYSTEM_PROMPT
     user = _build_user_prompt(alert)
     base_seed = zlib.crc32((system + user).encode("utf-8")) & 0x7FFFFFFF
     best = None

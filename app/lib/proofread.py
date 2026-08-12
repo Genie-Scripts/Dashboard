@@ -14,10 +14,25 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 import zlib
+from pathlib import Path
 from typing import Optional
 
 from .llm import DEFAULT_MODEL, chat_json
+
+# プロンプト一括管理 P0（開発プラン_プロンプト管理.md）: ai_narrative.py と同じ流儀で
+# ai-apps root の prompt_kit を取り込む。Dashboard は単体/公開でも動く独立repoのため、
+# 未配置（root 非同居）でも fail-open で従来の SYSTEM_PROMPT 定数のまま動作する。
+try:
+    _ROOT = Path(__file__).resolve().parents[3]  # Dashboard/app/lib → ai-apps root
+    if str(_ROOT) not in sys.path:
+        sys.path.insert(0, str(_ROOT))
+    import prompt_kit
+except Exception:  # noqa: BLE001
+    prompt_kit = None
+
+_PROMPTS_TOML = Path(__file__).resolve().parents[2] / "config" / "prompts.toml"  # Dashboard/config/
 
 SYSTEM_PROMPT = """あなたは病院運営レポートの一文の校正者です。誤字脱字・助詞・変換ミスのみを
 修正してください。数値・固有名詞・専門用語・文体・意味は変更しないでください。
@@ -66,8 +81,9 @@ def proofread_text(text: str, model: Optional[str] = None) -> dict:
     model = model or DEFAULT_MODEL
     seed = zlib.crc32(text.encode("utf-8"))
 
+    system_prompt = prompt_kit.resolve(_PROMPTS_TOML, "proofread_system", fallback=SYSTEM_PROMPT) if prompt_kit else SYSTEM_PROMPT
     try:
-        content = chat_json(SYSTEM_PROMPT, text, model,
+        content = chat_json(system_prompt, text, model,
                             temperature=0.0, max_tokens=512, seed=seed)
     except Exception:  # noqa: BLE001 — oMLX未起動・タイムアウト等すべて無害に縮退
         return {"text": text, "changed": False, "error": "校正LLM呼び出し失敗"}
