@@ -11,7 +11,7 @@ oMLX(OpenAI互換 /v1) に統一。oMLX はホストの 127.0.0.1:8000 で動作
       （oMLX 未起動・openai 未インストール・モデル未取得 すべて無害に縮退）
 
 環境変数（deploy.sh と一元管理）:
-    OMLX_MODEL     使用モデル（既定: 日本語軽量の Swallow-8B）
+    OMLX_MODEL     使用モデル（既定: gemma-4-26B-A4B-it-qat-OptiQ-4bit）
     OMLX_BASE_URL  既定 http://localhost:8000/v1
     OMLX_API_KEY   既定 sk-ant-omlx-local-key（~/.omlx/settings.json の auth.api_key）
     OMLX_TIMEOUT   1リクエストの上限秒（既定 180）
@@ -46,7 +46,7 @@ def _resolve_default_model() -> str:
             return _m
     except Exception:  # noqa: BLE001
         pass
-    return os.environ.get("OMLX_MODEL", "Llama-3.1-Swallow-8B-Instruct-v0.5")
+    return os.environ.get("OMLX_MODEL", "gemma-4-26B-A4B-it-qat-OptiQ-4bit")  # 2026-08-13 ハブoverride実効値へ同期（deploy.sh・orchestrator dashboard fallback と同値）
 
 
 DEFAULT_MODEL = _resolve_default_model()

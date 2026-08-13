@@ -31,7 +31,7 @@ trap 'error_dialog "予期せぬエラーで停止しました。詳細は $LOG 
 # 案1 P2: 既定を LLMブローカー(:8936) 経由にする（透過プロキシなので応答は同一・直列化/入場制御の恩恵を受ける）。
 # 明示指定すればそちらが優先＝切り戻しは OMLX_BASE_URL=http://localhost:8000/v1 で可能。
 export OMLX_BASE_URL="${OMLX_BASE_URL:-http://127.0.0.1:8936/v1}"
-export OMLX_MODEL="${OMLX_MODEL:-Llama-3.1-Swallow-8B-Instruct-v0.5}"
+export OMLX_MODEL="${OMLX_MODEL:-gemma-4-26B-A4B-it-qat-OptiQ-4bit}"  # 2026-08-13 ハブoverride実効値へ同期（app/lib/llm.py と同値にすること）
 # APIキーは ~/.omlx/settings.json から取得（取れなければ llm.py の既定にフォールバック）
 _omlx_key="$(python3 -c "import json,os;print(json.load(open(os.path.expanduser('~/.omlx/settings.json')))['auth']['api_key'])" 2>/dev/null || true)"
 [ -n "$_omlx_key" ] && export OMLX_API_KEY="$_omlx_key"
