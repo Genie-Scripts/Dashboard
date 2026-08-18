@@ -1,0 +1,78 @@
+{
+  "_comment": "合成データのみ（実データ由来の文面は含まない）。tests/test_narrative_eval.py が読む。",
+  "taigen_cases": [
+    {"headline": "外来患者数、目標を超過", "expected": true, "note": "体言止め（良い例型）"},
+    {"headline": "外来患者数が目標を大きく上回っている", "expected": false, "note": "「いる」で終わる（丸写し型）"},
+    {"headline": "検査待ち時間の短縮", "expected": true, "note": "体言止め"},
+    {"headline": "検査待ち時間を短縮しています", "expected": false, "note": "「しています」で終わる"},
+    {"headline": "病床稼働率は改善傾向（一時的な変動あり）", "expected": true, "note": "末尾括弧注記を剥がすと「傾向」で体言止め"},
+    {"headline": "職員配置を", "expected": false, "note": "助詞で終わる（宙ぶらりん）"},
+    {"headline": "紹介患者数が増加", "expected": true, "note": "体言止め"},
+    {"headline": "紹介患者数が増加している", "expected": false, "note": "「している」で終わる"},
+    {"headline": "薬剤在庫の偏り", "expected": true, "note": "体言止め"},
+    {"headline": "薬剤在庫が偏っています", "expected": false, "note": "「っています」で終わる"}
+  ],
+  "alert_scoring_cases": [
+    {
+      "note": "採択（棄却理由なし・見出し良好）",
+      "alert": {
+        "id": "kpi_test_accept", "category": "kpi", "severity": "warn",
+        "facts": ["外来患者数が目標を大きく上回っている", "直近4週は横ばいで推移している"]
+      },
+      "narrative": {
+        "headline": "外来患者数、目標を超過",
+        "body": "外来患者数が高い水準で推移しています。",
+        "action": "受け入れ体制の点検を行いましょう。"
+      },
+      "expected_reject_reason": null
+    },
+    {
+      "note": "見出しが事実文の丸写し（headline_echo）",
+      "alert": {
+        "id": "kpi_test_echo", "category": "kpi", "severity": "warn",
+        "facts": ["外来患者数が目標を大きく上回っている"]
+      },
+      "narrative": {
+        "headline": "外来患者数が目標を大きく上回っている",
+        "body": "外来患者数が高い水準で推移しています。",
+        "action": "受け入れ体制の点検を行いましょう。"
+      },
+      "expected_reject_reason": "headline_echo"
+    },
+    {
+      "note": "見出しが長すぎる（headline_long・25字）",
+      "alert": {
+        "id": "kpi_test_long", "category": "kpi", "severity": "warn",
+        "facts": ["在院患者数が目標を下回っている"]
+      },
+      "narrative": {
+        "headline": "在院患者数が複数の観点から見て目標をやや下回る状況が続く",
+        "body": "在院患者数が目標を下回って推移しています。",
+        "action": "受け入れ体制の点検を行いましょう。"
+      },
+      "expected_reject_reason": "headline_long"
+    },
+    {
+      "note": "本文が空（empty）",
+      "alert": {
+        "id": "kpi_test_empty", "category": "kpi", "severity": "warn",
+        "facts": ["新入院数が目標を下回っている"]
+      },
+      "narrative": {
+        "headline": "新入院、目標未達",
+        "body": "",
+        "action": "紹介元への働きかけを行いましょう。"
+      },
+      "expected_reject_reason": "empty"
+    },
+    {
+      "note": "パース失敗（narrative無し）",
+      "alert": {
+        "id": "kpi_test_parse", "category": "kpi", "severity": "warn",
+        "facts": ["全身麻酔手術が目標を下回っている"]
+      },
+      "narrative": null,
+      "expected_reject_reason": "parse"
+    }
+  ]
+}
