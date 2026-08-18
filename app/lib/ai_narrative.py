@@ -50,6 +50,13 @@ except Exception:  # noqa: BLE001
 
 _PROMPTS_TOML = Path(__file__).resolve().parents[2] / "config" / "prompts.toml"  # Dashboard/config/
 
+
+def _resolve_system(key: str, fallback: str) -> str:
+    """レジストリ（override→正本TOML→定数）で system プロンプトを解決する。"""
+    return (prompt_kit.resolve(_PROMPTS_TOML, key, fallback=fallback)
+            if prompt_kit else fallback)
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -191,7 +198,7 @@ def _narrate_one(alert: dict, model: str, temperature: float) -> Optional[dict]:
     """単一アラートを LLM で翻訳。品質床（見出し）を機械検査し、外れたら温度を下げて
     1回だけ再試行する。2回とも外れてもパース成功した出力は返す（narrative を落とさない
     fail-soft）。seed はプロンプト内容の CRC32 で決定論化＝同じ事実は同じ文（月次安定）。"""
-    system = prompt_kit.resolve(_PROMPTS_TOML, "narrative_system", fallback=SYSTEM_PROMPT) if prompt_kit else SYSTEM_PROMPT
+    system = _resolve_system("narrative_system", SYSTEM_PROMPT)
     user = _build_user_prompt(alert)
     base_seed = zlib.crc32((system + user).encode("utf-8")) & 0x7FFFFFFF
     best = None
@@ -855,7 +862,7 @@ def narrate_leveling_actions(weekend_leveling: dict,
                   if (fewshot and entity == "dept") else "")
             return _generate_checked(
                 f"leveling {entity}:{u['name']}",
-                system=LEVELING_ACTION_SYSTEM_PROMPT,
+                system=_resolve_system("leveling_action_system", LEVELING_ACTION_SYSTEM_PROMPT),
                 user=_build_leveling_prompt(u, entity, max_room, det.get(u["name"]),
                                             peer=(peers or {}).get(u["name"]),
                                             delta=delta) + fs,
@@ -1144,7 +1151,7 @@ def narrate_admission_action(unit_name: str, entity: str, na, na_tgt, trend: Opt
             banned = banned + ("祝日", "連休")
         return _generate_checked(
             f"admission {entity}:{unit_name}",
-            system=WARD_ADMISSION_ACTION_SYSTEM_PROMPT,
+            system=_resolve_system("ward_admission_action_system", WARD_ADMISSION_ACTION_SYSTEM_PROMPT),
             user=_build_ward_admission_prompt(unit_name, state, yoy=yoy, delta=delta, holiday=holiday),
             banned=banned, allow=_unit_allow(unit_name),
             model=model, temperature=temperature, quiet=quiet)
@@ -1162,7 +1169,7 @@ def narrate_admission_action(unit_name: str, entity: str, na, na_tgt, trend: Opt
           if (fewshot and entity == "dept") else "")
     return _generate_checked(
         f"admission {entity}:{unit_name}",
-        system=ADMISSION_ACTION_SYSTEM_PROMPT,
+        system=_resolve_system("admission_action_system", ADMISSION_ACTION_SYSTEM_PROMPT),
         user=_build_admission_prompt(unit_name, entity, state, peer=peer, yoy=yoy,
                                      delta=delta, mix=mix, holiday=holiday) + fs,
         banned=banned, allow=_unit_allow(unit_name),
@@ -1203,7 +1210,8 @@ def narrate_surgery_action(dept_name: str, sv, surg_tgt, trend: Optional[str] = 
     # 眼科=全手術 / 他外科系=全身麻酔手術。12科はラベル不変ゆえプロンプトもバイト等価、
     # 眼科のみ「全身麻酔手術」→「全手術」に差し替える。
     label = surgery_metric_label(dept_name)
-    system = SURGERY_ACTION_SYSTEM_PROMPT_MET if _met else SURGERY_ACTION_SYSTEM_PROMPT
+    system = (_resolve_system("surgery_action_met_system", SURGERY_ACTION_SYSTEM_PROMPT_MET)
+              if _met else _resolve_system("surgery_action_system", SURGERY_ACTION_SYSTEM_PROMPT))
     if label != "全身麻酔手術":
         system = system.replace("全身麻酔手術", label)
     banned = _SURGERY_BANNED_TREND_OK if trend in ("上昇", "低下") else _SURGERY_BANNED
@@ -1314,7 +1322,7 @@ def narrate_emergency_leveling_action(ward_name: str, retention, room_delta,
     state = _q_state_trend(retention, room_delta)
     return _generate_checked(
         f"emergency-leveling ward:{ward_name}",
-        system=EMERGENCY_LEVELING_SYSTEM_PROMPT,
+        system=_resolve_system("emergency_leveling_system", EMERGENCY_LEVELING_SYSTEM_PROMPT),
         user=_build_emergency_leveling_prompt(ward_name, state),
         banned=_EMERGENCY_LEVELING_BANNED, allow=_unit_allow(ward_name),
         model=model, temperature=temperature, quiet=quiet)
@@ -1336,7 +1344,7 @@ def narrate_emergency_admission_action(ward_name: str, na, na_tgt, trend: Option
              else _EMERGENCY_ADMISSION_BANNED)
     return _generate_checked(
         f"emergency-admission ward:{ward_name}",
-        system=EMERGENCY_ADMISSION_SYSTEM_PROMPT,
+        system=_resolve_system("emergency_admission_system", EMERGENCY_ADMISSION_SYSTEM_PROMPT),
         user=_build_emergency_admission_prompt(ward_name, state),
         banned=banned, allow=_unit_allow(ward_name),
         model=model, temperature=temperature, quiet=quiet)
@@ -1419,7 +1427,7 @@ def narrate_critical_care_leveling_action(ward_name: str, retention, room_delta,
     state = _q_state_trend(retention, room_delta)
     return _generate_checked(
         f"critical-care-leveling ward:{ward_name}",
-        system=CRITICAL_CARE_LEVELING_SYSTEM_PROMPT,
+        system=_resolve_system("critical_care_leveling_system", CRITICAL_CARE_LEVELING_SYSTEM_PROMPT),
         user=_build_critical_care_leveling_prompt(ward_name, state),
         banned=_CRITICAL_CARE_LEVELING_BANNED, allow=_unit_allow(ward_name),
         model=model, temperature=temperature, quiet=quiet)
@@ -1437,7 +1445,7 @@ def narrate_critical_care_admission_action(ward_name: str, na, na_tgt, trend: Op
              else _CRITICAL_CARE_ADMISSION_BANNED)
     return _generate_checked(
         f"critical-care-admission ward:{ward_name}",
-        system=CRITICAL_CARE_ADMISSION_SYSTEM_PROMPT,
+        system=_resolve_system("critical_care_admission_system", CRITICAL_CARE_ADMISSION_SYSTEM_PROMPT),
         user=_build_critical_care_admission_prompt(ward_name, state),
         banned=banned, allow=_unit_allow(ward_name),
         model=model, temperature=temperature, quiet=quiet)
@@ -1523,7 +1531,7 @@ def narrate_er_admission_action(dept_name: str, na, na_tgt, trend: Optional[str]
              else _ER_ADMISSION_BANNED)
     return _generate_checked(
         f"er-admission dept:{dept_name}",
-        system=ER_ADMISSION_SYSTEM_PROMPT,
+        system=_resolve_system("er_admission_system", ER_ADMISSION_SYSTEM_PROMPT),
         user=_build_er_admission_prompt(dept_name, state),
         banned=banned, allow=_unit_allow(dept_name),
         model=model, temperature=temperature, quiet=quiet)
@@ -1537,7 +1545,7 @@ def narrate_er_leveling_action(dept_name: str, retention, room_delta,
     state = _q_state_trend(retention, room_delta)
     return _generate_checked(
         f"er-leveling dept:{dept_name}",
-        system=ER_LEVELING_SYSTEM_PROMPT,
+        system=_resolve_system("er_leveling_system", ER_LEVELING_SYSTEM_PROMPT),
         user=_build_er_leveling_prompt(dept_name, state),
         banned=_ER_LEVELING_BANNED, allow=_unit_allow(dept_name),
         model=model, temperature=temperature, quiet=quiet)
@@ -1562,7 +1570,7 @@ HOSPITAL_SUMMARY_SYSTEM_PROMPT = """あなたは病院経営会議向けの要�
 
 【厳守事項】
 1. 与えられた事実のみを使う。新しい数値・原因を足さない。本文に数値を再引用しない（定性語のみ使う）。
-2. 部門名は、事実に「牽引役」として含まれるものだけを使ってよい。他の部門名を足さない。部門名への言及は褒める文脈（牽引役・手本の紹介）のみで、名指しの批判はしない。
+2. 個別の診療科名・病棟名は書かない。病院全体の実績に関する評価のみを記載する。
 3. 事実に含まれる対比（「〜が」「〜ものの」等）はそのまま保つ。水準と傾向が食い違うときは逆接でつなぎ、順接（「〜ており」等）で並べない。
 4. 複数の指標の事実が与えられた場合、最も注視すべき1点を中心に本文をまとめ、他は軽く触れる程度にとどめる（羅列しない）。
 5. action は指定されたレバー（打ち手の方向性）の範囲内で、運用面の一般的な対応として書く。特定の患者・術式を名指しした医療行為の指示はしない。
@@ -1618,9 +1626,10 @@ def narrate_hospital_summary(facts: list[str], lever: str,
         banned = banned + ("前回",)
     if not has_holiday:
         banned = banned + ("祝日", "連休")
+    system = _resolve_system("hospital_summary_system", HOSPITAL_SUMMARY_SYSTEM_PROMPT)
     return _generate_checked(
         "hospital-summary",
-        system=HOSPITAL_SUMMARY_SYSTEM_PROMPT,
+        system=system,
         user=_build_hospital_summary_prompt(facts, lever),
         banned=banned,
         allow=_unit_allow(leader or ""),

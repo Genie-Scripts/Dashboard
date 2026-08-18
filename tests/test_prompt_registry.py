@@ -28,6 +28,33 @@ def test_g1_proofread_system_matches_constant():
     assert data["proofread_system"]["text"] == proofread.SYSTEM_PROMPT
 
 
+def test_g1_hospital_summary_system_matches_constant():
+    data = _load()
+    assert data["hospital_summary_system"]["text"] == ai_narrative.HOSPITAL_SUMMARY_SYSTEM_PROMPT
+
+
+# 個別ユニット一手生成プロンプト11本（キー → 定数名）。
+_UNIT_ACTION_KEYS = {
+    "surgery_action_met_system": ai_narrative.SURGERY_ACTION_SYSTEM_PROMPT_MET,
+    "leveling_action_system": ai_narrative.LEVELING_ACTION_SYSTEM_PROMPT,
+    "admission_action_system": ai_narrative.ADMISSION_ACTION_SYSTEM_PROMPT,
+    "ward_admission_action_system": ai_narrative.WARD_ADMISSION_ACTION_SYSTEM_PROMPT,
+    "surgery_action_system": ai_narrative.SURGERY_ACTION_SYSTEM_PROMPT,
+    "emergency_leveling_system": ai_narrative.EMERGENCY_LEVELING_SYSTEM_PROMPT,
+    "emergency_admission_system": ai_narrative.EMERGENCY_ADMISSION_SYSTEM_PROMPT,
+    "critical_care_leveling_system": ai_narrative.CRITICAL_CARE_LEVELING_SYSTEM_PROMPT,
+    "critical_care_admission_system": ai_narrative.CRITICAL_CARE_ADMISSION_SYSTEM_PROMPT,
+    "er_admission_system": ai_narrative.ER_ADMISSION_SYSTEM_PROMPT,
+    "er_leveling_system": ai_narrative.ER_LEVELING_SYSTEM_PROMPT,
+}
+
+
+def test_g1_unit_action_systems_match_constants():
+    data = _load()
+    for key, const in _UNIT_ACTION_KEYS.items():
+        assert data[key]["text"] == const, f"{key}: config/prompts.toml の text が定数とバイト不一致"
+
+
 def test_resolve_reads_toml_not_fallback():
     """prompt_kit が取り込めている環境では TOML 側の値を返す（フォールバックへ落ちていない）。
     Dashboard は単体/公開でも動く独立repoのため prompt_kit 未配置もあり得る（fail-open）。

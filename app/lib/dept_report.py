@@ -1809,9 +1809,9 @@ def build_hospital_overview_context(adm, surg, targets, surg_targets, profit_mon
         facts.append(f"粗利: {profit_state}")
     facts = facts[:4]
 
-    # 2-3: 主トピックの牽引役（目標を達成している最上位のみ・褒める方向だけ名指し）。
-    # 達成部門がいなければ名指しなし。下押し側は職員発信トーンのため名指ししない（§5）。
-    # 捏造ガード＝leader以外の全部門名を禁止語で渡す（渡していない名前を書いたら棄却）。
+    # 2-3改（添削指示 2026-08-13）: 病院全体サマリでは個別の診療科・病棟を名指ししない。
+    # 旧「牽引役」の事実注入は廃止（leader=None固定）。全部門名を extra_banned として渡し、
+    # 名指しが出力されたら機械ガードが棄却する＝プロンプトの従順さに依存しない決定論ガード。
     dept_ratio, surg_ratio = {}, {}
     for r in build_dept_ranking(adm, base_date, targets, "new_admission").to_dict("records"):
         if r.get("目標") and r.get("実績") is not None:
@@ -1819,22 +1819,9 @@ def build_hospital_overview_context(adm, surg, targets, surg_targets, profit_mon
     for r in build_surgery_ranking(surg, base_date, surg_targets, period="7").to_dict("records"):
         if r.get("週目標") and r.get("実績") is not None:
             surg_ratio[r["診療科"]] = r["実績"] / r["週目標"]
-    if h_topic == "admission":
-        cands = {n: v for n, v in dept_ratio.items() if v >= 1.0}
-        leader_label = "新入院の目標を上回っている"
-    elif h_topic == "surgery":
-        cands = {n: v for n, v in surg_ratio.items() if v >= 1.0}
-        leader_label = "全身麻酔手術の目標を上回っている"
-    else:
-        cands = {u["name"]: u["retention"] for u in wr.get("units", [])
-                 if u.get("retention") is not None
-                 and u["retention"] * 100 >= TARGET_WEEKEND_RETENTION}
-        leader_label = "週末も在院を維持できている"
-    leader = max(cands, key=cands.get) if cands else None
-    if leader:
-        facts.append(f"牽引役: {leader}が{leader_label}")
+    leader = None
     all_names = set(dept_ratio) | set(surg_ratio) | {u["name"] for u in wr.get("units", [])}
-    other_names = tuple(sorted(all_names - {leader})) if leader else tuple(sorted(all_names))
+    other_names = tuple(sorted(all_names))
 
     # ① 差分ナラティブ（病院全体）: 3トピックの達成度バケットを状態として保存し、
     # アンカー（約4週前）との遷移を主トピックについてのみ言及（単一ユニットと同じ保守則）。
@@ -1855,12 +1842,11 @@ def build_hospital_overview_context(adm, surg, targets, surg_targets, profit_mon
         facts.append(f"補足: {holiday_fact}")
 
     move = ((with_ai and narrate_hospital_summary(facts, _HOSPITAL_LEVERS[h_topic],
-                                                  leader=leader, extra_banned=other_names,
+                                                  extra_banned=other_names,
                                                   has_delta=bool(h_delta),
                                                   has_holiday=bool(holiday_fact),
                                                   quiet=quiet))
-           or _fallback_move_hospital(h_topic, h_primary_state, ret,
-                                      leader=leader, leader_label=leader_label if leader else None))
+           or _fallback_move_hospital(h_topic, h_primary_state, ret))
     if h_delta and move.get("src") != "ai" and move.get("body"):
         move = {**move, "body": move["body"].rstrip() + " " + h_delta + "。"}
     move = {**move, "topic": h_topic, "src": move.get("src", "tpl"), "leader": leader,
