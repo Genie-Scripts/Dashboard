@@ -18,6 +18,7 @@ weekly_story.py — 週次ストーリー（WoW差分特化）
 from __future__ import annotations
 import json
 import logging
+import zlib
 from datetime import timedelta
 from pathlib import Path
 from typing import Optional
@@ -349,13 +350,18 @@ def narrate_weekly_story(diffs: list[str], base_date: str, prior_date: str,
     """差分事実からLLMで150字要約を生成。未起動時やエラー時は None"""
     if not diffs:
         return None
+    system = SYSTEM_PROMPT
+    user = _build_user_prompt(diffs, base_date, prior_date)
+    # seed はプロンプト内容の CRC32 で決定論化（ai_narrative.py と同じ流儀・3-3 月次安定性）。
+    seed = zlib.crc32((system + user).encode("utf-8")) & 0x7FFFFFFF
     try:
         content = chat_json(
-            system=SYSTEM_PROMPT,
-            user=_build_user_prompt(diffs, base_date, prior_date),
+            system=system,
+            user=user,
             model=model,
             temperature=temperature,
             max_tokens=DEFAULT_NUM_PREDICT,
+            seed=seed,
         )
     except Exception as e:
         # oMLX 未起動 / openai 未インストール / モデル未取得 すべてここで無害に縮退

@@ -14,6 +14,7 @@ triage.py — 部門トリアージ（多KPI合成スコアリング + LLMナラ
 from __future__ import annotations
 import json
 import logging
+import zlib
 from typing import Optional
 
 import pandas as pd
@@ -662,13 +663,18 @@ def _make_fallback_narrative(item: dict) -> dict:
 
 def _narrate_one_call(item: dict, model: str, temperature: float) -> Optional[dict]:
     """単一科を LLM で翻訳（1回呼び出し）。失敗時は None"""
+    system = TRIAGE_SYSTEM_PROMPT
+    user = _build_triage_prompt(item)
+    # seed はプロンプト内容の CRC32 で決定論化（ai_narrative.py と同じ流儀・3-3 月次安定性）。
+    seed = zlib.crc32((system + user).encode("utf-8")) & 0x7FFFFFFF
     try:
         content = chat_json(
-            system=TRIAGE_SYSTEM_PROMPT,
-            user=_build_triage_prompt(item),
+            system=system,
+            user=user,
             model=model,
             temperature=temperature,
             max_tokens=DEFAULT_NUM_PREDICT,
+            seed=seed,
         )
     except Exception as e:
         # oMLX 未起動 / openai 未インストール / モデル未取得 すべてここで無害に縮退
@@ -931,13 +937,18 @@ def _make_leveling_fallback(item: dict) -> dict:
 
 
 def _narrate_leveling_one(item: dict, model: str, temperature: float) -> Optional[dict]:
+    system = LEVELING_SYSTEM_PROMPT
+    user = _build_leveling_prompt(item)
+    # seed はプロンプト内容の CRC32 で決定論化（ai_narrative.py と同じ流儀・3-3 月次安定性）。
+    seed = zlib.crc32((system + user).encode("utf-8")) & 0x7FFFFFFF
     try:
         content = chat_json(
-            system=LEVELING_SYSTEM_PROMPT,
-            user=_build_leveling_prompt(item),
+            system=system,
+            user=user,
             model=model,
             temperature=temperature,
             max_tokens=DEFAULT_NUM_PREDICT,
+            seed=seed,
         )
     except Exception as e:
         logger.warning(f"oMLX leveling 呼び出し失敗 ({item['name']}): {e}")
