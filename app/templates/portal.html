@@ -105,6 +105,35 @@
 .chg-chip.out{background:var(--ok-bg);color:var(--ok)}
 /* ── 連続チップ ── */
 .streak-chip{font-size:10px;font-weight:800;color:var(--dr-t);background:var(--dr-bg);border:1px solid rgba(196,49,75,.25);border-radius:999px;padding:1px 7px;flex-shrink:0}
+/* ── AIアラート（kpiカテゴリのみ・90dfa4cで一旦非表示化→再表示。密度/角丸/影は
+   .triage-sec、区切りは .triage-item に揃える） ── */
+.ai-sec{background:var(--s);border:1px solid var(--ln);border-radius:var(--r);margin-bottom:16px;box-shadow:var(--sh);overflow:hidden}
+.ai-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:14px 18px;border-bottom:1px solid var(--ln)}
+.ai-hd-title{font-size:var(--font-section-heading);font-weight:700;color:var(--ink)}
+.ai-hd-note{font-size:10.5px;color:var(--mu);font-weight:500}
+.ai-item{display:flex;gap:12px;align-items:flex-start;padding:12px 18px;border-bottom:1px solid var(--ln);border-left:4px solid var(--inf);text-decoration:none;color:inherit;transition:background .15s}
+.ai-item:last-child{border-bottom:none}
+.ai-item:hover{background:rgba(10,22,42,.03)}
+[data-theme="dark"] .ai-item:hover{background:rgba(255,255,255,.03)}
+.ai-item.danger{border-left-color:var(--dr);background:var(--dr-bg)}
+.ai-item.warn{border-left-color:var(--wr);background:var(--wr-bg)}
+.ai-item.info{border-left-color:var(--inf)}
+.ai-ic{font-size:20px;line-height:1.2;flex-shrink:0}
+.ai-body{flex:1;min-width:0}
+.ai-hl{font-size:13.5px;font-weight:700;color:var(--ink);display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:3px}
+.ai-item.danger .ai-hl{color:var(--dr-t)}
+.ai-item.warn .ai-hl{color:#7c3a06}
+.ai-sev{font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--bl);color:var(--br);letter-spacing:.02em;flex-shrink:0}
+.ai-item.danger .ai-sev{background:var(--dr);color:#fff}
+.ai-item.warn .ai-sev{background:var(--wr);color:#fff}
+.ai-item.info .ai-sev{background:var(--inf);color:#fff}
+.ai-fb{font-size:10.5px;color:var(--mu);font-weight:500}
+.ai-bd{font-size:12.5px;line-height:1.65;color:var(--sub)}
+.ai-ac{margin-top:6px;font-size:12px;color:var(--ink);background:rgba(255,255,255,.55);border:1px dashed var(--ln);border-radius:10px;padding:7px 10px}
+[data-theme="dark"] .ai-ac{background:rgba(255,255,255,.04)}
+.ai-ac b{color:var(--br);margin-right:4px;font-weight:700}
+.ai-arr{font-size:16px;color:var(--mu);align-self:center;flex-shrink:0}
+@media(max-width:768px){.ai-item{padding:10px 14px}.ai-arr{display:none}}
 /* ── 部門トリアージ ── */
 .triage-sec{background:var(--s);border:1px solid var(--ln);border-radius:var(--r);margin-bottom:16px;box-shadow:var(--sh);overflow:hidden}
 .triage-hd{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--ln)}
@@ -313,6 +342,43 @@ h4{font-weight:var(--jp-head)!important}
     </a>
     {% endfor %}
   </section>
+
+  {# ── AIアラート（kpiカテゴリのみ・病院全体KPIの未達を検知。dept/ward/momentumは
+       部門トリアージと表示が重複するため html_builder 側で間引き済み） ── #}
+  {% if ai_alerts %}
+  <section class="ai-sec" aria-label="AIアラート">
+    <div class="ai-hd">
+      <span class="ai-hd-title">🤖 AIアラート</span>
+      <span class="ai-hd-note">数値はPython検知、文章はローカルLLM翻訳</span>
+    </div>
+    {% for a in ai_alerts %}
+    <a class="ai-item {{ a.severity }}" href="{{ a.meta.href or '#' }}">
+      <div class="ai-ic">{{ a.icon }}</div>
+      <div class="ai-body">
+        <div class="ai-hl">
+          <span class="ai-sev">{% if a.severity == 'danger' %}要対応{% elif a.severity == 'warn' %}要注視{% else %}トピック{% endif %}</span>
+          <span>{% if a.narrative %}{{ a.narrative.headline }}{% else %}{{ a.title_fallback }}{% endif %}</span>
+          {% if not a.narrative %}<span class="ai-fb">（ルール生成）</span>{% endif %}
+          {% if a.continuity and not a.continuity.is_new and a.continuity.streak >= 2 %}
+          <span class="streak-chip" title="前回のレポートでも指摘">継続 {{ a.continuity.streak }}回目</span>
+          {% endif %}
+        </div>
+        <div class="ai-bd">
+          {% if a.narrative %}
+            {{ a.narrative.body }}
+          {% else %}
+            {% for f in a.facts %}{{ f }}{% if not loop.last %}／{% endif %}{% endfor %}
+          {% endif %}
+        </div>
+        {% if a.narrative and a.narrative.action %}
+        <div class="ai-ac"><b>推奨</b>{{ a.narrative.action }}</div>
+        {% endif %}
+      </div>
+      <div class="ai-arr">›</div>
+    </a>
+    {% endfor %}
+  </section>
+  {% endif %}
 
   {# 要注視アイテム描画マクロ（sfx は narrative 開閉用の一意サフィックス） #}
   {% macro render_triage_item(item, sfx) %}

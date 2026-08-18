@@ -457,6 +457,10 @@ def _build_ai_alerts(adm, surg, targets, surg_targets, base_date) -> list:
         return []
     try:
         raw = detect_alerts(adm, surg, targets, surg_targets, base_date)
+        # portal.html 表示は kpi カテゴリのみ（dept/ward/momentumは部門トリアージと表示が
+        # 完全重複するため 90dfa4c で非表示化済み・以後の再表示対象外）。ナレーション自体も
+        # ここで間引き、非表示カードへの無駄なLLMコールを止める。
+        raw = [a for a in raw if a.get("category") == "kpi"]
         if not raw:
             return []
         # B4: 継続台帳を有効化（前回レポートにも在った課題は action をエスカレート）。
