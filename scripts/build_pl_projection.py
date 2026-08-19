@@ -368,6 +368,19 @@ def render_html(pl_clean: pd.DataFrame,
     gen = meta.get("generated_at", datetime.now().strftime("%Y/%m/%d %H:%M"))
     base_date = meta.get("base_date", "")
 
+    excluded = meta.get("excluded_months") or []
+    if excluded:
+        items = "、".join(f"{e['month']}（{e['reason']}）" for e in excluded)
+        quality_alert = f"""
+<div class="alert">
+⚠ <strong>データ品質異常により {len(excluded)} か月の PL確報を除外中: {items}</strong><br>
+除外月は確報が反映されず、予測サマリが「粗利確定・PL確報待ち」のまま停滞します。
+<code>data/PL_確定.xlsx</code> の医業収支行を確認してください
+（未転記 0 / 千円値をそのまま貼付＝×1000漏れ が典型。正値は月次 PL.xlsx の医業収支×1000）。
+</div>"""
+    else:
+        quality_alert = ""
+
     return f"""<!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -394,12 +407,16 @@ th:first-child,td:first-child {{text-align:left}}
 canvas {{max-height:340px}}
 .note {{background:#fffaf0;border-left:3px solid #d4a017;padding:10px 14px;
         font-size:0.9em;color:#553}}
+.alert {{background:#fdecea;border:1px solid #f5c6cb;border-left:4px solid #c0392b;
+         border-radius:8px;padding:12px 16px;margin:14px 0;color:#7b241c;
+         font-size:0.95em}}
 </style>
 </head>
 <body>
 
 <h1>医業収支 推計レポート <span class="sub">(ローカル閲覧専用 / 公開しない)</span></h1>
 <p class="sub">生成: {gen} | 基準日: {base_date}</p>
+{quality_alert}
 
 <div class="note">
 本レポートは <code>data/PL_確定.xlsx</code>（年度別確報, FY2023〜）と粗利推計を組み合わせた
@@ -580,9 +597,15 @@ def main():
     pl_raw = load_pl_confirmed(args.data_dir)
     flags = quality_flags(pl_raw)
     bad = flags[flags["異常フラグ"]]
-    if len(bad) > 0:
+    excluded_months = []
+    for _, row in bad.iterrows():
+        reason = ("給与費=材料費 同値" if row["給与費=材料費"]
+                  else f"検算誤差 {row['検算誤差']/1000:+,.0f}百万円")
+        excluded_months.append({"month": row["月"].strftime("%Y-%m"),
+                                "reason": reason})
+    if excluded_months:
         print(f"  ⚠ 異常月を除外: "
-              f"{', '.join(bad['月'].dt.strftime('%Y-%m').tolist())}")
+              f"{', '.join(e['month'] for e in excluded_months)}")
     pl = clean_pl(pl_raw)
     print(f"  PL clean rows: {len(pl)}")
 
@@ -670,6 +693,7 @@ def main():
     html = render_html(pl, delta, entries, bt, residual_log, {
         "generated_at": datetime.now().strftime("%Y/%m/%d %H:%M"),
         "base_date": base_date.strftime("%Y-%m-%d"),
+        "excluded_months": excluded_months,
     }, monitor)
     out_path.write_text(html, encoding="utf-8")
     print(f"  → {out_path.resolve()}")
