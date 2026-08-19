@@ -1698,24 +1698,28 @@ async function proofreadCard(card){
     const data = await r.json();
     const byKey = {};
     (data.items || []).forEach(it => { byKey[it.key] = it; });
-    let proposed = 0, err = "";
+    let proposed = 0;
+    const parts = [];   // 欄ごとの結果を明示（修正なしでも「検査済み」が見えるようにする）
     targets.forEach(ed => {
+      const label = ed.dataset.kind === "body" ? "本文" : "一手";
       const it = byKey[u + "|" + ed.dataset.kind];
-      if (!it) return;
-      if (it.error) err = it.error;
+      if (!it){ parts.push(label + ": 応答なし"); return; }
+      if (it.error){ parts.push(label + ": 校正失敗（" + it.error + "）"); return; }
       if (it.changed && it.text != null){
         const before = norm(ed.innerText), after = it.text;
         proposed += 1;
+        parts.push(label + ": ✓修正案");
         insertProofRow(ed, before, after, () => {
           ed.textContent = after;   // 適用文＝確認文: 差分カードで見せた文字列そのものを適用
           ed.dispatchEvent(new Event("input", {bubbles: true}));
           ed.dispatchEvent(new Event("change", {bubbles: true}));
         });
+      } else {
+        parts.push(label + ": 修正なし");
       }
     });
     if (msgEl){
-      msgEl.textContent = err ? ("校正失敗: " + err)
-        : (proposed ? ("✓ " + proposed + "件の修正案（下の［置換］で反映）") : "修正なし");
+      msgEl.textContent = parts.join("／") + (proposed ? "（下の［置換］で反映）" : "");
       setTimeout(() => { if (msgEl) msgEl.textContent = ""; }, 5000);
     }
   } catch (e) {
