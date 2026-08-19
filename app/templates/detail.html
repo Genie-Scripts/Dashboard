@@ -23,7 +23,7 @@
 .sum{display:grid;grid-template-columns:1.4fr repeat(3,1fr);gap:10px;margin-top:12px}.bx{background:var(--bg);border:1px solid var(--ln);border-radius:14px;padding:12px 14px;box-shadow:0 2px 6px rgba(10,22,42,.04)}.bx h2{font-size:16px;margin:0}.bx .k{font-size:13px;color:var(--sub);font-weight:700}.bx .v{font-size:24px;font-weight:900;margin-top:4px}.bx .v.dr{color:var(--dr)}
 .bx .cmp-bar{height:4px;background:#edf2f7;border-radius:999px;overflow:hidden;margin-top:8px}.bx .cmp-fill{height:100%;border-radius:999px;transition:width .3s}.bx .cmp-fill.ok{background:var(--ok)}.bx .cmp-fill.wr{background:var(--wr)}.bx .cmp-fill.dr{background:var(--dr)}.bx .cmp-fill.mu{background:var(--mu)}.bx .cmp-meta{display:flex;justify-content:space-between;align-items:center;margin-top:3px}.bx .cmp-prev{font-size:13px;color:var(--sub);font-weight:600}.bx .cmp-dir{font-size:11px;font-weight:900;padding:2px 6px;border-radius:4px}.bx .cmp-dir.ok{background:var(--ok-bg);color:#065f42}.bx .cmp-dir.wr{background:var(--wr-bg);color:#7c3a06}.bx .cmp-dir.dr{background:var(--dr-bg);color:var(--dr-t)}.bx .cmp-dir.mu{color:var(--mu)}
 /* ★Plan-B: 実績+目標+差分 統合カード */
-.bx-main{background:var(--s);border:1px solid var(--ln);border-radius:14px;padding:14px 16px;box-shadow:0 2px 6px rgba(10,22,42,.04)}.bx-main.ok{background:var(--ok-bg)}.bx-main.wr{background:var(--wr-bg)}.bx-main.dr{background:var(--dr-bg)}.bx-main h2{font-size:14px;margin:0 0 6px;font-weight:800}.bx-main .period-note{font-size:11px;color:var(--sub);margin-bottom:4px}.bx-main .main-val{font-size:28px;font-weight:900;line-height:1.15}.bx-main .main-val.dr{color:var(--dr)}.bx-main .main-unit{font-size:14px;font-weight:400;color:var(--sub)}.bx-main .dual-main-row{display:flex;align-items:baseline;gap:8px;margin:6px 0;flex-wrap:wrap}.bx-main .dual-main-row .main-val{margin:0}.bx-main .dual-main-lab{font-size:13px;font-weight:800;color:var(--sub);min-width:34px}.bx-main .dual-main-tgt{font-size:11px;color:var(--mu);margin-left:auto}
+.bx-main{background:var(--s);border:1px solid var(--ln);border-radius:14px;padding:14px 16px;box-shadow:0 2px 6px rgba(10,22,42,.04)}.bx-main.ok{background:var(--ok-bg)}.bx-main.wr{background:var(--wr-bg)}.bx-main.dr{background:var(--dr-bg)}.bx-main h2{font-size:14px;margin:0 0 6px;font-weight:800}.bx-main .period-note{font-size:11px;color:var(--sub);margin-bottom:4px}.bx-main .main-val{font-size:28px;font-weight:900;line-height:1.15}.bx-main .main-val.dr{color:var(--dr)}.bx-main .main-unit{font-size:14px;font-weight:400;color:var(--sub)}.bx-main .dual-main-row{display:flex;align-items:baseline;gap:8px;margin:6px 0;flex-wrap:wrap}.bx-main .dual-main-row .main-val{margin:0}.bx-main .dual-main-lab{font-size:13px;font-weight:800;color:var(--sub);min-width:34px}.bx-main .dual-main-tgt{font-size:11px;color:var(--mu);margin-left:auto}.bx-main .main-foot{font-size:10px;color:var(--mu);margin-top:5px}
 .tgt-row{display:flex;align-items:center;gap:8px;margin-top:8px;padding:6px 10px;background:#f8f9fa;border-radius:10px;border:1px dashed var(--ln)}.tgt-icon{font-size:12px}.tgt-label{font-size:12px;color:var(--mu);font-weight:700}.tgt-val{font-size:14px;font-weight:800;color:var(--sub)}.gap-val{font-size:14px;font-weight:900;margin-left:auto}.gap-val.dr{color:var(--dr)}.gap-val.wr{color:var(--wr)}.gap-val.ok{color:var(--ok)}
 .prog-wrap{margin-top:6px}.prog-bar{height:6px;background:#edf2f7;border-radius:999px;overflow:hidden}.prog-fill{height:100%;border-radius:999px;transition:width .3s}.prog-fill.ok{background:var(--ok)}.prog-fill.wr{background:var(--wr)}.prog-fill.dr{background:var(--dr)}.prog-meta{display:flex;justify-content:space-between;align-items:center;margin-top:3px}.prog-pct{font-size:11px;font-weight:800}.prog-pct.dr{color:var(--dr)}.prog-pct.wr{color:var(--wr)}.prog-pct.ok{color:var(--ok)}.prog-status{font-size:9px;font-weight:800;padding:2px 7px;border-radius:5px}.prog-status.dr{background:var(--dr-bg);color:var(--dr-t)}.prog-status.wr{background:var(--wr-bg);color:#7c3a06}.prog-status.ok{background:var(--ok-bg);color:#065f42}
 /* 在院: 全日/平日/休日タブ（今年度平均カード内に配置） */
@@ -1139,7 +1139,9 @@ function renderSummary() {
   } else if (currentTab === 'profit' && hasProfit) {
     const pk = DATA.profit.kpi;
     const pRate = pk.hospital_achievement;
-    const pGap = pk.hospital_target ? Math.round((pk.hospital_total - pk.hospital_target)*10)/10 : 0;
+    const pAdj = pk.hospital_adj_target != null ? pk.hospital_adj_target : null;
+    const pTgt = pAdj != null ? pAdj : pk.hospital_target;
+    const pGap = pTgt ? Math.round((pk.hospital_total - pTgt)*10)/10 : 0;
     const pSt = pRate >= 100 ? {css:'ok',shape:'▲',text:'達成'} : pRate >= 90 ? {css:'wr',shape:'―',text:'接近'} : {css:'dr',shape:'▼',text:'未達'};
     const bdNote = pk.current_biz_days != null
       ? (pk.has_breakdown
@@ -1148,9 +1150,10 @@ function renderSummary() {
       : '';
     main = {
       icon:'💰', label:'粗利（全科合計）', periodNote:`${pk.base_month} 月次${bdNote}`,
-      actual:pk.hospital_total, unit:'百万円', targetLabel:'月次目標',
-      target:pk.hospital_target, gap:pGap, gapUnit:'百万円',
-      rate:pRate, status:pSt
+      actual:pk.hospital_total, unit:'百万円', targetLabel: pAdj != null ? '月次目標(補正)' : '月次目標',
+      target:pTgt, gap:pGap, gapUnit:'百万円',
+      rate:pRate, status:pSt,
+      footNote: pAdj != null ? `※名目目標 ${pk.hospital_target}百万円（営業${pk.std_biz_days}日・暦${pk.std_cal_days}日 基準）` : ''
     };
     refs = [
       {k:'日次ペース',     v:pk.hospital_daily_pace!==null?`${pk.hospital_daily_pace}万/営業日`:'—', unit:'万/営業日',
@@ -1216,7 +1219,8 @@ function renderSummary() {
         <span class="prog-pct ${sc}">${main.rate!=null?main.rate+'%':'—'}</span>
         <span class="prog-status ${sc}">${ss} ${st}</span>
       </div>
-    </div>`;
+    </div>
+    ${main.footNote ? `<div class="main-foot">${main.footNote}</div>` : ''}`;
 
   const mainHtml = `<div class="bx-main ${sc}">
     <h2>${main.icon} ${main.label}${trendHtml}</h2>
@@ -2528,8 +2532,11 @@ function renderProfitChart() {
 function renderProfitRanking() {
   if (!hasProfit) return;
   const items = DATA.profit.ranking.map((r,i) => ({...r, rank:i+1}));
-  // 目標差を事前計算
-  items.forEach(r => { r.gap = r.target != null ? Math.round((r.actual - r.target)*10)/10 : null; });
+  // 目標差を事前計算（補正目標があればそれ、無ければ名目目標）
+  items.forEach(r => {
+    r._tgt = r.adj_target != null ? r.adj_target : r.target;
+    r.gap = r._tgt != null ? Math.round((r.actual - r._tgt)*10)/10 : null;
+  });
   const sortFns = {
     rate_desc: (a,b) => (b.rate??-Infinity) - (a.rate??-Infinity),
     rate_asc:  (a,b) => (a.rate??Infinity)  - (b.rate??Infinity),
@@ -2572,7 +2579,7 @@ function renderProfitRanking() {
 
     return `<div class="ri${i>=RANK_SHOW?' rank-extra':''}" onclick="openProfitDrill('${r.name}')">
       <div class="num ${r.status}">${r.rank}</div>
-      <div><div class="nm">${r.name}</div><div class="mt2">${r.actual}百万 / 目標${r.target||'—'}百万 ${momStr?'<span style=\"color:'+(r.mom>=0?'var(--ok)':'var(--dr)')+'\">'+ momStr+'</span>':''}</div></div>
+      <div><div class="nm">${r.name}</div><div class="mt2">${r.actual}百万 / 目標${r._tgt||'—'}百万 ${momStr?'<span style=\"color:'+(r.mom>=0?'var(--ok)':'var(--dr)')+'\">'+ momStr+'</span>':''}</div></div>
       <div class="bar"><div class="fill ${barCss}" style="width:${bw}%"></div></div>
       <div class="rt ${mainCss}">${mainVal}</div>
       <div class="stl ${r.status}">${r.text}</div>
@@ -2600,7 +2607,7 @@ function openProfitDrill(dept) {
   const achLabel = hasBdDept ? '達成率(内訳補正)' : '達成率(営業日換算)';
   const kpiRow = document.getElementById('drillKpiCards');
   const cards = [
-    kpiCardHtml({icon:'💰', label:'月次粗利', period:'今月', actual:rk.actual||0, unit:'百万円', gapUnit:'百万円', target:rk.target, rate:rk.rate})
+    kpiCardHtml({icon:'💰', label:'月次粗利', period:'今月', actual:rk.actual||0, unit:'百万円', gapUnit:'百万円', target:(rk.adj_target != null ? rk.adj_target : rk.target), rate:rk.rate})
   ];
   const _paceRate = (act, tgt) => (act != null && tgt != null && tgt > 0)
     ? Math.round(act / tgt * 1000) / 10 : null;

@@ -749,7 +749,7 @@ function renderKpiCards(d) {
       {icon:'🛏️', label:'在院患者', period:DATA.meta.base_date+' 時点', actual:d.inpatient.actual, unit:'人', target:d.inpatient.target, rate:d.inpatient.rate},
     ];
     if (showOp) cards.push({icon:'💉', label:opLabel, period:'直近7日累計', actual:d.operation.actual, unit:'件', target:d.operation.target, rate:d.operation.rate});
-    if (d.profit) cards.push({icon:'💰', label:'粗利', period:'今月', actual:d.profit.actual, unit:'百万円', gapUnit:'百万円', target:d.profit.target, rate:d.profit.rate});
+    if (d.profit) cards.push({icon:'💰', label:'粗利', period:'今月', actual:d.profit.actual, unit:'百万円', gapUnit:'百万円', target:(d.profit.adj_target != null ? d.profit.adj_target : d.profit.target), rate:d.profit.rate});
     document.getElementById('kpiCards').innerHTML = cards.map(kpiCardHtml).join('');
     const cols = cards.length >= 4 ? 2 : Math.min(cards.length, 3);
     document.getElementById('kpiCards').style.gridTemplateColumns = `repeat(${cols},1fr)`;

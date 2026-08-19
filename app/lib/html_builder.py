@@ -883,6 +883,7 @@ def build_detail_json(adm, surg, targets, surg_targets,
                     "name": r["診療科名"],
                     "actual": round(float(r["粗利"]) / 1000, 1) if pd.notna(r["粗利"]) else 0,
                     "target": round(float(r["月次目標"]) / 1000, 1) if pd.notna(r["月次目標"]) else None,
+                    "adj_target": round(float(r["月次補正目標"]) / 1000, 1) if pd.notna(r.get("月次補正目標")) else None,
                     "rate": float(r["達成率"]) if pd.notna(r["達成率"]) else None,
                     "daily_pace": dp,                                      # 万円/営業日
                     "daily_target": dt,                                    # 万円/営業日
@@ -1073,6 +1074,7 @@ def build_detail_json(adm, surg, targets, surg_targets,
                 drill_entry["profit"] = {
                     "actual": pr["actual"],
                     "target": pr["target"],
+                    "adj_target": pr.get("adj_target"),
                     "rate": pr["rate"],
                     "status": pr["status"],
                     "shape": pr["shape"],
