@@ -424,7 +424,7 @@ footer {
       <p class="masthead-sub">日次のビルド配信から週次の部門別レポート・院内配信まで、実際に使うコマンドと手順をまとめた早見帳です。</p>
     </div>
     <div class="masthead-meta">
-      <span>最終更新: 2026年7月17日</span>
+      <span>最終更新: 2026年8月20日</span>
       <span>リポジトリ: <span class="mono">~/dev/ai-apps/Dashboard</span></span>
       <a href="https://genie-scripts.github.io/Dashboard/" target="_blank" rel="noopener">公開ダッシュボードを開く ↗</a>
     </div>
@@ -441,6 +441,7 @@ footer {
     <li><a href="#daily">日次｜deploy.sh</a></li>
     <li><a href="#weekly-reports">週次｜部門別レポート</a></li>
     <li><a href="#comedix">随時｜院内配信</a></li>
+    <li><a href="#gross-profit">月次｜粗利ダッシュボード</a></li>
     <li><a href="#data">データ更新</a></li>
     <li><a href="#troubleshoot">トラブルシューティング</a></li>
     <li><a href="#reference">参照情報</a></li>
@@ -468,10 +469,17 @@ footer {
       <div class="flow-arrow">→</div>
       <div class="flow-box"><div class="flow-label">院内限定・git管理外</div><div class="flow-title">PDF / PNG / HTML</div><div class="flow-detail">dept_reports/・output/ 配下へ出力</div></div>
     </div>
+    <div class="flow-row">
+      <div class="flow-box"><div class="flow-label">Input</div><div class="flow-title">data/profit_xlsx/</div><div class="flow-detail">公式年度別粗利Excel（幹部抜き）</div></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box accent"><div class="flow-label">Build</div><div class="flow-title">build_gross_profit_dist.py</div><div class="flow-detail">ハブ「Dashboard 生成・公開」／月次</div></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box"><div class="flow-label">院内限定・git管理外</div><div class="flow-title">粗利ダッシュボード_配信用.html</div><div class="flow-detail">パスワード無し・院内配布専用</div></div>
+    </div>
   </div>
 
   <div class="callout">
-    <strong>公開範囲の境界線はここだけ覚えれば十分です。</strong> git に載って GitHub Pages で世界に公開されるのは <code>portal.html</code> <code>detail.html</code> <code>dept.html</code> の3つだけ。それ以外（部門別レポートPDF・Comedix週報・医業収支推計・自己完結HTML）はすべてローカル/院内配布専用で、<code>deploy.sh</code> の <code>git add</code> 対象にも入っていません。
+    <strong>公開範囲の境界線はここだけ覚えれば十分です。</strong> git に載って GitHub Pages で世界に公開されるのは <code>portal.html</code> <code>detail.html</code> <code>dept.html</code> の3つだけ。それ以外（部門別レポートPDF・Comedix週報・医業収支推計・自己完結HTML・粗利ダッシュボード）はすべてローカル/院内配布専用で、<code>deploy.sh</code> の <code>git add</code> 対象にも入っていません。
   </div>
 </section>
 
@@ -490,6 +498,7 @@ footer {
         <tr><td><code>make report-hospital</code></td><td>全病院 実績まとめPDF（A4 4頁）</td><td><span class="freq freq-adhoc">週〜月次</span></td><td><span class="mono">output/comedix/実績まとめ_{日付}.pdf</span></td></tr>
         <tr><td><code>make digest</code></td><td>週次ダイジェスト（掲示＋メール貼付）</td><td><span class="freq freq-weekly">週次</span></td><td><span class="mono">output/weekly_digest/</span></td></tr>
         <tr><td><code>make pl</code></td><td>医業収支 推計レポート</td><td><span class="freq freq-adhoc">随時</span></td><td><span class="mono">output/pl_projection.html</span></td></tr>
+        <tr><td><code>python3 scripts/build_gross_profit_dist.py</code></td><td>粗利ダッシュボード生成（ハブの「▶ 粗利ダッシュボード生成」からも実行可）</td><td><span class="freq freq-adhoc">月次</span></td><td><span class="mono">粗利ダッシュボード_配信用.html</span></td></tr>
         <tr><td><code>make test</code></td><td>ユニットテスト実行</td><td><span class="freq freq-adhoc">コード変更時</span></td><td>ターミナル出力</td></tr>
         <tr><td><code>make serve</code></td><td>ビルド後ローカルサーバで確認</td><td><span class="freq freq-adhoc">随時</span></td><td><span class="mono">http://localhost:8080</span></td></tr>
       </tbody>
@@ -654,8 +663,56 @@ action: 手術件数を増やして平均を上げていきましょう。加え
   </div>
 </section>
 
+<section id="gross-profit">
+  <div class="section-head">
+    <h2>6. 月次：粗利ダッシュボード（配信用HTML）</h2>
+    <span class="freq freq-adhoc">月次</span>
+  </div>
+  <p class="lede">「人件費10万円あたり粗利」ダッシュボード（<code>粗利ダッシュボード_配信用.html</code>）を公式年度Excelから自動生成します。従来のブラウザ内手動取込→手動エクスポートは廃止し、公式Excelを置いて1コマンド実行するだけの運用になりました。新版は<strong>パスワード無し</strong>（開くだけで全タブ表示）。院内配布用の機密ファイルで、GitHub Pages には公開されません（<code>.gitignore</code> 対象）。</p>
+
+  <h3>月次手順</h3>
+  <ol class="steps">
+    <li>公式の年度別Excel（<code>☆入外合算粗利YYYY（幹部抜き）.xlsx</code>）の最新版を <span class="mono">data/profit_xlsx/</span> に上書き配置する<div class="note">過去年度のファイルは置いたままでよい</div></li>
+    <li>ハブの「Dashboard 生成・公開」パネル →「▶ 粗利ダッシュボード生成（ローカルのみ・公開しない）」を押す<div class="note">完了時に取込サマリが表示される。CLIから実行する場合は <code>python3 scripts/build_gross_profit_dist.py</code></div></li>
+    <li>出力を確認する<div class="note"><span class="mono">粗利ダッシュボード_配信用.html</span>（上書き）と <span class="mono">output/粗利ダッシュボード_配信用_YYYYMMDD.html</span>（日付控え）</div></li>
+    <li>ブラウザで開いて内容を確認し、院内配布する</li>
+  </ol>
+
+  <h3>鮮度ガード（取込スキップの仕組み）</h3>
+  <div class="card">
+    <p style="margin-bottom:8px"><strong>内容変更なし（取込済み）</strong> — 前回取り込んだファイルと内容が同一（ハッシュ一致）なら取込をスキップします（無駄な再取込を避けるだけで実害なし）。</p>
+    <p style="margin-bottom:0"><strong>ストアより古い断面（日付）のためスキップ</strong> — 置いたファイルの更新日時がストアの最新断面より古い場合はスキップします。古い版で最新データを潰さないための仕様です。改訂版を取り込みたいときは、最新のファイルを置き直せば（内容が変わっている限り）取り込まれます。</p>
+  </div>
+
+  <h3>支援系5科の扱い</h3>
+  <p>メンタルケア科・リハビリテーション科・緩和ケア内科・放射線診断科・麻酔科は粗利指標の対象外です（粗利・人件費とも全体値から除外）。「支援系科（人件費）」タブに人件費推移を別掲します。全身麻酔手術件数・リハ単位数などの実績評価軸が決まるまでの暫定措置で、臨床腫瘍科は従来通り粗利評価の対象です。</p>
+  <div class="callout warn">
+    <strong>対象科を変更する場合</strong>：テンプレート <code>data/gross_profit/template.html</code> 内の <code>LABOR_EVAL</code> 定数1箇所を編集します。編集前に <code>template_backup_日付.html</code> を作成してください。<div class="note">同ファイルには科名リストがもう1つ（<code>REPORT_EXCLUDE</code>）ありますが、これを使う <code>buildReportHtml()</code> は導線となる <code>btnReport</code> 要素が存在せず動作しません（未使用コード）。編集不要です。</div>
+  </div>
+
+  <h3>患者数月報（任意）</h3>
+  <p><span class="mono">data/patient_monthly/</span> に月報Excel（「入力及び月設定」シート形式）または抽出CSVを置くと、増員タブの「必要な入院患者数増」表示が更新されます。置かなければ従来のデータが維持されます。</p>
+
+  <h3>関連ファイル</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ファイル</th><th>内容</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">data/gross_profit/seed_store.json</td><td>過去データの正本（旧パスワード版から抽出済み）</td></tr>
+        <tr><td class="mono">data/gross_profit/store.json</td><td>蓄積ストア（月次取込の積み上げ）</td></tr>
+        <tr><td class="mono">data/gross_profit/template.html</td><td>画面テンプレート（<code>LABOR_EVAL</code> 等の定数を含む）</td></tr>
+        <tr><td class="mono">data/gross_profit/template_backup_20260814.html</td><td>旧テンプレート（支援系5科除外を追加する前）のバックアップ</td></tr>
+        <tr><td class="mono">data/gross_profit/粗利ダッシュボード_配信用_backup_20260814.html</td><td>旧パスワード版のバックアップ</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout warn">
+    <strong>これらと公式Excelはすべて機密（個人給与を含む）です。</strong> 共有・コミットは禁止（<code>.gitignore</code> 対象）。
+  </div>
+</section>
+
 <section id="data">
-  <div class="section-head"><h2>6. データ更新</h2></div>
+  <div class="section-head"><h2>7. データ更新</h2></div>
   <p class="lede"><code>data/</code> 配下にファイルを追加・更新したら <code>./deploy.sh</code>（または <code>make</code>）で反映されます。古いファイルは消さずに追加するだけで、複数ファイルは自動マージされます。</p>
 
   <div class="table-wrap">
@@ -669,6 +726,7 @@ action: 手術件数を増やして平均を上げていきましょう。加え
         <tr><td><span class="mono">profit_data/</span></td><td>粗利データ（外来/入院シート）</td><td>.xlsx</td><td>最新ファイルのみ使用</td></tr>
         <tr><td><span class="mono">profit_target/</span></td><td>粗利目標</td><td>.xlsx</td><td>最新ファイルのみ使用</td></tr>
         <tr><td><span class="mono">PL_確定.xlsx</span></td><td>月次確定PL（年度別シート）</td><td>.xlsx（<code>data/</code>直下）</td><td>1ファイルを直接更新・年度替わりでシート追加</td></tr>
+        <tr><td><span class="mono">profit_xlsx/</span></td><td>公式年度別粗利Excel <span class="mono">☆入外合算粗利YYYY（幹部抜き）.xlsx</span>（粗利5シート＋給与3種）</td><td>.xlsx</td><td>最新版のみ取込・<code>build_gross_profit_dist.py</code>で反映（§6）</td></tr>
       </tbody>
     </table>
   </div>
@@ -679,7 +737,7 @@ action: 手術件数を増やして平均を上げていきましょう。加え
 </section>
 
 <section id="troubleshoot">
-  <div class="section-head"><h2>7. トラブルシューティング</h2></div>
+  <div class="section-head"><h2>8. トラブルシューティング</h2></div>
 
   <div class="table-wrap">
     <table>
@@ -705,13 +763,41 @@ action: 手術件数を増やして平均を上げていきましょう。加え
           <td>部門別レポートPDFだけ科別の粗利見込みが抜ける</td>
           <td>公開ダッシュボード（<code>make build</code>）と部門別レポート（<code>make reports</code>）は粗利推計の呼び出し経路が異なります。前者が通っても後者が壊れることがあるため、粗利推計まわりを変更した週は <code>make reports</code> まで通して確認してください。</td>
         </tr>
+        <tr>
+          <td>粗利カードで実績が目標を上回っているのに「接近」と表示される</td>
+          <td>達成率は常に「月次目標(補正)」（営業日/暦日で補正した目標）基準です。営業日・暦日の多い月は補正目標が名目の月次目標より上振れするため、名目目標を上回っていても補正目標には届かず「接近」のままになることがあります。カードの目標欄は補正目標を表示し、脚注に名目目標を併記しています（診療科ランキング・粗利ドリル・<code>dept.html</code>の粗利カードも同じ基準）。</td>
+        </tr>
+        <tr>
+          <td>「先に extract_gross_profit_seed.py を実行してください」と出る</td>
+          <td><span class="mono">data/gross_profit/</span> の <code>seed_store.json</code> か <code>template.html</code> が消えています。バックアップから復旧するか、旧パスワード版HTMLがあれば <code>python3 scripts/extract_gross_profit_seed.py --password &lt;管理者パスワード&gt; --html &lt;旧パスワード版HTMLのパス&gt;</code> で再抽出してください（<code>--html</code> 省略時は現行のパスワード無し配信用HTMLを見に行ってしまうため、旧パスワード版のパスを明示してください。パスワードは口頭伝達・ファイルには書かない）。</td>
+        </tr>
+        <tr>
+          <td>新しい月のデータが反映されない</td>
+          <td>取込サマリを確認してください。「ストアより古い断面（日付）のためスキップ」なら置いたファイルが古いので最新版を入手して置き直します。「内容変更なし（取込済み）」なら既に取込済みです（HTML側の表示月を確認）。</td>
+        </tr>
+        <tr>
+          <td>ハブの「粗利ダッシュボード生成」ボタンがエラーになる</td>
+          <td>CLIで <code>python3 scripts/build_gross_profit_dist.py</code> を実行し、エラーメッセージを確認してください。orchestrator 再起動直後は数秒待って再実行します。</td>
+        </tr>
+        <tr>
+          <td>粗利ダッシュボードの数値の妥当性を確認したい</td>
+          <td><code>python3 scripts/verify_gross_profit_golden.py</code> を実行します（値の衝突のみFAIL・改訂差は情報表示）。</td>
+        </tr>
+        <tr>
+          <td>粗利ダッシュボードの全体指標が以前の配布版より大きく見える</td>
+          <td>2026-08-14 の基準変更（支援系5科の対称除外）によるもので不具合ではありません（FY2025で約53.1万→60.8万円/10万）。</td>
+        </tr>
+        <tr>
+          <td>粗利ダッシュボードの増員タブの必要患者数が出ない／古い</td>
+          <td><span class="mono">data/patient_monthly/</span> に最新の月報を配置してください。</td>
+        </tr>
       </tbody>
     </table>
   </div>
 </section>
 
 <section id="reference">
-  <div class="section-head"><h2>8. 参照情報</h2></div>
+  <div class="section-head"><h2>9. 参照情報</h2></div>
   <div class="split">
     <div class="card">
       <h3 style="margin-top:0">ポート番号</h3>
@@ -733,6 +819,18 @@ action: 手術件数を増やして平均を上げていきましょう。加え
           <tbody>
             <tr><td class="mono">/tmp/dashboard_deploy.log</td><td><code>deploy.sh</code></td></tr>
             <tr><td class="mono">/tmp/dept_reports.log</td><td><code>build_reports.sh</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">粗利ダッシュボード関連スクリプト</h3>
+      <div class="table-wrap" style="border:none;box-shadow:none">
+        <table>
+          <tbody>
+            <tr><td class="mono">scripts/build_gross_profit_dist.py</td><td>配信用HTML生成（§6）</td></tr>
+            <tr><td class="mono">scripts/extract_gross_profit_seed.py</td><td>旧パスワード版からの再抽出（復旧用）</td></tr>
+            <tr><td class="mono">scripts/verify_gross_profit_golden.py</td><td>数値検証</td></tr>
           </tbody>
         </table>
       </div>
