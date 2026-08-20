@@ -1215,6 +1215,9 @@ def narrate_surgery_action(dept_name: str, sv, surg_tgt, trend: Optional[str] = 
     if label != "全身麻酔手術":
         system = system.replace("全身麻酔手術", label)
     banned = _SURGERY_BANNED_TREND_OK if trend in ("上昇", "低下") else _SURGERY_BANNED
+    if label != "全身麻酔手術":
+        # 眼科=全手術ラベル差し替え時、生成文に「全身麻酔手術」の混入を防ぐ禁止語ガード。
+        banned = banned + ("全身麻酔",)
     if yoy is None:
         banned = banned + ("前年",)   # narrate_admission_action と同じ連動緩和
     if delta is None:

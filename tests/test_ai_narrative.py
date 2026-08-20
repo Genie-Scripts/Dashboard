@@ -200,6 +200,35 @@ class TestYoyBannedLinkage(unittest.TestCase):
         self.assertIsNone(_rejection_reason(obj))   # yoy を渡した場合は banned に入らず通る
 
 
+class TestSurgeryLabelBannedGuard(unittest.TestCase):
+    """narrate_surgery_action: 眼科(全手術ラベル)のときだけ「全身麻酔」を禁止語に追加する
+    （混入防止）。12外科系科(全身麻酔手術ラベル)は banned が従来どおりであること。"""
+
+    def _captured_banned(self, dept_name):
+        from unittest import mock
+        from app.lib import ai_narrative as an
+        captured = {}
+
+        def fake_generate_checked(tag, system, user, banned, allow=(), model=None,
+                                   temperature=None, quiet=False):
+            captured["banned"] = banned
+            return None
+
+        with mock.patch.object(an, "_generate_checked", fake_generate_checked):
+            an.narrate_surgery_action(dept_name, sv=5.0, surg_tgt=8.0, quiet=True)
+        return captured.get("banned")
+
+    def test_ophthalmology_bans_zenshin_masui(self):
+        self.assertIn("全身麻酔", self._captured_banned("眼科"))
+
+    def test_surgical_dept_banned_unchanged(self):
+        from app.lib import ai_narrative as an
+        banned = self._captured_banned("整形外科")
+        self.assertNotIn("全身麻酔", banned)
+        # 眼科ガード以外(前年/前回/祝日/連休=yoy/delta/holiday未指定の連動緩和)は従来どおり付与される
+        self.assertEqual(banned, an._SURGERY_BANNED + ("前年", "前回", "祝日", "連休"))
+
+
 class TestQYoy(unittest.TestCase):
     def test_above_below_same(self):
         cur10 = [10.0] * 10
@@ -318,6 +347,23 @@ class TestDeltaNarrative(unittest.TestCase):
     def test_thin_resolution(self):
         from app.lib.dept_report import _pick_delta
         self.assertIn("解消", _pick_delta({"thin": "金曜"}, {"thin": None}))
+
+    def test_surg_label_default(self):
+        from app.lib.dept_report import _delta_facts
+        prev = {"surg": "mild"}
+        cur = {"surg": "met"}
+        out = _delta_facts(prev, cur)
+        self.assertEqual(len(out), 1)
+        self.assertTrue(out[0][2].startswith("全身麻酔手術は"))
+
+    def test_surg_label_override_for_ophthalmology(self):
+        # 眼科=全手術ラベル差し替え。surg次元の事実文が「全手術は…」で始まる。
+        from app.lib.dept_report import _delta_facts
+        prev = {"surg": "mild"}
+        cur = {"surg": "met"}
+        out = _delta_facts(prev, cur, surg_label="全手術")
+        self.assertEqual(len(out), 1)
+        self.assertTrue(out[0][2].startswith("全手術は"))
 
     def test_texts_digit_free(self):
         import re

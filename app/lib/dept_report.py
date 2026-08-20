@@ -826,12 +826,13 @@ _DELTA_DIM_TOPIC = {"latewk": "leveling", "wadm": "leveling", "thin": "leveling"
                     "ret": "leveling", "na": "admission", "surg": "surgery"}
 
 
-def _delta_facts(prev: Optional[dict], cur: dict) -> list:
+def _delta_facts(prev: Optional[dict], cur: dict, surg_label: str = "全身麻酔手術") -> list:
     """アンカー時点の状態タグ prev と現在 cur を比べ、(改善フラグ, 次元, 事実文) の候補を返す。
 
     並び＝原因事実（退院集中/週末補充/薄い曜日/維持率）→結果指標（新入院/全麻）。
     原因事実が先なのは、前回レポートの推奨レバーが動いたかのフィードバック
-    （「前回課題とした金曜集中が緩和」）こそ差分ナラティブ固有の価値のため。"""
+    （「前回課題とした金曜集中が緩和」）こそ差分ナラティブ固有の価値のため。
+    surg_label: 手術次元(surg)の事実文で使うラベル（眼科=全手術のラベル差し替え用）。"""
     if not prev:
         return []
     out = []
@@ -857,21 +858,23 @@ def _delta_facts(prev: Optional[dict], cur: dict) -> list:
             out.append((True, "ret", "週末在院の維持は、前回レポート時点より改善している"))
         elif _RET_ORDER[rp] - _RET_ORDER[rc] >= 2:
             out.append((False, "ret", "週末在院の維持は、前回レポート時点から明確に低下している"))
-    for label, key in (("新入院", "na"), ("全身麻酔手術", "surg")):
+    for label, key in (("新入院", "na"), (surg_label, "surg")):
         g = _gap_delta_fact(label, prev.get(key), cur.get(key))
         if g:
             out.append((g[0], key, g[1]))
     return out
 
 
-def _pick_delta(prev: Optional[dict], cur: dict, topic: Optional[str] = None) -> Optional[str]:
+def _pick_delta(prev: Optional[dict], cur: dict, topic: Optional[str] = None,
+                 surg_label: str = "全身麻酔手術") -> Optional[str]:
     """候補から1件だけ選ぶ（事実過載を防ぐ）。優先順:
       1. 選定トピックに次元が一致する改善（コメント本体と噛み合う前向きな変化）
       2. 他次元の改善（前回比の良い知らせ＝士気・フェアネス。褒める方向は他トピックでも歓迎）
       3. 選定トピックに一致する悪化（議論中のレバーそのものの後退＝載せる価値がある）
     他次元の悪化は載せない（admissionコメントに週末補充の後退が混じる等の非連続・
-    名指し批判的トーンを避ける＝職員発信の思想）。topic=None は全次元を「一致」扱い。"""
-    cands = _delta_facts(prev, cur)
+    名指し批判的トーンを避ける＝職員発信の思想）。topic=None は全次元を「一致」扱い。
+    surg_label: _delta_facts へパススルー（眼科=全手術のラベル差し替え用）。"""
+    cands = _delta_facts(prev, cur, surg_label=surg_label)
     if not cands:
         return None
     on = [c for c in cands if topic is None or _DELTA_DIM_TOPIC.get(c[1]) == topic]
@@ -1228,7 +1231,8 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
         # leveling バッチは leveling トピック整合の差分を渡す（topic が admission/surgery に
         # 決まるユニットは下の skip 対象になり生成自体を行わない＝この差分は使われない。
         # per-unit 側は topic 整合の差分を別途採り直す）。
-        lev_deltas = {n: _pick_delta(m["anchor"], m["tags"], topic="leveling")
+        lev_deltas = {n: _pick_delta(m["anchor"], m["tags"], topic="leveling",
+                                      surg_label=surgery_metric_label(n))
                       for n, m in unit_meta.items()}
         lev_deltas = {n: d for n, d in lev_deltas.items() if d}
 
@@ -1335,7 +1339,7 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
             is_emergency = special is not None   # 特例(救急病棟/重症ケア病棟/救急科)の総称
             d_txt = (None if is_emergency
                      else _pick_delta(unit_meta[name]["anchor"], unit_meta[name]["tags"],
-                                      topic=topic))
+                                      topic=topic, surg_label=surgery_metric_label(name)))
 
             # 特例ユニットは「予定入院」「地域医療連携」という業務前提が成り立たないため、
             # トピック(leveling/admission)は共通ロジックで選びつつ、文言だけ種別ごとの専用
