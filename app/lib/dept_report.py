@@ -267,11 +267,15 @@ def _revision_adjusted_prev(gmap, nmap, pm):
 
 
 def _unit_profit_series(profit_monthly, name, base_date,
-                        estimators=None, adm=None, surg=None) -> Optional[dict]:
+                        estimators=None, adm=None, surg=None,
+                        profit_projection=None) -> Optional[dict]:
     """指定診療科の月次粗利（百万円）・直近12か月＋前年同期。目標線=月次目標、達成率=最新月。
 
-    estimators/adm/surg があれば、確報の末尾に **当月見込み（暫定）スロット** を1つ足す
-    （proj=百万円。実線は確報で止め、点線で見込みへつなぐ）。
+    確報の末尾に **当月見込み（暫定）スロット** を1つ足す（proj=百万円。実線は確報で止め、
+    点線で見込みへつなぐ）。見込みは profit_projection（compute_calibrated_profit_projection・
+    ダッシュボード/PLレポートと同じ hybrid+recency補正 pipeline）を優先し、無ければ
+    estimators/adm/surg による project_dept_monthend（診療実績ベースのOLS月末外挿）へ
+    後方互換フォールバックする（hospital_summary._dept_profit_proj と同じ優先順位）。
     """
     if profit_monthly is None or len(profit_monthly) == 0:
         return None
@@ -311,8 +315,18 @@ def _unit_profit_series(profit_monthly, name, base_date,
     rate = last["達成率"] if pd.notna(last["達成率"]) else None
 
     # 当月見込み（暫定）スロット
-    proj = None
-    if estimators and adm is not None:
+    proj = proj_month = None
+    proj_calibrated = (profit_projection.get("dept_million", {}).get(name)
+                       if profit_projection else None)
+    if proj_calibrated is not None:
+        pm = profit_projection["month"]
+        if pm not in months:
+            dates.append(f"{pm.strftime('%-m月')}(見込)")
+            cur.append(None)
+            prev.append(_prev_at(pm))
+            proj = proj_calibrated
+            proj_month = pm
+    elif estimators and adm is not None:
         p = project_dept_monthend(estimators, adm, surg, base_date, name,
                                   profit_monthly=profit_monthly)
         if p and p["month"] not in months:
@@ -321,9 +335,10 @@ def _unit_profit_series(profit_monthly, name, base_date,
             cur.append(None)
             prev.append(_prev_at(pm))
             proj = p["value"]
+            proj_month = pm
 
     return {"dates": dates, "cur": cur, "prev": prev, "ref": ref, "rate": rate,
-            "latest": months[-1], "proj": proj, "proj_month": (p["month"] if proj else None),
+            "latest": months[-1], "proj": proj, "proj_month": proj_month,
             "prev_adjusted": prev_adjusted}
 
 
@@ -1123,8 +1138,13 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
                                axes=("dept", "ward"), quiet: bool = False,
                                profit_breakdown: pd.DataFrame = None,
                                delta_anchor: Optional[dict] = None,
-                               overrides: Optional[dict] = None) -> list:
+                               overrides: Optional[dict] = None,
+                               profit_projection: Optional[dict] = None) -> list:
     """診療科版・病棟版それぞれの 1部門=1コンテキスト を返す（PDF描画用）。
+
+    profit_projection: profit_estimate.compute_calibrated_profit_projection の戻り値。
+    渡すと診療科の粗利見込みスロットがこちらを優先する（hospital_summary._dept_profit_proj
+    と同じ優先順位）。呼び出し側で1回だけ計算し、病院全体サマリと同じ結果を使い回すこと。
 
     delta_anchor: load_delta_anchor の戻り値（約4週前の量子化状態）。渡すと各ユニットの
     一手に「前回レポートとの比較」事実が加わる。各コンテキストには "_state"（今回の
@@ -1302,7 +1322,8 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
             # 取り出す（新規計算を増やさず既存系列を再利用＝チャートの線と一手の説明を一致させる）。
             profit_series = (None if entity == "ward"
                              else _unit_profit_series(profit_monthly, name, base_date,
-                                                      estimators, adm, surg))
+                                                      estimators, adm, surg,
+                                                      profit_projection=profit_projection))
             parts = _build_parts(adm, surg, base_date, entity, name, code, dd,
                                  r7_inp, r7_nadm, r7_surg, targets, surg_targets, profit_series)
 
