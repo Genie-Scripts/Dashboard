@@ -65,7 +65,6 @@ pip install pandas openpyxl jinja2 plotly streamlit numpy
 |---|---|
 | データフォルダの初期化（初回のみ） | `python generate_html.py --setup` |
 | HTML生成（日次更新） | `python generate_html.py` |
-| ローカルで動作確認（インタラクティブ） | `streamlit run streamlit_app.py` |
 | ブラウザで静的HTMLを確認 | `python -m http.server 8080` |
 | Comedix配布用 自己完結HTML（部門＋ポータル）再出力 | `make selfcontained` |
 | 週次ダイジェスト（掲示A4＋メール貼付テキスト）生成 | `make digest`（`make digest-fast` はAI要約なし） |
@@ -87,14 +86,10 @@ python generate_html.py --setup
 
 # Makefile がある場合
 make setup
-
-# Streamlit アプリ上から行う場合
-# → サイドバーの「📁 データフォルダを初期化」ボタンを押す
 ```
 
 > ⚠️ `streamlit run generate_html.py --setup` は**動作しません**。  
-> `generate_html.py` は `python` コマンドで実行するスクリプトです。  
-> Streamlit アプリは `streamlit run streamlit_app.py` で起動します。
+> `generate_html.py` は `python` コマンドで実行するスクリプトです（静的生成へ移行済み）。
 
 以下のフォルダが作成されます：
 
@@ -191,17 +186,9 @@ make serve
 # → http://localhost:8080 でダッシュボードが開く
 ```
 
-### Streamlitアプリで確認
+### Streamlitアプリ（廃止）
 
-```bash
-make streamlit
-# → http://localhost:8501 でインタラクティブに確認可能
-```
-
-Streamlitアプリの機能:
-- サイドバーで基準日・期間・診療科を動的に切替
-- 医師タブ / 看護師タブ / 粗利レポートタブ
-- サイドバーの「HTML生成」ボタンで `index.html` を出力
+静的生成（`make serve`）へ移行済みのため、インタラクティブなStreamlitアプリは廃止しました。
 
 ---
 
@@ -255,7 +242,6 @@ python generate_html.py [オプション]
 ```
 .
 ├── generate_html.py      # メイン生成スクリプト
-├── streamlit_app.py      # ローカル確認用Streamlitアプリ
 ├── Makefile              # コマンドショートカット
 ├── requirements.txt      # 依存ライブラリ
 ├── README.md             # このファイル
@@ -363,13 +349,6 @@ python generate_html.py --dry-run
 
 → `粗利データ.xlsx` の1列目が診療科名、2列目以降が月次データ（横持ち）になっているか確認してください。  
 　 ヘッダー行の日付形式は `2024-04-01` 形式または Excel のシリアル日付に対応しています。
-
-### Streamlitアプリのエラー
-
-```bash
-# エラーログを確認
-streamlit run streamlit_app.py --logger.level debug
-```
 
 ---
 

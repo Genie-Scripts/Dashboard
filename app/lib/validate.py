@@ -1,6 +1,6 @@
 """
 validate.py — データ検証モジュール
-generate_html.py / streamlit_app.py 起動前に呼び出してデータの整合性を確認する。
+generate_html.py 起動前に呼び出してデータの整合性を確認する（静的生成へ移行済み）。
 """
 
 from __future__ import annotations

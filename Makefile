@@ -9,7 +9,6 @@
 #   make          — HTML生成（portal.html + detail.html）
 #   make check    — データ検証のみ
 #   make serve    — ローカルサーバーで確認
-#   make streamlit — Streamlitアプリ起動
 #   make install  — 依存ライブラリインストール
 #   make help     — コマンド一覧表示
 # ============================================================
@@ -19,7 +18,6 @@ DATA_DIR       ?= data
 OUTPUT_DIR     ?= .
 SORT_BY        ?= achievement
 PORT           ?= 8080
-STREAMLIT_PORT ?= 8501
 
 PYTHON  := python3
 PIP     := pip3
@@ -206,14 +204,6 @@ serve-only:
 	@echo "$(GREEN)🌐 http://localhost:$(PORT) でサーバー起動中 (Ctrl+C で停止)$(RESET)"
 	$(PYTHON) -m http.server $(PORT) --directory $(OUTPUT_DIR)
 
-## Streamlitアプリ起動
-.PHONY: streamlit
-streamlit:
-	@echo "$(GREEN)🚀 Streamlit起動中 → http://localhost:$(STREAMLIT_PORT)$(RESET)"
-	streamlit run streamlit_app.py \
-		--server.port $(STREAMLIT_PORT) \
-		--server.headless false
-
 # ============================================================
 # 環境セットアップ
 # ============================================================
@@ -235,7 +225,7 @@ setup:
 ## requirements.txt 更新
 .PHONY: freeze
 freeze:
-	$(PIP) freeze | grep -iE "pandas|openpyxl|jinja2|plotly|streamlit|numpy|jpholiday" > requirements.txt
+	$(PIP) freeze | grep -iE "pandas|openpyxl|jinja2|plotly|numpy|jpholiday" > requirements.txt
 	@echo "requirements.txt を更新しました:"
 	@cat requirements.txt
 
@@ -319,7 +309,6 @@ help:
 	@echo "  $(GREEN)make check$(RESET)          データ検証のみ（HTML出力なし）"
 	@echo "  $(GREEN)make serve$(RESET)          ビルド後にローカルサーバー起動"
 	@echo "  $(GREEN)make serve-only$(RESET)     サーバーのみ起動（ビルドなし）"
-	@echo "  $(GREEN)make streamlit$(RESET)      Streamlitアプリ起動"
 	@echo "  $(GREEN)make deploy$(RESET)         GitHub Pagesへデプロイ"
 	@echo "  $(GREEN)make push$(RESET)           ビルドなしでpushのみ"
 	@echo "  $(GREEN)make install$(RESET)        依存ライブラリのインストール"
