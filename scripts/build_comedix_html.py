@@ -142,7 +142,7 @@ def render_kpi_cards_inline(kpi: dict) -> str:
         single("admission", "新入院患者数", "直近7日累計", kpi["admission_actual_7d"], "人",
                kpi["admission_gap"], "人", kpi["admission_status"], TARGET_ADMISSION_WEEKLY,
                kpi["admission_rate_7d"]),
-        single("operation", "全身麻酔手術", "直近7平日平均", kpi["operation_daily_avg"], "件/日",
+        single("operation", "全身麻酔手術", "直近1週・営業日平均", kpi["operation_daily_avg"], "件/日",
                kpi["operation_gap"], "件/日", kpi["operation_status"], TARGET_GA_DAILY,
                kpi["operation_rate"]),
     ]

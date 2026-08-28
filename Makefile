@@ -121,6 +121,15 @@ reports:
 review:
 	@$(MAKE) reports SERVE=on
 
+## 編集テレメトリ（AIコメントへの人手添削の可視化・読み取り専用・P5-f）
+## 出力: 標準出力（基準日ごとの添削率・編集距離・topic/axis内訳・トレンド）。CSV=path で追加出力
+.PHONY: edit-telemetry
+edit-telemetry:
+	@echo "$(CYAN)📊 編集テレメトリ集計中...$(RESET)"
+	$(PYTHON) scripts/report_edit_telemetry.py \
+		$(if $(CSV),--csv $(CSV),)
+	@echo "$(GREEN)✅ 完了$(RESET)"
+
 ## Comedix「お知らせ・回覧板」用 週報サマリーPNG 生成（院内LAN配信・レバーB）
 ## 出力: output/comedix/週報サマリー.png（資料室の同じ文書へ毎週上書き）＋ お知らせ本文.html（初回のみ貼付）
 .PHONY: comedix

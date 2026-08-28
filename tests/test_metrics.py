@@ -5,6 +5,7 @@
   - build_prevyear_ma_series   : 昨年同期 28日暦日MA（在院・新入院・部門別の年度比較線）
   - build_prevyear_weekly_series: 昨年同期 週次合計（部門別 全麻チャート）
   - build_biz_ma30_series      : 全麻 30営業平日MA（病院全体／prev_year アライン）
+  - ga_rolling_biz_avg         : 全麻 直近N暦日窓・営業日平均（病院全体KPI・P1暦是正）
 
 実行: リポジトリルートで
     python -m unittest discover -s tests -v
@@ -25,6 +26,7 @@ from app.lib.metrics import (  # noqa: E402
     build_prevyear_weekly_series,
     build_biz_ma30_series,
     weekend_census_retention,
+    ga_rolling_biz_avg,
     PREVYEAR_OFFSET_DAYS,
 )
 
@@ -236,6 +238,50 @@ class TestWeekendCensusRetention(unittest.TestCase):
         empty = pd.DataFrame(columns=["日付", "病棟_表示", "病棟コード", "在院患者数"])
         r = weekend_census_retention(empty, BASE, entity="ward")
         self.assertEqual(r["units"], [])
+
+
+class TestGaRollingBizAvgCalendarWindow(unittest.TestCase):
+    """ga_rolling_biz_avg P1暦是正: tail(N営業日) → 直近N暦日窓の営業日集計。
+    窓は暦日固定・分母は暦から導出（operational_days_between）・分子はゼロ件営業日も算入。"""
+
+    def _ga_rows(self, day_counts):
+        rows = []
+        for d, n in day_counts:
+            for _ in range(n):
+                rows.append({"手術実施日": pd.Timestamp(d), "全麻": True})
+        return pd.DataFrame(rows, columns=["手術実施日", "全麻"])
+
+    def test_happy_monday_week_denominator_is_four(self):
+        # 窓=2026-01-12(月・成人の日)〜01-18(日)。営業日は火水木金の4日。
+        base = pd.Timestamp("2026-01-18")
+        surg = self._ga_rows([("2026-01-13", 5), ("2026-01-14", 5),
+                              ("2026-01-15", 5), ("2026-01-16", 5)])
+        r = ga_rolling_biz_avg(surg, base, window=7)
+        self.assertEqual(r["biz_days"], 4)
+        self.assertEqual(r["total"], 20)
+        self.assertEqual(r["avg"], 5.0)
+
+    def test_zero_ga_business_day_is_counted_in_denominator(self):
+        # 同じ週で水曜(01-14)だけ全麻ゼロ件（手術行なし）。旧tail方式なら「データが
+        # 無い日」として飛ばされ分母3・平均5.0相当になっていたはずだが、P1では
+        # 暦日窓から導出した分母(4)にゼロ件のまま正しく算入され平均が下がる。
+        base = pd.Timestamp("2026-01-18")
+        surg = self._ga_rows([("2026-01-13", 5), ("2026-01-15", 5), ("2026-01-16", 5)])
+        r = ga_rolling_biz_avg(surg, base, window=7)
+        self.assertEqual(r["biz_days"], 4)
+        self.assertEqual(r["total"], 15)
+        self.assertAlmostEqual(r["avg"], round(15 / 4, 1))   # avgは小数第1位に丸め
+
+    def test_no_surgery_data_returns_none_series(self):
+        # past に手術行が1件も無ければ現行どおり None系（ゼロ除算のavg=0.0化を防ぐガード）。
+        surg = pd.DataFrame(columns=["手術実施日", "全麻"])
+        r = ga_rolling_biz_avg(surg, pd.Timestamp("2026-01-18"), window=7)
+        self.assertIsNone(r["avg"])
+        self.assertEqual(r["total"], 0)
+        self.assertEqual(r["biz_days"], 0)
+        self.assertIsNone(r["last_biz_date"])
+        self.assertIsNone(r["last_biz_count"])
+        self.assertIsNone(r["fy_biz_avg"])
 
 
 if __name__ == "__main__":

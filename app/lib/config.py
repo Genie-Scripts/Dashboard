@@ -262,6 +262,68 @@ def is_operational_day(dt) -> bool:
 
 
 # ──────────────────────────────
+# day-type 判定（暦調整の基盤関数）
+# ──────────────────────────────
+# 「季節調整でなく暦調整」の基盤。表示は暦日のまま・判定/LLM入力側で曜日構成
+# （祝日・連休長）の影響を補正するために使う。詳細: spec/暦補正と学習ループ改修プラン.md P0。
+# 営業日判定そのものは is_operational_day を再利用する（重複実装しない）。
+
+def day_type(d) -> str:
+    """
+    日付の暦区分を返す。
+
+      "biz"    = 営業平日（is_operational_day が True）
+      "sat"    = 土曜（祝日と重なっていても土曜を優先）
+      "sun"    = 日曜（祝日と重なっていても日曜を優先）
+      "hol_wd" = 平日の祝日・年末年始特例日（土日以外の非営業日）
+
+    土日判定が祝日判定より優先される（例: 祝日と重なる土曜は "sat"）。
+    """
+    import pandas as _pd
+    ts = _pd.Timestamp(d)
+    if ts.weekday() == 5:
+        return "sat"
+    if ts.weekday() == 6:
+        return "sun"
+    return "biz" if is_operational_day(ts) else "hol_wd"
+
+
+def nonop_run_len(d) -> int:
+    """
+    d を含む連続非営業日ブロックの長さを返す。d が営業日なら 0。
+
+    例: 孤立土日はどちらも2、ハッピーマンデー（土日月）はいずれも3。
+    """
+    import pandas as _pd
+    ts = _pd.Timestamp(d)
+    if is_operational_day(ts):
+        return 0
+    start = ts
+    while not is_operational_day(start - _pd.Timedelta(days=1)):
+        start -= _pd.Timedelta(days=1)
+    end = ts
+    while not is_operational_day(end + _pd.Timedelta(days=1)):
+        end += _pd.Timedelta(days=1)
+    return (end - start).days + 1
+
+
+def is_long_holiday_eve(d, min_run: int = 3) -> bool:
+    """d が営業日で、かつ翌日から始まる非営業run長が min_run 以上なら True。"""
+    import pandas as _pd
+    ts = _pd.Timestamp(d)
+    if not is_operational_day(ts):
+        return False
+    return nonop_run_len(ts + _pd.Timedelta(days=1)) >= min_run
+
+
+def operational_days_between(start, end) -> int:
+    """start〜end（両端含む）の営業日数を返す。"""
+    import pandas as _pd
+    s, e = _pd.Timestamp(start), _pd.Timestamp(end)
+    return sum(1 for d in _pd.date_range(s, e, freq="D") if is_operational_day(d))
+
+
+# ──────────────────────────────
 # 粗利 営業日換算評価
 # ──────────────────────────────
 # 月次目標を「1営業日あたり目標」に分解する際の標準営業日数（固定）。

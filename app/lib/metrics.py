@@ -22,6 +22,7 @@ from .config import (
     status_label, status_display,
     build_headline,
     is_operational_day,
+    operational_days_between,
 )
 
 # 前年同期アラインの既定オフセット日数。
@@ -455,42 +456,57 @@ def add_moving_average(series: pd.DataFrame, window: int = 7,
 def ga_rolling_biz_avg(surg: pd.DataFrame, date: pd.Timestamp,
                        window: int = 7) -> dict:
     """
-    全麻の直近N営業平日移動平均（病院全体KPI用）★営業平日基準
+    全麻の直近window暦日窓・営業日平均（病院全体KPI用）★P1 暦是正版
+
+    ★v2.1〜P1変更点（詳細: spec/暦補正と学習ループ改修プラン.md P1）:
+      window の意味を「直近window『営業平日』（tail方式）」から
+      「直近window『暦日』の窓 [date-(window-1), date]」へ変更（既定7のまま。
+      窓は暦日に固定し曜日構成を均等化＝旧tail方式は7=1.4週で常時2-3曜日が
+      2回入る回転不均衡があった）。
+        分子 total   = 窓内の営業日に発生した全麻件数の合計。手術行が無い
+                       （＝0件の）営業日も0として正しく合算する
+                       （旧方式は「データがある営業日」だけをtailしていたため
+                       ゼロ件営業日が暗黙に欠落し得た）。
+        分母 biz_days = 窓の暦日区間から算出した営業日数（operational_days_between。
+                       ゼロ件営業日も正しく分母に入る）。
+    fy_biz_avg（年度・営業日tail平均）と build_biz_ma30_series（30営業日移動平均）は
+    本改修の対象外で、従来どおり営業日tail方式のまま維持する。
     """
-    import jpholiday
-
-    def _is_biz(d: pd.Timestamp) -> bool:
-        if d.weekday() >= 5:
-            return False
-        if jpholiday.is_holiday(d.date()):
-            return False
-        if (d.month == 12 and d.day >= 29) or (d.month == 1 and d.day <= 3):
-            return False
-        return True
-
     fy_start_year = date.year if date.month >= 4 else date.year - 1
     fy_start = pd.Timestamp(f"{fy_start_year}-04-01")
 
     past = surg[surg["手術実施日"] <= date]
+    if len(past) == 0:
+        return {
+            "avg": None, "total": 0, "biz_days": 0,
+            "last_biz_date": None, "last_biz_count": None,
+            "fy_biz_avg": None,
+        }
+
     daily_ga = (past[past["全麻"]].groupby("手術実施日").size().reset_index(name="件数"))
     daily_ga = daily_ga.sort_values("手術実施日")
 
-    biz_rows = daily_ga[daily_ga["手術実施日"].apply(_is_biz)].copy()
+    # ── P1: 直近window暦日窓・営業日集計（ゼロ件営業日も分子・分母へ正しく算入）──
+    win_start = date - timedelta(days=window - 1)
+    full_idx = pd.date_range(win_start, date, freq="D")
+    counts_in_win = daily_ga.set_index("手術実施日")["件数"].reindex(full_idx, fill_value=0)
+    biz_mask = [is_operational_day(d) for d in full_idx]
+    biz_series = counts_in_win[biz_mask]
 
-    recent = biz_rows.tail(window)
-    biz_days = len(recent)
-    total = int(recent["件数"].sum()) if biz_days > 0 else 0
+    total = int(biz_series.sum())
+    biz_days = operational_days_between(win_start, date)
     avg = round(total / biz_days, 1) if biz_days > 0 else None
 
-    if biz_days > 0:
-        last_row = recent.iloc[-1]
-        last_biz_date = last_row["手術実施日"]
-        last_biz_count = int(last_row["件数"])
+    if len(biz_series) > 0:
+        last_biz_date = biz_series.index[-1]
+        last_biz_count = int(biz_series.iloc[-1])
     else:
         last_biz_date = None
         last_biz_count = None
 
-    fy_rows = biz_rows[biz_rows["手術実施日"] >= fy_start]
+    # ── fy_biz_avg（年度・営業日tail平均）は変更しない ──
+    biz_rows_all = daily_ga[daily_ga["手術実施日"].apply(is_operational_day)]
+    fy_rows = biz_rows_all[biz_rows_all["手術実施日"] >= fy_start]
     fy_days = len(fy_rows)
     fy_biz_avg = round(fy_rows["件数"].sum() / fy_days, 1) if fy_days > 0 else None
 

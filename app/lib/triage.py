@@ -24,6 +24,7 @@ from .config import (
     SURGERY_EVAL_DEPTS, surgery_metric_label,
     WARD_NAMES, WARD_HIDDEN,
     unit_narration_kind, UNIT_ROLE_LEVERS, WARD_BANNED_LEVER_TERMS,
+    operational_days_between,
 )
 from .metrics import (
     rolling7_new_admission, rolling7_surgery, rolling28_surgery_dept,
@@ -187,12 +188,41 @@ def _census_trend(adm, base_date, group_col, group_val) -> tuple[Optional[float]
     return spread, _trend_dir(spread, CENSUS_TREND_PT)
 
 
-def _surgery_trend(recent_28d: int, prior_28d: int) -> tuple[Optional[float], Optional[str]]:
-    """全麻の 直近28日 vs 前28日 件数比(%)と方向。
-    直近28日が小規模(<MIN)・前28日0 はノイズのため非対象(None)。"""
-    if recent_28d < SURGERY_TREND_MIN_28D or prior_28d == 0:
+def adjusted_weekly_target(target: Optional[float], base_date: pd.Timestamp) -> Optional[float]:
+    """週目標を「直近7暦日窓の実際の営業日数/5」で割り引いた期待値に変換する（P1暦是正）。
+
+    週目標は週5営業日を前提に設定されているため、祝日で窓内の営業日が減った週は
+    そのまま比較すると達成率が不当に下振れる（窓は暦日のまま・期待値側で暦を吸収する
+    設計原則。詳細: spec/暦補正と学習ループ改修プラン.md P1）。target が None ならそのまま None。
+
+    biz_days == 5（通常週）は target をそのまま返す短絡を入れている（target*5/5 でも
+    数学的には同値だが、float演算を経由させないことで通常週の完全恒等を保証する。
+    5段階の達成度バケット境界(_q_target_gap)は比率のわずかな揺れで階級が変わり得るため、
+    通常週で挙動が1ビットも変わらないことを型で保証する意図）。
+    """
+    if target is None:
+        return None
+    biz_days = operational_days_between(base_date - pd.Timedelta(days=6), base_date)
+    if biz_days == 5:
+        return target
+    return target * biz_days / 5
+
+
+def _surgery_trend(recent_28d: int, prior_28d: int,
+                   base_date: pd.Timestamp) -> tuple[Optional[float], Optional[str]]:
+    """全麻の 直近28暦日 vs 前28暦日 の件/営業日レート比(%)と方向（P1暦是正:
+    生件数比→レート比。窓内に祝日が偏っていても暦影響を受けにくくする）。
+    直近28日が小規模(<MIN・生件数ゲートは現状維持)・前期間の営業日レートが0 は
+    ノイズのため非対象(None)。"""
+    if recent_28d < SURGERY_TREND_MIN_28D:
         return None, None
-    spread = (recent_28d - prior_28d) / prior_28d * 100.0
+    biz_now = operational_days_between(base_date - pd.Timedelta(days=27), base_date)
+    biz_prev = operational_days_between(base_date - pd.Timedelta(days=55), base_date - pd.Timedelta(days=28))
+    rate_now = recent_28d / biz_now if biz_now > 0 else None
+    rate_prev = prior_28d / biz_prev if biz_prev > 0 else None
+    if rate_now is None or not rate_prev:
+        return None, None
+    spread = (rate_now - rate_prev) / rate_prev * 100.0
     return spread, _trend_dir(spread, SURGERY_TREND_PT)
 
 
@@ -304,7 +334,10 @@ def score_departments(adm: pd.DataFrame, surg: pd.DataFrame,
         inp_actual  = inp_by_dept.get(dept, 0)
         inp_target  = inp_tgt.get(dept)
         op_actual   = r7_surg["by_dept"].get(dept, 0) if is_surgery else None
-        op_target   = surg_targets.get(dept) if is_surgery else None
+        # P1暦是正: 週目標は窓内(直近7暦日)の実際の営業日数/5で割り引く（達成率・
+        # 目標表示・ギャップのすべてが同じ調整後目標を参照する＝相互不整合を防ぐ）。
+        op_target   = (adjusted_weekly_target(surg_targets.get(dept), base_date)
+                      if is_surgery else None)
         profit_rate = profit_rates.get(dept)
 
         adm_rate    = achievement_rate(adm_actual, adm_target)
@@ -314,7 +347,7 @@ def score_departments(adm: pd.DataFrame, surg: pd.DataFrame,
         # 北極星KPIの傾向: 外科系=全麻(第3段)、内科系=在院
         if is_surgery:
             primary_trend, trend_dir = _surgery_trend(
-                r28_now.get(dept, 0), r28_prev.get(dept, 0))
+                r28_now.get(dept, 0), r28_prev.get(dept, 0), base_date)
         else:
             primary_trend, trend_dir = _census_trend(adm, base_date, "診療科名", dept)
 
@@ -867,8 +900,10 @@ def score_leveling(adm: pd.DataFrame, surg: pd.DataFrame, surg_targets: dict,
     dept_items: list[dict] = []
     for dept in sorted(NADM_DISPLAY_DEPTS | SURGERY_EVAL_DEPTS):
         # 手術目標を大幅にクリアしている外科系は退院曜日集中をうるさく言わない
+        # （P1暦是正: score_departments と同じ調整後週目標で判定を揃える）
         if dept in SURGERY_EVAL_DEPTS:
-            s_rate = achievement_rate(r7_surg.get(dept, 0), surg_targets.get(dept))
+            s_rate = achievement_rate(r7_surg.get(dept, 0),
+                                      adjusted_weekly_target(surg_targets.get(dept), base_date))
             if s_rate is not None and s_rate >= SURGERY_OVERACHIEVE_RATE:
                 continue
         prof = discharge_dow_profile(adm, base_date, group_col="診療科名",

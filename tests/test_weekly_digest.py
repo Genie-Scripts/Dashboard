@@ -47,7 +47,7 @@ class BuildKpiRowsTest(unittest.TestCase):
     def test_five_rows_in_order(self):
         rows = bwd.build_kpi_rows(_kpi(), _kpi(), _snap(), _snap())
         self.assertEqual([r["label"] for r in rows],
-                         ["在院7日平均", "新入院7日累計", "全麻（7平日平均）",
+                         ["在院7日平均", "新入院7日累計", "全麻（1週・営業日平均）",
                           "手術室稼働率", "緊急入院"])
 
     def test_diff_and_rate_computed(self):

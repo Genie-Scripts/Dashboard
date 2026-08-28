@@ -252,8 +252,15 @@ def build_summary_context(adm, surg, targets, surg_targets, base_date,
                 metrics.build_dept_ranking(adm, base_date, targets, "inpatient").to_dict("records")}
     nadm_rank = {r["診療科"]: r for r in
                  metrics.build_dept_ranking(adm, base_date, targets, "new_admission").to_dict("records")}
+    # P3-1横展開: 診療科テーブル「手術」列（実績まとめPDF/comedix-htmlが共有）は
+    # 週目標との単純な実/目比較のため、triage.py/dept_report.py と同じP1暦補正
+    # （週目標×直近7暦日窓の営業日数/5）を適用する。build_surgery_ranking自体は
+    # 他の呼び出し元（改善トピック等のランキング用途）に影響しないよう変更せず、
+    # ここだけ調整後の目標辞書を渡す。
+    adj_surg_targets = ({d: triage.adjusted_weekly_target(t, base_date) for d, t in surg_targets.items()}
+                        if isinstance(surg_targets, dict) else surg_targets)
     surg_rank = {r["診療科"]: r for r in
-                 metrics.build_surgery_ranking(surg, base_date, surg_targets, period="7").to_dict("records")}
+                 metrics.build_surgery_ranking(surg, base_date, adj_surg_targets, period="7").to_dict("records")}
     flow_d = _flow_7d(adm, base_date, "dept")
     medical = sorted(NADM_DISPLAY_DEPTS - SURGERY_EVAL_DEPTS)
     surgical = sorted(SURGERY_EVAL_DEPTS)
@@ -335,7 +342,7 @@ def render_kpi_cards(kpi: dict) -> str:
         inp_card,
         single("admission", "新入院患者数", "直近7日累計",
                kpi["admission_actual_7d"], "人", kpi["admission_gap"], "人", kpi["admission_status"]),
-        single("operation", "全身麻酔手術", "直近7平日平均",
+        single("operation", "全身麻酔手術", "直近1週・営業日平均",
                kpi["operation_daily_avg"], "件/日", kpi["operation_gap"], "件/日", kpi["operation_status"]),
     ]
     return f'<div class="hs-kpis">{"".join(cards)}</div>'

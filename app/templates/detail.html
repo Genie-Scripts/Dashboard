@@ -736,7 +736,7 @@ function renderTabs() {
      per:`直近7日 新入院−退院（在院${DATA.kpi.balance.net_7d>=0?'増':'減'}基調）`,
      st:DATA.kpi.balance.status},
     {id:'operation', icon:'💉', name:'全身麻酔手術',
-     big:`${DATA.kpi.operation.daily_avg}件/日`, per:`直近7平日平均`,
+     big:`${DATA.kpi.operation.daily_avg}件/日`, per:`直近1週・営業日平均`,
      st:DATA.kpi.operation.status},
   ];
   if (hasProfit) {
@@ -1165,7 +1165,7 @@ function renderSummary() {
     ];
   } else {
     main = {
-      icon:'💉', label:'全身麻酔手術', periodNote:'直近7平日平均',
+      icon:'💉', label:'全身麻酔手術', periodNote:'直近1週・営業日平均',
       actual:kpi.daily_avg, unit:'件/日', targetLabel:'目標',
       target:kpi.target, gap:kpi.gap, gapUnit:'件/日',
       rate:kpi.rate, status:kpi.status

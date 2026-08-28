@@ -36,6 +36,7 @@ from .metrics import (
     build_dept_ranking, build_surgery_ranking,
     daily_or_utilization,
 )
+from .triage import adjusted_weekly_target
 from .charts import build_dow_unit_detail, _dow_unit_candidates
 from .ai_narrative import (
     narrate_leveling_actions, narrate_admission_action, narrate_surgery_action,
@@ -1021,14 +1022,16 @@ def _build_parts(adm, surg, base_date, entity, name, code, dd, r7_inp, r7_nadm,
                              _ach_badge(na, na_tgt))
 
     # C: 手術（外科系診療科のみ）。公開版 dept.html と統一＝週次合計(件/週)の28日移動平均、
-    #    目標線は週次目標そのもの（flat）。KPI/バッジは直近7日累計(件/週) vs 週次目標。
+    #    目標線は週次目標そのもの（flat・複数週にまたがる基準線なので暦補正しない）。
+    #    バッジ(直近7日累計 vs 週次目標)は単週の達成率のためP1暦補正を適用する。
     if not is_ward and name in SURGERY_EVAL_DEPTS:
         cs = _unit_surg_weekly_series(surg, base_date, name)
         surg_tgt = surg_targets.get(name) if isinstance(surg_targets, dict) else None
+        surg_tgt_adj = adjusted_weekly_target(surg_tgt, base_date)
         sv = r7_surg["by_dept"].get(name, 0)
         parts["C"] = _trend_part("C", surgery_metric_label(name), cs, surg_tgt or 0,
                                  f"目標{surg_tgt:g}" if surg_tgt else "", "件/週",
-                                 _ach_badge(sv, surg_tgt))
+                                 _ach_badge(sv, surg_tgt_adj))
 
     # D: 粗利（診療科のみ・確報＋当月見込み）
     if not is_ward and profit_series:
@@ -1080,7 +1083,8 @@ def _ok(actual, target):
 
 
 def _kpi_band(type_key, entity, name, code, dd, r7_inp, r7_nadm, r7_surg,
-              targets, surg_targets, profit_series, retention, total_ret_pct) -> list:
+              targets, surg_targets, profit_series, retention, total_ret_pct,
+              base_date=None) -> list:
     """種別別の上段KPI 4枚。値＝公開版と同じ直近7日（在院=平均／新入院・手術=累計）。"""
     is_ward = entity == "ward"
     by = "by_ward" if is_ward else "by_dept"
@@ -1111,8 +1115,12 @@ def _kpi_band(type_key, entity, name, code, dd, r7_inp, r7_nadm, r7_surg,
     if type_key == "surgical":
         sv = r7_surg["by_dept"].get(name, 0)
         surg_tgt = surg_targets.get(name) if isinstance(surg_targets, dict) else None
+        # P1暦是正: 直近7日累計 vs 週次目標は単週の達成率比較なので、窓内営業日数で
+        # 割り引いた期待値と突き合わせる（表示目標・達成バッジとも同じ値で一貫させる）。
+        surg_tgt_adj = adjusted_weekly_target(surg_tgt, base_date) if base_date is not None else surg_tgt
         return [_kpi(surgery_metric_label(name), "直近7日累計", _fmt(sv), "件", lead=True,
-                     tgt=f"目標 {surg_tgt:g}/週" if surg_tgt else "目標未設定", ok=_ok(sv, surg_tgt)),
+                     tgt=f"目標 {surg_tgt_adj:g}/週" if surg_tgt_adj else "目標未設定",
+                     ok=_ok(sv, surg_tgt_adj)),
                 prof_kpi, inp_kpi(False), nadm_kpi]
     if type_key == "internal":
         return [inp_kpi(True), prof_kpi, nadm_kpi, ret_kpi]
@@ -1219,7 +1227,9 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
             na0 = r7_nadm[by_gap].get(code0)
             na_tgt0 = targets.get("new_admission", {}).get(tgt_axis_gap, {}).get(code0)
             sv0 = r7_surg["by_dept"].get(name0, 0) if tk0 == "surgical" else None
-            sv_tgt0 = (surg_targets.get(name0)
+            # P1暦是正: 週目標は窓内(直近7暦日)の実際の営業日数/5で割り引く（triage.py
+            # score_departments と同じ調整＝直近7日累計 vs 週次目標の比較箇所すべてに統一）。
+            sv_tgt0 = (adjusted_weekly_target(surg_targets.get(name0), base_date)
                        if (tk0 == "surgical" and isinstance(surg_targets, dict)) else None)
             na_level0 = _q_target_gap(na0, na_tgt0)
             sv_level0 = _q_target_gap(sv0, sv_tgt0) if tk0 == "surgical" else None
@@ -1312,7 +1322,9 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
             na_gap = r7_nadm[by_gap].get(code)
             na_tgt_gap = targets.get("new_admission", {}).get(tgt_axis_gap, {}).get(code)
             sv_gap = r7_surg["by_dept"].get(name, 0) if type_key == "surgical" else None
-            surg_tgt_gap = (surg_targets.get(name)
+            # P1暦是正: 以降のトピック選定・水準×傾向・LLM一手生成（narrate_surgery_action）は
+            # すべてこの surg_tgt_gap を参照するため、ここ1箇所で調整すれば全箇所に伝播する。
+            surg_tgt_gap = (adjusted_weekly_target(surg_targets.get(name), base_date)
                            if (type_key == "surgical" and isinstance(surg_targets, dict)) else None)
             topic, secondary, _scores = _select_action_topic(type_key, room, max_room,
                                                              na_gap, na_tgt_gap, sv_gap, surg_tgt_gap)
@@ -1499,10 +1511,10 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
                           f"({'+'.join(move['ov_fields'])})")
 
             # 外科系は「一手」に全麻ハイライト1行を常設（週末ならし本文＋全麻の数値）
+            # surg_tgt_gap はパス1で既にP1暦補正済み（st["surg_tgt_gap"]）のためそれを再利用する。
             if type_key == "surgical":
                 c_part = parts.get("C")
-                sline = _surg_highlight(r7_surg["by_dept"].get(name, 0),
-                                        surg_targets.get(name) if isinstance(surg_targets, dict) else None,
+                sline = _surg_highlight(r7_surg["by_dept"].get(name, 0), surg_tgt_gap,
                                         c_part.get("_data") if c_part else None,
                                         dept=name)
                 if sline:
@@ -1540,7 +1552,8 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
                 p["priority"] = i + 1
 
             kpis = _kpi_band(type_key, entity, name, code, dd, r7_inp, r7_nadm, r7_surg,
-                             targets, surg_targets, profit_series, ret, total_ret_pct)
+                             targets, surg_targets, profit_series, ret, total_ret_pct,
+                             base_date=base_date)
 
             contexts.append({
                 "_state": unit_meta[name]["tags"],   # 差分ナラティブ用（CLIがスナップショット保存）
@@ -1780,7 +1793,7 @@ def build_hospital_overview_context(adm, surg, targets, surg_targets, profit_mon
         _kpi("新入院", "直近7日累計", _fmt(kpi["admission_actual_7d"]), "件",
              tgt=f"目標 {TARGET_ADMISSION_WEEKLY:g}/週",
              ok=_ok(kpi["admission_actual_7d"], TARGET_ADMISSION_WEEKLY)),
-        _kpi("全身麻酔手術", "直近7平日平均", _fmt(kpi["operation_daily_avg"], 1), "件/日",
+        _kpi("全身麻酔手術", "直近1週・営業日平均", _fmt(kpi["operation_daily_avg"], 1), "件/日",
              tgt=f"目標 {TARGET_GA_DAILY:g}", ok=_ok(kpi["operation_daily_avg"], TARGET_GA_DAILY)),
         _kpi("粗利", prof_sub, _fmt(prof_disp, 1), "百万円",
              tgt=(f"目標 {ps['ref']:g}" if (ps and ps["ref"]) else None),

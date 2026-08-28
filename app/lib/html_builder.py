@@ -284,7 +284,7 @@ def build_portal_context(adm, surg, targets, surg_targets,
         },
         {
             "id": "operation", "icon": KPI_ICONS["operation"],
-            "label": "全身麻酔手術", "period": "直近7平日平均",
+            "label": "全身麻酔手術", "period": "直近1週・営業日平均",
             "value": kpi["operation_daily_avg"], "unit": "件/日",
             "gap": kpi["operation_gap"], "gap_unit": "件/日",
             "status": kpi["operation_status"],
