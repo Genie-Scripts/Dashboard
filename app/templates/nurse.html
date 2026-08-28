@@ -744,7 +744,7 @@ function addYoyTrace(traces, yoyKey, currentDates, label, extraLabel){
   traces.push({
     type:'scatter', mode:'lines', name:label||'前年度',
     x:pairs.map(p=>p[0]), y:pairs.map(p=>p[1]),
-    line:{color:'#94A3B8', width:1.5, dash:'dot'},
+    line:{color:'#B0B5BC', width:1.5, dash:'dash'},
     opacity:0.65,
     hovertemplate:`%{y}${extraLabel||''}<extra>前年度</extra>`,
   });
@@ -759,16 +759,24 @@ function renderInpatientChart(){
   const layout=Object.assign({},BASE_LAYOUT,{
     title:{text:'在院患者数'+wardSuffix(),font:{size:12,color:'#1A2535'},x:0},
     yaxis:{...BASE_LAYOUT.yaxis,title:{text:'人',font:{size:10}}},
+    margin:{...BASE_LAYOUT.margin,r:70},
   });
   const traces=[
     {type:'bar',name:'実績',x:dates,y:values,
      marker:{color:'rgba(13,148,136,0.45)'},opacity:0.55,
      hovertemplate:'<b>%{x}</b><br>在院: %{y}人<extra>実績</extra>'},
-    {type:'scatter',mode:'lines',name:'移動平均',x:dates,y:ma,
-     line:{color:COLORS.actual,width:2.5},
-     hovertemplate:'MA: %{y:.1f}人<extra>移動平均</extra>'},
   ];
+  // ★今年線（移動平均）より先に addYoyTrace（Plotlyは後着が上層＝今年線を手前にするため）
   addYoyTrace(traces,'yoy_inpatient',dates,'前年度（在院）','人');
+  traces.push({type:'scatter',mode:'lines',name:'今年度（在院）',x:dates,y:ma,
+     line:{color:COLORS.actual,width:3},
+     hovertemplate:'MA: %{y:.1f}人<extra>移動平均</extra>'});
+  let liIn = -1; for (let i=ma.length-1;i>=0;i--) if (ma[i]!=null) { liIn=i; break; }
+  if (liIn >= 0) {
+    traces.push({x:[dates[liIn]],y:[ma[liIn]],type:'scatter',mode:'markers+text',
+      text:['今年度'],textposition:'middle right',textfont:{size:11,color:COLORS.actual},
+      marker:{size:7,color:COLORS.actual},showlegend:false,hoverinfo:'skip',cliponaxis:false});
+  }
   Plotly.react('nurse-chart-inpatient',traces,layout,CHART_CONFIG);
 }
 
@@ -780,16 +788,24 @@ function renderNewAdmChart(){
   const layout=Object.assign({},BASE_LAYOUT,{
     title:{text:'新入院患者数'+wardSuffix(),font:{size:12,color:'#1A2535'},x:0},
     yaxis:{...BASE_LAYOUT.yaxis,title:{text:'人',font:{size:10}}},
+    margin:{...BASE_LAYOUT.margin,r:70},
   });
   const traces=[
     {type:'bar',name:'実績',x:dates,y:values,
      marker:{color:COLORS.barAdm},opacity:0.6,
      hovertemplate:'<b>%{x}</b><br>新入院: %{y}人<extra>実績</extra>'},
-    {type:'scatter',mode:'lines',name:'移動平均',x:dates,y:ma,
-     line:{color:COLORS.actual,width:2.5},
-     hovertemplate:'MA: %{y:.1f}人<extra>移動平均</extra>'},
   ];
+  // ★今年線（移動平均）より先に addYoyTrace（Plotlyは後着が上層＝今年線を手前にするため）
   addYoyTrace(traces,'yoy_new_admission',dates,'前年度（新入院）','人');
+  traces.push({type:'scatter',mode:'lines',name:'今年度（新入院）',x:dates,y:ma,
+     line:{color:COLORS.actual,width:3},
+     hovertemplate:'MA: %{y:.1f}人<extra>移動平均</extra>'});
+  let liNd = -1; for (let i=ma.length-1;i>=0;i--) if (ma[i]!=null) { liNd=i; break; }
+  if (liNd >= 0) {
+    traces.push({x:[dates[liNd]],y:[ma[liNd]],type:'scatter',mode:'markers+text',
+      text:['今年度'],textposition:'middle right',textfont:{size:11,color:COLORS.actual},
+      marker:{size:7,color:COLORS.actual},showlegend:false,hoverinfo:'skip',cliponaxis:false});
+  }
   Plotly.react('nurse-chart-newadm',traces,layout,CHART_CONFIG);
 }
 

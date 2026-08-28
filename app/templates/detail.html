@@ -2120,15 +2120,22 @@ function renderChart() {
     traces.push({name:'7日移動平均', x:fDates, y:fMA7, type:'scatter', mode:'lines',
       line:{color:'#0072B2',width:2.5}});
   }
-  // ★ 28日移動平均（橙実線）
-  if (showMA28) {
-    traces.push({name:'28日移動平均', x:fDates, y:fMA28, type:'scatter', mode:'lines',
-      line:{color:'#E69F00',width:2}});
-  }
-  // ★昨年度同期28日移動平均（紫実線）
+  // ★昨年度同期28日移動平均（後景・破線）。★今年線（28日移動平均）より先に push
+  //   （Plotlyは後着が上層＝今年線を手前にするため）。
   if (pPrevDates.length) {
     traces.push({name:'昨年度同期(28日平均)', x:pPrevDates, y:pPrevVals, type:'scatter', mode:'lines',
-      line:{color:'#CC79A7',width:1.8}});
+      line:{color:'#B0B5BC',width:1.5,dash:'dash'}});
+  }
+  // ★ 28日移動平均（今年度・橙太線）
+  if (showMA28) {
+    traces.push({name:'今年度(28日平均)', x:fDates, y:fMA28, type:'scatter', mode:'lines',
+      line:{color:'#E69F00',width:3}});
+    let li28 = -1; for (let i=fMA28.length-1;i>=0;i--) if (fMA28[i]!=null) { li28=i; break; }
+    if (li28 >= 0) {
+      traces.push({x:[fDates[li28]], y:[fMA28[li28]], type:'scatter', mode:'markers+text',
+        text:['今年度'], textposition:'middle right', textfont:{size:11,color:'#E69F00'},
+        marker:{size:7,color:'#E69F00'}, showlegend:false, hoverinfo:'skip', cliponaxis:false});
+    }
   }
   // ★目標ライン（朱破線／種別フィルタ中は非表示）
   const tgtLabel = currentTab==='inpatient' ? (showWeekday&&showHoliday?'全日目標':'平日/休日目標') : '目標';
@@ -2159,7 +2166,7 @@ function renderChart() {
     yaxis:{range:[yLo,yHi],gridcolor:'#DCE1E9',title:{text:'',font:{size:10}}},
     legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},
     hovermode:'x unified',
-    margin:{l:50,r:20,t:10,b:55},height:_pH(340),
+    margin:{l:50,r:70,t:10,b:55},height:_pH(340),
     plot_bgcolor:'#fff',paper_bgcolor:'#fff',
     shapes: shapes,
   };
@@ -2266,24 +2273,31 @@ function renderOperationChart() {
     yV.push(...vs.filter(v=>v!=null));
   }
 
-  // ★30平日移動平均（当年度・青太線）: biz_ma30
-  const bm = trend.biz_ma30;
-  if (showOpMA && bm && bm.dates && bm.dates.length) {
-    const si = Math.max(0, bm.dates.findIndex(d => d >= cutoff));
-    const ds = bm.dates.slice(si), vs = bm.values.slice(si);
-    traces.push({name:'30平日移動平均', x:ds, y:vs, type:'scatter', mode:'lines',
-      line:{color:'#0072B2',width:2.5}});
-    yV.push(...vs.filter(v=>v!=null));
-  }
-
-  // ★昨年度同期30平日移動平均（紫実線）: biz_ma30_prev（統一トグル showPrevYear）
+  // ★昨年度同期30平日移動平均（後景・破線）: biz_ma30_prev（統一トグル showPrevYear）。
+  //   ★今年線（30平日移動平均）より先に push（Plotlyは後着が上層＝今年線を手前にするため）。
   const bp = trend.biz_ma30_prev;
   if (showPrevYear && bp && bp.dates && bp.dates.length) {
     const si = Math.max(0, bp.dates.findIndex(d => d >= cutoff));
     const ds = bp.dates.slice(si), vs = bp.values.slice(si);
     traces.push({name:'昨年度同期(30平日)', x:ds, y:vs, type:'scatter', mode:'lines',
-      line:{color:'#CC79A7',width:1.8}});
+      line:{color:'#B0B5BC',width:1.5,dash:'dash'}});
     yV.push(...vs.filter(v=>v!=null));
+  }
+
+  // ★30平日移動平均（今年度・青太線）: biz_ma30
+  const bm = trend.biz_ma30;
+  if (showOpMA && bm && bm.dates && bm.dates.length) {
+    const si = Math.max(0, bm.dates.findIndex(d => d >= cutoff));
+    const ds = bm.dates.slice(si), vs = bm.values.slice(si);
+    traces.push({name:'今年度(30平日)', x:ds, y:vs, type:'scatter', mode:'lines',
+      line:{color:'#0072B2',width:3}});
+    yV.push(...vs.filter(v=>v!=null));
+    let liOp = -1; for (let i=vs.length-1;i>=0;i--) if (vs[i]!=null) { liOp=i; break; }
+    if (liOp >= 0) {
+      traces.push({x:[ds[liOp]], y:[vs[liOp]], type:'scatter', mode:'markers+text',
+        text:['今年度'], textposition:'middle right', textfont:{size:11,color:'#0072B2'},
+        marker:{size:7,color:'#0072B2'}, showlegend:false, hoverinfo:'skip', cliponaxis:false});
+    }
   }
 
   // ★目標ライン
@@ -2319,7 +2333,7 @@ function renderOperationChart() {
     yaxis:{range:[yLo,yHi],gridcolor:'#DCE1E9',title:{text:'件/平日',font:{size:10}}},
     legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},
     hovermode:'x unified',
-    margin:{l:50,r:20,t:10,b:55},height:_pH(340),
+    margin:{l:50,r:70,t:10,b:55},height:_pH(340),
     plot_bgcolor:'#fff',paper_bgcolor:'#fff',shapes,
   },{responsive:true});
   const opTitleBase = `📊 全身麻酔手術 推移（${pLabels[currentPeriod]}・平日基準）`;
