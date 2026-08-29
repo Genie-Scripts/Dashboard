@@ -101,6 +101,29 @@ class TestPopulationRules(unittest.TestCase):
             {"5階A病棟", "4階A病棟", "ICU", "4階C病棟", "HCU"},
         )
 
+    def test_overnight_emergency_07b_treated_as_flow_special(self):
+        """オーバーナイト救急（07B・ユーザー裁定 2026-08-29）は W1/W3 から除外・
+        W2b には残り・W4 では別掲（淡色）トレース側に載る。"""
+        start = BASE - pd.Timedelta(weeks=30)
+        rows = []
+        for ward in ("05A", "07B"):
+            rows += _rows_for_ward(ward, start, BASE, census=20, admission=2,
+                                    emergency=1, transfer_in=1, transfer_out=1)
+        adm = preprocess_admission(pd.DataFrame(rows))
+        targets = {"inpatient": {"ward_beds": {"05A": 40, "07B": 34}}}
+
+        w1 = emergency_share(adm, BASE)
+        w3 = utilization_turnover_quadrant(adm, BASE, targets)
+        w2b = transfer_balance(adm, BASE)
+        w4 = weekday_cv(adm, BASE)
+
+        self.assertEqual(w1["chart"]["traces"][0]["y"], ["5階A病棟"])
+        self.assertIn("7階B病棟", w1["caption"])  # 対象外の断り書きに病棟名が載る
+        self.assertEqual(w3["chart"]["traces"][0]["text"], ["5階A"])
+        self.assertIn("7階B病棟", set(w2b["chart"]["traces"][0]["y"]))
+        self.assertIn("7階B病棟", w4["chart"]["traces"][1]["y"])
+        self.assertNotIn("7階B病棟", w4["chart"]["traces"][0]["y"])
+
     def test_ward_hidden_03b_dropped_from_all_w(self):
         start = BASE - pd.Timedelta(weeks=30)
         rows = (_rows_for_ward("05A", start, BASE, census=20, admission=2,

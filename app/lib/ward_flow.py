@@ -9,7 +9,9 @@ build_ward_flow_payload()。
 母集団の共通規約:
   基底集合 = 病棟_表示==True（preprocess.py）。特例4病棟（EMERGENCY_WARDS(04A/04C)∪
   CRITICAL_CARE_WARDS(04B/04D)。判定は必ず config.unit_narration_kind("ward", code=...)
-  を使う＝自前の集合リテラルは持たない）の扱いはチャートごとに異なる:
+  を使う＝自前の集合リテラルは持たない）に、本モジュール限定で OVERNIGHT_EMERGENCY_WARDS
+  (07B=オーバーナイト救急・ユーザー裁定 2026-08-29) を加えた「フロー特例」の扱いは
+  チャートごとに異なる:
     W1 = 除外（救急・重症ケアは緊急入院比率の解釈が一般病棟と異なるため）
     W2 = 含める（主役。ICU/HCUは他病棟からの転入が中心という業務実態そのもの）
     W3 = 除外（象限解釈＝利用率×回転率が一般病棟の前提でしか成立しないため）
@@ -48,6 +50,19 @@ def _is_special(code: str) -> bool:
     return unit_narration_kind("ward", code=code) is not None
 
 
+# オーバーナイト救急病棟（ユーザー裁定 2026-08-29）: 7階Bは緊急で受けて短期で他病棟へ
+# 送り出す入口病棟（緊急シェア・絶対流入とも院内最大級）で、W1/W3/W4 では特例4病棟と
+# 同じ母集団制御にする。config.EMERGENCY_WARDS へ昇格すると triage/eval_rules/dept_report
+# のナラティブ判定まで変わるため、判定不変の本モジュール内ローカル集合に留める
+# （昇格する場合は §4 並行確認ゲート付きの別裁定）。
+OVERNIGHT_EMERGENCY_WARDS = {"07B"}
+
+
+def _is_flow_special(code: str) -> bool:
+    """W1/W3/W4 の母集団制御: 特例4病棟＋オーバーナイト救急病棟。"""
+    return _is_special(code) or code in OVERNIGHT_EMERGENCY_WARDS
+
+
 def _is_critical_care(code: str) -> bool:
     return unit_narration_kind("ward", code=code) == "critical_care"
 
@@ -82,13 +97,14 @@ def emergency_share(adm: pd.DataFrame, base_date: pd.Timestamp) -> dict:
     name_map = _ward_name_map(adm)
     win = _window(adm[adm["病棟_表示"]], base_date, 13)
 
-    rows, excluded = [], []
+    rows, excluded, role_excluded = [], [], []
     total_emg, total_denom = 0.0, 0.0
     if len(win) > 0:
         emg_by_ward = win.groupby("病棟コード")["緊急入院患者数"].sum()
         denom_by_ward = win.groupby("病棟コード")["新入院患者数"].sum()
         for code, denom in denom_by_ward.items():
-            if _is_special(code):
+            if _is_flow_special(code):
+                role_excluded.append(name_map.get(code, code))
                 continue
             name = name_map.get(code, code)
             denom = float(denom)
@@ -126,6 +142,8 @@ def emergency_share(adm: pd.DataFrame, base_date: pd.Timestamp) -> dict:
             "病棟ごとに、新しく入院した患者さんのうち緊急入院がどれくらいを占めるかです。"
             "割合の高い低いは病棟の役割の違いを映していることが多く、"
             "それ自体の良し悪しを表すものではありません。"
+            + (f"救急受け入れや重症ケアを役割とする{('・'.join(sorted(role_excluded)))}は対象外です。"
+               if role_excluded else "")
         ),
         "excluded": sorted(excluded),
     }
@@ -279,7 +297,7 @@ def utilization_turnover_quadrant(adm: pd.DataFrame, base_date: pd.Timestamp, ta
         census_avg = census_daily.groupby("病棟コード")["在院患者数"].mean()
         adm_ward_total = win.groupby("病棟コード")["新入院患者数_病棟"].sum()
         for code, name in name_map.items():
-            if _is_special(code):
+            if _is_flow_special(code):
                 continue
             beds = beds_map.get(code)
             if not beds:
@@ -369,7 +387,8 @@ def weekday_cv(adm: pd.DataFrame, base_date: pd.Timestamp) -> dict:
                 excluded.append(name)
                 continue
             sigma = float(sub["在院患者数"].std())
-            rows.append({"name": name, "cv": round(sigma / mu * 100, 1), "special": _is_special(code)})
+            rows.append({"name": name, "cv": round(sigma / mu * 100, 1),
+                         "special": _is_flow_special(code)})
 
     general = sorted([r for r in rows if not r["special"]], key=lambda r: -r["cv"])
     special = sorted([r for r in rows if r["special"]], key=lambda r: -r["cv"])
@@ -382,7 +401,7 @@ def weekday_cv(adm: pd.DataFrame, base_date: pd.Timestamp) -> dict:
         "hovertemplate": "%{y}: CV %{x}%<extra></extra>",
     }
     trace_special = {
-        "name": "特例病棟（救急・重症ケア）",
+        "name": "救急受入・重症ケア病棟",
         "x": [r["cv"] for r in special], "y": [r["name"] for r in special],
         "type": "bar", "orientation": "h", "marker": {"color": _MUTED},
         "hovertemplate": "%{y}: CV %{x}%<extra></extra>",
