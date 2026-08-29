@@ -51,6 +51,7 @@ from .profit_translate import build_translate_payload
 from .month_projection import build_month_projection_payload, profit_target_for_month
 from .moves_store import load_latest_moves
 from .surgery_ops import build_surgery_ops_payload
+from .ward_flow import build_ward_flow_payload
 
 
 def _json_safe(obj):
@@ -639,6 +640,12 @@ def build_detail_json(adm, surg, targets, surg_targets,
     except Exception:
         surgery_ops = None
 
+    # 病棟フロー（W1〜W4・入退院バランスタブの病棟フローサブタブ）。集計失敗はタブ非表示に無害縮退。
+    try:
+        ward_flow = build_ward_flow_payload(adm, targets, base_date)
+    except Exception:
+        ward_flow = None
+
     # ── drill: 診療科ドリルダウン ──
     drill = {}
     # ── A1: 部門レポートPDFの「この期間の一手」確定値（moves 無し/対象なしは非表示に縮退）──
@@ -1086,6 +1093,7 @@ def build_detail_json(adm, surg, targets, surg_targets,
             "weekend_leveling": weekend_leveling,
             "surgery_ops": surgery_ops,
             "profit_translate": profit_translate,
+            "ward_flow": ward_flow,
         },
     }
 
@@ -1228,15 +1236,15 @@ def build_detail_json(adm, surg, targets, surg_targets,
     return json.dumps(data, ensure_ascii=False, default=_json_safe)
 
 
-# detail.html 専用（dept.html には同梱しない）charts キー。手術オペレーション（Track S）
-# と 粗利係数読み替え（Track K）はいずれも detail 専用タブのため、dept 側では剥がす
-# （ページ重量と additive 規律）。
-DETAIL_ONLY_CHART_KEYS = ("surgery_ops", "profit_translate")
+# detail.html 専用（dept.html には同梱しない）charts キー。手術オペレーション（Track S）・
+# 粗利係数読み替え（Track K）・病棟フロー（Track W）はいずれも detail 専用タブのため、
+# dept 側では剥がす（ページ重量と additive 規律）。
+DETAIL_ONLY_CHART_KEYS = ("surgery_ops", "profit_translate", "ward_flow")
 
 
 def strip_detail_only_json(detail_json: str) -> str:
-    """detail用JSONから DETAIL_ONLY_CHART_KEYS（charts.surgery_ops / charts.profit_translate）
-    を除いた dept.html 用JSONを返す。
+    """detail用JSONから DETAIL_ONLY_CHART_KEYS（charts.surgery_ops / charts.profit_translate /
+    charts.ward_flow）を除いた dept.html 用JSONを返す。
 
     dept.html は detail.html と同じ DATA を埋め込む設計だが、detail 専用タブの
     チャートは dept 側へは同梱しない（ページ重量と additive 規律）。

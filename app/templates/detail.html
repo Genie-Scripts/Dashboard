@@ -415,6 +415,7 @@ h4{font-weight:var(--jp-head)!important}
     <button class="bsub active" data-sub="overview" onclick="setBalanceSubtab('overview')">📋 概況<small>増減モニタ</small></button>
     <button class="bsub" data-sub="dow" onclick="setBalanceSubtab('dow')">📅 曜日構造<small>ヒートマップ</small></button>
     <button class="bsub" data-sub="action" onclick="setBalanceSubtab('action')">🎯 平準化アクション<small>誰が何をするか</small></button>
+    <button class="bsub" data-sub="wflow" onclick="setBalanceSubtab('wflow')">🏥 病棟フロー<small>受け入れと移動</small></button>
   </div>
 
   <section class="main" id="mainSection">
@@ -494,6 +495,32 @@ h4{font-weight:var(--jp-head)!important}
       <h4 class="dhm-sub" style="margin-top:16px">③ 今週の一手 <span class="dhm-cap" id="lvActName"></span></h4>
       <div class="lv-detail" id="lvDetail"></div>
       <div class="lv-foot">狙いは週末ディップの回復＝<b>金曜の退院を月〜木へ分散＋週末入院で補充</b>（新患が週末も在院＝ベッド回転）。<b>在院日数の延長＝月曜延伸はしない</b>。週末＝土日（金曜の退院ラッシュは「曜日構造」で別掲）。</div>
+    </div>
+  </section>
+
+  <!-- 病棟フロー（W1緊急受入シェア/W2転入依存度・純転棟収支/W3利用率×回転率象限マップ/
+       W4週内変動係数・balanceタブの病棟フローサブタブ限定） -->
+  <section class="main" id="wardFlowSection" style="grid-template-columns:1fr;display:none">
+    <div class="pnl">
+      <h3>🏥 病棟フロー</h3>
+
+      <h4 class="dhm-sub">🚑 緊急受入シェア（直近13週・病棟別） <span id="wfW1Cap" class="dhm-cap"></span></h4>
+      <div class="dhm-chart" id="wfW1Chart"></div>
+      <div id="wfW1Excluded" style="margin-top:6px"></div>
+
+      <h4 class="dhm-sub" style="margin-top:14px">↘️ 転入依存度（週次・4週移動平均・直近26週） <span id="wfW2aCap" class="dhm-cap"></span></h4>
+      <div class="dhm-chart" id="wfW2aChart"></div>
+
+      <h4 class="dhm-sub" style="margin-top:14px">⚖️ 純転棟収支（人/週換算・直近13週） <span id="wfW2bCap" class="dhm-cap"></span></h4>
+      <div class="dhm-chart" id="wfW2bChart"></div>
+
+      <h4 class="dhm-sub" style="margin-top:14px">📍 利用率×回転率 象限マップ（直近8週） <span id="wfW3Cap" class="dhm-cap"></span></h4>
+      <div class="dhm-chart" id="wfW3Chart"></div>
+      <div id="wfW3Excluded" style="margin-top:6px"></div>
+
+      <h4 class="dhm-sub" style="margin-top:14px">📈 週内変動係数（平日のみ・直近8週） <span id="wfW4Cap" class="dhm-cap"></span></h4>
+      <div class="dhm-chart" id="wfW4Chart"></div>
+      <div id="wfW4Excluded" style="margin-top:6px"></div>
     </div>
   </section>
 
@@ -1541,10 +1568,11 @@ function renderDischargeHeatmapVisibility() {
 // ════════════════════════════════════════
 // 入退院バランス サブタブ（概況／曜日構造／平準化アクション）＋ 週末のびしろ
 // ════════════════════════════════════════
-let balanceSubtab = 'overview';   // overview | dow | action
+let balanceSubtab = 'overview';   // overview | dow | action | wflow
 let lvView = 'dept';              // dept | ward
 let lvSel = {};                   // entity → 選択ユニット名
 let _lvRendered = false;
+let _wfRendered = false;
 const LV_WK = ['月','火','水','木','金','土','日'];
 
 function setBalanceSubtab(t){ balanceSubtab = t; renderBalanceLayout(); }
@@ -1557,6 +1585,7 @@ function renderBalanceLayout(){
   const mainSec = document.getElementById('mainSection');
   const heatSec = document.getElementById('dischargeHeatmapSection');
   const lvlSec  = document.getElementById('levelingSection');
+  const wfSec   = document.getElementById('wardFlowSection');
   const bar     = document.getElementById('balanceSubtabs');
   const isBal   = currentTab === 'balance';
   const show = (el,on)=>{ if(el) el.style.display = on ? '' : 'none'; };
@@ -1567,7 +1596,7 @@ function renderBalanceLayout(){
     const rp = mainSec.querySelector('.pnl-rank');
     if (rp) rp.style.display = isBal ? 'none' : '';
   }
-  if (!isBal){ show(mainSec,true); show(heatSec,false); show(lvlSec,false); return; }
+  if (!isBal){ show(mainSec,true); show(heatSec,false); show(lvlSec,false); show(wfSec,false); return; }
   if (bar) bar.querySelectorAll('.bsub').forEach(b=>b.classList.toggle('active', b.dataset.sub===balanceSubtab));
   show(mainSec, balanceSubtab==='overview');
   if (balanceSubtab==='dow'){
@@ -1580,6 +1609,11 @@ function renderBalanceLayout(){
     if (lvlSec) lvlSec.style.display='';
     if (wasHidden || !_lvRendered) renderLeveling();
   } else show(lvlSec,false);
+  if (balanceSubtab==='wflow'){
+    const wasHidden = wfSec && wfSec.style.display==='none';
+    if (wfSec) wfSec.style.display='';
+    if (wasHidden || !_wfRendered) renderWardFlow();
+  } else show(wfSec,false);
 }
 
 function _lvData(){
@@ -2246,6 +2280,42 @@ function renderTranslateSection() {
       if (cap3) cap3.textContent = '';
     }
   } catch (e) {}
+}
+
+// ══════════════════════════
+// 病棟フロー（W1緊急受入シェア/W2転入依存度・純転棟収支/W3利用率×回転率象限マップ/
+//            W4週内変動係数・balanceタブの病棟フローサブタブ）
+// 表示/非表示の切替は renderBalanceLayout() が担う（ここでは中身の描画のみ）。
+// ══════════════════════════
+function _wfRenderExcluded(elId, names) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  while (el.firstChild) el.removeChild(el.firstChild);
+  if (!names || !names.length) return;
+  const span = document.createElement('span');
+  span.className = 'dhm-cap';
+  span.textContent = '● 対象データが少なく表示していません: ' + names.join('、');
+  el.appendChild(span);
+}
+
+function renderWardFlow() {
+  const wf = (DATA.charts && DATA.charts.ward_flow) || null;
+
+  const draw = (key, chartId, capId, exclId) => {
+    const item = wf && wf[key];
+    _drawOps(item && item.chart, chartId);
+    const capEl = document.getElementById(capId);
+    if (capEl) capEl.textContent = (item && item.caption) || '';
+    if (exclId) _wfRenderExcluded(exclId, item && item.excluded);
+  };
+
+  try { draw('w1',  'wfW1Chart',  'wfW1Cap',  'wfW1Excluded'); } catch (e) {}
+  try { draw('w2a', 'wfW2aChart', 'wfW2aCap', null); } catch (e) {}
+  try { draw('w2b', 'wfW2bChart', 'wfW2bCap', null); } catch (e) {}
+  try { draw('w3',  'wfW3Chart',  'wfW3Cap',  'wfW3Excluded'); } catch (e) {}
+  try { draw('w4',  'wfW4Chart',  'wfW4Cap',  'wfW4Excluded'); } catch (e) {}
+
+  _wfRendered = true;
 }
 
 // 会計年度（4月始まり）の開始日 YYYY-04-01 を返す

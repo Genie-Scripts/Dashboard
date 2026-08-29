@@ -337,6 +337,21 @@ class TestStripDetailOnlyJson(unittest.TestCase):
         self.assertEqual(out["charts"]["dow_heatmaps"], {"a": 1})
         self.assertEqual(out["trend"], [1, 2, {"値": "日本語"}])
 
+    def test_strip_removes_ward_flow_too(self):
+        from app.lib.html_builder import strip_detail_only_json
+        src = json.dumps(
+            {"charts": {"dow_heatmaps": {"a": 1}, "surgery_ops": {"s1": {"n": 0}},
+                        "profit_translate": {"k1": {"hospital": {}}},
+                        "ward_flow": {"w1": {"chart": {}}}},
+             "trend": [1, 2, {"値": "日本語"}]},
+            ensure_ascii=False)
+        out = json.loads(strip_detail_only_json(src))
+        self.assertNotIn("surgery_ops", out["charts"])
+        self.assertNotIn("profit_translate", out["charts"])
+        self.assertNotIn("ward_flow", out["charts"])
+        self.assertEqual(out["charts"]["dow_heatmaps"], {"a": 1})
+        self.assertEqual(out["trend"], [1, 2, {"値": "日本語"}])
+
 
 if __name__ == "__main__":
     unittest.main()
