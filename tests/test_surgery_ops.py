@@ -303,25 +303,39 @@ class TestPayloadShape(unittest.TestCase):
         self.assertEqual(len(out["mix_io"]["traces"]), 2)    # 入院/外来
 
 
-class TestStripSurgeryOpsJson(unittest.TestCase):
-    """dept.html 用 JSON から charts.surgery_ops だけが除かれることを確認する。"""
+class TestStripDetailOnlyJson(unittest.TestCase):
+    """dept.html 用 JSON から charts.surgery_ops / charts.profit_translate（detail専用）
+    だけが除かれることを確認する（旧 strip_surgery_ops_json → strip_detail_only_json 改名）。"""
 
     def test_strip_removes_only_surgery_ops(self):
-        from app.lib.html_builder import strip_surgery_ops_json
+        from app.lib.html_builder import strip_detail_only_json
         src = json.dumps(
             {"charts": {"dow_heatmaps": {"a": 1}, "surgery_ops": {"s1": {"n": 0}}},
              "trend": [1, 2, {"値": "日本語"}]},
             ensure_ascii=False)
-        out = json.loads(strip_surgery_ops_json(src))
+        out = json.loads(strip_detail_only_json(src))
         self.assertNotIn("surgery_ops", out["charts"])
         self.assertEqual(out["charts"]["dow_heatmaps"], {"a": 1})
         self.assertEqual(out["trend"], [1, 2, {"値": "日本語"}])
 
     def test_strip_without_key_is_noop(self):
-        from app.lib.html_builder import strip_surgery_ops_json
+        from app.lib.html_builder import strip_detail_only_json
         src = json.dumps({"charts": {"x": 1}}, ensure_ascii=False)
-        out = json.loads(strip_surgery_ops_json(src))
+        out = json.loads(strip_detail_only_json(src))
         self.assertEqual(out["charts"], {"x": 1})
+
+    def test_strip_removes_profit_translate_too(self):
+        from app.lib.html_builder import strip_detail_only_json
+        src = json.dumps(
+            {"charts": {"dow_heatmaps": {"a": 1}, "surgery_ops": {"s1": {"n": 0}},
+                        "profit_translate": {"k1": {"hospital": {}}}},
+             "trend": [1, 2, {"値": "日本語"}]},
+            ensure_ascii=False)
+        out = json.loads(strip_detail_only_json(src))
+        self.assertNotIn("surgery_ops", out["charts"])
+        self.assertNotIn("profit_translate", out["charts"])
+        self.assertEqual(out["charts"]["dow_heatmaps"], {"a": 1})
+        self.assertEqual(out["trend"], [1, 2, {"値": "日本語"}])
 
 
 if __name__ == "__main__":

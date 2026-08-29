@@ -25,7 +25,7 @@ from typing import Optional
 sys.path.insert(0, str(Path(__file__).parent))
 from app.lib.config import DEFAULT_DATA_DIR, GA_MEASUREMENT_ID
 from app.lib.html_builder import (build_portal_context, build_detail_json,
-                                  strip_surgery_ops_json)
+                                  strip_detail_only_json)
 
 
 def parse_args() -> argparse.Namespace:
@@ -347,7 +347,7 @@ def generate(data_dir: str = DEFAULT_DATA_DIR,
     # ════════════════════════════════════════
     log("dept.html 生成中...")
     dept_tmpl = env.get_template("dept.html")
-    dept_ctx = dict(detail_ctx, data_json=strip_surgery_ops_json(detail_json))
+    dept_ctx = dict(detail_ctx, data_json=strip_detail_only_json(detail_json))
     dept_html = dept_tmpl.render(**dept_ctx)
     dept_path = out_dir / "dept.html"
     dept_path.write_text(dept_html, encoding="utf-8")

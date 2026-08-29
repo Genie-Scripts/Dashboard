@@ -47,6 +47,7 @@ from .profit_estimate import (
     blend_and_calibrate_series,
     last_complete_driver_date,
 )
+from .profit_translate import build_translate_payload
 from .month_projection import build_month_projection_payload, profit_target_for_month
 from .moves_store import load_latest_moves
 from .surgery_ops import build_surgery_ops_payload
@@ -963,6 +964,19 @@ def build_detail_json(adm, surg, targets, surg_targets,
         except Exception:
             profit_hybrid_section = None
 
+    # ── profit_translate: 係数読み替え（K1あと何件換算/K2前年差ウォーターフォール/K3トルネード）──
+    profit_translate = None
+    if profit_section is not None:
+        try:
+            profit_translate = build_translate_payload(
+                profit_breakdown=profit_breakdown,
+                adm=adm, surg=surg,
+                profit_section=profit_section,
+                base_date=profit_base_date,
+            )
+        except Exception:
+            profit_translate = None
+
     # 月末見込み G を確定（KPI・棒・折れ線で共通の数値にする）。recency 補正を適用し、
     # チャート表示用の「最終月末見込み」系列(values_final_*) を hospital_series に注入。
     if profit_hybrid_section:
@@ -1071,6 +1085,7 @@ def build_detail_json(adm, surg, targets, surg_targets,
             "dow_unit_detail": dow_unit_detail,
             "weekend_leveling": weekend_leveling,
             "surgery_ops": surgery_ops,
+            "profit_translate": profit_translate,
         },
     }
 
@@ -1213,15 +1228,23 @@ def build_detail_json(adm, surg, targets, surg_targets,
     return json.dumps(data, ensure_ascii=False, default=_json_safe)
 
 
-def strip_surgery_ops_json(detail_json: str) -> str:
-    """detail用JSONから charts.surgery_ops を除いた dept.html 用JSONを返す。
+# detail.html 専用（dept.html には同梱しない）charts キー。手術オペレーション（Track S）
+# と 粗利係数読み替え（Track K）はいずれも detail 専用タブのため、dept 側では剥がす
+# （ページ重量と additive 規律）。
+DETAIL_ONLY_CHART_KEYS = ("surgery_ops", "profit_translate")
 
-    dept.html は detail.html と同じ DATA を埋め込む設計だが、手術オペレーション
-    タブは detail 専用のため dept 側へは同梱しない（ページ重量と additive 規律）。
+
+def strip_detail_only_json(detail_json: str) -> str:
+    """detail用JSONから DETAIL_ONLY_CHART_KEYS（charts.surgery_ops / charts.profit_translate）
+    を除いた dept.html 用JSONを返す。
+
+    dept.html は detail.html と同じ DATA を埋め込む設計だが、detail 専用タブの
+    チャートは dept 側へは同梱しない（ページ重量と additive 規律）。
     dumps 引数は build_detail_json と同一にし、往復で表現を変えない。
     """
     data = json.loads(detail_json)
     charts = data.get("charts")
     if isinstance(charts, dict):
-        charts.pop("surgery_ops", None)
+        for key in DETAIL_ONLY_CHART_KEYS:
+            charts.pop(key, None)
     return json.dumps(data, ensure_ascii=False, default=_json_safe)

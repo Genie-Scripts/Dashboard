@@ -552,6 +552,25 @@ h4{font-weight:var(--jp-head)!important}
     </div>
   </section>
 
+  <!-- 係数読み替え（profitタブ専用・Track K: あと何件換算/前年差ウォーターフォール/目標差トルネード） -->
+  <section class="main" id="translateSection" style="display:none;grid-template-columns:1fr">
+    <div class="pnl">
+      <h3>🔁 目標との差を件数に置き換える</h3>
+
+      <h4 class="dhm-sub">① あと何件・何人か <span id="tkK1Cap" class="dhm-cap"></span></h4>
+      <div style="overflow-x:auto">
+        <table class="hybrid-table" id="tkK1Table"></table>
+      </div>
+      <div id="tkK1Excluded" style="margin-top:6px"></div>
+
+      <h4 class="dhm-sub" style="margin-top:16px">② 前年同月からの差の内訳 <span id="tkK2Cap" class="dhm-cap"></span></h4>
+      <div class="dhm-chart" id="tkK2Chart"></div>
+
+      <h4 class="dhm-sub" style="margin-top:16px">③ 目標との差（科別） <span id="tkK3Cap" class="dhm-cap"></span></h4>
+      <div class="dhm-chart" id="tkK3Chart"></div>
+    </div>
+  </section>
+
   <!-- ハイブリッド粗利推計（profitタブ専用） -->
   <section class="main" id="hybridSection" style="display:none;grid-template-columns:1fr">
     <div class="pnl">
@@ -1870,10 +1889,12 @@ function renderEstimateSection() {
   const sec = document.getElementById('estimateSection');
   const csec = document.getElementById('contributionSection');
   const hsec = document.getElementById('hybridSection');
+  const tsec = document.getElementById('translateSection');
   if (currentTab !== 'profit') {
     if (sec) sec.style.display = 'none';
     if (csec) csec.style.display = 'none';
     if (hsec) hsec.style.display = 'none';
+    if (tsec) tsec.style.display = 'none';
     return;
   }
   if (sec) {
@@ -1882,6 +1903,7 @@ function renderEstimateSection() {
   }
   renderContribution();
   renderHybridSection();
+  renderTranslateSection();
 }
 
 function renderEstimateChart() {
@@ -2116,6 +2138,114 @@ function renderHybridSection() {
   const meta = hy.meta || {};
   document.getElementById('hybridMeta').innerHTML =
     `📊 ${meta.n_depts_modeled}科を学習 ／ holdout ${meta.test_months}ヶ月で評価 ／ 低頻度集約 年${meta.min_count}件未満 ／ ⚠️ 推計は学習期間の単価構造に基づきます。実績と大きく乖離する科は構造変化のサイン。`;
+}
+
+// ── 係数読み替え（Track K: K1あと何件換算 / K2前年差ウォーターフォール / K3トルネード） ──
+const TK_ITEM_KEYS = ['nyuin_op', 'gairai_op', 'new_adm', 'bed_days'];
+
+// dept名・reason等はサーバ生成データだがユーザー由来文字列を含みうるため、
+// innerHTML+文字列連結ではなく textContent ベースで組み立てる。
+function _tkCell(text, title) {
+  const td = document.createElement('td');
+  td.textContent = text;
+  if (title) td.title = title;
+  return td;
+}
+
+function _tkItemText(it) {
+  if (!it || !it.shown) return '—';
+  let s = `${it.value}${it.unit}`;
+  if (it.pace != null) s += `（必要ペース ${it.pace}${it.pace_unit || ''}）`;
+  return s;
+}
+
+function _tkBuildK1Table(k1) {
+  const table = document.getElementById('tkK1Table');
+  if (!table) return;
+  while (table.firstChild) table.removeChild(table.firstChild);
+
+  const thead = document.createElement('thead');
+  const htr = document.createElement('tr');
+  ['科', '目標との差', '入院手術', '外来手術', '新入院', '在院'].forEach(h => {
+    const th = document.createElement('th');
+    th.textContent = h;
+    htr.appendChild(th);
+  });
+  thead.appendChild(htr);
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  (k1.depts || []).forEach(row => {
+    const tr = document.createElement('tr');
+    const tdName = document.createElement('td');
+    tdName.textContent = row.name;
+    tr.appendChild(tdName);
+    tr.appendChild(_tkCell(row.gap_mm != null ? `${row.gap_mm}百万円` : '—', row.reason));
+
+    const byKey = {};
+    (row.items || []).forEach(it => { byKey[it.key] = it; });
+    TK_ITEM_KEYS.forEach(key => {
+      const it = byKey[key];
+      const title = it ? it.reason : row.reason;
+      tr.appendChild(_tkCell(_tkItemText(it), title));
+    });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+}
+
+function _tkRenderExcluded(k1) {
+  const el = document.getElementById('tkK1Excluded');
+  if (!el) return;
+  while (el.firstChild) el.removeChild(el.firstChild);
+  const names = k1.excluded || [];
+  if (!names.length) return;
+  const span = document.createElement('span');
+  span.className = 'dhm-cap';
+  span.textContent = '● 目安を出していない科: ' + names.join('、');
+  el.appendChild(span);
+}
+
+function renderTranslateSection() {
+  const sec = document.getElementById('translateSection');
+  if (!sec) return;
+  const tk = DATA.charts && DATA.charts.profit_translate;
+  if (!tk) { sec.style.display = 'none'; return; }
+  sec.style.display = 'grid';
+
+  try {
+    const k1 = tk.k1 || { depts: [], excluded: [], caption: '' };
+    const cap1 = document.getElementById('tkK1Cap');
+    if (cap1) cap1.textContent = k1.caption || '';
+    _tkBuildK1Table(k1);
+    _tkRenderExcluded(k1);
+  } catch (e) {}
+
+  try {
+    const k2 = tk.k2;
+    const cap2 = document.getElementById('tkK2Cap');
+    if (k2) {
+      _drawOps(k2.chart, 'tkK2Chart');
+      if (cap2) cap2.textContent = k2.caption || '';
+    } else {
+      const el = document.getElementById('tkK2Chart');
+      if (el) el.innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:40px 0">前年の比較に必要なデータが揃っていません</div>';
+      if (cap2) cap2.textContent = '';
+    }
+  } catch (e) {}
+
+  try {
+    const k3 = tk.k3;
+    const cap3 = document.getElementById('tkK3Cap');
+    if (k3) {
+      _drawOps(k3.chart, 'tkK3Chart');
+      if (cap3) cap3.textContent = k3.caption || '';
+    } else {
+      const el = document.getElementById('tkK3Chart');
+      if (el) el.innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:40px 0">対象データなし</div>';
+      if (cap3) cap3.textContent = '';
+    }
+  } catch (e) {}
 }
 
 // 会計年度（4月始まり）の開始日 YYYY-04-01 を返す
