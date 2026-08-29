@@ -14,6 +14,7 @@ v2.1 変更点:
 """
 
 import argparse
+import re
 import sys
 import json
 from pathlib import Path
@@ -163,6 +164,81 @@ def _generate_redirects(out_dir: Path):
     return list(redirects.keys())
 
 
+# ════════════════════════════════════════
+# ナラティブ生成キャッシュ（scripts/build_dept_reports.py と状態ファイルを共有）
+# ════════════════════════════════════════
+# 同一データでの再ビルド（make の再実行）でも、部門別レポートPDF生成
+# （build_dept_reports.py）と同じ dept_reports/_state/narrative_cache_{基準日}.json を
+# 読み書きし、narrate_leveling_actions（_generate_checked 経由）のAI一手を使い回す。
+# キーは日付非依存（プロンプト全文のSHA1）なので、同一データ断面なら再生成と
+# バイト単位で同一の文が得られる（LLM呼び出しゼロ）。narrate_alerts はこの機構を
+# 持たない別経路のため対象外（従来どおり毎回ライブ生成）。
+
+_NARR_CACHE_FNAME_RE = re.compile(r"^narrative_cache_(\d{4}-\d{2}-\d{2})\.json$")
+
+
+def _parse_narr_cache_date(name: str):
+    """narrative_cache_YYYY-MM-DD.json のファイル名から日付を取り出す（不一致はNone）。
+    scripts/build_dept_reports.py find_narr_cache_seed と同等ロジックの複製
+    （モジュールレベル副作用を避けるため scripts/ からは import しない）。"""
+    m = _NARR_CACHE_FNAME_RE.match(name)
+    if not m:
+        return None
+    try:
+        return datetime.strptime(m.group(1), "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def _find_narr_cache_seed(state_dir: Path, base_date, exclude: Path):
+    """基準日の生成キャッシュが無いとき、引き継ぎ元（base_date 以前で最新）を探す。
+    scripts/build_dept_reports.py の同名関数と同じ選択ロジック。"""
+    if not state_dir.is_dir():
+        return None
+    base = base_date.date() if hasattr(base_date, "date") else base_date
+    best_path, best_date = None, None
+    for p in sorted(state_dir.glob("narrative_cache_*.json")):
+        if p == exclude:
+            continue
+        d = _parse_narr_cache_date(p.name)
+        if d is None or d > base:
+            continue
+        if best_date is None or d > best_date:
+            best_path, best_date = p, d
+    return best_path
+
+
+def _resolve_narr_cache_seed(state_dir: Path, base_date):
+    """基準日のキャッシュパスと、実際に読み込む種ファイルのパスを解決する。
+
+    基準日ファイルが存在すればそれ自身を種にする。無ければ基準日以前で最新の
+    過去ファイルを種にする。過去ファイルも1件も無ければ基準日パス自体を返す
+    （存在しないパス＝load_narrative_cache が fail-soft で空キャッシュとして
+    有効化する仕様を利用する）。
+
+    戻り値: (narr_cache_path, narr_cache_seed)
+      narr_cache_path — 常に基準日のファイルパス（保存先はここに固定）
+      narr_cache_seed — 実際に読み込むファイルパス（種ファイル or 基準日自身）
+    """
+    narr_cache_path = state_dir / f"narrative_cache_{base_date.strftime('%Y-%m-%d')}.json"
+    if narr_cache_path.is_file():
+        return narr_cache_path, narr_cache_path
+    seed = _find_narr_cache_seed(state_dir, base_date, narr_cache_path)
+    return narr_cache_path, (seed or narr_cache_path)
+
+
+def _count_narr_cache_entries(path: Path) -> int:
+    """ログ用にキャッシュファイルのエントリ数を数える（fail-soft・読めなければ0件）。"""
+    try:
+        if path.is_file():
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                return len(data)
+    except Exception:
+        pass
+    return 0
+
+
 def generate(data_dir: str = DEFAULT_DATA_DIR,
              output_dir: str = ".",
              base_date_str: str = None,
@@ -182,6 +258,18 @@ def generate(data_dir: str = DEFAULT_DATA_DIR,
     # ── データ読込 ──
     adm, surg, targets, surg_targets, profit_monthly, base_date, profit_breakdown_raw = \
         load_and_preprocess(data_dir, base_date_str, no_validate)
+
+    # ── ナラティブ生成キャッシュ 読込（基準日確定直後）──
+    # 以後の narrate_leveling_actions（_generate_checked 経由）が自動でキャッシュを使う。
+    from app.lib.ai_narrative import load_narrative_cache
+    narr_state_dir = Path("dept_reports") / "_state"
+    narr_cache_path, narr_cache_seed = _resolve_narr_cache_seed(narr_state_dir, base_date)
+    n_seed = _count_narr_cache_entries(narr_cache_seed)
+    if narr_cache_seed.is_file():
+        log(f"生成キャッシュ読込: {n_seed}件 ← {narr_cache_seed.name}")
+    else:
+        log("生成キャッシュ読込: 0件（新規）")
+    load_narrative_cache(narr_cache_seed)
 
     env = _build_jinja_env()
     results = {}
@@ -259,6 +347,14 @@ def generate(data_dir: str = DEFAULT_DATA_DIR,
     dept_path.write_text(dept_html, encoding="utf-8")
     results["dept"] = str(dept_path.resolve())
     log(f"dept.html → {dept_path.resolve()}", "ok")
+
+    # ════════════════════════════════════════
+    # ナラティブ生成キャッシュ 保存（生成処理が正常完了した箇所で1回）
+    # ════════════════════════════════════════
+    from app.lib.ai_narrative import save_narrative_cache
+    save_narrative_cache(narr_cache_path)
+    n_saved = _count_narr_cache_entries(narr_cache_path)
+    log(f"生成キャッシュ保存: {n_saved}件 → {narr_cache_path.name}")
 
     # ════════════════════════════════════════
     # 旧URLリダイレクト
