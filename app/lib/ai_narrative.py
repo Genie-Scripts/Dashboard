@@ -25,6 +25,7 @@ import os
 import re
 import sys
 import threading
+import time
 import zlib
 from collections import Counter
 from pathlib import Path
@@ -770,6 +771,11 @@ def _unit_allow(name: str) -> tuple:
 
 RETRY_TEMPERATURE = 0.2   # 再試行は堅い方へ寄せる（棄却はサンプリング起因が多い）
 
+# D2: 総所要時間の壁時計上限（ソフト上限＝「次の呼び出しを始めない」）。実行中のコールは
+# 中断しない（1コール自体は llm.WAIT_TIMEOUT_SEC + llm.TIMEOUT_SEC で有界）。
+# _generate_checked の生成/judge ループが超過すると即 break→定型文フォールバックへ縮退する。
+NARR_DEADLINE_SEC = float(os.environ.get("NARR_DEADLINE_SEC", "300"))
+
 # ────────────────────────────────────
 # 意味整合の第2パス検査（②-1）
 # ────────────────────────────────────
@@ -829,6 +835,11 @@ def _generate_checked(tag: str, system: str, user: str, banned: tuple,
     量子化済みの事実が同じ月は同じ文になり、事実のバケットが変わった月だけ文が変わる
     （oMLX の seed 対応は実測確認済み・ユニットごとにプロンプトが違うので科間の多様性は
     保たれる）。再試行は seed+1（同じ seed では棄却された同一出力が返るだけのため）。
+
+    D2: NARR_DEADLINE_SEC の壁時計デッドラインを持つ（ソフト上限＝「次の呼び出しを
+    始めない」）。実行中の chat_json/judge 呼び出し自体は中断しない（1コールは
+    llm.WAIT_TIMEOUT_SEC + llm.TIMEOUT_SEC で有界）。attempt 0 は直後に設定した
+    deadline なので実質素通り＝正常経路の挙動は不変。
     """
     allow = tuple(allow) + _ALLOW_FACT_PHRASES
     # 生成キャッシュ: 同一プロンプトの採択済み出力を使い回す（PDF再作成の高速化）。
@@ -849,7 +860,13 @@ def _generate_checked(tag: str, system: str, user: str, banned: tuple,
             _NARR_CACHE_STATS["miss"] += 1
     base_seed = zlib.crc32((system + user).encode("utf-8")) & 0x7FFFFFFF
     result = None
+    # D2: 壁時計デッドライン（ソフト上限）。attempt 0 は設定直後なので実質素通り。
+    deadline = time.monotonic() + NARR_DEADLINE_SEC
     for attempt, temp in enumerate((temperature, RETRY_TEMPERATURE)):
+        if time.monotonic() >= deadline:
+            with _STATS_LOCK:
+                REJECT_STATS["deadline"] += 1
+            break
         try:
             content = chat_json(system=system, user=user, model=model,
                                 temperature=temp, max_tokens=DEFAULT_NUM_PREDICT,
@@ -863,11 +880,16 @@ def _generate_checked(tag: str, system: str, user: str, banned: tuple,
         reason = _rejection_reason(parsed, banned=banned, allow=allow)
         if reason is None:
             # 機械ガード通過後、意味整合の第2パス（②-1）。矛盾判定なら再試行→fallback。
-            if JUDGE_ENABLED and not _judge_consistency(
-                    user, parsed, base_seed + 101 + attempt, JUDGE_MODEL or model, tag):
-                with _STATS_LOCK:
-                    REJECT_STATS["judge"] += 1
-                continue
+            if JUDGE_ENABLED:
+                if time.monotonic() >= deadline:
+                    with _STATS_LOCK:
+                        REJECT_STATS["deadline"] += 1
+                    break
+                if not _judge_consistency(
+                        user, parsed, base_seed + 101 + attempt, JUDGE_MODEL or model, tag):
+                    with _STATS_LOCK:
+                        REJECT_STATS["judge"] += 1
+                    continue
             result = {**parsed, "src": "ai"}
             with _STATS_LOCK:
                 REJECT_STATS["ok@retry" if attempt else "ok"] += 1

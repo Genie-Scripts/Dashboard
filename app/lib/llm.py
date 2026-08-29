@@ -57,6 +57,10 @@ API_KEY = os.environ.get("OMLX_API_KEY", "sk-ant-omlx-local-key")
 # ai_narrative.REJECT_STATS["error"] を経て静かに定型文フォールバックへ縮退し、
 # 「速くなった代わりに文章の質が落ちる」結果になるため。環境変数での上書きは従来どおり効く。
 TIMEOUT_SEC = float(os.environ.get("OMLX_TIMEOUT", "180"))
+# genie_llm.session() の wait（モデル未ロード/競合時に「待つ」上限秒）。既定900は現行
+# genie_llm._WAIT_TIMEOUT と同値（挙動中立）。env で可変にし、1コールの理論上限を
+# wait_timeout + TIMEOUT_SEC で計算可能にする（D2: 総所要時間の上限見積り）。
+WAIT_TIMEOUT_SEC = float(os.environ.get("OMLX_WAIT_TIMEOUT", "900"))
 
 _client = None
 
@@ -68,7 +72,11 @@ def _get_client():
         from openai import OpenAI  # 遅延 import: 未導入でも import 時には落とさない
         # X-Genie-Client: broker(:8936)のJSONログでリクエスト元を特定するため（直:8000時は
         # 未知ヘッダとして無視される想定）。全リクエストへ一律付与する。
+        # max_retries=0: SDK既定リトライ(2回)を無効化。_generate_checked 側の再試行ループ・
+        # response_format フォールバックと乗算されると総所要時間が読めなくなるため、
+        # 再試行の責務は呼び出し側に一元化する（D2）。
         _client = OpenAI(base_url=BASE_URL, api_key=API_KEY, timeout=TIMEOUT_SEC,
+                          max_retries=0,
                           default_headers={"X-Genie-Client": "dashboard"})
     return _client
 
@@ -79,8 +87,9 @@ def chat_json(system: str, user: str, model: str,
     """system/user を渡し、アシスタント応答の content 文字列を返す。
 
     旧 ollama の `format="json"` 相当として response_format(json_object) を付ける。
-    モデル/サーバが未対応で弾く場合に備え、一度だけ response_format 無しで再試行する
-    （プロンプト側で JSON 指定済みのため、_extract_* が後段で吸収する）。
+    モデル/サーバが response_format を 400 で弾いた場合に限り、一度だけ response_format
+    無しで再試行する（プロンプト側で JSON 指定済みのため、_extract_* が後段で吸収する）。
+    接続断・タイムアウト等（400以外）は即座に送出する（無意味な2回目の待ちを避ける）。
 
     seed: oMLX は OpenAI 互換の seed に対応（実測 2026-07-04: 同一seed→同一出力）。
     呼び出し側がプロンプト内容から決定論的に与えると「同じ事実→同じ文」の再現性が得られる。
@@ -91,6 +100,7 @@ def chat_json(system: str, user: str, model: str,
     本関数を再利用しているため（`WeeklyReport/studio/report_llm.py`）、混同を避けたい
     呼び出し元だけが指定する（例: `client_label="weeklyreport"`）。
     """
+    from openai import BadRequestError  # 遅延 import: 400（response_format 非対応）のみ拾うため
     client = _get_client()
     messages = [
         {"role": "system", "content": system},
@@ -100,7 +110,7 @@ def chat_json(system: str, user: str, model: str,
     extra_headers = {"X-Genie-Client": client_label} if client_label else None
     # 協調層: focus を取ってからロードし、業務ハブの重い並行要求（会議議事録80B 等）と
     # 直列化して 507 を避ける。Dashboard の生成は基本バッチなので priority=batch。
-    _coord = genie_llm.session(model, priority="batch") if genie_llm else contextlib.nullcontext()
+    _coord = genie_llm.session(model, priority="batch", wait_timeout=WAIT_TIMEOUT_SEC) if genie_llm else contextlib.nullcontext()
     with _coord:
         try:
             res = client.chat.completions.create(
@@ -112,8 +122,9 @@ def chat_json(system: str, user: str, model: str,
                 extra_headers=extra_headers,
                 **extra,
             )
-        except Exception:
-            # response_format 非対応モデル等へのフォールバック（接続不能ならここでも送出される）
+        except BadRequestError:
+            # response_format 非対応モデル等（HTTP 400）へのフォールバックのみ。
+            # 接続断・タイムアウト等はここに来ず try 節でそのまま送出される。
             res = client.chat.completions.create(
                 model=model,
                 messages=messages,
