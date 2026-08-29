@@ -73,6 +73,7 @@
 .sb-detail{padding:0 16px 14px;border-top:1px dashed var(--color-border)}
 .sb-story{font-size:13.5px;line-height:1.75;color:var(--ink);margin:10px 0 8px;padding:10px 12px;background:rgba(255,255,255,.6);border-radius:10px}
 [data-theme="dark"] .sb-story{background:rgba(255,255,255,.06)}
+.sb-degraded{color:var(--sub);opacity:.85}
 .sb-items{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:4px}
 .sb-items li{font-size:12.5px;color:var(--sub);padding-left:14px;position:relative;line-height:1.55}
 .sb-items li::before{content:"・";position:absolute;left:0;color:var(--br)}
@@ -261,16 +262,20 @@ h4{font-weight:var(--jp-head)!important}
     <div class="sb-row">
       <span class="sb-icon">{{ headline.icon }}</span>
       <span class="sb-text">{{ headline.text }}</span>
-      {% if weekly_story and (weekly_story.story or weekly_story.diffs) %}
+      {% if weekly_story and (weekly_story.story or weekly_story.diffs or weekly_story.failed) %}
       <button class="sb-toggle" id="sb-toggle-btn"
               onclick="toggleStatusBar()" aria-expanded="false"
               aria-controls="sb-detail">▼ 詳細</button>
       {% endif %}
     </div>
-    {% if weekly_story and (weekly_story.story or weekly_story.diffs) %}
+    {% if weekly_story and (weekly_story.story or weekly_story.diffs or weekly_story.failed) %}
     <div class="sb-detail" id="sb-detail" hidden>
       {% if weekly_story.story %}
       <p class="sb-story">{{ weekly_story.story }}</p>
+      {% else %}
+      {# D3裁定(a): 差分あり要約なし(LLM失敗)・生成例外(failed)の欠落を可視化。
+         初回/差分なし週はこのブロック自体に入らないため出ない #}
+      <p class="sb-story sb-degraded">今週のストーリー要約は生成できませんでした（次回のビルドで再試行します）</p>
       {% endif %}
       {% set extra_diffs = [] %}
       {% for d in weekly_story.diffs %}

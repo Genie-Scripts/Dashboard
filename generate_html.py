@@ -296,6 +296,10 @@ def generate(data_dir: str = DEFAULT_DATA_DIR,
             log("週次ストーリー: 差分なし / 前回スナップショット無し", "info")
     except Exception as e:
         log(f"週次ストーリー生成スキップ: {e}", "warn")
+        # D3裁定(a): 生成失敗の欠落は紙面で可視化する（正当な欠落=初回/差分なし週は
+        # weekly_story_result 自体が diffs空・failed無しになるため縮退表示は出ない）。
+        weekly_story_result = {"base_date": None, "prior_date": None,
+                               "diffs": [], "story": None, "failed": True}
     results["weekly_story"] = weekly_story_result
 
     # ════════════════════════════════════════
