@@ -10,8 +10,9 @@ import unittest
 
 from app.lib.config import unit_narration_kind
 from app.lib.dept_report import _special_narration_kind, _fallback_move_ward_admission
-from app.lib.eval_rules import dept_group_label
+from app.lib.eval_rules import dept_group_label, build_alert_context
 from app.lib import ai_narrative as an
+from app.lib import triage
 
 
 class TestSpecialNarrationKind(unittest.TestCase):
@@ -125,6 +126,68 @@ class TestFallbackMoveWardAdmission(unittest.TestCase):
     def test_met_but_slowing(self):
         move = _fallback_move_ward_admission("目標を達成しているが、直近は伸びが鈍ってきている")
         self._assert_no_referral(move)
+
+
+class TestOvernightEmergency07BPromotion(unittest.TestCase):
+    """7階B病棟(07B)の config.EMERGENCY_WARDS 昇格（2026-08-29 ユーザー裁定）が
+    triage/eval_rules/dept_report のナラティブ判定へ正しく波及すること。"""
+
+    def test_unit_narration_kind_by_code(self):
+        self.assertEqual(unit_narration_kind("ward", "07B", "7階B病棟"), "emergency")
+
+    def test_unit_narration_kind_by_name_only(self):
+        self.assertEqual(unit_narration_kind("ward", code=None, name="7階B病棟"), "emergency")
+
+    def test_triage_unit_kind(self):
+        item = {"entity_type": "ward", "ward_code": "07B", "name": "7階B病棟"}
+        self.assertEqual(triage._unit_kind(item), "emergency")
+
+    def test_triage_build_prompt_goal_line(self):
+        """07B の goal 行は emergency 用（「維持」系）になり、一般病棟用の goal・
+        レバーを含まない。"""
+        item = {
+            "entity_type": "ward",
+            "ward_code": "07B",
+            "name": "7階B病棟",
+            "entity_label": "病棟",
+            "facts": ["在院患者: 実績80人 / 目標90人（達成率89%・目標まであと10.0人）"],
+            "rank_from_bottom": 1,
+            "total_items": 3,
+            "priority": "mid",
+            "primary_kpi": "inp",
+            "status_kind": "below",
+            "improving": False,
+            "worsening": False,
+            "surgery_strong": False,
+            "primary_is_fallback": False,
+        }
+        prompt = triage._build_triage_prompt(item)
+        goal_line = next(
+            line for line in prompt.splitlines() if line.startswith("【この病棟の目標KPI】"))
+        self.assertIn("病床稼働率の維持", goal_line)
+        self.assertNotIn("在院患者数の増加（レバー: 病床管理", goal_line)
+        self.assertIn("救急・緊急入院の受け入れを絶やさない", prompt)  # UNIT_ROLE_LEVERS["emergency"]
+        self.assertNotIn("空床の把握とベッドコントロール（病床管理）で受け入れ可能な病床を確保する", prompt)
+
+    def test_eval_rules_alert_context_uses_emergency_rules(self):
+        ctx = build_alert_context({"meta": {"ward": "7階B病棟", "ward_code": "07B"}})
+        self.assertIn(
+            "病床稼働率の維持が最終目標であり、救急受け入れの空床確保はそのための手段である", ctx)
+
+    def test_triage_fallback_suggestion_emergency_wording(self):
+        item = {"entity_type": "ward", "ward_code": "07B", "name": "7階B病棟"}
+        self.assertEqual(
+            triage._fallback_suggestion(item),
+            "救急・緊急入院の受け入れ体制の維持と、転棟・転出判断の迅速化を推奨します",
+        )
+
+    def test_special_narration_kind(self):
+        self.assertEqual(_special_narration_kind("ward", "07B", "7階B病棟"), "emergency")
+
+    def test_no_collateral_promotion_for_similar_wards(self):
+        """巻き添え防止: 05A・06A は引き続き一般病棟(None)のまま。"""
+        self.assertIsNone(_special_narration_kind("ward", "05A", "5階A病棟"))
+        self.assertIsNone(_special_narration_kind("ward", "06A", "6階A病棟"))
 
 
 if __name__ == "__main__":

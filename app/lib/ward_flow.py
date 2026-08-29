@@ -7,11 +7,10 @@ detail.html「入退院バランス」タブ第4サブタブ「🏥 病棟フロ
 build_ward_flow_payload()。
 
 母集団の共通規約:
-  基底集合 = 病棟_表示==True（preprocess.py）。特例4病棟（EMERGENCY_WARDS(04A/04C)∪
+  基底集合 = 病棟_表示==True（preprocess.py）。特例病棟（EMERGENCY_WARDS(04A/04C/07B)∪
   CRITICAL_CARE_WARDS(04B/04D)。判定は必ず config.unit_narration_kind("ward", code=...)
-  を使う＝自前の集合リテラルは持たない）に、本モジュール限定で OVERNIGHT_EMERGENCY_WARDS
-  (07B=オーバーナイト救急・ユーザー裁定 2026-08-29) を加えた「フロー特例」の扱いは
-  チャートごとに異なる:
+  を使う＝自前の集合リテラルは持たない。07B は config.EMERGENCY_WARDS に昇格済み
+  （2026-08-29））の扱いはチャートごとに異なる:
     W1 = 除外（救急・重症ケアは緊急入院比率の解釈が一般病棟と異なるため）
     W2 = 含める（主役。ICU/HCUは他病棟からの転入が中心という業務実態そのもの）
     W3 = 除外（象限解釈＝利用率×回転率が一般病棟の前提でしか成立しないため）
@@ -48,19 +47,6 @@ def _short_name(name: str) -> str:
 
 def _is_special(code: str) -> bool:
     return unit_narration_kind("ward", code=code) is not None
-
-
-# オーバーナイト救急病棟（ユーザー裁定 2026-08-29）: 7階Bは緊急で受けて短期で他病棟へ
-# 送り出す入口病棟（緊急シェア・絶対流入とも院内最大級）で、W1/W3/W4 では特例4病棟と
-# 同じ母集団制御にする。config.EMERGENCY_WARDS へ昇格すると triage/eval_rules/dept_report
-# のナラティブ判定まで変わるため、判定不変の本モジュール内ローカル集合に留める
-# （昇格する場合は §4 並行確認ゲート付きの別裁定）。
-OVERNIGHT_EMERGENCY_WARDS = {"07B"}
-
-
-def _is_flow_special(code: str) -> bool:
-    """W1/W3/W4 の母集団制御: 特例4病棟＋オーバーナイト救急病棟。"""
-    return _is_special(code) or code in OVERNIGHT_EMERGENCY_WARDS
 
 
 def _is_critical_care(code: str) -> bool:
@@ -103,7 +89,7 @@ def emergency_share(adm: pd.DataFrame, base_date: pd.Timestamp) -> dict:
         emg_by_ward = win.groupby("病棟コード")["緊急入院患者数"].sum()
         denom_by_ward = win.groupby("病棟コード")["新入院患者数"].sum()
         for code, denom in denom_by_ward.items():
-            if _is_flow_special(code):
+            if _is_special(code):
                 role_excluded.append(name_map.get(code, code))
                 continue
             name = name_map.get(code, code)
@@ -297,7 +283,7 @@ def utilization_turnover_quadrant(adm: pd.DataFrame, base_date: pd.Timestamp, ta
         census_avg = census_daily.groupby("病棟コード")["在院患者数"].mean()
         adm_ward_total = win.groupby("病棟コード")["新入院患者数_病棟"].sum()
         for code, name in name_map.items():
-            if _is_flow_special(code):
+            if _is_special(code):
                 continue
             beds = beds_map.get(code)
             if not beds:
@@ -388,7 +374,7 @@ def weekday_cv(adm: pd.DataFrame, base_date: pd.Timestamp) -> dict:
                 continue
             sigma = float(sub["在院患者数"].std())
             rows.append({"name": name, "cv": round(sigma / mu * 100, 1),
-                         "special": _is_flow_special(code)})
+                         "special": _is_special(code)})
 
     general = sorted([r for r in rows if not r["special"]], key=lambda r: -r["cv"])
     special = sorted([r for r in rows if r["special"]], key=lambda r: -r["cv"])

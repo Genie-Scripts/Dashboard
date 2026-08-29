@@ -101,9 +101,9 @@ class TestPopulationRules(unittest.TestCase):
             {"5階A病棟", "4階A病棟", "ICU", "4階C病棟", "HCU"},
         )
 
-    def test_overnight_emergency_07b_treated_as_flow_special(self):
-        """オーバーナイト救急（07B・ユーザー裁定 2026-08-29）は W1/W3 から除外・
-        W2b には残り・W4 では別掲（淡色）トレース側に載る。"""
+    def test_overnight_emergency_07b_excluded_from_w1_w3(self):
+        """07B は config.EMERGENCY_WARDS 昇格（2026-08-29裁定）により W1/W3 から除外・
+        W2b には残り・W4 では別掲側（淡色トレース）に載る。"""
         start = BASE - pd.Timedelta(weeks=30)
         rows = []
         for ward in ("05A", "07B"):
