@@ -524,10 +524,10 @@ h4{font-weight:var(--jp-head)!important}
     </div>
   </section>
 
-  <!-- 手術オペレーション（S1〜S7・surgery_opsタブ限定） -->
+  <!-- 手術分析（S1〜S7・surgery_opsタブ限定） -->
   <section class="main" id="surgeryOpsSection" style="grid-template-columns:1fr;display:none">
     <div class="pnl">
-      <h3>🕐 手術オペレーション</h3>
+      <h3>🕐 手術分析</h3>
 
       <h4 class="dhm-sub">⏰ 時間外手術比率（月次） <span id="opsS1Cap" class="dhm-cap"></span></h4>
       <div class="dhm-chart" id="opsS1Chart"></div>
@@ -742,7 +742,7 @@ function renderDowHeatmaps() {
 }
 
 // ══════════════════════════
-// 手術オペレーション（S1〜S7・surgery_opsタブ）
+// 手術分析（S1〜S7・surgery_opsタブ）
 // ══════════════════════════
 const OPS_FOOT_CORE = '対象は平日の主要手術室（OP-1〜10, 12）です。眼科は外来手術センターが中心のため、この画面の集計にはほとんど入りません。';
 const OPS_FOOT_ALL  = '対象は全室です。';
@@ -808,7 +808,7 @@ function setOpsDay(d) {
   renderSurgeryOps();
 }
 
-// 手術オペタブだけに表示。他セクションは非表示にし、非表示→表示に切り替わる
+// 手術分析タブだけに表示。他セクションは非表示にし、非表示→表示に切り替わる
 // 瞬間にだけ描画する（display:noneではPlotlyが幅を取得できないため）。
 function renderSurgeryOpsLayout() {
   const sec = document.getElementById('surgeryOpsSection');
@@ -920,7 +920,7 @@ function renderTabs() {
   }
   if (DATA.charts && DATA.charts.surgery_ops) {
     const ops = DATA.charts.surgery_ops;
-    tabs.push({id:'surgery_ops', icon:'🕐', name:'手術オペ',
+    tabs.push({id:'surgery_ops', icon:'🕐', name:'手術分析',
       big:`${ops.s1.latest_rate!=null?ops.s1.latest_rate+'%':'—'}`,
       per:'時間外手術比率（直近24週・平日×主要手術室）',
       st:{css:'mu',shape:'',text:''}});
@@ -1237,7 +1237,7 @@ function refCardHtml(r) {
 
 /* ★Plan-B: renderSummary — 実績+目標+差分を統合カードに集約 */
 function renderSummary() {
-  // 手術オペタブは DATA.kpi に対応キーが無い（surgery_opsは charts 側のみ）ため、
+  // 手術分析タブは DATA.kpi に対応キーが無い（surgery_opsは charts 側のみ）ため、
   // ここで早期returnしないと最終elseブロックが kpi.daily_avg 等で例外化し白画面になる。
   const sumEl = document.getElementById('summaryBar');
   if (currentTab === 'surgery_ops') { if (sumEl) sumEl.style.display = 'none'; return; }
@@ -2464,7 +2464,7 @@ function renderChart() {
   //   （Plotlyは後着が上層＝今年線を手前にするため）。
   if (pPrevDates.length) {
     traces.push({name:'昨年度同期(28日平均)', x:pPrevDates, y:pPrevVals, type:'scatter', mode:'lines',
-      line:{color:'#B0B5BC',width:1.5,dash:'dash'}});
+      line:{color:'#B0B5BC',width:1.5,dash:'dot'}});
   }
   // ★ 28日移動平均（今年度・橙太線）
   if (showMA28) {
@@ -2620,7 +2620,7 @@ function renderOperationChart() {
     const si = Math.max(0, bp.dates.findIndex(d => d >= cutoff));
     const ds = bp.dates.slice(si), vs = bp.values.slice(si);
     traces.push({name:'昨年度同期(30平日)', x:ds, y:vs, type:'scatter', mode:'lines',
-      line:{color:'#B0B5BC',width:1.5,dash:'dash'}});
+      line:{color:'#B0B5BC',width:1.5,dash:'dot'}});
     yV.push(...vs.filter(v=>v!=null));
   }
 

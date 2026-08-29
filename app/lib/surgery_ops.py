@@ -1,7 +1,7 @@
 """
-surgery_ops.py — 手術オペレーション（Track S: S1〜S7）
+surgery_ops.py — 手術分析（Track S: S1〜S7）
 
-detail.html「手術オペ」タブ用の集計＋Plotly trace生成を1モジュールに同居させる
+detail.html「手術分析」タブ用の集計＋Plotly trace生成を1モジュールに同居させる
 （profit_surgery.py / weekly_story.py / month_projection.py と同形式）。
 
 対象:
@@ -645,7 +645,7 @@ def interrupt_mix(surg: pd.DataFrame, base_date: pd.Timestamp) -> dict:
 # ════════════════════════════════════════
 
 def build_surgery_ops_payload(surg: pd.DataFrame, base_date) -> dict:
-    """S1〜S7を集計し、detail.html「手術オペ」タブ用の単一payloadを返す。
+    """S1〜S7を集計し、detail.html「手術分析」タブ用の単一payloadを返す。
 
     Returns: {"s1","s1b","s2","s3","s4","s5","s6","s7","meta"} の9キー。
     s1 は overtime_ratio() が s1/s1b の2チャートを内包して返すため update で展開する。

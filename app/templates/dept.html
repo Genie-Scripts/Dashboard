@@ -1004,7 +1004,7 @@ function renderOneChart(elId, td, targetVal) {
       const sip = Math.max(0, fPrev.dates.findIndex(x => x >= cutoff));
       const pds = fPrev.dates.slice(sip), pvs = prevMA28.slice(sip);
       if (pds.length) {
-        traces.push({name:'昨年度同期(28日平均)',x:pds,y:pvs,type:'scatter',mode:'lines',line:{color:'#B0B5BC',width:1.5,dash:'dash'}});
+        traces.push({name:'昨年度同期(28日平均)',x:pds,y:pvs,type:'scatter',mode:'lines',line:{color:'#B0B5BC',width:1.5,dash:'dot'}});
         yV.push(...pvs.filter(v=>v!=null));
       }
     }
@@ -1074,7 +1074,7 @@ function renderSurgeryChart(elId, td, weeklyTarget) {
   if (showPrevYear && bp && bp.dates && bp.dates.length) {
     const sip = Math.max(0, bp.dates.findIndex(x => x >= cutoff));
     const pds = bp.dates.slice(sip), pvs = bp.values.slice(sip);
-    traces.push({name:'昨年度同期(週次合計)',x:pds,y:pvs,type:'scatter',mode:'lines',line:{color:'#B0B5BC',width:1.5,dash:'dash'}});
+    traces.push({name:'昨年度同期(週次合計)',x:pds,y:pvs,type:'scatter',mode:'lines',line:{color:'#B0B5BC',width:1.5,dash:'dot'}});
     yV.push(...pvs.filter(v=>v!=null));
   }
   if (showMA28 && rs7ma28.length) {

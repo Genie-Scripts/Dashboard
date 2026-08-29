@@ -1,5 +1,5 @@
 """
-手術オペレーション（Track S: S1〜S7・surgery_ops.py）の回帰防止テスト
+手術分析（Track S: S1〜S7・surgery_ops.py）の回帰防止テスト
 （標準ライブラリ unittest・追加依存なし）。
 
 対象:

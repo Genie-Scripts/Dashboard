@@ -634,7 +634,7 @@ def build_detail_json(adm, surg, targets, surg_targets,
     from .ai_narrative import narrate_leveling_actions
     weekend_leveling = narrate_leveling_actions(weekend_leveling, dow_unit_detail, top_n=6)
 
-    # 手術オペレーション（S1〜S7・surgery_opsタブ）。集計失敗はタブ非表示に無害縮退。
+    # 手術分析（S1〜S7・surgery_opsタブ）。集計失敗はタブ非表示に無害縮退。
     try:
         surgery_ops = build_surgery_ops_payload(surg, base_date)
     except Exception:
@@ -1236,7 +1236,7 @@ def build_detail_json(adm, surg, targets, surg_targets,
     return json.dumps(data, ensure_ascii=False, default=_json_safe)
 
 
-# detail.html 専用（dept.html には同梱しない）charts キー。手術オペレーション（Track S）・
+# detail.html 専用（dept.html には同梱しない）charts キー。手術分析（Track S）・
 # 粗利係数読み替え（Track K）・病棟フロー（Track W）はいずれも detail 専用タブのため、
 # dept 側では剥がす（ページ重量と additive 規律）。
 DETAIL_ONLY_CHART_KEYS = ("surgery_ops", "profit_translate", "ward_flow")
