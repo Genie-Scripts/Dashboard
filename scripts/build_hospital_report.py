@@ -72,12 +72,24 @@ def _headline_banner(hl: dict) -> str:
             f'<div style="font-size:12px;color:{SUB};margin-top:3px">{hl.get("detail","")}</div></div>')
 
 
+def _calendar_line(cp) -> str:
+    """P4暦プレビュー: 来月層・早期警戒層のみ1行で（判定不変・非発火時は空文字）。"""
+    if not cp:
+        return ""
+    texts = [x["text"] for x in (cp.get("early"), cp.get("month")) if x]
+    if not texts:
+        return ""
+    return (f'<div style="font-size:11.5px;color:{SUB};background:#f6f8fb;'
+            f'border-radius:8px;padding:7px 11px;margin-top:8px">' + " ".join(texts) + "</div>")
+
+
 def build_html(ctx) -> str:
     bd = ctx["base_date"]
     period = f"{bd - timedelta(days=6):%Y年%-m月%-d日}〜{bd:%-m月%-d日}（直近7日）"
     title = REPORT_HOSPITAL_NAME or "全病院"
     kpi = ctx["kpi"]
     hero = hs.render_hero(ctx["hero"]["headline"], ctx["hero"]["body"], ctx["hero"]["chips"])
+    cal_line = _calendar_line(ctx.get("calendar_preview"))
     kpis = hs.render_kpi_cards(kpi)
     banner = _headline_banner(kpi.get("headline"))
 
@@ -102,7 +114,7 @@ def build_html(ctx) -> str:
             f'<span style="font-size:13px;color:{SUB};font-weight:600">{period}・基準日 {bd:%Y-%m-%d}</span></div></div>')
 
     p1 = page(head + f'<div style="margin-top:10px">{kpis}</div>' + banner
-              + '<div class="sec">📣 今週の一手</div>' + hero)
+              + '<div class="sec">📣 今週の一手</div>' + hero + cal_line)
     p2 = page('<div class="sec">📈 主要指標の推移（直近12週・点線＝前年同期）</div>'
               + f'<div class="tb">{t_inp}</div><div class="tb">{t_adm}</div><div class="tb">{t_op}</div>')
     p3 = page('<div class="sec">🛏 病棟別 実績（在院・病床利用率・入退院フロー・週末在院維持率）</div>'

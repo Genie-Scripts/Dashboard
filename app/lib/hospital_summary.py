@@ -13,7 +13,7 @@ from typing import Optional
 
 import pandas as pd
 
-from . import metrics, triage
+from . import metrics, triage, calendar_preview
 from .config import (
     WARD_NAMES, WARD_HIDDEN, NADM_DISPLAY_DEPTS, SURGERY_DISPLAY_DEPTS,
     SURGERY_EVAL_DEPTS,
@@ -162,6 +162,12 @@ def build_hero_text(adm, surg, surg_targets, base_date) -> dict:
         chips.append(("週末在院維持率", f"{ret*100:.1f}%"))
     if room and room > 0:
         chips.append(("のびしろ", f"{room:.0f}人日/週"))
+    # P4暦プレビュー: 早期警戒があれば最優先、無ければ来週層のみ1個追加（判定不変・表示のみ）。
+    cp = calendar_preview.build_calendar_preview(base_date)
+    if cp and cp.get("early"):
+        chips.append(tuple(cp["early"]["chip"]))
+    elif cp and cp.get("week"):
+        chips.append(("来週の営業日", f"{cp['week']['biz_days']}日"))
     return {"headline": headline, "body": body, "chips": chips}
 
 
@@ -286,7 +292,8 @@ def build_summary_context(adm, surg, targets, surg_targets, base_date,
 
     return {"kpi": kpi, "trends": trends, "ward_rows": ward_rows, "dept_rows": dept_rows,
             "hero": build_hero_text(adm, surg, surg_targets, base_date),
-            "base_date": base_date}
+            "base_date": base_date,
+            "calendar_preview": calendar_preview.build_calendar_preview(base_date)}
 
 
 # ════════════════════════════════════════════════════════════

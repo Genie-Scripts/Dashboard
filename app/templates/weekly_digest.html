@@ -109,6 +109,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP"
     </ul>
   </div>
 
+  {% if calendar_preview %}
+  <div class="sec">
+    <div class="sec-h">📅 暦プレビュー</div>
+    <ul class="diffs">
+      {% if calendar_preview.early %}<li>{{ calendar_preview.early.text }}</li>{% endif %}
+      {% if calendar_preview.week %}<li>{{ calendar_preview.week.text }}</li>{% endif %}
+      {% if calendar_preview.month %}<li>{{ calendar_preview.month.text }}</li>{% endif %}
+    </ul>
+  </div>
+  {% endif %}
+
   <div class="sec">
     <div class="sec-h">📊 KPI（今週 / 先週 / 目標）</div>
     <table class="kpi-table">

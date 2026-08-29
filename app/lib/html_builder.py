@@ -363,6 +363,15 @@ def build_portal_context(adm, surg, targets, surg_targets,
     ai_alerts = (_build_ai_alerts(adm, surg, targets, surg_targets, base_date)
                  if include_ai_alerts else [])
 
+    # ── P4: 暦プレビュー（来週層・来月層・早期警戒層。判定不変・表示追加のみ）──
+    try:
+        from .calendar_preview import build_calendar_preview
+        calendar_preview = build_calendar_preview(base_date)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"暦プレビュースキップ: {e}")
+        calendar_preview = None
+
     return {
         "base_date": base_date.strftime("%Y-%m-%d"),
         "generated_at": (generated_at or datetime.now()).strftime("%Y/%m/%d %H:%M"),
@@ -374,6 +383,7 @@ def build_portal_context(adm, surg, targets, surg_targets,
         "ai_alerts": ai_alerts,
         "weekly_story": weekly_story,
         "changes": changes,
+        "calendar_preview": calendar_preview,
     }
 
 

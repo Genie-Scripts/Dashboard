@@ -143,6 +143,12 @@ def render_txt(ctx: dict) -> str:
         att_line += f" ─ ワースト: {worst_txt}"
     lines.append(att_line)
 
+    cp = ctx.get("calendar_preview")
+    if cp:
+        cal_texts = [cp[k]["text"] for k in ("early", "week", "month") if cp.get(k)]
+        if cal_texts:
+            lines.append(f"■ 暦プレビュー: {'／'.join(cal_texts)}")
+
     lines.append(f"■ 改善: {_fmt_improvement_txt(ctx['improvement'])}")
     lines.append(f"▶ 詳細（毎日更新）: {ctx['public_base_url']}portal.html")
     return "\n".join(lines)
@@ -225,6 +231,13 @@ def main():
         log(f"改善トピックスキップ: {e}", "warn")
         improvement = {"dept_internal": [], "dept_surgery": [], "ward": []}
 
+    try:
+        from app.lib.calendar_preview import build_calendar_preview
+        calendar_preview = build_calendar_preview(base_date)
+    except Exception as e:
+        log(f"暦プレビュースキップ: {e}", "warn")
+        calendar_preview = None
+
     qr_svg = qr_svg_inline(f"{PUBLIC_BASE_URL}portal.html", size_mm=18)
 
     date_str = base_date.strftime("%Y-%m-%d")
@@ -240,6 +253,7 @@ def main():
         "month_projection": month_projection,
         "attention": attention,
         "improvement": improvement,
+        "calendar_preview": calendar_preview,
         "qr_svg": qr_svg,
         "public_base_url": PUBLIC_BASE_URL,
     }

@@ -292,6 +292,22 @@ h4{font-weight:var(--jp-head)!important}
     {% endif %}
   </section>
 
+  {# ── P4: 暦プレビュー（早期警戒→来週の順・各1行のシンプルな帯・判定不変） ── #}
+  {% if calendar_preview %}
+  {% if calendar_preview.early %}
+  <section class="chg-bar" aria-label="長い連休の早期警戒">
+    <span class="chg-title">🗓️ 早期警戒</span>
+    <span class="chg-none">{{ calendar_preview.early.text }}</span>
+  </section>
+  {% endif %}
+  {% if calendar_preview.week %}
+  <section class="chg-bar" aria-label="来週の暦プレビュー">
+    <span class="chg-title">📅 来週の暦</span>
+    <span class="chg-none">{{ calendar_preview.week.text }}</span>
+  </section>
+  {% endif %}
+  {% endif %}
+
   {# ── B4: 昨日からの最新の動向バナー ── #}
   {% if changes %}
   <section class="chg-bar" aria-label="昨日からの最新の動向">
