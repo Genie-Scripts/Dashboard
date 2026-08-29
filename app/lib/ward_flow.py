@@ -115,6 +115,7 @@ def emergency_share(adm: pd.DataFrame, base_date: pd.Timestamp) -> dict:
     layout = _base_layout("", height=max(220, 26 * len(names) + 92))
     layout["xaxis"] = {"type": "linear", "gridcolor": "#DCE1E9", "ticksuffix": "%"}
     layout["yaxis"]["autorange"] = "reversed"
+    layout["yaxis"]["automargin"] = True
     if overall is not None:
         layout["shapes"] = [{
             "type": "line", "xref": "x", "yref": "paper",
@@ -253,6 +254,7 @@ def transfer_balance(adm: pd.DataFrame, base_date: pd.Timestamp) -> dict:
         "title": {"text": "人/週", "font": {"size": 10}},
     }
     layout["yaxis"]["autorange"] = "reversed"
+    layout["yaxis"]["automargin"] = True
 
     return {
         "chart": {"traces": [trace], "layout": layout, "config": {"responsive": True}},
@@ -398,6 +400,7 @@ def weekday_cv(adm: pd.DataFrame, base_date: pd.Timestamp) -> dict:
     layout["yaxis"]["categoryorder"] = "array"
     layout["yaxis"]["categoryarray"] = names_order
     layout["yaxis"]["autorange"] = "reversed"
+    layout["yaxis"]["automargin"] = True
 
     return {
         "chart": {"traces": [trace_general, trace_special], "layout": layout, "config": {"responsive": True}},

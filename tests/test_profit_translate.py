@@ -289,6 +289,10 @@ class TestBuildK3(unittest.TestCase):
             else:
                 expected += round(r["actual"] - r["adj_target"], 1)
 
+        self.assertTrue(
+            result["chart"]["layout"]["yaxis"].get("automargin"),
+            "科名（y軸ラベル）が既定余白(l=50px)で見切れる（実機フィードバック 2026-08-29）")
+
         trace = result["chart"]["traces"][0]
         # 横棒（orientation:"h"）: x=値, y=科名
         actual_sum = sum(trace["x"])

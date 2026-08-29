@@ -353,5 +353,38 @@ class TestStripDetailOnlyJson(unittest.TestCase):
         self.assertEqual(out["trend"], [1, 2, {"値": "日本語"}])
 
 
+class TestDefinitionAndLabels(unittest.TestCase):
+    """実機フィードバック(2026-08-29)の回帰防止: 時間外の定義表示と日本語ラベルの見切れ。"""
+
+    def test_meta_definition_is_derived_from_config(self):
+        from app.lib.config import (OR_START_HOUR, OR_START_MIN,
+                                    OR_END_HOUR, OR_END_MIN)
+        meta = build_surgery_ops_payload(_rich_surg(), BASE)["meta"]
+        start = f"{OR_START_HOUR}時{OR_START_MIN:02d}分"
+        end = f"{OR_END_HOUR}時{OR_END_MIN:02d}分"
+        self.assertEqual(meta["or_hours"], {"start": start, "end": end})
+        self.assertIn(start, meta["intro"])
+        self.assertIn(end, meta["intro"])
+        self.assertIn(f"{OR_END_HOUR}:{OR_END_MIN:02d}", meta["tab_per"])
+
+    def test_s1_caption_states_what_counts_as_overtime(self):
+        from app.lib.config import OR_END_HOUR, OR_END_MIN
+        out = overtime_ratio(_rich_surg(), BASE)
+        end = f"{OR_END_HOUR}時{OR_END_MIN:02d}分"
+        self.assertIn(end, out["s1"]["caption"])
+        self.assertIn("緊急・臨時", out["s1"]["caption"])  # 予定の延長と混ざることを明示
+        self.assertIn("日をまたい", out["s1"]["caption"])
+        self.assertIn(end, out["s1b"]["caption"])
+
+    def test_category_axes_use_automargin(self):
+        payload = build_surgery_ops_payload(_rich_surg(), BASE)
+        for key in ("s1b", "s2", "s4", "s6"):
+            self.assertTrue(
+                payload[key]["chart"]["layout"]["yaxis"].get("automargin"),
+                f"{key}: y軸ラベルが既定余白(l=50px)で見切れる")
+        for d_key, chart in payload["s5"]["days"].items():
+            self.assertTrue(chart["layout"]["yaxis"].get("automargin"), d_key)
+
+
 if __name__ == "__main__":
     unittest.main()

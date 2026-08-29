@@ -312,5 +312,23 @@ class TestPayloadSafety(unittest.TestCase):
         )
 
 
+class TestAxisLabelMargins(unittest.TestCase):
+    """病棟名（y軸ラベル）が既定余白で見切れないこと（実機フィードバック 2026-08-29）。"""
+
+    def test_ward_labeled_charts_use_automargin(self):
+        start = BASE - pd.Timedelta(weeks=30)
+        rows = []
+        for ward in ("05A", "06A", "07B"):
+            rows += _rows_for_ward(ward, start, BASE, census=20, admission=2,
+                                    emergency=1, transfer_in=1, transfer_out=1)
+        adm = preprocess_admission(pd.DataFrame(rows))
+        targets = {"inpatient": {"ward_beds": {"05A": 40, "06A": 40, "07B": 34}}}
+        payload = build_ward_flow_payload(adm, targets, BASE)
+        for key in ("w1", "w2b", "w4"):
+            self.assertTrue(
+                payload[key]["chart"]["layout"]["yaxis"].get("automargin"),
+                f"{key}: y軸ラベルが既定余白(l=50px)で見切れる")
+
+
 if __name__ == "__main__":
     unittest.main()

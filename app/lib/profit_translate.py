@@ -429,6 +429,7 @@ def build_k3(profit_section: dict) -> Optional[dict]:
     layout["xaxis"] = {"type": "linear", "gridcolor": "#DCE1E9",
                         "zeroline": True, "zerolinecolor": "#888"}
     layout["yaxis"]["autorange"] = "reversed"
+    layout["yaxis"]["automargin"] = True
 
     if base_month:
         ts = pd.Timestamp(str(base_month) + "-01")

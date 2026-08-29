@@ -46,6 +46,12 @@ _URGENT_KINDS = ["緊急", "臨時"]
 # 時間外判定の閾値（分）。17:15 ちょうどは含まない（> のみ）。
 _OVERTIME_THRESHOLD_MIN = OR_END_HOUR * 60 + OR_END_MIN
 
+# 定時（手術室の標準稼働帯）の表示ラベル。config を単一の真実にして、稼働帯を変えたときに
+# 画面の文言だけが古い時刻のまま残ることを防ぐ（S1の定義・S5の基準線と同じ値）。
+_OR_START_LABEL = f"{OR_START_HOUR}時{OR_START_MIN:02d}分"
+_OR_END_LABEL = f"{OR_END_HOUR}時{OR_END_MIN:02d}分"
+_OR_END_SHORT = f"{OR_END_HOUR}:{OR_END_MIN:02d}"
+
 # 科別カットの最小サンプル数。
 _MIN_DEPT_N = 30
 
@@ -202,13 +208,18 @@ def overtime_ratio(surg: pd.DataFrame, base_date: pd.Timestamp) -> dict:
     }
     layout_s1b = _base_layout("", height=max(220, 26 * len(bar_depts) + 92))
     layout_s1b["yaxis"]["autorange"] = "reversed"
+    # 診療科名は _base_layout の既定余白(l=50px≒4文字)に収まらず見切れる（実機 2026-08-29）。
+    # 以降、y軸に日本語ラベルを置く横棒・カテゴリ軸はすべて automargin で実測幅に合わせる。
+    layout_s1b["yaxis"]["automargin"] = True
     layout_s1b["xaxis"] = {"gridcolor": "#DCE1E9", "ticksuffix": "%"}
 
     return {
         "s1": {
             "chart": {"traces": [trace_line], "layout": layout_s1, "config": {"responsive": True}},
             "caption": (
-                "17時15分より後に退室した手術の割合です。直近24週は"
+                f"定時の終わり（{_OR_END_LABEL}）を過ぎて退室した手術の割合です。"
+                "予定した手術が延びた分と、夕方以降に入った緊急・臨時の手術の両方を含みます。"
+                "日をまたいだ手術も時間外に数えます。直近24週は"
                 f"{latest_rate if latest_rate is not None else '—'}%でした。"
             ),
             "excluded": [],
@@ -217,7 +228,9 @@ def overtime_ratio(surg: pd.DataFrame, base_date: pd.Timestamp) -> dict:
         },
         "s1b": {
             "chart": {"traces": [trace_bar], "layout": layout_s1b, "config": {"responsive": True}},
-            "caption": "診療科別の時間外手術比率です（直近24週）。",
+            "caption": (
+                f"同じ数え方（{_OR_END_LABEL}より後に退室）で、診療科ごとに見たものです（直近24週）。"
+            ),
             "excluded": excluded,
             "n": n_w,
             "depts": dept_rows,
@@ -284,6 +297,7 @@ def turnover_minutes(surg: pd.DataFrame, base_date: pd.Timestamp) -> dict:
     }
     layout = _base_layout("", height=max(220, 26 * len(rooms) + 92))
     layout["yaxis"]["autorange"] = "reversed"
+    layout["yaxis"]["automargin"] = True
     layout["xaxis"] = {"gridcolor": "#DCE1E9", "title": {"text": "分", "font": {"size": 10}}}
     if overall_median is not None:
         layout["shapes"] = [{
@@ -402,7 +416,7 @@ def urgent_hour_dow(surg: pd.DataFrame, base_date: pd.Timestamp) -> dict:
     }
     layout = _base_layout("", height=280)
     layout["xaxis"] = {"type": "category", "side": "top", "gridcolor": "transparent"}
-    layout["yaxis"] = {"autorange": "reversed", "gridcolor": "transparent"}
+    layout["yaxis"] = {"autorange": "reversed", "gridcolor": "transparent", "automargin": True}
 
     return {
         "chart": {"traces": [trace], "layout": layout, "config": {"responsive": True}},
@@ -485,7 +499,8 @@ def or_timeline(surg: pd.DataFrame, base_date: pd.Timestamp) -> dict:
         layout["barmode"] = "overlay"
         layout["xaxis"] = dict(xaxis)
         layout["yaxis"] = {"type": "category", "categoryorder": "array",
-                            "categoryarray": _OR_ROOMS_SORTED, "gridcolor": "#DCE1E9"}
+                            "categoryarray": _OR_ROOMS_SORTED, "gridcolor": "#DCE1E9",
+                            "automargin": True}
         layout["shapes"] = [dict(s) for s in shapes]
         days_payload[d_key] = {"traces": traces, "layout": layout, "config": {"responsive": True}}
 
@@ -545,6 +560,7 @@ def planned_actual_ratio(surg: pd.DataFrame, base_date: pd.Timestamp) -> dict:
     }
     layout = _base_layout("", height=max(220, 26 * len(depts) + 92))
     layout["yaxis"]["autorange"] = "reversed"
+    layout["yaxis"]["automargin"] = True
     layout["xaxis"] = {"gridcolor": "#DCE1E9", "title": {"text": "予定時間に対する倍率", "font": {"size": 10}}}
     layout["shapes"] = [{
         "type": "line", "xref": "x", "yref": "paper", "x0": 1.0, "x1": 1.0, "y0": 0, "y1": 1,
@@ -663,5 +679,16 @@ def build_surgery_ops_payload(surg: pd.DataFrame, base_date) -> dict:
         "base_date": base_date.strftime("%Y-%m-%d"),
         "core_rooms": OR_ROOM_COUNT,
         "minutes_per_room": OR_MINUTES_PER_ROOM,
+        "or_hours": {"start": _OR_START_LABEL, "end": _OR_END_LABEL},
+        # 画面先頭の定義リード。定時の基準を最初に示さないと「時間外」「入替」「タイムライン」が
+        # どれも読めない（実機フィードバック 2026-08-29）。
+        "intro": (
+            f"手術室の定時は{_OR_START_LABEL}から{_OR_END_LABEL}です。"
+            "この画面は、その時間帯を基準に手術室の使われ方を見ています。"
+        ),
+        # KPIカードの副題。定義を数字と同じ場所に置く（文言はPython側へ集約）。
+        "tab_per": (
+            f"時間外手術比率＝{_OR_END_SHORT}より後に退室<br>直近24週・平日×主要手術室"
+        ),
     }
     return payload

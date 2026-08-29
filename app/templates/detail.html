@@ -528,6 +528,7 @@ h4{font-weight:var(--jp-head)!important}
   <section class="main" id="surgeryOpsSection" style="grid-template-columns:1fr;display:none">
     <div class="pnl">
       <h3>🕐 手術分析</h3>
+      <div id="opsIntro" class="dhm-cap" style="margin:0 0 10px"></div>
 
       <h4 class="dhm-sub">⏰ 時間外手術比率（月次） <span id="opsS1Cap" class="dhm-cap"></span></h4>
       <div class="dhm-chart" id="opsS1Chart"></div>
@@ -768,6 +769,9 @@ function renderSurgeryOps() {
   const ops = (DATA.charts && DATA.charts.surgery_ops) || null;
   if (!ops) return;
 
+  const introEl = document.getElementById('opsIntro');
+  if (introEl) introEl.textContent = (ops.meta && ops.meta.intro) || '';
+
   _drawOps(ops.s1 && ops.s1.chart, 'opsS1Chart');
   _opsCap('opsS1Cap', ops.s1 && ops.s1.caption, OPS_FOOT_CORE);
   _drawOps(ops.s1b && ops.s1b.chart, 'opsS1bChart');
@@ -922,7 +926,7 @@ function renderTabs() {
     const ops = DATA.charts.surgery_ops;
     tabs.push({id:'surgery_ops', icon:'🕐', name:'手術分析',
       big:`${ops.s1.latest_rate!=null?ops.s1.latest_rate+'%':'—'}`,
-      per:'時間外手術比率（直近24週・平日×主要手術室）',
+      per:(ops.meta && ops.meta.tab_per) || '時間外手術比率（直近24週・平日×主要手術室）',
       st:{css:'mu',shape:'',text:''}});
   }
   document.getElementById('kpiTabs').innerHTML = tabs.map(t =>
