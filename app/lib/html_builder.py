@@ -351,7 +351,12 @@ def build_portal_context(adm, surg, targets, surg_targets,
             import logging
             logging.getLogger(__name__).warning(f"変化点/継続日数スキップ: {e}")
 
-    # ── AI アラート（後方互換：include_ai_alerts=True 時のみ。portal では使用しない）──
+    # ── AI アラート ──
+    # 既定 include_ai_alerts=True で計算される。generate_html.py:305 の portal.html
+    # 生成呼び出しはこの既定のまま呼ぶため計算され、portal.html:348 の
+    # {% if ai_alerts %} で実際に描画される。detail.html 側は build_detail_json
+    # （本ファイル下方）が build_portal_context を include_ai_alerts=False で
+    # 明示的に呼ぶため対象外。
     ai_alerts = (_build_ai_alerts(adm, surg, targets, surg_targets, base_date)
                  if include_ai_alerts else [])
 

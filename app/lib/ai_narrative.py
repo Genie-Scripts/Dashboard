@@ -17,6 +17,7 @@ alerts.py が返した「確定事実」を受け取り、ローカルLLMで
 
 from __future__ import annotations
 import concurrent.futures
+import fcntl
 import hashlib
 import json
 import logging
@@ -592,6 +593,41 @@ def reset_reject_stats() -> None:
     REJECT_STATS.clear()
 
 
+# ── 共有ヘルパー: dept_reports/_state 配下ファイルのアトミック書込み ──────
+# narrative_cache・alerts スナップショット等は make系(generate_html.py)と
+# reports系(build_dept_reports.py)が同一ファイルを無調停で共有するため、
+# 書込み途中の壊れかけJSON/空ファイルを読者に絶対見せない共通ヘルパーが要る
+# （D1・spec/暦補正と学習ループ改修プラン.md §5.1）。同一ディレクトリに一時
+# ファイルを書いてから os.replace で置き換える（同一ファイルシステム内なら
+# POSIXでアトミック＝読者は常に「置換前の完全な旧内容」か「置換後の完全な
+# 新内容」のどちらかしか観測できない）。
+def _atomic_write_json(path, obj, *, indent=None) -> None:
+    """obj を JSON として path へアトミックに書き込む（tmp書き→os.replace）。
+
+    例外時は残った tmp を確実に削除する（掃除漏れでディレクトリが汚れない）。
+    呼び出し元の fail-soft（try/except）に委ねるため、ここでは例外を再送出する。"""
+    p = Path(path)
+    tmp = p.with_name(f"{p.name}.tmp.{os.getpid()}")
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(obj, f, ensure_ascii=False, indent=indent)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, p)
+    except Exception:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
+def _merge_cache_dicts(disk: dict, memory: dict) -> dict:
+    """ディスク側 → メモリ側の順で上書きする和集合（メモリ優先）。
+
+    並行プロセス（別ビルド・--serve 再実行等）が load 後に追記して先に保存した分
+    （ディスクにのみ存在するキー）を、この和集合を通すことで保存時に保持する
+    （lost-update の根治。save_narrative_cache から使う）。"""
+    return {**disk, **memory}
+
+
 # ── 生成キャッシュ（PDF再作成の高速化）─────────────────────────────
 # 「PDF再作成」（overrides.md を直しての再ビルド）は同一データで走るため、
 # プロンプト（system+user）は編集していない部門で完全一致する。生成は決定論
@@ -609,7 +645,12 @@ def load_narrative_cache(path) -> None:
     """生成キャッシュをディスクから読み込み、以後 _generate_checked が使う（有効化）。
 
     build_dept_reports.py がビルド開始時に呼ぶ。--no-ai/--no-cache 時は呼ばない。
-    読めない/壊れている場合は空で有効化（fail-soft・全再生成に落ちるだけ）。"""
+    読めない/壊れている場合は空で有効化（fail-soft・全再生成に落ちるだけ）。
+
+    読側にロックは不要: save_narrative_cache は os.replace で書き換える（同一
+    ファイルシステム内でPOSIX的にアトミック）ため、読者が書込み途中の壊れかけ
+    JSONを観測するタイミングは原理的に存在しない（旧内容 or 新内容の完全な
+    どちらか一方だけを見る）。"""
     global _NARR_CACHE, _NARR_CACHE_ENABLED
     _NARR_CACHE, _NARR_CACHE_ENABLED = {}, True
     _NARR_CACHE_STATS.clear()
@@ -625,13 +666,44 @@ def load_narrative_cache(path) -> None:
 
 
 def save_narrative_cache(path) -> None:
-    """生成キャッシュをディスクへ書き出す（ビルド終了時に呼ぶ）。"""
+    """生成キャッシュをディスクへ書き出す（ビルド終了時に呼ぶ）。
+
+    make系(generate_html.py)とreports系(build_dept_reports.py)が同一ファイルを
+    無調停で共有するため、素朴な「メモリ内容でそのまま上書き」は、先に load した
+    側の保存内容を後から保存する側が消してしまう lost-update になる（D1）。
+    ここでは同一パスの `.lock` を flock(LOCK_EX) で排他した上でディスクの現内容を
+    再読込し、ディスク側→メモリ側の順で上書きした和集合（メモリ優先）を書く＝
+    並行プロセスが load 後に追記した分も保存時に保持する。書込み自体は
+    _atomic_write_json（tmp書き→os.replace）で行う。"""
     if not _NARR_CACHE_ENABLED:
         return
+    p = Path(path)
+    lock_path = p.with_name(p.name + ".lock")
     try:
-        p = Path(path)
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(json.dumps(_NARR_CACHE, ensure_ascii=False), encoding="utf-8")
+        with open(lock_path, "w", encoding="utf-8") as lock_f:
+            # LOCK_EX はブロッキング取得（保存は一瞬なので timeout は設けない）。
+            # with ブロックを抜けて lock_f が close されると OS が自動解放する。
+            fcntl.flock(lock_f.fileno(), fcntl.LOCK_EX)
+            disk = {}
+            if p.is_file():
+                try:
+                    data = json.loads(p.read_text(encoding="utf-8"))
+                    disk = data if isinstance(data, dict) else {}
+                except Exception as e:
+                    print(f"    [AI] 生成キャッシュ: ディスクの内容を読めません"
+                          f"（{{}}扱いで統合）: {e}")
+            merged = _merge_cache_dicts(disk, _NARR_CACHE)
+            # 防御ガード: 上のマージは和集合なので、正しく実装されていれば
+            # len(merged) < len(disk) は構造上起きない（将来マージ実装が壊れた
+            # ときの退行検知）。発火時は書かずに警告のみに留める。
+            if disk and len(merged) < len(disk):
+                logger.warning(
+                    "生成キャッシュ: マージ後件数がディスクを下回るため保存を中止 "
+                    f"(disk={len(disk)}件 → merged={len(merged)}件)")
+                return
+            _atomic_write_json(p, merged)
+            print(f"    [AI] 生成キャッシュ保存: {len(merged)}件（ディスク{len(disk)}件と統合）")
     except Exception as e:  # fail-soft
         logger.warning(f"生成キャッシュを書けません（無視）: {e}")
 
@@ -766,8 +838,10 @@ def _generate_checked(tag: str, system: str, user: str, banned: tuple,
         hit = _NARR_CACHE.get(key)
         if hit and hit.get("body") and hit.get("action"):
             with _STATS_LOCK:
+                # キャッシュヒットは「棄却」ではなく採択の一種（定義上は"ok"相当）。
+                # REJECT_STATS は棄却理由のテレメトリなので、ヒット計上は
+                # _NARR_CACHE_STATS["hit"] のみで行う（重複計上のバグ是正・D0）。
                 _NARR_CACHE_STATS["hit"] += 1
-                REJECT_STATS["cache"] += 1
                 if not quiet:
                     print(f"    [AI] ✓ {tag}（キャッシュ）")
             return {"body": hit["body"], "action": hit["action"], "src": "ai"}
@@ -1669,13 +1743,18 @@ def load_prev_alert_streaks(state_dir, base_date_str: str) -> dict:
 
 
 def save_alert_snapshot(state_dir, base_date_str: str, streaks: dict) -> None:
-    """今回の {id: streak} を保存（同一基準日は上書き＝再ビルドで増殖しない）。"""
+    """今回の {id: streak} を保存（同一基準日は上書き＝再ビルドで増殖しない）。
+
+    書込みは _atomic_write_json（tmp書き→os.replace）を使い、load_prev_alert_streaks
+    （同ディレクトリを glob して読む並行/後続プロセス）に書込み途中の壊れかけJSONを
+    見せない（D1）。"""
     try:
         p = Path(state_dir)
         p.mkdir(parents=True, exist_ok=True)
-        (p / f"alerts_{base_date_str}.json").write_text(
-            json.dumps({"base_date": base_date_str, "streaks": streaks},
-                       ensure_ascii=False, indent=1), encoding="utf-8")
+        _atomic_write_json(
+            p / f"alerts_{base_date_str}.json",
+            {"base_date": base_date_str, "streaks": streaks},
+            indent=1)
     except Exception as e:  # noqa: BLE001
         logger.warning(f"アラート継続台帳の保存失敗: {e}")
 

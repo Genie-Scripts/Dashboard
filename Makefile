@@ -19,6 +19,10 @@ OUTPUT_DIR     ?= .
 SORT_BY        ?= achievement
 PORT           ?= 8080
 
+# AIナラティブ生成先。broker(:8936)経由が既定（deploy.sh/build_reports.sh と同値・
+# 直列化/入場制御の恩恵を受ける）。切り戻しは: OMLX_BASE_URL=http://localhost:8000/v1 make
+export OMLX_BASE_URL ?= http://127.0.0.1:8936/v1
+
 PYTHON  := python3
 PIP     := pip3
 
