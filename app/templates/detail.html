@@ -497,6 +497,40 @@ h4{font-weight:var(--jp-head)!important}
     </div>
   </section>
 
+  <!-- 手術オペレーション（S1〜S7・surgery_opsタブ限定） -->
+  <section class="main" id="surgeryOpsSection" style="grid-template-columns:1fr;display:none">
+    <div class="pnl">
+      <h3>🕐 手術オペレーション</h3>
+
+      <h4 class="dhm-sub">⏰ 時間外手術比率（月次） <span id="opsS1Cap" class="dhm-cap"></span></h4>
+      <div class="dhm-chart" id="opsS1Chart"></div>
+
+      <h4 class="dhm-sub" style="margin-top:14px">⏰ 科別 時間外手術比率（直近24週） <span id="opsS1bCap" class="dhm-cap"></span></h4>
+      <div class="dhm-chart" id="opsS1bChart"></div>
+
+      <h4 class="dhm-sub" style="margin-top:14px">🔄 入替時間（室別・直近24週） <span id="opsS2Cap" class="dhm-cap"></span></h4>
+      <div class="dhm-chart" id="opsS2Chart"></div>
+
+      <h4 class="dhm-sub" style="margin-top:14px">📦 科別キャパ占有シェア（直近12週） <span id="opsS3Cap" class="dhm-cap"></span></h4>
+      <div class="dhm-chart" id="opsS3Chart"></div>
+
+      <h4 class="dhm-sub" style="margin-top:14px">🚨 緊急・臨時の曜日×時間帯（直近52週） <span id="opsS4Cap" class="dhm-cap"></span></h4>
+      <div class="dhm-chart" id="opsS4Chart"></div>
+
+      <h4 class="dhm-sub" style="margin-top:14px">🕐 週間ORタイムライン <span id="opsS5Cap" class="dhm-cap"></span></h4>
+      <div class="dhm-toggle" id="opsS5DaySeg"></div>
+      <div class="dhm-chart" id="opsS5Chart"></div>
+
+      <h4 class="dhm-sub" style="margin-top:14px">📐 科別 予実比（直近24週） <span id="opsS6Cap" class="dhm-cap"></span></h4>
+      <div class="dhm-chart" id="opsS6Chart"></div>
+
+      <h4 class="dhm-sub" style="margin-top:14px">🧩 割り込み率と構成（月次） <span id="opsS7Cap" class="dhm-cap"></span></h4>
+      <div class="dhm-chart" id="opsS7ChartA"></div>
+      <div class="dhm-chart" id="opsS7ChartKind" style="margin-top:10px"></div>
+      <div class="dhm-chart" id="opsS7ChartIo" style="margin-top:10px"></div>
+    </div>
+  </section>
+
   <!-- 月末粗利 見込み 推移（profitタブ専用、ハイブリッド予測） -->
   <section class="main" id="estimateSection" style="display:none;grid-template-columns:1fr">
     <div class="pnl pnl-chart">
@@ -605,7 +639,7 @@ function _pH(desktop) { return window.innerWidth <= 768 ? 200 : desktop; }
 document.addEventListener('DOMContentLoaded', () => {
   const hash = location.hash.replace('#','');
   const params = new URLSearchParams(location.hash.includes('?') ? location.hash.split('?')[1] : '');
-  if (['inpatient','admission','balance','operation','profit'].includes(hash.split('?')[0])) currentTab = hash.split('?')[0];
+  if (['inpatient','admission','balance','operation','profit','surgery_ops'].includes(hash.split('?')[0])) currentTab = hash.split('?')[0];
   if (params.get('axis')) currentAxis = params.get('axis');
   renderTabs(); renderAll();
   document.querySelectorAll('#dhmAdmRadio input').forEach(i =>
@@ -659,6 +693,92 @@ function renderDowHeatmaps() {
 
   // ドリルが開いていれば（指標/モード/対象切替に追随して）再描画
   if (dhmDrillUnit) renderDhmDrill();
+}
+
+// ══════════════════════════
+// 手術オペレーション（S1〜S7・surgery_opsタブ）
+// ══════════════════════════
+const OPS_FOOT_CORE = '対象は平日の主要手術室（OP-1〜10, 12）です。眼科は外来手術センターが中心のため、この画面の集計にはほとんど入りません。';
+const OPS_FOOT_ALL  = '対象は全室です。';
+const OPS_FOOT_S7   = '割り込み率は平日の主要手術室（OP-1〜10, 12）、構成の内訳は全室が対象です。';
+let opsDay = null;  // S5（週間ORタイムライン）で選択中の日付("YYYY-MM-DD")
+
+function _drawOps(node, elId) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  if (!node || !node.traces || !node.traces.length) {
+    el.innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:40px 0">対象データなし</div>';
+    return;
+  }
+  Plotly.newPlot(el, node.traces, Object.assign({}, node.layout), node.config || {responsive:true});
+}
+
+function _opsCap(id, text, foot) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = (text ? text + '　' : '') + foot;
+}
+
+function renderSurgeryOps() {
+  const ops = (DATA.charts && DATA.charts.surgery_ops) || null;
+  if (!ops) return;
+
+  _drawOps(ops.s1 && ops.s1.chart, 'opsS1Chart');
+  _opsCap('opsS1Cap', ops.s1 && ops.s1.caption, OPS_FOOT_CORE);
+  _drawOps(ops.s1b && ops.s1b.chart, 'opsS1bChart');
+  _opsCap('opsS1bCap', ops.s1b && ops.s1b.caption, OPS_FOOT_CORE);
+  _drawOps(ops.s2 && ops.s2.chart, 'opsS2Chart');
+  _opsCap('opsS2Cap', ops.s2 && ops.s2.caption, OPS_FOOT_CORE);
+  _drawOps(ops.s3 && ops.s3.chart, 'opsS3Chart');
+  _opsCap('opsS3Cap', ops.s3 && ops.s3.caption, OPS_FOOT_CORE);
+  _drawOps(ops.s4 && ops.s4.chart, 'opsS4Chart');
+  _opsCap('opsS4Cap', ops.s4 && ops.s4.caption, OPS_FOOT_ALL);
+
+  // S5: 日切替トグル（既定=直前完全週の最終日）
+  const dayLabels = (ops.s5 && ops.s5.day_labels) || [];
+  const segEl = document.getElementById('opsS5DaySeg');
+  if (!opsDay || !dayLabels.some(d => d[0] === opsDay)) {
+    opsDay = dayLabels.length ? dayLabels[dayLabels.length - 1][0] : null;
+  }
+  if (segEl) {
+    segEl.innerHTML = dayLabels.map(([dKey, lbl]) =>
+      `<button class="dhm-tg${dKey===opsDay?' active':''}" onclick="setOpsDay('${dKey}')">${lbl}</button>`
+    ).join('');
+  }
+  const dayChart = (ops.s5 && ops.s5.days && opsDay) ? ops.s5.days[opsDay] : null;
+  _drawOps(dayChart, 'opsS5Chart');
+  _opsCap('opsS5Cap', ops.s5 && ops.s5.caption, OPS_FOOT_CORE);
+
+  _drawOps(ops.s6 && ops.s6.chart, 'opsS6Chart');
+  _opsCap('opsS6Cap', ops.s6 && ops.s6.caption, OPS_FOOT_CORE);
+
+  _drawOps(ops.s7 && ops.s7.chart, 'opsS7ChartA');
+  _drawOps(ops.s7 && ops.s7.mix_kind, 'opsS7ChartKind');
+  _drawOps(ops.s7 && ops.s7.mix_io, 'opsS7ChartIo');
+  _opsCap('opsS7Cap', ops.s7 && ops.s7.caption, OPS_FOOT_S7);
+}
+
+function setOpsDay(d) {
+  opsDay = d;
+  renderSurgeryOps();
+}
+
+// 手術オペタブだけに表示。他セクションは非表示にし、非表示→表示に切り替わる
+// 瞬間にだけ描画する（display:noneではPlotlyが幅を取得できないため）。
+function renderSurgeryOpsLayout() {
+  const sec = document.getElementById('surgeryOpsSection');
+  if (!sec) return;
+  if (currentTab !== 'surgery_ops') { sec.style.display = 'none'; return; }
+  const mainSec = document.getElementById('mainSection');
+  const heatSec = document.getElementById('dischargeHeatmapSection');
+  const lvlSec  = document.getElementById('levelingSection');
+  const bar     = document.getElementById('balanceSubtabs');
+  if (mainSec) mainSec.style.display = 'none';
+  if (heatSec) heatSec.style.display = 'none';
+  if (lvlSec)  lvlSec.style.display  = 'none';
+  if (bar)     bar.style.display     = 'none';
+  const wasHidden = sec.style.display === 'none';
+  sec.style.display = '';
+  if (wasHidden) renderSurgeryOps();
 }
 
 // ── 単一ユニットの入退院 曜日プロファイル（行クリック・ドリル → 共通部品 renderDowProfile）──
@@ -752,6 +872,13 @@ function renderTabs() {
       big:`${pk.hospital_total}百万円`, per:`${pk.base_month} 全科合計${bdLabel}${projLabel}`,
       st:pSt});
   }
+  if (DATA.charts && DATA.charts.surgery_ops) {
+    const ops = DATA.charts.surgery_ops;
+    tabs.push({id:'surgery_ops', icon:'🕐', name:'手術オペ',
+      big:`${ops.s1.latest_rate!=null?ops.s1.latest_rate+'%':'—'}`,
+      per:'時間外手術比率（直近24週・平日×主要手術室）',
+      st:{css:'mu',shape:'',text:''}});
+  }
   document.getElementById('kpiTabs').innerHTML = tabs.map(t =>
     `<div class="tab${t.id===currentTab?' active':''}" onclick="switchTab('${t.id}')">
       <div class="nm">${t.icon} ${t.name} <span class="st">${t.st.shape} ${t.st.text}</span></div>
@@ -781,6 +908,10 @@ function switchTab(id) {
   admType = 'all';   // タブ切替でフィルタリセット
   inpDayFilter = 'all'; // 在院 全日/平日/休日リセット
   rankSort = 'gap_asc';
+  if (id === 'surgery_ops') {
+    const dayLabels = ((DATA.charts && DATA.charts.surgery_ops) || {}).s5 && DATA.charts.surgery_ops.s5.day_labels;
+    opsDay = (dayLabels && dayLabels.length) ? dayLabels[dayLabels.length - 1][0] : null;  // 既定=週の最終日
+  }
   renderTabs(); renderAll();
 }
 // ★モバイル: 補助セクション折りたたみ（提案5）。desktopは常に展開、mobileは初回のみ既定で畳む。
@@ -1060,6 +1191,11 @@ function refCardHtml(r) {
 
 /* ★Plan-B: renderSummary — 実績+目標+差分を統合カードに集約 */
 function renderSummary() {
+  // 手術オペタブは DATA.kpi に対応キーが無い（surgery_opsは charts 側のみ）ため、
+  // ここで早期returnしないと最終elseブロックが kpi.daily_avg 等で例外化し白画面になる。
+  const sumEl = document.getElementById('summaryBar');
+  if (currentTab === 'surgery_ops') { if (sumEl) sumEl.style.display = 'none'; return; }
+  if (sumEl) sumEl.style.display = '';
   const kpi = DATA.kpi[currentTab];
   let main, refs;
 
@@ -1249,6 +1385,7 @@ function renderGlobalBar() {
 
 // ── グラフパネル内コントロール: 期間 + 日種 + 描画 ──
 function renderChartControls() {
+  if (currentTab === 'surgery_ops') return;
   const isOp = currentTab === 'operation';
   const isProfit = currentTab === 'profit';
   const mkChk = (id,lbl,checked,fn) => `<label style="font-size:11px;font-weight:700;color:var(--sub);cursor:pointer;display:flex;align-items:center;gap:2px"><input type="checkbox" ${checked?'checked':''} onchange="${fn}"> ${lbl}</label>`;
@@ -1362,6 +1499,7 @@ function toggleDayType(type, checked) {
 
 function renderContent() {
   renderBalanceLayout();   // レイアウト（balanceの可視/全幅）を先に確定 → renderChart が正しい幅で描画
+  renderSurgeryOpsLayout();
   renderChart();
   renderRanking();
   renderEstimateSection();
@@ -1728,6 +1866,7 @@ const hasEstimate = !!(
   || (DATA.profit_estimate && DATA.profit_estimate.series && DATA.profit_estimate.series.dates)
 );
 function renderEstimateSection() {
+  if (currentTab === 'surgery_ops') return;
   const sec = document.getElementById('estimateSection');
   const csec = document.getElementById('contributionSection');
   const hsec = document.getElementById('hybridSection');
@@ -2057,6 +2196,7 @@ function filterByDayType(dates, values, isWeekday) {
 }
 
 function renderChart() {
+  if (currentTab === 'surgery_ops') return;
   if (currentTab === 'profit') { renderProfitChart(); return; }
   if (currentTab === 'operation') { renderOperationChart(); return; }
   if (currentTab === 'balance') { renderBalanceChart(); return; }
@@ -2349,6 +2489,7 @@ const RANK_SHOW = 10;
 let rankExpanded = false;
 
 function renderRanking() {
+  if (currentTab === 'surgery_ops') return;
   if (currentTab === 'profit') { renderProfitRanking(); return; }
   // 入退院バランスは在院数の増減を示すため、ランキングは在院（達成状況）を流用
   const rankTab = (currentTab === 'balance') ? 'inpatient' : currentTab;

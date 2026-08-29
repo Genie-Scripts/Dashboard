@@ -49,6 +49,7 @@ from .profit_estimate import (
 )
 from .month_projection import build_month_projection_payload, profit_target_for_month
 from .moves_store import load_latest_moves
+from .surgery_ops import build_surgery_ops_payload
 
 
 def _json_safe(obj):
@@ -631,6 +632,12 @@ def build_detail_json(adm, surg, targets, surg_targets,
     from .ai_narrative import narrate_leveling_actions
     weekend_leveling = narrate_leveling_actions(weekend_leveling, dow_unit_detail, top_n=6)
 
+    # 手術オペレーション（S1〜S7・surgery_opsタブ）。集計失敗はタブ非表示に無害縮退。
+    try:
+        surgery_ops = build_surgery_ops_payload(surg, base_date)
+    except Exception:
+        surgery_ops = None
+
     # ── drill: 診療科ドリルダウン ──
     drill = {}
     # ── A1: 部門レポートPDFの「この期間の一手」確定値（moves 無し/対象なしは非表示に縮退）──
@@ -1063,6 +1070,7 @@ def build_detail_json(adm, surg, targets, surg_targets,
             "dow_heatmaps": dow_heatmaps,
             "dow_unit_detail": dow_unit_detail,
             "weekend_leveling": weekend_leveling,
+            "surgery_ops": surgery_ops,
         },
     }
 
@@ -1202,4 +1210,18 @@ def build_detail_json(adm, surg, targets, surg_targets,
         except Exception:
             drill_entry["profit_projections"] = None
 
+    return json.dumps(data, ensure_ascii=False, default=_json_safe)
+
+
+def strip_surgery_ops_json(detail_json: str) -> str:
+    """detail用JSONから charts.surgery_ops を除いた dept.html 用JSONを返す。
+
+    dept.html は detail.html と同じ DATA を埋め込む設計だが、手術オペレーション
+    タブは detail 専用のため dept 側へは同梱しない（ページ重量と additive 規律）。
+    dumps 引数は build_detail_json と同一にし、往復で表現を変えない。
+    """
+    data = json.loads(detail_json)
+    charts = data.get("charts")
+    if isinstance(charts, dict):
+        charts.pop("surgery_ops", None)
     return json.dumps(data, ensure_ascii=False, default=_json_safe)
