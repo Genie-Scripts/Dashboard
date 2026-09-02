@@ -501,6 +501,10 @@ ACTION_TOPIC_MIN_SCORE = 0.12   # これ未満の不足差はノイズ扱い→�
 # SURGERY_TOPIC_MIN_SCORE_HOSPITAL による選定を維持する。
 SURGERY_TOPIC_MIN_SCORE = 0.02          # 外科系診療科: ②により実効なし（後方互換で残置）
 SURGERY_TOPIC_MIN_SCORE_HOSPITAL = 0.05  # 病院全体: 全麻達成率95%未満で一手候補に
+# 病院全体サマリの leveling/admission 足切り。21科合算の病院全体では診療科軸と同じ
+# 12%未達（ACTION_TOPIC_MIN_SCORE）は構造的に起きない（個別科のブレが打ち消し合うため）
+# ので、病院全体だけは緩めの3%にする。
+ACTION_TOPIC_MIN_SCORE_HOSPITAL = 0.03
 
 
 def _admission_gap_score(na, na_tgt) -> float:
@@ -513,6 +517,16 @@ def _surgery_gap_score(sv, surg_tgt) -> float:
     if not surg_tgt or sv is None:
         return 0.0
     return max(0.0, 1.0 - sv / surg_tgt)
+
+
+def _leveling_gap_score(ret_pct, target_pct=TARGET_WEEKEND_RETENTION) -> float:
+    """週末在院維持率の目標比不足率（新入院/全麻と同じ「目標比の絶対不足率」の物差し）。
+    病院全体サマリの topic_scores["leveling"] は旧来「1 - ret」（100%からの距離）で採点
+    しており、新入院/全麻の目標比不足率と土俵が違った（=100%を基準にする分だけ週末が
+    構造的に高スコアになりがち）。この非対称の是正に使う。"""
+    if ret_pct is None or not target_pct:
+        return 0.0
+    return max(0.0, 1 - ret_pct / target_pct)
 
 
 def _select_action_topic(type_key: str, room: float, max_room: float,
@@ -556,12 +570,22 @@ def _select_action_topic(type_key: str, room: float, max_room: float,
 
 def _select_hospital_topic(topic_scores: dict) -> str:
     """病院全体サマリの主トピック選定（_select_action_topic と同じ eligible ルール）。
-    全麻は SURGERY_TOPIC_MIN_SCORE_HOSPITAL（達成率95%未満）で候補に入る。
-    eligible が無ければ leveling を既定にする。"""
-    mins = {"leveling": ACTION_TOPIC_MIN_SCORE, "admission": ACTION_TOPIC_MIN_SCORE,
+    leveling/admission は ACTION_TOPIC_MIN_SCORE_HOSPITAL（不足率3%以上＝達成率97%未満）、全麻は
+    SURGERY_TOPIC_MIN_SCORE_HOSPITAL（達成率95%未満）で候補に入る。
+
+    2026-09-02: eligible が空でも即 leveling 既定にはしない（旧仕様は事実上 admission が
+    選ばれる経路が無かった）。eligible があればその中でスコア最大、eligible が空なら
+    全トピック中のスコア最大を採る（3トピックとも足切り未満＝好調なときのフォールバック）。
+    全スコアが0（データ欠落等）のときだけ leveling を既定にする。同点は
+    _SECONDARY_PRIORITY（admission > surgery > leveling）で決定論に選ぶ。"""
+    mins = {"leveling": ACTION_TOPIC_MIN_SCORE_HOSPITAL, "admission": ACTION_TOPIC_MIN_SCORE_HOSPITAL,
             "surgery": SURGERY_TOPIC_MIN_SCORE_HOSPITAL}
-    eligible = {k: v for k, v in topic_scores.items() if v >= mins.get(k, ACTION_TOPIC_MIN_SCORE)}
-    return max(eligible, key=eligible.get) if eligible else "leveling"
+    eligible = {k: v for k, v in topic_scores.items() if v >= mins.get(k, ACTION_TOPIC_MIN_SCORE_HOSPITAL)}
+    pool = eligible or topic_scores
+    if not pool or max(pool.values()) <= 0.0:
+        return "leveling"
+    priority_index = {t: i for i, t in enumerate(_SECONDARY_PRIORITY)}
+    return max(pool.items(), key=lambda kv: (kv[1], -priority_index.get(kv[0], 99)))[0]
 
 
 def _special_narration_kind(entity: str, code: str, name: str) -> Optional[str]:
@@ -608,15 +632,52 @@ def _same_type_names(ratio_map: dict, type_key: str) -> list:
 # 接続は極性中立の「なお、〜は」を使う。主文はLLM自由文で「未達でも前年比は前向きに触れる」
 # 指示があるためポジティブに終わり得るが、「あわせて、〜も」は直前も同調子である前提を含意し、
 # 逆説的な内容を順接で繋ぐ違和感を生んでいた（主文の極性は判定不能ゆえ中立接続に統一）。
-def _secondary_clause(topic: Optional[str], na_state: Optional[str],
-                      surg_state: Optional[str]) -> Optional[str]:
-    if topic == "admission" and na_state:
-        return f"なお、新入院は{na_state}状況です。"
-    if topic == "surgery" and surg_state:
-        return f"なお、全身麻酔手術は{surg_state}状況です。"
-    if topic == "leveling":
-        return "なお、週末在院の維持には改善余地があります。"
-    return None
+#
+# 2026-09-02 是正: 旧版は topic=="leveling" のとき実測を見ずに固定文「なお、週末在院の
+# 維持には改善余地があります。」を返していた（週末が主トピックでさえあれば常に付く＝
+# 事実と無関係）。新入院/全麻は実測の目標未達だけを候補にしているのと非対称だったため、
+# 3トピックとも実測（tier）から都度判定するよう統一する。
+_SECONDARY_PRIORITY = ("admission", "surgery", "leveling")   # 同順位のときの優先（発信方針: 新入院>全麻>週末）
+_SECONDARY_TIER_RANK = {"close": 1, "mild": 2, "poor": 3}    # met/exceed は併記対象外
+
+
+def _weekend_state(ret) -> Optional[str]:
+    """per-unit 週末在院維持率を、病院全体サマリと同じ目標(TARGET_WEEKEND_RETENTION)比で
+    _q_target_gap の5段階へ量子化する（新入院/全麻と同じ物差し）。"""
+    return _q_target_gap(ret * 100, TARGET_WEEKEND_RETENTION) if ret is not None else None
+
+
+def _secondary_clause(primary: str, na_state: Optional[str], surg_state: Optional[str], ret,
+                      *, na_gap=None, na_tgt=None, sv_gap=None, surg_tgt=None,
+                      surgery_label: str = "全身麻酔手術") -> Optional[str]:
+    """主トピック(primary)以外で「実測が目標未達（tier ∈ close/mild/poor）」のものだけを
+    候補にし、1つを本文へ軽く併記する。週末(leveling)だけは mild/poor のみ候補にする
+    （close は併記しない＝発信方針で週末の扱いを一段控えめにする）。同tierは
+    _SECONDARY_PRIORITY（admission > surgery > leveling）で決定論に選ぶ。候補なしは None。
+
+    admission/surgery の tier は生値(na_gap/na_tgt, sv_gap/surg_tgt)から判定する
+    （na_state/surg_state はトレンド合成済みの文なので判定には使わない・文面のみに使う）。"""
+    candidates = {}   # topic -> (tier_rank, text)
+    if primary != "admission":
+        na_level = _q_target_gap(na_gap, na_tgt)
+        na_tier = _gap_level_tier(na_level) if na_level else None
+        if na_tier in _SECONDARY_TIER_RANK and na_state:
+            candidates["admission"] = (_SECONDARY_TIER_RANK[na_tier], f"なお、新入院は{na_state}状況です。")
+    if primary != "surgery":
+        sv_level = _q_target_gap(sv_gap, surg_tgt)
+        sv_tier = _gap_level_tier(sv_level) if sv_level else None
+        if sv_tier in _SECONDARY_TIER_RANK and surg_state:
+            candidates["surgery"] = (_SECONDARY_TIER_RANK[sv_tier], f"なお、{surgery_label}は{surg_state}状況です。")
+    if primary != "leveling":
+        wk_state = _weekend_state(ret)
+        wk_tier = _gap_level_tier(wk_state) if wk_state else None
+        if wk_tier in ("mild", "poor"):
+            candidates["leveling"] = (_SECONDARY_TIER_RANK[wk_tier], f"なお、週末在院の維持率は{wk_state}状況です。")
+    if not candidates:
+        return None
+    best_rank = max(rank for rank, _ in candidates.values())
+    chosen = next(t for t in _SECONDARY_PRIORITY if t in candidates and candidates[t][0] == best_rank)
+    return candidates[chosen][1]
 
 
 def _ma_window_trend(cur: list, prior_end: int, pt: float) -> str:
@@ -1492,8 +1553,13 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
 
             # P3: 未達が複数ある科は、主トピックの一手に加えて副トピックを本文へ軽く併記
             # （actionは主トピックに集中）。救命救急系は語彙が異なるため対象外。
-            if secondary and not is_emergency and move.get("body"):
-                also = _secondary_clause(secondary, na_state, surg_state)
+            # 2026-09-02: 選定は _select_action_topic の secondary（足切り済みの相対スコア）
+            # ではなく、主トピック(topic)を渡して _secondary_clause 側で実測tierから
+            # 都度判定する（unit_states の "secondary" キーはこのクローズ判定には使わない）。
+            if not is_emergency and move.get("body"):
+                also = _secondary_clause(topic, na_state, surg_state, ret,
+                                         na_gap=na_gap, na_tgt=na_tgt_gap, sv_gap=sv_gap,
+                                         surg_tgt=surg_tgt_gap, surgery_label=surgery_metric_label(name))
                 if also:
                     move = {**move, "body": move["body"].rstrip() + " " + also}
 
@@ -1663,6 +1729,17 @@ _HOSPITAL_LEVERS = {
 _HOSPITAL_TOPIC_LABEL = {"leveling": "週末在院の維持率", "admission": "新入院", "surgery": "全身麻酔手術"}
 
 
+def _hospital_other_topic_facts(h_topic: str, topic_states: dict, tiers: dict) -> list:
+    """主トピック(h_topic)以外で「実測が目標未達（tier ∈ close/mild/poor）」のものだけを
+    facts へ併記する（per-unit の _secondary_clause と同じ「事実が無ければ言わない」設計に
+    病院全体サマリも揃える・2026-09-02是正）。旧版は達成/未達を問わず topic_states に値が
+    あれば全部足していた。tiers は {"leveling": tier or None, "admission": ..., "surgery": ...}
+    （_h_tier 相当・呼び出し側で計算済みのものを渡す）。順序は leveling→admission→surgery。"""
+    return [f"{_HOSPITAL_TOPIC_LABEL[k]}: {topic_states[k]}"
+            for k in ("leveling", "admission", "surgery")
+            if k != h_topic and topic_states.get(k) and tiers.get(k) in _SECONDARY_TIER_RANK]
+
+
 def _fallback_move_hospital(topic: str, state: Optional[str], ret: Optional[float],
                             leader: Optional[str] = None,
                             leader_label: Optional[str] = None) -> dict:
@@ -1830,17 +1907,26 @@ def build_hospital_overview_context(adm, surg, targets, surg_targets, profit_mon
 
     topic_states = {"leveling": leveling_state, "admission": admission_state, "surgery": surgery_state}
     topic_scores = {
-        "leveling": max(0.0, 1 - ret) if ret is not None else 0.0,
+        "leveling": _leveling_gap_score(ret_pct),
         "admission": _admission_gap_score(kpi["admission_actual_7d"], TARGET_ADMISSION_WEEKLY),
         "surgery": _surgery_gap_score(kpi["operation_daily_avg"], TARGET_GA_DAILY),
     }
     h_topic = _select_hospital_topic(topic_scores)
     h_primary_state = topic_states.get(h_topic) or leveling_state or "目標を下回っている"
 
+    # ① 差分ナラティブ（病院全体）: 3トピックの達成度バケットを状態として保存し、
+    # アンカー（約4週前）との遷移を主トピックについてのみ言及（単一ユニットと同じ保守則）。
+    # facts 側（非主トピックの併記）でも同じ tier を再利用する（二重計算を避ける）。
+    def _h_tier(v, t):
+        level = _q_target_gap(v, t)
+        return _gap_level_tier(level) if level else None
+
+    h_tags = {"leveling": _h_tier(ret_pct, TARGET_WEEKEND_RETENTION),
+              "admission": _h_tier(kpi["admission_actual_7d"], TARGET_ADMISSION_WEEKLY),
+              "surgery": _h_tier(kpi["operation_daily_avg"], TARGET_GA_DAILY)}
+
     facts = [f"{_HOSPITAL_TOPIC_LABEL[h_topic]}: {h_primary_state}"]
-    for k in ("leveling", "admission", "surgery"):
-        if k != h_topic and topic_states.get(k):
-            facts.append(f"{_HOSPITAL_TOPIC_LABEL[k]}: {topic_states[k]}")
+    facts.extend(_hospital_other_topic_facts(h_topic, topic_states, h_tags))
     if census_state:
         facts.append(f"在院患者数: {census_state}")
     if profit_state:
@@ -1861,15 +1947,8 @@ def build_hospital_overview_context(adm, surg, targets, surg_targets, profit_mon
     all_names = set(dept_ratio) | set(surg_ratio) | {u["name"] for u in wr.get("units", [])}
     other_names = tuple(sorted(all_names))
 
-    # ① 差分ナラティブ（病院全体）: 3トピックの達成度バケットを状態として保存し、
+    # ① 差分ナラティブ（病院全体）: h_tags は facts 組み立て前に計算済み（上で再利用）。
     # アンカー（約4週前）との遷移を主トピックについてのみ言及（単一ユニットと同じ保守則）。
-    def _h_tier(v, t):
-        level = _q_target_gap(v, t)
-        return _gap_level_tier(level) if level else None
-
-    h_tags = {"leveling": _h_tier(ret_pct, TARGET_WEEKEND_RETENTION),
-              "admission": _h_tier(kpi["admission_actual_7d"], TARGET_ADMISSION_WEEKLY),
-              "surgery": _h_tier(kpi["operation_daily_avg"], TARGET_GA_DAILY)}
     prev_h = (delta_anchor or {}).get("hospital") or {}
     g = _gap_delta_fact(_HOSPITAL_TOPIC_LABEL[h_topic], prev_h.get(h_topic), h_tags.get(h_topic))
     h_delta = g[1] if g else None

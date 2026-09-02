@@ -1,9 +1,10 @@
 """部門レポート「この期間の一手」のトピック選定と直接文言のユニットテスト。
 
 外科系診療科の surgery 主トピック常時固定（2026-07-22・達成状況によらず手術コメントを
-必ず先頭へ）、病院全体の足切り（全麻95%=0.05）、未達 action の直接文言化
-（件数増に専念／患者数増に取り組む）、副トピック併記の極性中立接続（なお、〜は）を
-純関数で検証する。LLM呼び出しはテストしない。
+必ず先頭へ）、病院全体の足切り（全麻95%=0.05／leveling・admission=3%＝2026-09-02是正）、
+未達 action の直接文言化（件数増に専念／患者数増に取り組む）を純関数で検証する。
+副トピック併記（_secondary_clause）のテストは tests/test_move_secondary_clause.py へ分離。
+LLM呼び出しはテストしない。
 """
 import sys
 import unittest
@@ -13,9 +14,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.lib.dept_report import (_select_action_topic, _select_hospital_topic,
                                  _fallback_move_surgery, _fallback_move_admission,
-                                 _secondary_clause,
+                                 _leveling_gap_score, _hospital_other_topic_facts,
                                  SURGERY_TOPIC_MIN_SCORE,
-                                 SURGERY_TOPIC_MIN_SCORE_HOSPITAL)
+                                 SURGERY_TOPIC_MIN_SCORE_HOSPITAL,
+                                 ACTION_TOPIC_MIN_SCORE_HOSPITAL)
 
 
 class SelectActionTopicTest(unittest.TestCase):
@@ -60,27 +62,67 @@ class SelectActionTopicTest(unittest.TestCase):
 
 class SelectHospitalTopicTest(unittest.TestCase):
     def test_reproduces_20260705(self):
-        # 病院全体: 2026-07-05 実測値の再現
-        # leveling 0.088(<0.12) admission 0.055(<0.12) surgery 0.081(≥0.05)
-        # → surgery だけ eligible → "surgery"
-        scores = {"leveling": 0.088, "admission": 0.055, "surgery": 0.081}
+        # 病院全体: 2026-07-05 実測値の再現（新式で再計算）。
+        # leveling=_leveling_gap_score(91.2)≈0.019(<0.03) admission 0.055(≥0.03)
+        # surgery 0.081(≥0.05) → surgery のまま
+        scores = {"leveling": _leveling_gap_score(91.2), "admission": 0.055, "surgery": 0.081}
         self.assertEqual(_select_hospital_topic(scores), "surgery")
 
     def test_surgery_94pct_eligible(self):
-        # 全麻達成率94%(0.06≥0.05) → surgery が主
+        # 全麻達成率94%(0.06≥0.05) → surgery が主（新ルールでも期待値は不変）
         self.assertEqual(SURGERY_TOPIC_MIN_SCORE_HOSPITAL, 0.05)
         scores = {"leveling": 0.03, "admission": 0.03, "surgery": 0.06}
         self.assertEqual(_select_hospital_topic(scores), "surgery")
 
     def test_surgery_96pct_below_threshold(self):
-        # 全麻達成率96%(0.04<0.05) かつ他も足切り未満 → leveling 既定
+        # 全麻達成率96%(0.04<0.05)・leveling 0.03(≥0.03) → leveling が eligible 内最大
+        # （新ルールでも期待値は不変）
         scores = {"leveling": 0.03, "admission": 0.02, "surgery": 0.04}
         self.assertEqual(_select_hospital_topic(scores), "leveling")
 
-    def test_admission_still_needs_012(self):
-        # admission は従来どおり 0.12 足切り（0.06では選ばれない）
+    def test_admission_hospital_threshold_003(self):
+        # 2026-09-02是正: admission の足切りは病院全体では 0.03（旧 0.12 から緩和）。
+        # leveling 0.02(<0.03)・admission 0.06(≥0.03)・surgery 0.0 → admission が主
         scores = {"leveling": 0.02, "admission": 0.06, "surgery": 0.0}
+        self.assertEqual(ACTION_TOPIC_MIN_SCORE_HOSPITAL, 0.03)
+        self.assertEqual(_select_hospital_topic(scores), "admission")
+
+    def test_no_eligible_falls_back_to_max(self):
+        # eligible が全て足切り未満でも 0 でなければ leveling 既定にせず全体最大を採る
+        # （旧仕様は3トピックとも好調なとき admission/surgery が選ばれる経路が無かった）
+        scores = {"leveling": 0.012, "admission": 0.02, "surgery": 0.01}
+        self.assertEqual(_select_hospital_topic(scores), "admission")
+
+    def test_all_zero_defaults_to_leveling(self):
+        scores = {"leveling": 0.0, "admission": 0.0, "surgery": 0.0}
         self.assertEqual(_select_hospital_topic(scores), "leveling")
+
+    def test_tie_prefers_admission_over_surgery(self):
+        # 同点は _SECONDARY_PRIORITY（admission > surgery > leveling）で決定論に選ぶ
+        scores = {"leveling": 0.0, "admission": 0.06, "surgery": 0.06}
+        self.assertEqual(_select_hospital_topic(scores), "admission")
+
+
+class LevelingGapScoreTest(unittest.TestCase):
+    def test_matches_target_gap_ratio(self):
+        # 91.9% → 1 - 91.9/93 ≈ 0.0118（新入院/全麻と同じ「目標比の絶対不足率」の物差し）
+        self.assertAlmostEqual(_leveling_gap_score(91.9), 0.0118, places=3)
+
+    def test_at_or_above_target_is_zero(self):
+        self.assertEqual(_leveling_gap_score(95.0), 0.0)
+
+    def test_none_is_zero(self):
+        self.assertEqual(_leveling_gap_score(None), 0.0)
+
+
+class HospitalOtherTopicFactsTest(unittest.TestCase):
+    def test_only_below_target_tiers_included(self):
+        # met は候補外・admission(=h_topic)は自身なので対象外・surgery(mild)だけ返る
+        states = {"leveling": "目標を達成している", "admission": "目標を明確に下回っている",
+                  "surgery": "目標をやや下回っている"}
+        tiers = {"leveling": "met", "surgery": "mild", "admission": "poor"}
+        facts = _hospital_other_topic_facts("admission", states, tiers)
+        self.assertEqual(facts, ["全身麻酔手術: 目標をやや下回っている"])
 
 
 class DirectWordingTest(unittest.TestCase):
@@ -97,28 +139,6 @@ class DirectWordingTest(unittest.TestCase):
         move = _fallback_move_surgery("目標を達成している")
         self.assertNotIn("件数増に専念", move["action"])
         self.assertIn("維持", move["action"])
-
-
-class SecondaryClauseNeutralConnectiveTest(unittest.TestCase):
-    """副トピック併記は極性中立の「なお、〜は」。主文(LLM自由文)がポジティブに終わっても
-    「あわせて、〜も」のようなねじれた順接にならないこと。"""
-
-    def test_admission_clause(self):
-        c = _secondary_clause("admission", "目標をやや下回っている", None)
-        self.assertEqual(c, "なお、新入院は目標をやや下回っている状況です。")
-
-    def test_leveling_clause(self):
-        self.assertEqual(_secondary_clause("leveling", None, None),
-                         "なお、週末在院の維持には改善余地があります。")
-
-    def test_no_additive_connective(self):
-        for topic, na, sv in (("admission", "目標を下回っている", None),
-                              ("surgery", None, "目標を下回っている"),
-                              ("leveling", None, None)):
-            c = _secondary_clause(topic, na, sv)
-            self.assertNotIn("あわせて", c)
-            # 「〜も…」の同調前提を含意しない（主語直後は「は/には」）
-            self.assertNotRegex(c, r"(新入院|全身麻酔手術)も")
 
 
 if __name__ == "__main__":

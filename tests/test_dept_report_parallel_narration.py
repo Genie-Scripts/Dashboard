@@ -44,6 +44,9 @@ from tests.test_dept_report_leveling_skip import (  # noqa: E402
 # 全文差し替えでもAI生成そのものは止めない。narrate_leveling_actions のbatch skip対象からも
 # 外れたため（2026-08 追加改修）、ai_body/ai_action には差し替え前の実AI文
 # （leveling バッチのフェイク生成 "LEVAI::腎臓内科"）が入る。
+# 2026-09-02: 副トピック定型文の事実化（_secondary_clause）により、週末文は per-unit の
+# 実測 retention が目標比 mild/poor のときだけ付く。本フィクスチャの units は retention を
+# 持たない診療科（呼吸器内科）には付かず、retention が poor の 10A病棟にだけ実測ベースの文が付く。
 _GOLDEN = [
  {"axis": "dept", "type_key": "internal", "order": 0, "unit": "循環器内科",
   "total_retention_pct": 80.0,
@@ -54,10 +57,10 @@ _GOLDEN = [
  {"axis": "dept", "type_key": "internal", "order": 1, "unit": "呼吸器内科",
   "total_retention_pct": 80.0,
   "charts": [{"kind": "A", "priority": 1}],
-  "move": {"body": "ADM::呼吸器内科 なお、週末在院の維持には改善余地があります。",
+  "move": {"body": "ADM::呼吸器内科",
            "action": "ADM-ACT::呼吸器内科", "src": "ai", "topic": "admission",
            "delta": None,
-           "ai_body": "ADM::呼吸器内科 なお、週末在院の維持には改善余地があります。",
+           "ai_body": "ADM::呼吸器内科",
            "ai_action": "ADM-ACT::呼吸器内科",
            "nadm_line": "新入院：直近7日 5件／週目標20（25%）。28日線は—／あと約15件/週で目標"}},
  {"axis": "dept", "type_key": "surgical", "order": 2, "unit": "整形外科",
@@ -99,10 +102,10 @@ _GOLDEN = [
  {"axis": "ward", "type_key": "ward", "order": 2, "unit": "10A病棟",
   "total_retention_pct": 80.0,
   "charts": [{"kind": "A", "priority": 1}],
-  "move": {"body": "ADM::10A病棟 なお、週末在院の維持には改善余地があります。",
+  "move": {"body": "ADM::10A病棟 なお、週末在院の維持率は目標を明確に下回っている状況です。",
            "action": "ADM-ACT::10A病棟", "src": "ai", "topic": "admission",
            "delta": None,
-           "ai_body": "ADM::10A病棟 なお、週末在院の維持には改善余地があります。",
+           "ai_body": "ADM::10A病棟 なお、週末在院の維持率は目標を明確に下回っている状況です。",
            "ai_action": "ADM-ACT::10A病棟"}},
 ]
 
@@ -169,10 +172,10 @@ class TestOneFailureDoesNotBreakBuild(unittest.TestCase):
         self.assertNotEqual(surg_move.get("src"), "ai")
         # 他の narrate_* 呼び出しユニットは正常どおりAI文言のまま
         self.assertEqual(moves[("dept", "呼吸器内科")]["body"],
-                         "ADM::呼吸器内科 なお、週末在院の維持には改善余地があります。")
+                         "ADM::呼吸器内科")
         self.assertEqual(moves[("ward", "04A")]["body"], "EMLEV::04A")
         self.assertEqual(moves[("ward", "10A病棟")]["body"],
-                         "ADM::10A病棟 なお、週末在院の維持には改善余地があります。")
+                         "ADM::10A病棟 なお、週末在院の維持率は目標を明確に下回っている状況です。")
 
 
 class TestParallelIsConcurrent(unittest.TestCase):
