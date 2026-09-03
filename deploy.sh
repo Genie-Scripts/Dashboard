@@ -25,6 +25,33 @@ error_dialog() {
 # 予期せぬエラー時に実行
 trap 'error_dialog "予期せぬエラーで停止しました。詳細は $LOG を確認してください。"' ERR
 
+# ── 環境ファイルの読み込み（秘密情報はリポジトリの外に置く）──
+# CLOUDFLARE_API_TOKEN 等をここから読む。リポジトリ内に置かないのは、
+# gitignore 頼みだと誤コミットの余地が残るため（oMLX の API キーを
+# ~/.omlx/settings.json から読んでいるのと同じ流儀）。
+# 置き場所は DASHBOARD_ENV_FILE で変更できる。
+DASHBOARD_ENV_FILE="${DASHBOARD_ENV_FILE:-$HOME/.config/dashboard/deploy.env}"
+if [ -f "$DASHBOARD_ENV_FILE" ]; then
+  # 他ユーザーから読める状態なら警告する（トークンを平文で持つため）
+  _perm="$(stat -f '%Lp' "$DASHBOARD_ENV_FILE" 2>/dev/null || echo '')"
+  case "$_perm" in
+    600|400) : ;;
+    '') : ;;
+    *) echo "⚠️  $DASHBOARD_ENV_FILE の権限が $_perm です。chmod 600 を推奨します" >> "$LOG" ;;
+  esac
+  # set -a で、読み込んだ変数を自動的に export する（wrangler は環境変数を拾う）
+  set -a
+  # shellcheck disable=SC1090
+  . "$DASHBOARD_ENV_FILE"
+  set +a
+  # 空文字のまま export されていると wrangler が「トークンあり」と誤認して
+  # OAuth へフォールバックせず認証エラーになるため、空なら変数ごと消す。
+  [ -z "${CLOUDFLARE_API_TOKEN:-}" ] && unset CLOUDFLARE_API_TOKEN || true
+  echo "✅ 環境ファイル読込: $DASHBOARD_ENV_FILE" >> "$LOG"
+else
+  echo "ℹ️  環境ファイルなし ($DASHBOARD_ENV_FILE) — wrangler は wrangler login の認証を使います" >> "$LOG"
+fi
+
 # ── 0a. oMLX（要約LLM・OpenAI互換）の起動確認 ──
 # 要約LLMは oMLX(127.0.0.1:8000) に統一（旧 Ollama から移行）。非Docker・ホスト実行なので localhost。
 # export して python(generate_html.py / app/lib/llm.py)へ確実に渡す。
