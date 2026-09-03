@@ -3,7 +3,7 @@
 病院の経営KPI（在院患者数・新入院患者数・全身麻酔手術件数・粗利）を  
 医師・看護師向けに可視化する静的HTMLダッシュボード。
 
-**公開先**: https://genie-scripts.github.io/Dashboard/
+**公開先**: https://hospital-dashboard-6ow.pages.dev/（Basic認証で保護。閲覧にはユーザー名 `dashboard` とパスワードが必要）
 
 ---
 

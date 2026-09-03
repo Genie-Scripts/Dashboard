@@ -1,5 +1,5 @@
 #!/bin/bash
-# deploy.sh — 作業終了時: ビルド → コミット → プッシュ
+# deploy.sh — 作業終了時: ビルド → Cloudflare Pages へ配信
 set -euo pipefail
 
 # Homebrew（Apple Silicon）のパスを明示的に追加
@@ -87,7 +87,7 @@ fi
 # ── 1c. 部門ダッシュボード 自己完結HTML（院内LAN配信用・git には載せない）──
 # Comedix資料室へ手動アップする単一ファイル: Plotly同梱・他ページナビ非表示・日付入り和名
 # （部門ダッシュボード_YYYY-MM-DD.html）。出力先 output/selfcontained/ は .gitignore 済みのため
-# git add されず公開リポには出ない。失敗してもデプロイ（github.io配信）は継続。
+# git add されず公開リポには出ない。失敗してもデプロイ（Cloudflare Pages配信）は継続。
 echo "🏥 部門ダッシュボード(自己完結)生成中..." >> "$LOG"
 if python scripts/build_selfcontained.py --profile dept-standalone >> "$LOG" 2>&1; then
   echo "✅ 部門ダッシュボード(自己完結)生成完了 → output/selfcontained/" >> "$LOG"
@@ -102,42 +102,34 @@ else
   echo "⚠️  診療KPIポータル(自己完結)生成に失敗（デプロイは継続）" >> "$LOG"
 fi
 
-# ── 2. ソースコード + 生成HTML をステージ ──
-# 注: output/pl_projection.html は公開しない方針のため git add しない
-# さきほど設定した .gitignore により .venv や data/ は自動で除外されます
-git add .gitignore robots.txt generate_html.py portal.html detail.html dept.html \
-        app/templates/ app/lib/ 2>/dev/null || true
+# ── 2. Cloudflare Pages 配信用ステージング（publish/ を再構築）──
+# 公開先は GitHub Pages から Cloudflare Pages へ移行済み（旧 GitHub Pages 側は
+# 案内ページ専用ブランチ pages-notice に切替済み・main の生成HTMLはもう配信されない）。
+# git へのコミット/プッシュはやめ、wrangler で Cloudflare へ直接配信する。
+CF_PAGES_PROJECT="${CF_PAGES_PROJECT:-hospital-dashboard}"
 
-# ── 3. 変更がなければスキップ ──
-if git diff --cached --quiet; then
-  echo "⚠️  変更なし。スキップ。" >> "$LOG"
-  notify "変更なし。スキップしました。" "deploy"
-  exit 0
+echo "📦 配信用ステージング(publish/)構築中..." >> "$LOG"
+if ! bash scripts/build_publish.sh >> "$LOG" 2>&1; then
+  error_dialog "配信用ステージング(publish/)の構築に失敗しました。$LOG を確認してください。"
+  exit 1
 fi
+echo "✅ publish/ 構築完了" >> "$LOG"
 
-# ── 4. コミット ──
-MSG="Dashboard update: $(date '+%Y/%m/%d %H:%M') [M5-Pro]"
-git commit -m "$MSG" >> "$LOG" 2>&1
-echo "✅ コミット: $MSG" >> "$LOG"
+# ── 3. 変更検知はしない・毎回デプロイ ──
+# git diff ベースの「変更がなければスキップ」は GitHub push 前提の最適化だったが、
+# Cloudflare Pages では wrangler 側がハッシュ差分アップロード（実体が同一なら実質no-op）
+# するため、こちらで事前にスキップ判定する意味がない。常に deploy する。
 
-# ── 5. プッシュ（non-fast-forward 時は rebase で1回リトライ）──
-# SSH通信設定済みなので、パスワードなしで通るはずです
-push_with_retry() {
-  if git push origin main >> "$LOG" 2>&1; then
-    return 0
-  fi
-  echo "⚠️  push拒否 — リモートの変更を取り込んでリトライします" >> "$LOG"
-  if ! git pull --rebase origin main >> "$LOG" 2>&1; then
-    echo "❌ rebase 失敗（コンフリクトの可能性）" >> "$LOG"
-    return 1
-  fi
-  git push origin main >> "$LOG" 2>&1
-}
-
-if ! push_with_retry; then
-  error_dialog "GitHubへのpushに失敗しました。手動で 'git pull --rebase origin main' 後に再実行してください。"
+# ── 4. Cloudflare Pages へデプロイ（wrangler）──
+# 認証は `wrangler login` の OAuth トークン（~/.wrangler）に依存する。自動実行中に
+# トークンが失効するとサイレントに失敗し得るため、失敗時は必ず error_dialog で気付ける
+# ようにしている。CLOUDFLARE_API_TOKEN 環境変数が設定されていればそちらが優先して使われる
+# （OAuthトークンより優先。CIやヘッドレス実行での失効対策として設定を推奨）。
+echo "☁️  Cloudflareへデプロイ中..." >> "$LOG"
+if ! npx wrangler pages deploy publish --project-name="$CF_PAGES_PROJECT" --branch=main --commit-dirty=true >> "$LOG" 2>&1; then
+  error_dialog "Cloudflareへのデプロイに失敗しました。'wrangler login' の認証切れの可能性があります。$LOG を確認してください。"
   exit 1
 fi
 
-echo "✅ push 完了" >> "$LOG"
-notify "GitHubへの保存が完了しました。" "✅ deploy 完了"
+echo "✅ デプロイ完了" >> "$LOG"
+notify "Cloudflareへの配信が完了しました。" "✅ deploy 完了"

@@ -364,13 +364,6 @@ def calendar_days_in_month(month) -> int:
 
 
 # ──────────────────────────────
-# Google Analytics 設定
-# ──────────────────────────────
-# 計測IDを設定すると全ページに GA タグが自動埋め込まれます（例: "G-XXXXXXXXXX"）
-# 空文字のままの場合は埋め込みをスキップします
-GA_MEASUREMENT_ID = "G-R843H5Z3R8"
-
-# ──────────────────────────────
 # 病院全体 KPI 目標値  ★v2.1 改定
 # ──────────────────────────────
 TARGET_INPATIENT_WEEKDAY = 600   # 平日目標（人）
@@ -434,7 +427,8 @@ DEFAULT_DATA_DIR = "data"
 REPORT_HOSPITAL_NAME = ""
 
 # 公開ダッシュボードのベースURL（部門レポートPDFのQRコード等で使用）
-PUBLIC_BASE_URL = "https://genie-scripts.github.io/Dashboard/"
+# Cloudflare Pages（Basic認証で保護）
+PUBLIC_BASE_URL = "https://hospital-dashboard-6ow.pages.dev/"
 
 DATA_FOLDERS = {
     "patient_data":   "patient_data",

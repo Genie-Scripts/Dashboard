@@ -111,7 +111,7 @@ class RenderTxtTest(unittest.TestCase):
                                    "delta": 6, "unit": "人", "compare": "前週同曜日比"}],
                 "dept_surgery": [], "ward": [],
             },
-            "public_base_url": "https://genie-scripts.github.io/Dashboard/",
+            "public_base_url": "https://hospital-dashboard-6ow.pages.dev/",
         }
         ctx.update(overrides)
         return ctx
@@ -146,7 +146,7 @@ class RenderTxtTest(unittest.TestCase):
     def test_footer_link(self):
         txt = bwd.render_txt(self._ctx())
         self.assertTrue(txt.rstrip().endswith(
-            "▶ 詳細（毎日更新）: https://genie-scripts.github.io/Dashboard/portal.html"))
+            "▶ 詳細（毎日更新）: https://hospital-dashboard-6ow.pages.dev/portal.html"))
 
 
 class FmtImprovementTxtTest(unittest.TestCase):

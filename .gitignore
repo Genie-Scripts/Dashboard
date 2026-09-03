@@ -64,3 +64,23 @@ output/weekly_digest/
 # 粗利ダッシュボード（院内配布専用・実病院財務データ入り・公開リポに絶対コミットしない）
 粗利ダッシュボード_配信用*.html
 output/粗利ダッシュボード*
+
+# Cloudflare Pages 配信用ステージング（scripts/build_publish.shの再生成物）
+publish/
+
+# wrangler のローカルキャッシュ
+.wrangler/
+
+# 生成HTML（Cloudflare Pages へ直接配信するため、生成HTMLはgit管理しない）
+# generate_html.py が出力する本体＋旧URL互換リダイレクトスタブ
+portal.html
+detail.html
+dept.html
+doctor.html
+nurse.html
+admission/index.html
+inpatient/index.html
+operation/index.html
+# 孤立レガシー（v2.1移行前の生成物・現行導線から未参照）
+admission_index.html
+inpatient_index.html

@@ -18,6 +18,7 @@ DATA_DIR       ?= data
 OUTPUT_DIR     ?= .
 SORT_BY        ?= achievement
 PORT           ?= 8080
+CF_PAGES_PROJECT ?= hospital-dashboard
 
 # AIナラティブ生成先。broker(:8936)経由が既定（deploy.sh/build_reports.sh と同値・
 # 直列化/入場制御の恩恵を受ける）。切り戻しは: OMLX_BASE_URL=http://localhost:8000/v1 make
@@ -270,6 +271,21 @@ push:
 	echo "$(GREEN)✅ プッシュ完了$(RESET)"
 
 # ============================================================
+# Cloudflare Pages デプロイ（Direct Upload方式）
+# ============================================================
+
+## 配信用ステージング publish/ を作り直す（Basic認証は functions/_middleware.js で別途適用）
+.PHONY: publish
+publish:
+	@bash scripts/build_publish.sh
+
+## Cloudflare Pages へデプロイ（ビルド → publish/ 再構築 → wrangler pages deploy）
+.PHONY: deploy-cf
+deploy-cf: build
+	@bash scripts/build_publish.sh
+	npx wrangler pages deploy publish --project-name="$(CF_PAGES_PROJECT)" --branch=main --commit-dirty=true
+
+# ============================================================
 # ユーティリティ
 # ============================================================
 
@@ -324,6 +340,8 @@ help:
 	@echo "  $(GREEN)make serve-only$(RESET)     サーバーのみ起動（ビルドなし）"
 	@echo "  $(GREEN)make deploy$(RESET)         GitHub Pagesへデプロイ"
 	@echo "  $(GREEN)make push$(RESET)           ビルドなしでpushのみ"
+	@echo "  $(GREEN)make publish$(RESET)        Cloudflare Pages配信用 publish/ を再構築"
+	@echo "  $(GREEN)make deploy-cf$(RESET)      Cloudflare Pagesへデプロイ（Direct Upload）"
 	@echo "  $(GREEN)make install$(RESET)        依存ライブラリのインストール"
 	@echo "  $(GREEN)make lint$(RESET)           Python構文チェック"
 	@echo "  $(GREEN)make clean$(RESET)          生成ファイルの削除"
