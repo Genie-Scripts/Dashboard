@@ -116,6 +116,26 @@ else
 fi
 
 echo
+echo "=== 短縮URLの転送先（Comedix週報に載る公開入口） ==="
+# build_comedix_card.py の WEB_URL は PUBLIC_BASE_URL を参照しない独立した定数で、
+# 実体は tinyurl 側の転送先設定にある。配信先を変えたときに取り残されやすいので
+# ここで機械的に検出する（2026-09-03 の Cloudflare 移行で実際に取り残された）。
+SHORT_URL="${COMEDIX_WEB_URL:-https://tinyurl.com/daily-dashboard-G}"
+EXPECTED_TARGET="${BASE}/portal.html"
+ACTUAL_TARGET=$(curl -sSI -o /dev/null -w '%{redirect_url}' "$SHORT_URL" 2>/dev/null)
+echo "  ${SHORT_URL}"
+if [ -z "$ACTUAL_TARGET" ]; then
+  echo "  ⚠️  転送先を取得できませんでした（ネットワークかURLを確認してください）"
+elif [ "$ACTUAL_TARGET" = "$EXPECTED_TARGET" ]; then
+  echo "  ✅ → ${ACTUAL_TARGET}"
+else
+  echo "  ❌ → ${ACTUAL_TARGET}"
+  echo "     期待値: ${EXPECTED_TARGET}"
+  echo "     tinyurl の管理画面で転送先を変更してください（コード側の修正は不要）"
+  FAILED="${FAILED}\n  短縮URLの転送先が古い: ${ACTUAL_TARGET}"
+fi
+
+echo
 if [ -z "$FAILED" ]; then
   echo "✅ 全 ${TOTAL} パスが 200。疎通に問題なし。"
   exit 0

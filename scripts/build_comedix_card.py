@@ -17,6 +17,7 @@ Comedix は <img src="library_refer.php?…u=…png"> でライブラリ画像�
   python scripts/build_comedix_card.py [--width 760] [--refresh] [--keep-html]
 """
 import argparse
+import os
 import shutil
 import subprocess
 import sys
@@ -34,7 +35,14 @@ except Exception:
 from app.lib import hospital_summary as hs
 
 OUT_DIR = ROOT / "output" / "comedix"
-WEB_URL = "https://tinyurl.com/daily-dashboard-G"
+# Comedix のお知らせ本文・週報カードに載せる公開入口の短縮URL。
+# 注意: これは PUBLIC_BASE_URL を参照していない。転送先の実体は tinyurl 側の設定であり、
+# 配信先を変えたら tinyurl の管理画面で転送先も変更する必要がある。
+# 実際 2026-09-03 の Cloudflare 移行時、PUBLIC_BASE_URL だけ更新してこの定数が追随せず、
+# 短縮URLが旧GitHub Pages（案内ページ）を指したまま一時的に壊れた。
+# 転送先はつねに PUBLIC_BASE_URL + "portal.html" に合わせること。
+# 疎通確認は scripts/verify_cf_deploy.sh が行う。
+WEB_URL = os.environ.get("COMEDIX_WEB_URL", "https://tinyurl.com/daily-dashboard-G")
 COMMENT_FILE = OUT_DIR / "今週の一手.md"
 INK, SUB = hs.INK, hs.SUB
 
