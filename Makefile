@@ -244,33 +244,6 @@ freeze:
 	@cat requirements.txt
 
 # ============================================================
-# GitHub Pages デプロイ
-# ============================================================
-
-## GitHub Pages へデプロイ（ビルド → git add → commit → push）
-.PHONY: deploy
-deploy: build
-	@echo "$(CYAN)🚀 GitHub Pages へデプロイ中...$(RESET)"
-	@if ! git diff --quiet HEAD -- portal.html detail.html dept.html doctor.html nurse.html admission/ inpatient/ operation/ 2>/dev/null; then \
-		git add portal.html detail.html dept.html; \
-		git add -f doctor.html nurse.html admission/ inpatient/ operation/ 2>/dev/null || true; \
-		git commit -m "Dashboard update: $$(date '+%Y/%m/%d %H:%M') [v2.1]"; \
-		git push origin main; \
-		echo "$(GREEN)✅ デプロイ完了$(RESET)"; \
-	else \
-		echo "$(YELLOW)⚠️  変更なし（スキップ）$(RESET)"; \
-	fi
-
-## 更新のみデプロイ（ビルドスキップ）
-.PHONY: push
-push:
-	@git add portal.html detail.html && \
-	git add -f doctor.html nurse.html admission/ inpatient/ operation/ 2>/dev/null || true && \
-	git commit -m "Dashboard update: $$(date '+%Y/%m/%d %H:%M') [v2.1]" && \
-	git push origin main && \
-	echo "$(GREEN)✅ プッシュ完了$(RESET)"
-
-# ============================================================
 # Cloudflare Pages デプロイ（Direct Upload方式）
 # ============================================================
 
@@ -284,6 +257,42 @@ publish:
 deploy-cf: build
 	@bash scripts/build_publish.sh
 	npx wrangler pages deploy publish --project-name="$(CF_PAGES_PROJECT)" --branch=main --commit-dirty=true
+
+## Cloudflare Pages へデプロイ（deploy-cf の別名。公開先は Cloudflare へ移行済み）
+.PHONY: deploy
+deploy: deploy-cf
+
+# ============================================================
+# 旧 GitHub Pages 向け（公開には反映されない）
+# ============================================================
+# 公開先は Cloudflare Pages へ移行済みで、旧 GitHub Pages 側は案内ページ専用ブランチ
+# pages-notice に切替済み。以下の2ターゲットは main へ生成HTMLをコミット＆push するだけで、
+# 公開サイトには一切反映されない。履歴を残す等の明示的な目的がある時だけ使うこと。
+
+## [旧] 生成HTMLを git にコミットして push（公開には反映されない）
+.PHONY: deploy-git
+deploy-git: build
+	@echo "$(YELLOW)⚠️  これは旧 GitHub Pages 向けです。公開サイト（Cloudflare Pages）には反映されません。$(RESET)"
+	@echo "$(YELLOW)   公開したい場合は make deploy（= deploy-cf）を使ってください。$(RESET)"
+	@if ! git diff --quiet HEAD -- portal.html detail.html dept.html doctor.html nurse.html admission/ inpatient/ operation/ 2>/dev/null; then \
+		git add portal.html detail.html dept.html; \
+		git add -f doctor.html nurse.html admission/ inpatient/ operation/ 2>/dev/null || true; \
+		git commit -m "Dashboard update: $$(date '+%Y/%m/%d %H:%M') [v2.1]"; \
+		git push origin main; \
+		echo "$(GREEN)✅ push 完了（公開サイトには反映されません）$(RESET)"; \
+	else \
+		echo "$(YELLOW)⚠️  変更なし（スキップ）$(RESET)"; \
+	fi
+
+## [旧] ビルドなしで git push のみ（公開には反映されない）
+.PHONY: push-git
+push-git:
+	@echo "$(YELLOW)⚠️  これは旧 GitHub Pages 向けです。公開サイト（Cloudflare Pages）には反映されません。$(RESET)"
+	@git add portal.html detail.html && \
+	git add -f doctor.html nurse.html admission/ inpatient/ operation/ 2>/dev/null || true && \
+	git commit -m "Dashboard update: $$(date '+%Y/%m/%d %H:%M') [v2.1]" && \
+	git push origin main && \
+	echo "$(GREEN)✅ プッシュ完了（公開サイトには反映されません）$(RESET)"
 
 # ============================================================
 # ユーティリティ
@@ -338,10 +347,11 @@ help:
 	@echo "  $(GREEN)make check$(RESET)          データ検証のみ（HTML出力なし）"
 	@echo "  $(GREEN)make serve$(RESET)          ビルド後にローカルサーバー起動"
 	@echo "  $(GREEN)make serve-only$(RESET)     サーバーのみ起動（ビルドなし）"
-	@echo "  $(GREEN)make deploy$(RESET)         GitHub Pagesへデプロイ"
-	@echo "  $(GREEN)make push$(RESET)           ビルドなしでpushのみ"
-	@echo "  $(GREEN)make publish$(RESET)        Cloudflare Pages配信用 publish/ を再構築"
+	@echo "  $(GREEN)make deploy$(RESET)         Cloudflare Pagesへデプロイ（= deploy-cf）"
 	@echo "  $(GREEN)make deploy-cf$(RESET)      Cloudflare Pagesへデプロイ（Direct Upload）"
+	@echo "  $(GREEN)make publish$(RESET)        Cloudflare Pages配信用 publish/ を再構築"
+	@echo "  $(GREEN)make deploy-git$(RESET)     [旧] gitにコミットしてpush（公開には反映されません）"
+	@echo "  $(GREEN)make push-git$(RESET)       [旧] ビルドなしでpushのみ（公開には反映されません）"
 	@echo "  $(GREEN)make install$(RESET)        依存ライブラリのインストール"
 	@echo "  $(GREEN)make lint$(RESET)           Python構文チェック"
 	@echo "  $(GREEN)make clean$(RESET)          生成ファイルの削除"

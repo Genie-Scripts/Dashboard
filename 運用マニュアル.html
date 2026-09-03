@@ -452,7 +452,7 @@ footer {
 
 <section id="overview">
   <div class="section-head"><h2>1. 全体像</h2></div>
-  <p class="lede">data/ に置いたExcel/CSVから、Python が2つの出口を作ります。1つは GitHub Pages で公開される3ファイル、もう1つは院内配布用のPDF・PNG・HTMLです。後者は git 管理外（.gitignore対象）で、リポジトリには残りません。</p>
+  <p class="lede">data/ に置いたExcel/CSVから、Python が2つの出口を作ります。1つは Cloudflare Pages で配信される3ファイル、もう1つは院内配布用のPDF・PNG・HTMLです。後者は git 管理外（.gitignore対象）で、リポジトリには残りません。</p>
 
   <div class="flow">
     <div class="flow-row">
@@ -460,7 +460,7 @@ footer {
       <div class="flow-arrow">→</div>
       <div class="flow-box accent"><div class="flow-label">Build</div><div class="flow-title">generate_html.py</div><div class="flow-detail"><code>make</code> / <code>./deploy.sh</code></div></div>
       <div class="flow-arrow">→</div>
-      <div class="flow-box"><div class="flow-label">公開・3ファイルのみ</div><div class="flow-title">portal / detail / dept.html</div><div class="flow-detail">git push → GitHub Pages</div></div>
+      <div class="flow-box"><div class="flow-label">公開・3ファイルのみ</div><div class="flow-title">portal / detail / dept.html</div><div class="flow-detail">publish/ → Cloudflare Pages</div></div>
     </div>
     <div class="flow-row">
       <div class="flow-box"><div class="flow-label">Input</div><div class="flow-title">同じ data/</div><div class="flow-detail">確定後の月次データを含む</div></div>
@@ -479,7 +479,7 @@ footer {
   </div>
 
   <div class="callout">
-    <strong>公開範囲の境界線はここだけ覚えれば十分です。</strong> git に載って GitHub Pages で世界に公開されるのは <code>portal.html</code> <code>detail.html</code> <code>dept.html</code> の3つだけ。それ以外（部門別レポートPDF・Comedix週報・医業収支推計・自己完結HTML・粗利ダッシュボード）はすべてローカル/院内配布専用で、<code>deploy.sh</code> の <code>git add</code> 対象にも入っていません。
+    <strong>公開範囲の境界線はここだけ覚えれば十分です。</strong> <code>publish/</code> に載って Cloudflare Pages へ配信されるのは <code>portal.html</code> <code>detail.html</code> <code>dept.html</code> の3つだけ（配信先は Basic 認証で保護）。それ以外（部門別レポートPDF・Comedix週報・医業収支推計・自己完結HTML・粗利ダッシュボード）はすべてローカル/院内配布専用で、<code>scripts/build_publish.sh</code> のステージング対象にも入っていません。
   </div>
 </section>
 
@@ -668,7 +668,7 @@ action: 手術件数を増やして平均を上げていきましょう。加え
     <h2>6. 月次：粗利ダッシュボード（配信用HTML）</h2>
     <span class="freq freq-adhoc">月次</span>
   </div>
-  <p class="lede">「人件費10万円あたり粗利」ダッシュボード（<code>粗利ダッシュボード_配信用.html</code>）を公式年度Excelから自動生成します。従来のブラウザ内手動取込→手動エクスポートは廃止し、公式Excelを置いて1コマンド実行するだけの運用になりました。新版は<strong>パスワード無し</strong>（開くだけで全タブ表示）。院内配布用の機密ファイルで、GitHub Pages には公開されません（<code>.gitignore</code> 対象）。</p>
+  <p class="lede">「人件費10万円あたり粗利」ダッシュボード（<code>粗利ダッシュボード_配信用.html</code>）を公式年度Excelから自動生成します。従来のブラウザ内手動取込→手動エクスポートは廃止し、公式Excelを置いて1コマンド実行するだけの運用になりました。新版は<strong>パスワード無し</strong>（開くだけで全タブ表示）。院内配布用の機密ファイルで、Cloudflare Pages には配信されません（<code>.gitignore</code> 対象）。</p>
 
   <h3>月次手順</h3>
   <ol class="steps">

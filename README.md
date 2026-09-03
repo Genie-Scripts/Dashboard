@@ -14,7 +14,7 @@
 3. [データ準備](#3-データ準備)
 4. [HTML生成（日次更新）](#4-html生成日次更新)
 5. [ローカル確認](#5-ローカル確認)
-6. [GitHub Pagesデプロイ](#6-github-pagesデプロイ)
+6. [Cloudflare Pages へのデプロイ](#6-cloudflare-pages-へのデプロイ)
 7. [CLI オプション詳細](#7-cli-オプション詳細)
 8. [ファイル構成](#8-ファイル構成)
 9. [ビジネスルール](#9-ビジネスルール)
@@ -32,10 +32,10 @@
   index.html          ← ダッシュボードトップ（Plotly.js でグラフ描画）
   reports/            ← 診療科別詳細ページ群
         ↓
-  GitHub Pages        ← 静的ファイルとしてホスティング
+  Cloudflare Pages    ← 静的ファイルとしてホスティング（Basic認証）
 ```
 
-- **生データをGitHubに上げない** — 集計済みJSONのみHTMLに埋め込み
+- **生データを公開先に上げない** — 集計済みJSONのみHTMLに埋め込み
 - Plotly.js（CDN）でクライアントサイドグラフ描画
 - 全てVanilla JS — フレームワーク不要
 
@@ -192,19 +192,21 @@ make serve
 
 ---
 
-## 6. GitHub Pagesデプロイ
+## 6. Cloudflare Pages へのデプロイ
 
 ```bash
-# ビルド → コミット → プッシュを1コマンドで
-make deploy
+# ビルド → publish/ 構築 → Cloudflare Pages へ配信を1コマンドで
+./deploy.sh          # oMLX起動確認・医業収支推計・自己完結HTML生成まで含むフル手順
+make deploy          # = make deploy-cf（ビルド → publish/ 再構築 → wrangler）
 
-# または手動
-git add index.html reports/
-git commit -m "Dashboard update: $(date '+%Y/%m/%d')"
-git push origin main
+# 配信だけ手動でやり直す場合
+bash scripts/build_publish.sh
+npx wrangler pages deploy publish --project-name=hospital-dashboard --branch=main --commit-dirty=true
 ```
 
-> **注意**: `data/` ディレクトリは `.gitignore` に追加して生データをプッシュしないでください。
+> **注意**: 配信されるのは `publish/` に入ったファイルだけです。`publish/` は毎回作業ツリーから再構築されるため、**未コミットのローカル変更もそのまま配信されます**。
+> **注意**: `data/` ディレクトリは `.gitignore` に追加して生データをコミットしないでください（`publish/` にも入りません）。
+> **注意**: `make deploy-git` / `make push-git` は旧 GitHub Pages 向けの名残です。実行しても公開サイトには反映されません。
 
 ### .gitignore の設定例
 
@@ -270,7 +272,7 @@ python generate_html.py [オプション]
 │   ├── 粗利データ.xlsx
 │   └── 粗利目標.xlsx
 │
-├── index.html            # ← 生成される（GitHub Pagesで公開）
+├── index.html            # ← 生成される（Cloudflare Pages で配信）
 └── reports/              # ← 生成される（診療科別詳細ページ）
     ├── dept_整形外科.html
     ├── dept_総合内科.html
