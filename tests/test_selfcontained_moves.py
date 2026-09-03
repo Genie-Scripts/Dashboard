@@ -12,6 +12,7 @@
     python -m unittest discover -s tests -v
 """
 import json
+import re
 import sys
 import tempfile
 import unittest
@@ -141,6 +142,72 @@ class ExtractGeneratedDateTest(unittest.TestCase):
     def test_falls_back_to_today_when_neither_present(self):
         result = build_selfcontained.extract_generated_date("<html></html>")
         self.assertEqual(result, date.today().isoformat())
+
+
+class HideCrossPageNavTest(unittest.TestCase):
+    """他ページナビの非表示（単一ページ配信でのデッドリンク＝404 の防止）。
+
+    退行事例: 非表示CSSが #backLink,#pageNav の id 指定だけだった頃、
+    portal.html のヘッダーナビ <nav class="nav-bar">（id無し）が消えず、
+    配布HTMLの「ポータル/統合詳細/部門別」を押すと 404 になっていた。
+    """
+
+    def test_injects_style_into_head(self):
+        html = "<html><head><title>t</title></head><body></body></html>"
+        out, n = build_selfcontained.hide_cross_page_nav(html)
+        self.assertEqual(n, 1)
+        self.assertIn('id="selfcontained-nav-hide"', out)
+        self.assertLess(out.index("selfcontained-nav-hide"), out.index("</head>"))
+
+    def test_no_head_tag_returns_unchanged(self):
+        html = "<html><body>no head</body></html>"
+        out, n = build_selfcontained.hide_cross_page_nav(html)
+        self.assertEqual(n, 0)
+        self.assertEqual(out, html)
+
+    def test_selectors_cover_both_id_and_class_hooks(self):
+        style = build_selfcontained.NAV_HIDE_STYLE
+        for sel in ("#backLink", "#pageNav", ".hdr .nav-bar", "nav.nav"):
+            self.assertIn(sel, style, f"{sel} が非表示CSSに無い")
+
+    def test_real_portal_nav_hooks_still_match_selectors(self):
+        """実 portal.html のナビ実装が変わったら気付けるようにする（CSSの陳腐化検知）。"""
+        portal = REPO_ROOT / "portal.html"
+        if not portal.exists():
+            self.skipTest("portal.html 未ビルド")
+        html = portal.read_text(encoding="utf-8")
+        header = re.search(r'<header class="hdr">.*?</header>', html, re.DOTALL)
+        self.assertIsNotNone(header, "ヘッダー <header class=\"hdr\"> が見つからない")
+        # ヘッダー内ナビは class="nav-bar"（id は無いことがある）→ .hdr .nav-bar で拾う
+        self.assertIn('<nav class="nav-bar"', header.group(0))
+        # 狭幅時の下部固定ナビは <nav class="nav">
+        self.assertIn('<nav class="nav">', html)
+
+
+class PortalStandaloneDeadLinkTest(unittest.TestCase):
+    """portal 単体配布HTMLに「押すと404」になるリンクが残っていないこと。"""
+
+    def _built(self):
+        portal = REPO_ROOT / "portal.html"
+        if not portal.exists():
+            self.skipTest("portal.html 未ビルド")
+        html = portal.read_text(encoding="utf-8")
+        html, _ = build_selfcontained.hide_cross_page_nav(html)
+        html, _ = build_selfcontained.neutralize_links(html)
+        return html
+
+    def test_header_nav_hidden_by_class_selector(self):
+        html = self._built()
+        self.assertIn(".hdr .nav-bar", html)
+        self.assertIn("display:none!important", html)
+
+    def test_every_cross_page_href_is_neutralized_or_hidden(self):
+        html = self._built()
+        targets = set(re.findall(r'href="((?:portal|detail|dept)\.html[^"]*)"', html))
+        self.assertTrue(targets, "他ページリンクが1つも無い（前提が変わった）")
+        # クリック遮断スクリプトが3ページ全ての接頭辞を対象にしている
+        for page in ("portal.html", "detail.html", "dept.html"):
+            self.assertIn('a[href^="%s"]' % page, html)
 
 
 class NeutralizeLinksTest(unittest.TestCase):

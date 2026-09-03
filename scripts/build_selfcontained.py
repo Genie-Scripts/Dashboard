@@ -60,9 +60,14 @@ PORTAL_FOOTER_DATE_RE = re.compile(r"基準日\s*(\d{4}-\d{2}-\d{2})")
 # 他ページ用ナビを隠すCSS（単一ページ配信時にデッドリンク化するため）
 # 削除ではなく display:none にする理由: backLink は JS が getElementById で参照しており、
 # 要素ごと消すと null 参照エラーになる。!important でJS側のinline styleにも勝つ。
+# id と class を併記する理由: dept/detail のヘッダーナビは id="pageNav" を持つが、
+# portal のヘッダーナビ(.hdr .nav-bar「ポータル/統合詳細/部門別」)と狭幅時の下部固定ナビ
+# (nav.nav) は id を持たない。id だけに頼ると portal 単体配布でナビが残り、押すと404になる。
+# .wrap の padding-bottom は下部固定ナビ用の余白（portal のみ）→ ナビを消したら詰める。
 NAV_HIDE_STYLE = (
     '<style id="selfcontained-nav-hide">'
-    "#backLink,#pageNav{display:none!important}"
+    "#backLink,#pageNav,.hdr .nav-bar,nav.nav{display:none!important}"
+    "@media(max-width:768px){.wrap{padding-bottom:24px}}"
     "</style>"
 )
 
@@ -109,7 +114,7 @@ def inline_plotly(html: str) -> tuple[str, int]:
 
 
 def hide_cross_page_nav(html: str) -> tuple[str, int]:
-    """他ページへのナビ(#backLink/#pageNav)をCSSで非表示にする。注入数を返す。"""
+    """他ページへのナビ(#backLink/#pageNav/.hdr .nav-bar/nav.nav)をCSSで非表示にする。注入数を返す。"""
     if "</head>" in html:
         return html.replace("</head>", NAV_HIDE_STYLE + "\n</head>", 1), 1
     return html, 0
@@ -125,17 +130,17 @@ def extract_generated_date(html: str) -> str:
     return m.group(1) if m else date.today().isoformat()
 
 
-# portal 単体配布用: dept.html/detail.html への直リンクを capture フェーズで遮断し、
+# portal 単体配布用: dept.html/detail.html/portal.html への直リンクを capture フェーズで遮断し、
 # トリアージ行クリックは narrative 開閉へフォールバックさせる（§8.2）。
 NEUTRALIZE_LINKS_BLOCK = (
     '<style id="selfcontained-links-off">\n'
     "  .kc .cta{display:none!important}\n"
-    '  a[href^="dept.html"],a[href^="detail.html"]{cursor:default}\n'
+    '  a[href^="dept.html"],a[href^="detail.html"],a[href^="portal.html"]{cursor:default}\n'
     "</style>\n"
     '<script id="selfcontained-links-off-js">\n'
     "document.addEventListener('click', function(e){\n"
     "  if (e.target.closest('.triage-acc-btn')) return;\n"
-    "  var a = e.target.closest('a[href^=\"dept.html\"],a[href^=\"detail.html\"]');\n"
+    "  var a = e.target.closest('a[href^=\"dept.html\"],a[href^=\"detail.html\"],a[href^=\"portal.html\"]');\n"
     "  if (!a) return;\n"
     "  e.preventDefault(); e.stopPropagation();\n"
     "  var t = a.querySelector('.triage-acc-btn'); if (t) t.click();\n"
@@ -145,7 +150,7 @@ NEUTRALIZE_LINKS_BLOCK = (
 
 
 def neutralize_links(html: str) -> tuple[str, int]:
-    """dept.html/detail.html への直リンクを無効化するstyle/scriptを</body>直前に注入。注入数を返す。"""
+    """他ページ(dept/detail/portal).html への直リンクを無効化するstyle/scriptを</body>直前に注入。注入数を返す。"""
     if "</body>" in html:
         return html.replace("</body>", NEUTRALIZE_LINKS_BLOCK + "\n</body>", 1), 1
     return html, 0
@@ -319,7 +324,7 @@ def main() -> int:
     ap.add_argument(
         "--neutralize-links",
         action="store_true",
-        help="dept.html/detail.html への直リンクを無効化（portal単体配布用・§8.2）",
+        help="他ページ(dept/detail/portal).html への直リンクを無効化（portal単体配布用・§8.2）",
     )
     ap.add_argument(
         "--refresh-moves",
