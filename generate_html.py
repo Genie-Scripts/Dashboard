@@ -282,7 +282,7 @@ def generate(data_dir: str = DEFAULT_DATA_DIR,
         snapshot_path = out_dir / "output" / "last_kpi.json"
         weekly_story_result = build_weekly_story(
             adm, surg, kpi, profit_monthly, base_date, snapshot_path,
-            quiet=quiet,
+            quiet=quiet, generated_at=generated_at,
         )
         if weekly_story_result.get("story"):
             log(f"週次ストーリー: {weekly_story_result['story']}", "ok")
@@ -322,6 +322,7 @@ def generate(data_dir: str = DEFAULT_DATA_DIR,
     detail_json = build_detail_json(
         adm, surg, targets, surg_targets, profit_monthly, base_date, generated_at,
         profit_breakdown=profit_breakdown_raw,
+        kpi_history_path=out_dir / "output" / "last_kpi.json",
     )
     detail_ctx = {
         "data_json": detail_json,

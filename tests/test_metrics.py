@@ -28,6 +28,14 @@ from app.lib.metrics import (  # noqa: E402
     weekend_census_retention,
     ga_rolling_biz_avg,
     PREVYEAR_OFFSET_DAYS,
+    week_windows,
+    weekly_inpatient_avg,
+    partial_week_target,
+    partial_week_inpatient_target,
+)
+from app.lib.config import (  # noqa: E402
+    TARGET_INPATIENT_WEEKDAY,
+    TARGET_INPATIENT_HOLIDAY,
 )
 
 BASE = pd.Timestamp("2026-06-03")
@@ -305,6 +313,121 @@ class TestPrevyearOffsetIsWeekdayAligned(unittest.TestCase):
             base = pd.Timestamp(base_s)
             prev_end_365 = base - pd.Timedelta(days=365)
             self.assertNotEqual(prev_end_365.weekday(), base.weekday())
+
+
+# ════════════════════════════════════════
+# ★A1: week_windows / weekly_inpatient_avg / partial_week_target系
+# （訴求力強化 Phase1 バッチ1a）
+# ════════════════════════════════════════
+
+class TestWeekWindows(unittest.TestCase):
+    """基準日の曜日ごとに「先週の確定」「今週ここまで」の境界が正しいこと。"""
+
+    def test_sunday_base_date_has_no_this_week(self):
+        # 日曜=月曜ビルドの基準日。rolling7とそのまま一致する完全週が「先週の確定」。
+        base = pd.Timestamp("2026-08-30")   # 日曜
+        self.assertEqual(base.weekday(), 6)
+        ww = week_windows(base)
+        self.assertEqual(ww["last_week"]["start"], pd.Timestamp("2026-08-24"))
+        self.assertEqual(ww["last_week"]["end"], base)
+        self.assertIsNone(ww["this_week"])
+
+    def test_monday_base_date_this_week_is_single_day(self):
+        base = pd.Timestamp("2026-08-31")   # 月曜
+        self.assertEqual(base.weekday(), 0)
+        ww = week_windows(base)
+        self.assertEqual(ww["last_week"]["start"], pd.Timestamp("2026-08-24"))
+        self.assertEqual(ww["last_week"]["end"], pd.Timestamp("2026-08-30"))
+        self.assertEqual(ww["this_week"]["start"], base)
+        self.assertEqual(ww["this_week"]["end"], base)
+
+    def test_tuesday_base_date_this_week_is_two_days(self):
+        # 裁定3: 火曜（営業日1日）でも今週ここまでを出す対象ケース。
+        base = pd.Timestamp("2026-09-01")   # 火曜
+        self.assertEqual(base.weekday(), 1)
+        ww = week_windows(base)
+        self.assertEqual(ww["last_week"]["start"], pd.Timestamp("2026-08-24"))
+        self.assertEqual(ww["last_week"]["end"], pd.Timestamp("2026-08-30"))
+        self.assertEqual(ww["this_week"]["start"], pd.Timestamp("2026-08-31"))
+        self.assertEqual(ww["this_week"]["end"], base)
+
+    def test_wednesday_base_date(self):
+        base = pd.Timestamp("2026-09-02")   # 水曜
+        self.assertEqual(base.weekday(), 2)
+        ww = week_windows(base)
+        self.assertEqual(ww["this_week"]["start"], pd.Timestamp("2026-08-31"))
+        self.assertEqual(ww["this_week"]["end"], base)
+
+    def test_thursday_base_date(self):
+        # 通常週ビルド基準日と共通（test_f1_operation_7d.py と同一日で相互検証）。
+        base = pd.Timestamp("2026-09-03")   # 木曜
+        self.assertEqual(base.weekday(), 3)
+        ww = week_windows(base)
+        self.assertEqual(ww["last_week"]["start"], pd.Timestamp("2026-08-24"))
+        self.assertEqual(ww["last_week"]["end"], pd.Timestamp("2026-08-30"))
+        self.assertEqual(ww["this_week"]["start"], pd.Timestamp("2026-08-31"))
+        self.assertEqual(ww["this_week"]["end"], base)
+
+
+class TestWeeklyInpatientAvg(unittest.TestCase):
+    def test_monday_to_date_average(self):
+        adm = pd.DataFrame({
+            "日付": pd.to_datetime(["2026-08-31", "2026-09-01", "2026-09-02"]),
+            "在院患者数": [100, 110, 120],
+        })
+        r = weekly_inpatient_avg(adm, pd.Timestamp("2026-09-02"))
+        self.assertEqual(r["monday"], pd.Timestamp("2026-08-31"))
+        self.assertEqual(r["days"], 3)
+        self.assertAlmostEqual(r["avg"], 110.0)
+
+    def test_sunday_end_date_yields_full_week(self):
+        # last_week_end(常に日曜)を渡すと月〜日の完全7日週になる（A1の「先週の確定」再利用）。
+        dates = pd.date_range("2026-08-24", "2026-08-30", freq="D")
+        adm = pd.DataFrame({"日付": dates, "在院患者数": [100] * 7})
+        r = weekly_inpatient_avg(adm, pd.Timestamp("2026-08-30"))
+        self.assertEqual(r["monday"], pd.Timestamp("2026-08-24"))
+        self.assertEqual(r["days"], 7)
+        self.assertAlmostEqual(r["avg"], 100.0)
+
+    def test_no_data_returns_none_avg(self):
+        adm = pd.DataFrame({"日付": pd.to_datetime([]), "在院患者数": []})
+        r = weekly_inpatient_avg(adm, pd.Timestamp("2026-09-02"))
+        self.assertIsNone(r["avg"])
+        self.assertEqual(r["days"], 0)
+
+
+class TestPartialWeekTarget(unittest.TestCase):
+    """裁定3: 営業日1日でも按分目標比を出す（火曜=biz_days1 の境界値）。"""
+
+    def test_none_target_returns_none(self):
+        self.assertIsNone(partial_week_target(None, 1))
+
+    def test_tuesday_biz_days_one(self):
+        # 週目標379.2 ÷5 × 1 = 75.84 → 75.8
+        self.assertAlmostEqual(partial_week_target(379.2, 1), 75.8)
+
+    def test_friday_biz_days_four(self):
+        # 祝日を挟む週で金曜まで到達した想定（営業日4） 379.2÷5×4=303.36 → 303.4
+        self.assertAlmostEqual(partial_week_target(379.2, 4), 303.4)
+
+    def test_full_week_biz_days_five_equals_weekly_target(self):
+        self.assertAlmostEqual(partial_week_target(379.2, 5), 379.2)
+
+
+class TestPartialWeekInpatientTarget(unittest.TestCase):
+    """在院（ストック）の部分週按分目標＝営業日/非営業日の暦日加重平均。"""
+
+    def test_ordinary_two_biz_days(self):
+        # 2026-08-31(月)〜09-01(火)は両日とも営業日・祝日なし
+        r = partial_week_inpatient_target(pd.Timestamp("2026-09-01"), pd.Timestamp("2026-08-31"))
+        self.assertAlmostEqual(r, float(TARGET_INPATIENT_WEEKDAY))
+
+    def test_holiday_included_week(self):
+        # 2026-01-12(月・成人の日)〜01-16(金)。営業日4・非営業日1(月)の加重平均。
+        r = partial_week_inpatient_target(pd.Timestamp("2026-01-16"), pd.Timestamp("2026-01-12"))
+        expected = round((4 * TARGET_INPATIENT_WEEKDAY + 1 * TARGET_INPATIENT_HOLIDAY) / 5, 1)
+        self.assertAlmostEqual(r, expected)
+        self.assertAlmostEqual(r, 590.0)
 
 
 if __name__ == "__main__":

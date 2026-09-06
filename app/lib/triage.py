@@ -155,7 +155,12 @@ def _priority_from_rate(rate: float) -> str:
 
 def _ma_spread(series: pd.DataFrame, base_date, short: int, long_: int) -> Optional[float]:
     """日次系列の 短期MA vs 長期MA スプレッド(%)。
-    正=短期が中期平均を上回る（上昇）。データ不足/長期MA=0 のとき None。"""
+    正=短期が中期平均を上回る（上昇）。データ不足/長期MA=0 のとき None。
+
+    ★訴求力強化A6: `app/lib/stats_band.py::census_spread_samples()` は同一式を
+    表示専用（通常変動帯 ±1.5σ）として複製している（判定コードとは意図的に非共有）。
+    P2（暦補正と学習ループ改修プラン.md §2）着手時はこちらを stats_band.py へ寄せる。
+    """
     if series is None or len(series) == 0:
         return None
 
@@ -213,7 +218,12 @@ def _surgery_trend(recent_28d: int, prior_28d: int,
     """全麻の 直近28暦日 vs 前28暦日 の件/営業日レート比(%)と方向（P1暦是正:
     生件数比→レート比。窓内に祝日が偏っていても暦影響を受けにくくする）。
     直近28日が小規模(<MIN・生件数ゲートは現状維持)・前期間の営業日レートが0 は
-    ノイズのため非対象(None)。"""
+    ノイズのため非対象(None)。
+
+    ★訴求力強化A6: `app/lib/stats_band.py::surgery_rate_spread_samples()` は同一式を
+    表示専用（通常変動帯 ±1.5σ）として複製している（判定コードとは意図的に非共有）。
+    P2（暦補正と学習ループ改修プラン.md §2）着手時はこちらを stats_band.py へ寄せる。
+    """
     if recent_28d < SURGERY_TREND_MIN_28D:
         return None, None
     biz_now = operational_days_between(base_date - pd.Timedelta(days=27), base_date)

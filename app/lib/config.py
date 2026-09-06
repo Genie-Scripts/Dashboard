@@ -591,3 +591,39 @@ def build_headline(kpi_summary: dict) -> dict:
         "text": text,
         "detail": "、".join(detail_parts),
     }
+
+
+# ──────────────────────────────
+# 日付表示フォーマット（A4: 期間ラベル実日付化の基盤。★訴求力強化 Phase1）
+# ──────────────────────────────
+WEEKDAY_JP = ["月", "火", "水", "木", "金", "土", "日"]
+
+
+def _fmt_md(d) -> str:
+    """「9/3」形式（年・曜日なし。fmt_jp_range系の内部整形専用）。"""
+    import pandas as _pd
+    ts = _pd.Timestamp(d)
+    return f"{ts.month}/{ts.day}"
+
+
+def fmt_jp_date(d) -> str:
+    """「9/3(木)」形式。"""
+    import pandas as _pd
+    ts = _pd.Timestamp(d)
+    return f"{ts.month}/{ts.day}({WEEKDAY_JP[ts.weekday()]})"
+
+
+def fmt_jp_range(start, end) -> str:
+    """「8/28〜9/3」形式（同月でも月を省略しない＝曖昧さ回避を優先）。"""
+    return f"{_fmt_md(start)}〜{_fmt_md(end)}"
+
+
+def fmt_jp_range_prevyear(start, end) -> str:
+    """「2025/8/29〜9/4」形式（前年同期など年をまたぐ/前年扱いの期間・開始日のみ年を付す）。
+
+    ★統合: metrics.py 側で Phase 0 に追加された同名ロジック(_fmt_range_prevyear)を
+    ここへ寄せる（重複定義を残さない）。metrics.py 側は本関数を呼ぶ薄いラッパに置換。
+    """
+    import pandas as _pd
+    s = _pd.Timestamp(start)
+    return f"{s.year}/{_fmt_md(s)}〜{_fmt_md(end)}"

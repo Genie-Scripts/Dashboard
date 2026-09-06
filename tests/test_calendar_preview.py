@@ -32,6 +32,7 @@ from app.lib.calendar_preview import (  # noqa: E402
     build_month_preview,
     build_early_warning,
     build_calendar_preview,
+    complete_week_end,
     _nearest_profile,
     _diff_vs_baseline,
 )
@@ -161,6 +162,22 @@ class WeekPreviewMachineReadableKeysTest(unittest.TestCase):
         self.assertIsNotNone(week)
         for key in ("biz_days", "run_len", "is_eve"):
             self.assertIn(key, week)
+
+
+class CompleteWeekEndTest(unittest.TestCase):
+    """⑪ complete_week_end（B12: PDF・掲示の完全週固定）"""
+
+    def test_sunday_returns_itself(self):
+        self.assertEqual(complete_week_end("2026-09-06"), pd.Timestamp("2026-09-06"))  # 日曜
+
+    def test_tuesday_rounds_back_to_prior_sunday(self):
+        self.assertEqual(complete_week_end("2026-09-08"), pd.Timestamp("2026-09-06"))  # 火曜→直近日曜
+
+    def test_monday_rounds_back_one_day(self):
+        self.assertEqual(complete_week_end("2026-09-07"), pd.Timestamp("2026-09-06"))  # 月曜→前日
+
+    def test_saturday_rounds_back_six_days(self):
+        self.assertEqual(complete_week_end("2026-09-12"), pd.Timestamp("2026-09-06"))  # 土曜→6日前
 
 
 if __name__ == "__main__":

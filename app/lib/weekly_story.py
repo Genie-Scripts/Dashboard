@@ -101,10 +101,16 @@ def _profit_ranking_snapshot(profit_monthly: pd.DataFrame, top_n: int = 5) -> li
 
 def build_kpi_snapshot(adm: pd.DataFrame, surg: pd.DataFrame,
                        kpi: dict, profit_monthly: pd.DataFrame,
-                       base_date: pd.Timestamp) -> dict:
-    """週次ストーリー用のKPIスナップショット"""
+                       base_date: pd.Timestamp,
+                       generated_at: Optional[pd.Timestamp] = None) -> dict:
+    """週次ストーリー用のKPIスナップショット
+
+    generated_at: ★A5（鮮度1行）用。ビルド実行時刻（壁時計時刻）。省略時は None
+    のまま保存され、鮮度表示側は欠損を許容する（旧フォーマットとの後方互換）。
+    """
     return {
         "base_date": base_date.strftime("%Y-%m-%d"),
+        "generated_at": generated_at.isoformat() if generated_at is not None else None,
         "inpatient": {
             "avg_7d": kpi.get("inpatient_avg_7d"),
             "rate": kpi.get("inpatient_rate"),
@@ -378,9 +384,13 @@ def build_weekly_story(adm: pd.DataFrame, surg: pd.DataFrame,
                        kpi: dict, profit_monthly: pd.DataFrame,
                        base_date: pd.Timestamp, snapshot_path: Path,
                        model: str = DEFAULT_MODEL,
-                       quiet: bool = False) -> dict:
+                       quiet: bool = False,
+                       generated_at: Optional[pd.Timestamp] = None) -> dict:
     """
     スナップショット保存 + WoW差分計算 + LLM要約を一括実行。
+
+    generated_at: ★A5（鮮度1行）用。省略時は build_kpi_snapshot 側で None のまま保存
+    される（呼び出し元の配線は次バッチ）。
 
     Returns:
         {
@@ -390,7 +400,8 @@ def build_weekly_story(adm: pd.DataFrame, surg: pd.DataFrame,
           "story": str | None,   # LLM が生成した150字要約（未生成時 None）
         }
     """
-    current = build_kpi_snapshot(adm, surg, kpi, profit_monthly, base_date)
+    current = build_kpi_snapshot(adm, surg, kpi, profit_monthly, base_date,
+                                 generated_at=generated_at)
     history = load_history(snapshot_path)
     prior = find_prior_snapshot(history, base_date)
 

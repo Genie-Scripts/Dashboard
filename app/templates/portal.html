@@ -95,6 +95,10 @@
 .kc-proj{font-size:11.5px;color:var(--sub);margin-top:4px;padding-top:6px;border-top:1px dashed var(--ln)}
 .kc-proj b{font-weight:900}
 .kc-proj b.ok{color:var(--ok)}.kc-proj b.wr{color:var(--wr)}.kc-proj b.dr{color:var(--dr-t)}
+/* ── A1/A8: 今週ここまで・二重目標注記・在院の必要ペース ── */
+.kc-week{font-size:11.5px;font-weight:700;color:var(--sub);margin-top:4px}
+.kc-tgt-note{font-size:10.5px;color:var(--mu);margin-top:2px}
+.kc-pace{font-size:11px;color:var(--sub);margin-top:6px;padding-top:6px;border-top:1px dashed var(--ln);line-height:1.5}
 /* ── 最新の動向バナー ── */
 .chg-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--s);border:1px solid var(--ln);border-radius:var(--card-border-radius);box-shadow:var(--card-box-shadow);padding:9px 14px;margin-bottom:16px}
 .chg-title{font-size:12.5px;font-weight:800;color:var(--ink);flex-shrink:0}
@@ -205,7 +209,9 @@
   .nav{display:block}
   .wrap{padding-bottom:120px}
   .hdr{transition:transform .3s ease;padding:6px 12px}.hdr.hdr-hidden{transform:translateY(-100%)}
-  .hdr .row1{flex-wrap:wrap;gap:6px}.hdr .left{min-width:0;flex:1 1 auto}.title{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.meta{display:none}.nav-bar{margin-top:6px;padding-top:6px}
+  .hdr .row1{flex-wrap:wrap;gap:6px}.hdr .left{min-width:0;flex:1 1 auto}.title{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.meta:not(#freshness){display:none}.nav-bar{margin-top:6px;padding-top:6px}
+  /* A5/B8: 鮮度1行はスマホでも常時1行表示（フォント11px・折返し可） */
+  #freshness{font-size:11px;white-space:normal;overflow-wrap:anywhere}
   .triage-facts-body{flex-direction:column;gap:3px}
 }
 /* ★モバイル横向き: ヘッダを1段スリム化＋固定解除（自動非表示も無効・ナビは横並び維持） */
@@ -213,7 +219,7 @@
   .hdr{position:static;transition:none;flex-direction:row;align-items:center;flex-wrap:nowrap;gap:12px;padding:5px 14px}
   .hdr.hdr-hidden{transform:none}
   .hdr .row1{flex:1 1 auto;min-width:0}
-  .meta{display:none}
+  .meta:not(#freshness){display:none}
   .title{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .nav-bar{flex:0 0 auto;margin:0;padding:0;border-top:none}
 }
@@ -244,7 +250,7 @@ h4{font-weight:var(--jp-head)!important}
 <header class="hdr">
   <div class="row1">
     <div class="left"><span class="badge">KPI</span><span class="title">🏥 診療ダッシュボード</span></div>
-    <div class="meta">📅 {{ base_date }} ｜ 🕐 {{ generated_at }} 更新</div>
+    <div class="meta" id="freshness">{{ freshness.text }}{% if freshness.prev_label %}（{{ freshness.prev_label }}）{% endif %}</div>
     <button class="dm-btn" onclick="toggleDarkMode()">🌙</button>
   </div>
   <nav class="nav-bar">
@@ -260,7 +266,7 @@ h4{font-weight:var(--jp-head)!important}
   <section class="sb-bar {{ sb_class }}" aria-label="全体ステータス">
     <div class="sb-row">
       <span class="sb-icon">{{ headline.icon }}</span>
-      <span class="sb-text">{{ headline.text }}</span>
+      <span class="sb-text">{% if last_week_prefix %}{{ last_week_prefix }}｜{% endif %}{{ headline.text }}</span>
       {% if weekly_story and (weekly_story.story or weekly_story.diffs or weekly_story.failed) %}
       <button class="sb-toggle" id="sb-toggle-btn"
               onclick="toggleStatusBar()" aria-expanded="false"
@@ -307,6 +313,14 @@ h4{font-weight:var(--jp-head)!important}
   {% endif %}
   {% endif %}
 
+  {# ── A7: 年度進捗（病院全体のみ） ── #}
+  {% if fy_progress %}
+  <section class="chg-bar" aria-label="年度進捗">
+    <span class="chg-title">📈 年度進捗</span>
+    <span class="chg-none">{{ fy_progress.text }}</span>
+  </section>
+  {% endif %}
+
   {# ── B4: 昨日からの最新の動向バナー ── #}
   {% if changes %}
   <section class="chg-bar" aria-label="昨日からの最新の動向">
@@ -347,6 +361,10 @@ h4{font-weight:var(--jp-head)!important}
       {% else %}
       <div class="vl">{{ card.value }}<small style="font-size:16px;font-weight:400">{{ card.unit }}</small></div>
       <div class="gp">{% if card.gap == 0 %}目標達成！{% elif card.gap > 0 %}目標達成 (+{{ card.gap }}{{ card.gap_unit }}){% else %}目標まであと {{ -card.gap }}{{ card.gap_unit }}{% endif %}</div>
+      {% if card.dual_target_note %}<div class="kc-tgt-note">{{ card.dual_target_note }}</div>{% endif %}
+      {% endif %}
+      {% if card.week_note %}
+      <div class="kc-week">{{ card.week_note }}</div>
       {% endif %}
       {% if card.yoy %}
       <div class="kc-yoy {{ card.yoy.css }}">前年比 {{ card.yoy.arrow }} {{ '%+.1f'|format(card.yoy.pct) }}%
@@ -358,10 +376,21 @@ h4{font-weight:var(--jp-head)!important}
         {%- if card.proj.target %}／目標 {{ card.proj.target }}{{ card.proj.unit }}
           {%- if card.proj.rate %}（{{ card.proj.rate }}%）{% endif %}{% endif %}</div>
       {% endif %}
+      {% if card.pace %}
+      <div class="kc-pace">{{ card.pace }}</div>
+      {% endif %}
       <div class="cta"><span>詳細を見る</span><span class="cta-arrow">›</span></div>
     </a>
     {% endfor %}
   </section>
+
+  {# ── A3: いまの窓の暦注記（KPIカード直下・発火時のみ） ── #}
+  {% if window_notes %}
+  <section class="chg-bar" aria-label="いまの窓の暦注記">
+    <span class="chg-title">📌 暦注記</span>
+    {% for w, n in window_notes.items() %}<span class="chg-none">{{ n.text }}</span>{% endfor %}
+  </section>
+  {% endif %}
 
   {# ── AIアラート（kpiカテゴリのみ・病院全体KPIの未達を検知。dept/ward/momentumは
        部門トリアージと表示が重複するため html_builder 側で間引き済み） ── #}

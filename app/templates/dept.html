@@ -107,7 +107,7 @@
 .mp-foot .mp-rate.wr{color:var(--wr)}
 .mp-foot .mp-rate.dr{color:var(--dr)}
 
-@media(max-width:768px){.kpi-row{grid-template-columns:repeat(2,1fr) !important}.charts-grid{grid-template-columns:1fr}.cpnl .chart{height:200px}.cpnl{overflow:hidden}.grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}.ward-extra{grid-template-columns:1fr 1fr 1fr}.hdr{padding:6px 12px}.hdr .row{flex-direction:column;align-items:stretch;gap:6px}.left{display:flex;align-items:center;gap:8px;min-width:0}.title{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.back{font-size:11px;white-space:nowrap}.meta{display:none}.hdr .nav-bar{display:none}.dept-sel{flex:1 1 auto;width:auto;min-width:0}.w{overflow-x:hidden}.tb{gap:6px}.grp{flex-wrap:wrap}
+@media(max-width:768px){.kpi-row{grid-template-columns:repeat(2,1fr) !important}.charts-grid{grid-template-columns:1fr}.cpnl .chart{height:200px}.cpnl{overflow:hidden}.grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}.ward-extra{grid-template-columns:1fr 1fr 1fr}.hdr{padding:6px 12px}.hdr .row{flex-direction:column;align-items:stretch;gap:6px}.left{display:flex;align-items:center;gap:8px;min-width:0}.title{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.back{font-size:11px;white-space:nowrap}.meta:not(#freshness){display:none}#freshness{font-size:11px;white-space:normal;overflow-wrap:anywhere}.hdr .nav-bar{display:none}.dept-sel{flex:1 1 auto;width:auto;min-width:0}.w{overflow-x:hidden}.tb{gap:6px}.grp{flex-wrap:wrap}
 .mp-grid{grid-template-columns:repeat(2,1fr);gap:8px}.mp-big{font-size:20px}
 /* ★モバイル: ヘッダー自動非表示 */
 .hdr{transition:transform .3s ease}.hdr.hdr-hidden{transform:translateY(-100%)}
@@ -118,7 +118,7 @@
   .hdr{position:static;transition:none;display:flex;align-items:center;flex-wrap:nowrap;gap:12px;padding:5px 14px}
   .hdr.hdr-hidden{transform:none}
   .hdr .row{flex:1 1 auto;min-width:0}
-  .meta{display:none}
+  .meta:not(#freshness){display:none}
   .title{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .hdr .nav-bar{display:flex;flex:0 0 auto;margin:0;padding:0;border-top:none}
   .dept-sel{width:auto;flex:0 1 auto}
@@ -255,7 +255,7 @@ h4{font-weight:var(--jp-head)!important}
   <div class="right">
     <a class="act" href="#" onclick="window.print();return false">🖨️ 印刷</a>
     <select class="dept-sel" id="deptSelect" onchange="onSelectChange(this.value)" style="display:none"></select>
-    <span class="meta">📅 {{ base_date }}</span>
+    <span class="meta" id="freshness">📅 {{ base_date }}</span>
     <button class="dm-btn" onclick="toggleDarkMode()">🌙</button>
   </div>
 </div>
@@ -265,6 +265,7 @@ h4{font-weight:var(--jp-head)!important}
   <a href="dept.html" class="active">🩺 部門別</a>
 </nav>
 </header>
+<div class="win-notes" id="windowNotes" style="display:none;font-size:11px;color:var(--sub);padding:4px 24px;background:var(--s);border-bottom:1px solid var(--ln)"></div>
 
 <div class="w">
   <!-- ═══ Landing Grid ═══ -->
@@ -374,11 +375,18 @@ h4{font-weight:var(--jp-head)!important}
 <script>
 const DATA = {{ data_json|safe }};
 
+// ★A4: 期間ラベル実日付化（detail.htmlと同じJS版ヘルパーを複製。往復データ量を増やさない）
+const WEEKDAY_JP = ['日','月','火','水','木','金','土']; // JS Date.getDay()は日曜=0
+function jpDate(d){ const t=new Date(d); return `${t.getMonth()+1}/${t.getDate()}(${WEEKDAY_JP[t.getDay()]})`; }
+function jpRange(a,b){ const s=new Date(a), e=new Date(b); return `${s.getMonth()+1}/${s.getDate()}〜${e.getMonth()+1}/${e.getDate()}`; }
+function addDays(d,n){ const t=new Date(d); t.setDate(t.getDate()+n); return t; }
+
 let currentUnit = null; // 選択中の科・病棟名
 let landingTab = 'depts'; // ランディングの表示区分: 'depts'(診療科) | 'wards'(病棟)
 let period = '12w';
 let showWeekday = true, showHoliday = true;
 let showDaily = false, showMA7 = false, showMA28 = true, showPrevYear = true;  // ★7日/4週移動平均はデフォルト非表示、昨年度同期はデフォルト表示
+let showBand = false;  // ★A6: 通常変動帯（±1.5σ）既定オフ（在院・新入院のみ対応）
 let admType = 'all';  // 新入院種別フィルタ: 'all' | 'planned' | 'emergency'
 // ★モバイル判定: Plotly chart height をビューポート幅で切替
 function _pH(desktop) { return window.innerWidth <= 768 ? 200 : desktop; }
@@ -704,6 +712,7 @@ function kpiCardHtml(c) {
 function renderKpiCards(d) {
   const isWard = !!d.ward_extra;
   const we = d.ward_extra;
+  const range7d = jpRange(addDays(DATA.meta.base_date,-6), DATA.meta.base_date);   // ★A4
 
   if (isWard) {
     // ── 病棟: 入退院フロー + 新入院 + 在院+利用率 ──
@@ -725,7 +734,7 @@ function renderKpiCards(d) {
     const admActual = admType==='planned' ? d.admission.planned_7d
                     : admType==='emergency' ? d.admission.emergency_7d
                     : d.admission.actual_7d;
-    const admPeriodLabel = admType==='planned'?'直近7日（予定）':admType==='emergency'?'直近7日（緊急）':'直近7日累計';
+    const admPeriodLabel = admType==='planned'?`直近7日（${range7d}・予定）`:admType==='emergency'?`直近7日（${range7d}・緊急）`:`直近7日（${range7d}）累計`;
     const admTarget = admType==='all' ? d.admission.target : null;
     const admRate   = admType==='all' ? d.admission.rate   : null;
     const admCard = kpiCardHtml({icon:'🚪', label:'新入院', period:admPeriodLabel, actual:admActual, unit:'人', target:admTarget, rate:admRate});
@@ -740,14 +749,14 @@ function renderKpiCards(d) {
     const admActual = admType==='planned' ? d.admission.planned_7d
                     : admType==='emergency' ? d.admission.emergency_7d
                     : d.admission.actual_7d;
-    const admPeriodLabel = admType==='planned'?'直近7日（予定）':admType==='emergency'?'直近7日（緊急）':'直近7日累計';
+    const admPeriodLabel = admType==='planned'?`直近7日（${range7d}・予定）`:admType==='emergency'?`直近7日（${range7d}・緊急）`:`直近7日（${range7d}）累計`;
     const admTarget = admType==='all' ? d.admission.target : null;
     const admRate   = admType==='all' ? d.admission.rate   : null;
     const cards = [
       {icon:'🚪', label:'新入院', period:admPeriodLabel, actual:admActual, unit:'人', target:admTarget, rate:admRate},
       {icon:'🛏️', label:'在院患者', period:DATA.meta.base_date+' 時点', actual:d.inpatient.actual, unit:'人', target:d.inpatient.target, rate:d.inpatient.rate},
     ];
-    if (showOp) cards.push({icon:'💉', label:opLabel, period:'直近7日累計', actual:d.operation.actual, unit:'件', target:d.operation.target, rate:d.operation.rate});
+    if (showOp) cards.push({icon:'💉', label:opLabel, period:`直近7日（${range7d}）累計`, actual:d.operation.actual, unit:'件', target:d.operation.target, rate:d.operation.rate});
     if (d.profit) cards.push({icon:'💰', label:'粗利', period:'今月', actual:d.profit.actual, unit:'百万円', gapUnit:'百万円', target:(d.profit.adj_target != null ? d.profit.adj_target : d.profit.target), rate:d.profit.rate});
     document.getElementById('kpiCards').innerHTML = cards.map(kpiCardHtml).join('');
     const cols = cards.length >= 4 ? 2 : Math.min(cards.length, 3);
@@ -782,7 +791,7 @@ function renderToolbar() {
   ).join('');
   const mkChk = (lbl,checked,fn) => `<label style="font-size:11px;font-weight:700;color:var(--sub);cursor:pointer;display:flex;align-items:center;gap:2px"><input type="checkbox" ${checked?'checked':''} onchange="${fn}"> ${lbl}</label>`;
   const dayChks = mkChk('平日',showWeekday,"toggleDay('wd',this.checked)") + mkChk('休日',showHoliday,"toggleDay('hd',this.checked)");
-  const lineChks = mkChk('日次',showDaily,"toggleLine('d',this.checked)") + mkChk('7日移動平均',showMA7,"toggleLine('m7',this.checked)") + mkChk('28日移動平均',showMA28,"toggleLine('m28',this.checked)") + mkChk('昨年度同期',showPrevYear,"toggleLine('py',this.checked)");
+  const lineChks = mkChk('日次',showDaily,"toggleLine('d',this.checked)") + mkChk('7日移動平均',showMA7,"toggleLine('m7',this.checked)") + mkChk('28日移動平均',showMA28,"toggleLine('m28',this.checked)") + mkChk('昨年度同期',showPrevYear,"toggleLine('py',this.checked)") + mkChk('通常変動帯',showBand,"toggleLine('band',this.checked)");
   const mkRad = (val,lbl) => `<label style="font-size:11px;font-weight:700;color:var(--sub);cursor:pointer;display:flex;align-items:center;gap:2px"><input type="radio" name="admType" value="${val}" ${admType===val?'checked':''} onchange="setAdmType('${val}')"> ${lbl}</label>`;
   const admTypeCtrl = mkRad('all','全体') + mkRad('planned','予定') + mkRad('emergency','緊急');
   document.getElementById('toolbar').innerHTML = `
@@ -809,7 +818,7 @@ function toggleDay(t, c) {
   if (currentUnit) renderCharts(DATA.drill[currentUnit]);
 }
 function toggleLine(t, c) {
-  if (t==='d') showDaily=c; else if (t==='m7') showMA7=c; else if (t==='m28') showMA28=c; else if (t==='py') showPrevYear=c;
+  if (t==='d') showDaily=c; else if (t==='m7') showMA7=c; else if (t==='m28') showMA28=c; else if (t==='py') showPrevYear=c; else if (t==='band') showBand=c;
   if (currentUnit) renderCharts(DATA.drill[currentUnit]);
 }
 
@@ -1015,6 +1024,15 @@ function renderOneChart(elId, td, targetVal) {
     if (li28 >= 0) {
       traces.push({x:[ds[li28]],y:[m28[li28]],type:'scatter',mode:'markers+text',text:['今年度'],textposition:'middle right',textfont:{size:11,color:'#E69F00'},marker:{size:7,color:'#E69F00'},showlegend:false,hoverinfo:'skip',cliponaxis:false});
     }
+  }
+  // ★A6: 通常変動帯 ±1.5σ（在院・新入院のみ。全麻は病棟に対応データが無いため対象外）
+  if (showBand && td.band && td.band.width_pct != null && showMA28 && m28.length) {
+    const w = td.band.width_pct / 100;
+    const upper = m28.map(v => v!=null ? v*(1+w) : null);
+    const lower = m28.map(v => v!=null ? v*(1-w) : null);
+    traces.push({name:'通常範囲上限',x:ds,y:upper,type:'scatter',mode:'lines',line:{color:'rgba(148,163,184,0.4)',width:1,dash:'dot'},showlegend:false,hoverinfo:'skip'});
+    traces.push({name:`通常変動帯(±${td.band.width_pct}%)`,x:ds,y:lower,type:'scatter',mode:'lines',line:{color:'rgba(148,163,184,0.4)',width:1,dash:'dot'},fill:'tonexty',fillcolor:'rgba(148,163,184,0.12)'});
+    yV.push(...upper.filter(v=>v!=null), ...lower.filter(v=>v!=null));
   }
   if (targetVal && ds.length) { traces.push({name:`目標 ${Math.round(targetVal*10)/10}`,x:[ds[0],ds[ds.length-1]],y:[targetVal,targetVal],type:'scatter',mode:'lines',line:{color:'#D55E00',width:2,dash:'dot'}}); yV.push(targetVal); }
 
@@ -1633,7 +1651,27 @@ function renderFlowChart(elId, admTd, outTd, opts) {
 // ══════════════════════════
 // Init
 // ══════════════════════════
+// ★A5: 鮮度1行（ヘッダー .meta を DATA.meta.freshness で上書き）
+function renderFreshness() {
+  const fr = DATA.meta && DATA.meta.freshness;
+  const el = document.getElementById('freshness');
+  if (!fr || !el) return;
+  el.textContent = fr.text + (fr.prev_label ? `（${fr.prev_label}）` : '');
+}
+
+// ★A3: いまの窓の暦注記（ヘッダー直下・発火時のみ。detail.htmlと同ロジック）
+function renderWindowNotes() {
+  const el = document.getElementById('windowNotes');
+  if (!el) return;
+  const wn = (DATA.meta && DATA.meta.window_notes) || {};
+  const texts = Object.values(wn).map(n => n.text).filter(Boolean);
+  if (texts.length) { el.innerHTML = '📌 ' + texts.join('　'); el.style.display = ''; }
+  else { el.style.display = 'none'; }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+  renderFreshness();
+  renderWindowNotes();
   buildSelector();
 
   const hash = decodeURIComponent(location.hash.replace('#',''));

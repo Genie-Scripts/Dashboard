@@ -23,6 +23,7 @@
 .bx .cmp-bar{height:4px;background:#edf2f7;border-radius:999px;overflow:hidden;margin-top:8px}.bx .cmp-fill{height:100%;border-radius:999px;transition:width .3s}.bx .cmp-fill.ok{background:var(--ok)}.bx .cmp-fill.wr{background:var(--wr)}.bx .cmp-fill.dr{background:var(--dr)}.bx .cmp-fill.mu{background:var(--mu)}.bx .cmp-meta{display:flex;justify-content:space-between;align-items:center;margin-top:3px}.bx .cmp-prev{font-size:13px;color:var(--sub);font-weight:600}.bx .cmp-dir{font-size:11px;font-weight:900;padding:2px 6px;border-radius:4px}.bx .cmp-dir.ok{background:var(--ok-bg);color:#065f42}.bx .cmp-dir.wr{background:var(--wr-bg);color:#7c3a06}.bx .cmp-dir.dr{background:var(--dr-bg);color:var(--dr-t)}.bx .cmp-dir.mu{color:var(--mu)}
 /* ★Plan-B: 実績+目標+差分 統合カード */
 .bx-main{background:var(--s);border:1px solid var(--ln);border-radius:14px;padding:14px 16px;box-shadow:0 2px 6px rgba(10,22,42,.04)}.bx-main.ok{background:var(--ok-bg)}.bx-main.wr{background:var(--wr-bg)}.bx-main.dr{background:var(--dr-bg)}.bx-main h2{font-size:14px;margin:0 0 6px;font-weight:800}.bx-main .period-note{font-size:11px;color:var(--sub);margin-bottom:4px}.bx-main .main-val{font-size:28px;font-weight:900;line-height:1.15}.bx-main .main-val.dr{color:var(--dr)}.bx-main .main-unit{font-size:14px;font-weight:400;color:var(--sub)}.bx-main .dual-main-row{display:flex;align-items:baseline;gap:8px;margin:6px 0;flex-wrap:wrap}.bx-main .dual-main-row .main-val{margin:0}.bx-main .dual-main-lab{font-size:13px;font-weight:800;color:var(--sub);min-width:34px}.bx-main .dual-main-tgt{font-size:11px;color:var(--mu);margin-left:auto}.bx-main .main-foot{font-size:10px;color:var(--mu);margin-top:5px}
+.bx-main .main-pace{font-size:11px;color:var(--sub);margin-top:6px;padding-top:6px;border-top:1px dashed var(--ln);line-height:1.5}
 .tgt-row{display:flex;align-items:center;gap:8px;margin-top:8px;padding:6px 10px;background:#f8f9fa;border-radius:10px;border:1px dashed var(--ln)}.tgt-icon{font-size:12px}.tgt-label{font-size:12px;color:var(--mu);font-weight:700}.tgt-val{font-size:14px;font-weight:800;color:var(--sub)}.gap-val{font-size:14px;font-weight:900;margin-left:auto}.gap-val.dr{color:var(--dr)}.gap-val.wr{color:var(--wr)}.gap-val.ok{color:var(--ok)}
 .prog-wrap{margin-top:6px}.prog-bar{height:6px;background:#edf2f7;border-radius:999px;overflow:hidden}.prog-fill{height:100%;border-radius:999px;transition:width .3s}.prog-fill.ok{background:var(--ok)}.prog-fill.wr{background:var(--wr)}.prog-fill.dr{background:var(--dr)}.prog-meta{display:flex;justify-content:space-between;align-items:center;margin-top:3px}.prog-pct{font-size:11px;font-weight:800}.prog-pct.dr{color:var(--dr)}.prog-pct.wr{color:var(--wr)}.prog-pct.ok{color:var(--ok)}.prog-status{font-size:9px;font-weight:800;padding:2px 7px;border-radius:5px}.prog-status.dr{background:var(--dr-bg);color:var(--dr-t)}.prog-status.wr{background:var(--wr-bg);color:#7c3a06}.prog-status.ok{background:var(--ok-bg);color:#065f42}
 /* 在院: 全日/平日/休日タブ（今年度平均カード内に配置） */
@@ -129,8 +130,9 @@
 .mp-foot .mp-rate.ok{color:var(--ok)}
 .mp-foot .mp-rate.wr{color:var(--wr)}
 .mp-foot .mp-rate.dr{color:var(--dr)}
+.mp-pace{font-size:10px;color:var(--sub);margin-top:4px;padding-top:4px;border-top:1px dashed var(--ln)}
 @media(max-width:768px){.mp-grid{grid-template-columns:repeat(2,1fr);gap:8px}.mp-big{font-size:20px}}
-@media(max-width:768px){.tabs{display:flex;overflow:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}.tab{min-width:150px;flex:0 0 auto}.tab .big{font-size:22px}.sum{grid-template-columns:1fr}.bx-main .main-val{font-size:24px}.main{grid-template-columns:1fr}.chart{height:220px}.ri{grid-template-columns:24px 1fr auto}.bar,.stl{display:none}.drill-chart{height:200px}.drill-graphs{grid-template-columns:1fr}.role{display:none}.hdr{padding:6px 12px}.hdr .row{flex-wrap:nowrap;gap:8px;align-items:center}.left{min-width:0;flex:1 1 auto;overflow:hidden}.title{font-size:14px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.right{flex:0 0 auto;gap:6px}.act,.meta{display:none}.hdr .nav-bar{display:none}
+@media(max-width:768px){.tabs{display:flex;overflow:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}.tab{min-width:150px;flex:0 0 auto}.tab .big{font-size:22px}.sum{grid-template-columns:1fr}.bx-main .main-val{font-size:24px}.main{grid-template-columns:1fr}.chart{height:220px}.ri{grid-template-columns:24px 1fr auto}.bar,.stl{display:none}.drill-chart{height:200px}.drill-graphs{grid-template-columns:1fr}.role{display:none}.hdr{padding:6px 12px}.hdr .row{flex-wrap:nowrap;gap:8px;align-items:center}.left{min-width:0;flex:1 1 auto;overflow:hidden}.title{font-size:14px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.right{flex:0 0 auto;gap:6px}.act,.meta:not(#freshness){display:none}#freshness{font-size:11px;white-space:normal;overflow-wrap:anywhere}.hdr .nav-bar{display:none}
 /* ★モバイル: KPIカード2列化・チャート1列化・はみ出し防止 */
 .kpi-row{grid-template-columns:repeat(2,1fr) !important;gap:8px}
 .charts-container,.charts-container.layout-2plus1,.charts-container.layout-2x2,.charts-container.layout-3{grid-template-columns:1fr !important}
@@ -149,7 +151,7 @@
   .hdr{position:static;transition:none;display:flex;align-items:center;flex-wrap:nowrap;gap:12px;padding:5px 14px}
   .hdr.hdr-hidden{transform:none}
   .hdr .row{flex:1 1 auto;min-width:0}.hdr .right{gap:8px}
-  .role,.act,.meta{display:none}
+  .role,.act,.meta:not(#freshness){display:none}
   .title{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .hdr .nav-bar{display:flex;flex:0 0 auto;margin:0;padding:0;border-top:none}
 }
@@ -384,7 +386,7 @@ h4{font-weight:var(--jp-head)!important}
   <div class="right">
     <div class="role"><a href="#" class="active" onclick="presetDoctor(event)">🩺 医師向け</a><a href="#" onclick="presetNurse(event)">🏥 看護師向け</a></div>
     <a class="act" href="#" onclick="window.print()">🖨️ 印刷</a>
-    <span class="meta">📅 {{ base_date }}</span>
+    <span class="meta" id="freshness">📅 {{ base_date }}</span>
     <button class="dm-btn" onclick="toggleDarkMode()">🌙</button>
   </div>
 </div>
@@ -394,6 +396,7 @@ h4{font-weight:var(--jp-head)!important}
   <a href="dept.html">🩺 部門別</a>
 </nav>
 </header>
+<div class="win-notes" id="windowNotes" style="display:none;font-size:11px;color:var(--sub);padding:4px 24px;background:var(--s);border-bottom:1px solid var(--ln)"></div>
 
 <div class="w">
   <nav class="tabs" id="kpiTabs"></nav>
@@ -657,6 +660,13 @@ h4{font-weight:var(--jp-head)!important}
 <script>
 const DATA = {{ data_json|safe }};
 
+// ★A4: 期間ラベル実日付化（config.fmt_jp_date/fmt_jp_range のJS版複製。
+//   detail.html/dept.htmlはJSレンダーのためサーバ側の日付文字列を追加送信せずこちらを使う）
+const WEEKDAY_JP = ['日','月','火','水','木','金','土']; // JS Date.getDay()は日曜=0
+function jpDate(d){ const t=new Date(d); return `${t.getMonth()+1}/${t.getDate()}(${WEEKDAY_JP[t.getDay()]})`; }
+function jpRange(a,b){ const s=new Date(a), e=new Date(b); return `${s.getMonth()+1}/${s.getDate()}〜${e.getMonth()+1}/${e.getDate()}`; }
+function addDays(d,n){ const t=new Date(d); t.setDate(t.getDate()+n); return t; }
+
 let currentTab = 'admission';
 let currentAxis = 'dept';
 let dhmEntity = 'ward';   // 退院・入院曜日ヒートマップの対象（ward / dept）
@@ -674,6 +684,7 @@ let showBalMA7 = true;    // ★入退院バランス: 純増減 7日線（速�
 let showBalMA28 = true;   // ★入退院バランス: 純増減 28日線（基準トレンド。7d×28dのクロス＝加速/減速）
 let showPrevYear = true;  // ★昨年度同期 比較線（在院・新入院）デフォルト表示
 let showOpMA = true;      // ★全麻チャートの30平日移動平均（本線）デフォルト表示
+let showBand = false;     // ★A6: 通常変動帯（±1.5σ）既定オフ（追加情報のため任意表示）
 let showDaily = false;
 let currentDrill = null;  // ★課題4: 開いているドリルダウン名を保持
 let admType = 'all';  // 新入院種別フィルタ: 'all' | 'planned' | 'emergency'
@@ -1024,7 +1035,25 @@ function presetNurse(e) {
   currentTab='inpatient'; currentAxis='ward'; currentPeriod='12w';
   renderTabs(); renderAll();
 }
-function renderAll() { renderMonthProjection(); renderSummary(); renderToolbar(); renderContent(); closeDrill(); }
+function renderAll() { renderFreshness(); renderWindowNotes(); renderMonthProjection(); renderSummary(); renderToolbar(); renderContent(); closeDrill(); }
+
+// ★A5: 鮮度1行（ヘッダー .meta を DATA.meta.freshness で上書き）
+function renderFreshness() {
+  const fr = DATA.meta && DATA.meta.freshness;
+  const el = document.getElementById('freshness');
+  if (!fr || !el) return;
+  el.textContent = fr.text + (fr.prev_label ? `（${fr.prev_label}）` : '');
+}
+
+// ★A3: いまの窓の暦注記（ヘッダー直下・7日/28日とも発火時のみ表示。シンプル化のため両方あれば両方表示）
+function renderWindowNotes() {
+  const el = document.getElementById('windowNotes');
+  if (!el) return;
+  const wn = (DATA.meta && DATA.meta.window_notes) || {};
+  const texts = Object.values(wn).map(n => n.text).filter(Boolean);
+  if (texts.length) { el.innerHTML = '📌 ' + texts.join('　'); el.style.display = ''; }
+  else { el.style.display = 'none'; }
+}
 
 function renderMonthProjection() {
   const sec = document.getElementById('monthProjectionSection');
@@ -1045,6 +1074,16 @@ function renderMonthProjection() {
     const rate = k.rate;
     const barPct = rate==null ? 0 : Math.max(0, Math.min(rate, 100));
     const rateStr = rate==null ? '—' : `${rate}%`;
+    // ★A8: 全麻「残り営業日◯日×◯件/日で目標到達」・新入院「今週あと◯人／月内は週◯人ペース」
+    //   （いずれも未達時=needed_pace有りのときのみ）
+    let paceHtml = '';
+    if (key === 'operation' && k.needed_pace != null) {
+      paceHtml = `<div class="mp-pace">残り営業日${meta.biz_days_remaining}日 × ${k.needed_pace}件/日で目標到達</div>`;
+    } else if (key === 'admission' && k.needed_pace != null) {
+      const admGap = DATA.kpi.admission.gap;
+      const admGapTxt = admGap!=null ? (admGap>=0 ? `+${admGap}人超過` : `あと${Math.abs(admGap)}人`) : '—';
+      paceHtml = `<div class="mp-pace">今週${admGapTxt}／月内は週+${k.needed_pace}人ペースが必要</div>`;
+    }
     return `<div class="mp-tile ${css}">
       <div class="mp-head">
         <span class="mp-label">${k.icon ? (k.icon + ' ') : ''}${k.label||''}</span>
@@ -1057,6 +1096,7 @@ function renderMonthProjection() {
         <span class="mp-rate ${css}">${rateStr}</span>
         <span>目標 ${fmt(k.target)} ${k.unit||''}</span>
       </div>
+      ${paceHtml}
     </div>`;
   }).join('');
   document.getElementById('monthProjectionTiles').innerHTML = html;
@@ -1252,9 +1292,11 @@ function renderSummary() {
     // 在院は「直近7日の平日平均／休日平均」を併記（枠は平日=主目標基準）
     const wdRate = kpi.avg_7d_wd!=null ? kpi.avg_7d_wd/kpi.target_weekday*100 : null;
     const hdRate = kpi.avg_7d_hd!=null ? kpi.avg_7d_hd/kpi.target_holiday*100 : null;
+    const range7d = jpRange(addDays(DATA.meta.base_date,-6), DATA.meta.base_date);
     main = {
-      icon:'🛏️', label:'在院患者数', periodNote:'直近7日平均（平日／休日）', unit:'人',
+      icon:'🛏️', label:'在院患者数', periodNote:`直近7日（${range7d}）平均（平日／休日）`, unit:'人',
       status:{css:stCss(wdRate), shape:stShape(wdRate), text:stText(wdRate)},
+      pace: kpi.pace || null,   // ★A8-8.3: 在院の必要ペース（未達時のみ）
       dual:[
         {label:'平日', value:kpi.avg_7d_wd, target:kpi.target_weekday, rate:wdRate},
         {label:'休日', value:kpi.avg_7d_hd, target:kpi.target_holiday, rate:hdRate},
@@ -1268,13 +1310,24 @@ function renderSummary() {
       hd:  {fy:kpi.fy_avg_hd, tgt:kpi.target_holiday, tgtLabel:'休日目標'},
     };
     const fy = fyMap[inpDayFilter];
+    // ★A1: 先週の確定（月〜日）／今週ここまで（月〜基準日・按分目標比。裁定3で営業日1日でも出す）
+    const lastWeekRef = {
+      k:`先週の確定（${kpi.last_week_range||''}）`, v:kpi.last_week_avg!=null?`${kpi.last_week_avg}人`:'—', unit:'人',
+      curr:kpi.last_week_avg, prevLabel:'月〜日の週平均',
+    };
+    const thisWeekRef = kpi.this_week_avg!=null ? {
+      k:`今週ここまで（${kpi.this_week_range||''}・営業日${kpi.this_week_biz_days}日）`,
+      v:`${kpi.this_week_avg}人`, unit:'人',
+      curr:kpi.this_week_avg, refTarget:kpi.this_week_target, refTargetLabel:'按分目標',
+    } : null;
     refs = [
+      lastWeekRef, thisWeekRef,
       {k:'直近7日平均', v:kpi.avg_7d!==null?`${kpi.avg_7d}人`:'—', unit:'人',
        curr:kpi.avg_7d, prev:allTgt,
        prevLabel:`全日目標 ${allTgt}人`,
        dr:kpi.avg_7d!=null&&kpi.avg_7d<allTgt,
        refTarget:allTgt, refTargetLabel:'全日目標'},
-      {k:'直近4週平均', v:kpi.avg_28d!==null?`${kpi.avg_28d}人`:'—', unit:'人',
+      {k:`直近4週（${jpRange(addDays(DATA.meta.base_date,-27), DATA.meta.base_date)}）平均`, v:kpi.avg_28d!==null?`${kpi.avg_28d}人`:'—', unit:'人',
        curr:kpi.avg_28d, prev:kpi.prev_28d_avg,
        prevLabel:kpi.prev_28d_avg!=null?`前年同期 ${kpi.prev_28d_avg}人`:'前年同期 —',
        refTarget:allTgt, refTargetLabel:'全日目標'},
@@ -1283,15 +1336,27 @@ function renderSummary() {
        prevLabel:kpi.prev_avg!=null?`前年度 ${kpi.prev_avg}人`:'前年度 —',
        refTarget:fy.tgt, refTargetLabel:fy.tgtLabel,
        _inpDayTabs: true},
-    ];
+    ].filter(Boolean);
   } else if (currentTab === 'admission') {
+    const range7d = jpRange(addDays(DATA.meta.base_date,-6), DATA.meta.base_date);
     main = {
-      icon:'🚪', label:'新入院患者数', periodNote:'直近7日累計',
+      icon:'🚪', label:'新入院患者数', periodNote:`直近7日（${range7d}）累計`,
       actual:kpi.actual_7d, unit:'人', targetLabel:'週目標',
       target:kpi.target_weekly, gap:kpi.gap, gapUnit:'人',
-      rate:kpi.rate_7d, status:kpi.status
+      rate:kpi.rate_7d, status:kpi.status,
     };
+    // ★A1: 先週の確定（月〜日）／今週ここまで（月〜基準日・按分目標比。裁定3で営業日1日でも出す）
+    const lastWeekRef = {
+      k:`先週の確定（${kpi.last_week_range||''}）`, v:kpi.last_week_total!=null?`${kpi.last_week_total}人`:'—', unit:'人',
+      curr:kpi.last_week_total, prevLabel:'月〜日の週累計',
+    };
+    const thisWeekRef = kpi.this_week_total!=null ? {
+      k:`今週ここまで（${kpi.this_week_range||''}・営業日${kpi.this_week_biz_days}日）`,
+      v:`${kpi.this_week_total}人`, unit:'人',
+      curr:kpi.this_week_total, refTarget:kpi.this_week_target, refTargetLabel:'按分目標',
+    } : null;
     refs = [
+      lastWeekRef, thisWeekRef,
       {k:'直近14日（7日換算）', v:kpi.actual_14d_weekly!==null?`${kpi.actual_14d_weekly}人/週`:'—', unit:'人/週',
        curr:kpi.actual_14d_weekly, prev:kpi.prior_range_weekly,
        prevLabel:kpi.prior_range_weekly!=null?`先行4週 ${kpi.prior_range_weekly}人/週`:'先行4週 —'},
@@ -1301,8 +1366,9 @@ function renderSummary() {
        prevLabel:kpi.prev_28d_total!=null?`前年同期 ${Math.round(kpi.prev_28d_total/4*10)/10}人/週`:'前年同期 —'},
       {k:'年度平均（7日換算）', v:kpi.fy_avg!==null?`${kpi.fy_avg}人/週`:'—', unit:'人/週',
        curr:kpi.fy_avg, prev:kpi.prev_fy_avg,
-       prevLabel:kpi.prev_fy_avg!=null?`前年度 ${kpi.prev_fy_avg}人/週`:'前年度 —'},
-    ];
+       prevLabel:kpi.prev_fy_avg!=null?`前年度 ${kpi.prev_fy_avg}人/週`:'前年度 —',
+       refTarget:kpi.target_weekly, refTargetLabel:'週目標'},
+    ].filter(Boolean);
   } else if (currentTab === 'balance') {
     const b = kpi; // DATA.kpi.balance
     main = {
@@ -1350,11 +1416,18 @@ function renderSummary() {
     ];
   } else {
     main = {
-      icon:'💉', label:'全身麻酔手術', periodNote:'直近1週・営業日平均',
+      icon:'💉', label:'全身麻酔手術', periodNote:`直近1週（${jpRange(addDays(DATA.meta.base_date,-6), DATA.meta.base_date)}）・営業日平均`,
       actual:kpi.daily_avg, unit:'件/日', targetLabel:'目標',
       target:kpi.target, gap:kpi.gap, gapUnit:'件/日',
       rate:kpi.rate, status:kpi.status
     };
+    // ★A1: 今週ここまで（月〜基準日・按分目標比。裁定3で営業日1日でも出す。
+    //   先週の確定はF1是正で既に用意済みのため下の refs 配列内でそのまま使う）
+    const opThisWeekRef = kpi.this_week_total!=null ? {
+      k:`今週ここまで（${kpi.this_week_range||''}・営業日${kpi.this_week_biz_days}日）`,
+      v:`${kpi.this_week_total}件`, unit:'件',
+      curr:kpi.this_week_total, refTarget:kpi.this_week_target, refTargetLabel:'按分目標',
+    } : null;
     refs = [
       {k:'直近4週平日平均', v:kpi['4w_biz_avg']!==null?`${kpi['4w_biz_avg']}件/日`:'—', unit:'件/日',
        curr:kpi['4w_biz_avg'], prev:kpi.prev_4w_avg,
@@ -1363,10 +1436,12 @@ function renderSummary() {
        curr:kpi.total_7d, prev:kpi.prev_total_7d,
        prevLabel:kpi.prev_total_7d!=null?`昨年の同じ週（${kpi.prev_range_7d||''}） ${kpi.prev_total_7d}件`:'昨年の同じ週 —'},
       {k:`先週の確定（${kpi.last_week_range||''}）`,   v:kpi.last_week_total!==null?`${kpi.last_week_total}件`:'—', unit:'件'},
+      opThisWeekRef,
       {k:'年度平日平均',   v:kpi.fy_avg!==null?`${kpi.fy_avg}件/日`:'—', unit:'件/日',
        curr:kpi.fy_avg, prev:kpi.prev_fy_avg,
-       prevLabel:kpi.prev_fy_avg!=null?`前年度 ${kpi.prev_fy_avg}件/日`:'前年度 —'},
-    ];
+       prevLabel:kpi.prev_fy_avg!=null?`前年度 ${kpi.prev_fy_avg}件/日`:'前年度 —',
+       refTarget:kpi.target, refTargetLabel:'目標(営業日)'},
+    ].filter(Boolean);
   }
 
   // ステータス CSS クラス
@@ -1412,6 +1487,7 @@ function renderSummary() {
     <h2>${main.icon} ${main.label}${trendHtml}</h2>
     ${main.periodNote ? `<div class="period-note">${main.periodNote}</div>` : ''}
     ${bodyHtml}
+    ${main.pace ? `<div class="main-pace">${main.pace}</div>` : ''}
   </div>`;
 
   const refsHtml = refs.map(r => refCardHtml(r)).join('');
@@ -1476,10 +1552,12 @@ function renderChartControls() {
     ? mkChk('d','日次実績（平日）',showDaily,"toggleLine('daily',this.checked)")
       + mkChk('opma','30平日移動平均',showOpMA,"toggleLine('opma',this.checked)")
       + mkChk('py','昨年度同期',showPrevYear,"toggleLine('prev',this.checked)")
+      + mkChk('band','通常変動帯',showBand,"toggleLine('band',this.checked)")
     : mkChk('d','日次実績',showDaily,"toggleLine('daily',this.checked)")
       + mkChk('m7','7日移動平均',showMA7,"toggleLine('ma7',this.checked)")
       + mkChk('m28','28日移動平均',showMA28,"toggleLine('ma28',this.checked)")
-      + mkChk('py','昨年度同期',showPrevYear,"toggleLine('prev',this.checked)");
+      + mkChk('py','昨年度同期',showPrevYear,"toggleLine('prev',this.checked)")
+      + mkChk('band','通常変動帯',showBand,"toggleLine('band',this.checked)");
   // 入院種別フィルタはこのチャート（新入院）専用。チャート直上に配置して適用範囲を明示。
   const mkRad = (val,lbl) => `<label style="font-size:11px;font-weight:700;color:var(--sub);cursor:pointer;display:flex;align-items:center;gap:2px"><input type="radio" name="admType" value="${val}" ${admType===val?'checked':''} onchange="setAdmType('${val}')"> ${lbl}</label>`;
   const admTypeCtrl = currentTab==='admission'
@@ -1524,6 +1602,7 @@ function toggleLine(type, checked) {
   else if (type==='opma') showOpMA=checked;
   else if (type==='ma28') showMA28=checked;
   else if (type==='prev') showPrevYear=checked;
+  else if (type==='band') showBand=checked;
   renderContent();
 }
 
@@ -2481,6 +2560,18 @@ function renderChart() {
         marker:{size:7,color:'#E69F00'}, showlegend:false, hoverinfo:'skip', cliponaxis:false});
     }
   }
+  // ★A6: 通常変動帯 ±1.5σ（表示専用・判定不変。既定オフ）
+  const band = DATA.kpi[currentTab] && DATA.kpi[currentTab].band;
+  if (showBand && band && band.width_pct != null && showMA28) {
+    const w = band.width_pct / 100;
+    const upper = fMA28.map(v => v!=null ? v*(1+w) : null);
+    const lower = fMA28.map(v => v!=null ? v*(1-w) : null);
+    traces.push({name:'通常範囲上限', x:fDates, y:upper, type:'scatter', mode:'lines',
+      line:{color:'rgba(148,163,184,0.4)',width:1,dash:'dot'}, showlegend:false, hoverinfo:'skip'});
+    traces.push({name:`通常変動帯(±${band.width_pct}%)`, x:fDates, y:lower, type:'scatter', mode:'lines',
+      line:{color:'rgba(148,163,184,0.4)',width:1,dash:'dot'}, fill:'tonexty',
+      fillcolor:'rgba(148,163,184,0.12)'});
+  }
   // ★目標ライン（朱破線／種別フィルタ中は非表示）
   const tgtLabel = currentTab==='inpatient' ? (showWeekday&&showHoliday?'全日目標':'平日/休日目標') : '目標';
   if (fDates.length && showTarget) {
@@ -2488,8 +2579,11 @@ function renderChart() {
       type:'scatter', mode:'lines', line:{color:'#D55E00',width:2,dash:'dot'}});
   }
 
-  // ★Y軸範囲（昨年度同期線も収める）
-  const allY = [...(showDaily?fVals:[]),...(showMA7?fMA7:[]),...(showMA28?fMA28:[]),...pPrevVals,...(showTarget?[tgt]:[])].filter(v=>v!=null);
+  // ★Y軸範囲（昨年度同期線・通常変動帯も収める）
+  const bandY = (showBand && band && band.width_pct != null && showMA28)
+    ? fMA28.filter(v=>v!=null).flatMap(v => [v*(1+band.width_pct/100), v*(1-band.width_pct/100)])
+    : [];
+  const allY = [...(showDaily?fVals:[]),...(showMA7?fMA7:[]),...(showMA28?fMA28:[]),...pPrevVals,...(showTarget?[tgt]:[]),...bandY].filter(v=>v!=null);
   const yMin=Math.min(...allY), yMax=Math.max(...allY), yPad=(yMax-yMin)*.08||5;
   const yLo = Math.max(0,Math.floor(yMin-yPad)), yHi = Math.ceil(yMax+yPad);
 
@@ -2644,6 +2738,22 @@ function renderOperationChart() {
     }
   }
 
+  // ★A6: 通常変動帯 ±1.5σ（表示専用・判定不変。既定オフ。中心線=30平日移動平均）
+  const opBand = DATA.kpi.operation && DATA.kpi.operation.band;
+  if (showBand && opBand && opBand.width_pct != null && showOpMA && bm && bm.dates && bm.dates.length) {
+    const si = Math.max(0, bm.dates.findIndex(d => d >= cutoff));
+    const bds = bm.dates.slice(si), bvs = bm.values.slice(si);
+    const w = opBand.width_pct / 100;
+    const upper = bvs.map(v => v!=null ? v*(1+w) : null);
+    const lower = bvs.map(v => v!=null ? v*(1-w) : null);
+    traces.push({name:'通常範囲上限', x:bds, y:upper, type:'scatter', mode:'lines',
+      line:{color:'rgba(148,163,184,0.4)',width:1,dash:'dot'}, showlegend:false, hoverinfo:'skip'});
+    traces.push({name:`通常変動帯(±${opBand.width_pct}%)`, x:bds, y:lower, type:'scatter', mode:'lines',
+      line:{color:'rgba(148,163,184,0.4)',width:1,dash:'dot'}, fill:'tonexty',
+      fillcolor:'rgba(148,163,184,0.12)'});
+    yV.push(...upper.filter(v=>v!=null), ...lower.filter(v=>v!=null));
+  }
+
   // ★目標ライン
   if (tgt && yV.length) {
     const allDates = traces.flatMap(t => t.x || []).filter(Boolean);
@@ -2735,15 +2845,21 @@ function renderRanking() {
     }
 
     // ── 主表示値（右側大きい数字）・サブ行 ──
+    // ★Phase0持ち越し(A1): 新入院ランキングで生目標と補正後目標が異なる週（祝日等）だけ
+    //   「週目標X人／今週の暦なら Y人」の二重表示に切替える（PDFバッジと同じ文言規則）。
+    const dualNote = (rankTab === 'admission' && r.target_adj != null && r.target != null &&
+                      Math.round(r.target_adj*10) !== Math.round(r.target*10))
+      ? `週目標${r.target}人／今週の暦なら${r.target_adj}人${r.biz_days!=null?`（営業日${r.biz_days}/${r.biz_days_full}）`:''}`
+      : null;
     let mainVal, mainCss, sub2;
     if (isGapSort) {
       mainVal = gapStr;
       mainCss = r.gap != null ? (r.gap >= 0 ? 'ok' : 'dr') : 'mu';
-      sub2 = `達成率 ${r.rate != null ? r.rate+'%' : '—'}`;
+      sub2 = dualNote || `達成率 ${r.rate != null ? r.rate+'%' : '—'}`;
     } else {
       mainVal = `${r.shape} ${r.rate != null ? r.rate+'%' : '—'}`;
       mainCss = r.status;
-      sub2 = `${r.actual}/${r.target || '—'}`;
+      sub2 = dualNote || `${r.actual}/${r.target || '—'}`;
     }
 
     return `<div class="ri${i>=RANK_SHOW?' rank-extra':''}" onclick="location.href='dept.html#'+encodeURIComponent('${r.name}')" style="cursor:pointer">

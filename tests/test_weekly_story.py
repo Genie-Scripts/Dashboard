@@ -11,6 +11,8 @@ import sys
 import unittest
 from pathlib import Path
 
+import pandas as pd
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.lib import weekly_story
@@ -44,6 +46,56 @@ class HolidayFactTest(unittest.TestCase):
             ["新入院 7日合計 370→391（+21）"], "2026-06-28", "2026-06-21")
         self.assertIn("【暦の事実】", prompt)
         self.assertIn("祝日はありません", prompt)
+
+
+# ════════════════════════════════════════
+# ★A5: build_kpi_snapshot への generated_at 追加（訴求力強化 Phase1 バッチ1a）
+# ════════════════════════════════════════
+
+_EMPTY_ADM = pd.DataFrame({"日付": pd.to_datetime([])})
+_EMPTY_SURG = pd.DataFrame({"手術実施日": pd.to_datetime([])})
+
+
+class BuildKpiSnapshotGeneratedAtTest(unittest.TestCase):
+    def test_generated_at_is_included_when_passed(self):
+        ts = pd.Timestamp("2026-09-04T07:39:00")
+        snap = weekly_story.build_kpi_snapshot(
+            _EMPTY_ADM, _EMPTY_SURG, {}, None, pd.Timestamp("2026-09-03"),
+            generated_at=ts)
+        self.assertEqual(snap["generated_at"], ts.isoformat())
+
+    def test_generated_at_defaults_to_none_for_backward_compat(self):
+        # 呼び出し元(scripts/build_weekly_digest.py 等)が未対応でも壊れないこと。
+        snap = weekly_story.build_kpi_snapshot(
+            _EMPTY_ADM, _EMPTY_SURG, {}, None, pd.Timestamp("2026-09-03"))
+        self.assertIsNone(snap["generated_at"])
+
+    def test_load_history_tolerates_snapshots_without_generated_at(self):
+        # 旧フォーマット（generated_at列が無い）の履歴でも例外を出さないこと。
+        import json
+        import tempfile
+        old_snap = {"base_date": "2026-08-27", "inpatient": {}, "admission": {},
+                   "operation": {}, "profit_top": []}
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "last_kpi.json"
+            path.write_text(json.dumps({"snapshots": [old_snap]}), encoding="utf-8")
+            history = weekly_story.load_history(path)
+        self.assertEqual(len(history), 1)
+        self.assertIsNone(history[0].get("generated_at"))
+
+
+class BuildWeeklyStoryForwardsGeneratedAtTest(unittest.TestCase):
+    def test_generated_at_forwarded_to_snapshot(self):
+        import tempfile
+        ts = pd.Timestamp("2026-09-08T07:40:00")
+        with tempfile.TemporaryDirectory() as d:
+            snapshot_path = Path(d) / "last_kpi.json"
+            result = weekly_story.build_weekly_story(
+                _EMPTY_ADM, _EMPTY_SURG, {}, None, pd.Timestamp("2026-09-08"),
+                snapshot_path, quiet=True, generated_at=ts)
+            self.assertEqual(result["base_date"], "2026-09-08")
+            history = weekly_story.load_history(snapshot_path)
+            self.assertEqual(history[0]["generated_at"], ts.isoformat())
 
 
 if __name__ == "__main__":

@@ -27,7 +27,7 @@ from .config import (
     SURGERY_DISPLAY_DEPTS, SURGERY_EVAL_DEPTS, surgery_metric_label, unit_narration_kind,
     TARGET_INPATIENT_ALLDAY, TARGET_ADMISSION_WEEKLY, TARGET_GA_DAILY,
     TARGET_WEEKEND_RETENTION, FEE_REVISION_DATE, FEE_REVISION_PROFIT_UPLIFT,
-    operational_days_between,
+    operational_days_between, fmt_jp_range,
 )
 from .metrics import (
     weekend_census_retention, rolling7_inpatient_avg,
@@ -1176,10 +1176,14 @@ def _kpi_band(type_key, entity, name, code, dd, r7_inp, r7_nadm, r7_surg,
     # 期待値の割引を適用する（達成バッジ・表示目標とも同じ調整後目標で一貫させる）。
     na_tgt_adj = adjusted_weekly_target(na_tgt, base_date) if base_date is not None else na_tgt
     ret_pct = round(retention * 100, 1) if retention is not None else None
+    # ★A4: 期間ラベル実日付化（PDF側も同型。base_date未指定時は従来の相対表記のまま）
+    range7d = fmt_jp_range(base_date - pd.Timedelta(days=6), base_date) if base_date is not None else None
+    sub_inp_avg = f"直近7日（{range7d}）平均" if range7d else "直近7日平均"
+    sub_nadm_total = f"直近7日（{range7d}）累計" if range7d else "直近7日累計"
 
-    inp_kpi = lambda lead: _kpi("在院患者数", "直近7日平均", _fmt(r7, 1), "人", lead=lead,
+    inp_kpi = lambda lead: _kpi("在院患者数", sub_inp_avg, _fmt(r7, 1), "人", lead=lead,
                                 tgt=f"目標 {inp_tgt:g}" if inp_tgt else "目標未設定", ok=_ok(r7, inp_tgt))
-    nadm_kpi = _kpi("新入院", "直近7日累計", _fmt(na), "人",
+    nadm_kpi = _kpi("新入院", sub_nadm_total, _fmt(na), "人",
                     tgt=_nadm_tgt_txt(na_tgt, na_tgt_adj, base_date), ok=_ok(na, na_tgt_adj))
     ret_kpi = _kpi("週末 在院維持率", "土日/平日", _fmt(ret_pct, 1), "%",
                    tgt=f"全体 {total_ret_pct:g}%" if total_ret_pct else None)
@@ -1200,7 +1204,7 @@ def _kpi_band(type_key, entity, name, code, dd, r7_inp, r7_nadm, r7_surg,
         # P1暦是正: 直近7日累計 vs 週次目標は単週の達成率比較なので、窓内営業日数で
         # 割り引いた期待値と突き合わせる（表示目標・達成バッジとも同じ値で一貫させる）。
         surg_tgt_adj = adjusted_weekly_target(surg_tgt, base_date) if base_date is not None else surg_tgt
-        return [_kpi(surgery_metric_label(name), "直近7日累計", _fmt(sv), "件", lead=True,
+        return [_kpi(surgery_metric_label(name), sub_nadm_total, _fmt(sv), "件", lead=True,
                      tgt=f"目標 {surg_tgt_adj:g}/週" if surg_tgt_adj else "目標未設定",
                      ok=_ok(sv, surg_tgt_adj)),
                 prof_kpi, inp_kpi(False), nadm_kpi]
@@ -1212,7 +1216,7 @@ def _kpi_band(type_key, entity, name, code, dd, r7_inp, r7_nadm, r7_surg,
     tgt_util = round(inp_tgt / beds * 100, 1) if (inp_tgt and beds) else None
     util_tgt = (f"目標 {tgt_util:g}%・{beds:g}床" if tgt_util is not None
                 else (f"稼働 {beds:g}床" if beds else None))
-    return [_kpi("病床利用率", "直近7日平均", _fmt(util, 1), "%", lead=True,
+    return [_kpi("病床利用率", sub_inp_avg, _fmt(util, 1), "%", lead=True,
                  tgt=util_tgt, ok=(_ok(util, tgt_util) if tgt_util is not None else None)),
             inp_kpi(False), nadm_kpi, ret_kpi]
 

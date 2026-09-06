@@ -15,11 +15,15 @@ operational_days_between / biz_days_in_month のみ。
 from __future__ import annotations
 
 import pandas as pd
+import jpholiday as _jpholiday
 
 from .config import (
     day_type, nonop_run_len, is_long_holiday_eve, operational_days_between,
     biz_days_in_month,
 )
+# 祝日名の取得元は config.py 一元管理が設計上の推奨だが、本バッチ（訴求力強化A3）は
+# config.py を編集対象外としているため、jpholiday を直接 import する
+# （spec/設計_訴求力強化_A_期間系.md §3 の代替案。config.holiday_name() 集約は将来の課題）。
 
 # 出典: 司令塔実測 2026-08-29（日次在院の病院合計・2024-01-01〜2026-08-27・営業日mean=555.7 n=644）
 # run=4は4〜6日の合算(n=16: 466.8×8/506.2×5/351.0×3)。単調性確保のため小標本セルを統合。
@@ -124,6 +128,50 @@ def build_early_warning(base_date) -> dict | None:
             "chip": ["連休", chip_date],
         }
     return None
+
+
+def build_window_note(base_date, window: int) -> dict | None:
+    """第4層: いまの窓の暦注記。window=7 or 28。
+
+    窓内営業日数が標準(7→5, 28→20)と異なるときだけ発火する（土日は標準に
+    織込み済みなので対象外・平日祝日のみが理由になる）。「表示のみ・判定不変」
+    （P4暦プレビューと同じ exception-driven 思想の第4層）。
+    """
+    base_date = pd.Timestamp(base_date)
+    std = 5 if window == 7 else 20
+    start = base_date - pd.Timedelta(days=window - 1)
+    biz = operational_days_between(start, base_date)
+    if biz == std:
+        return None
+    reasons = []
+    for d in pd.date_range(start, base_date, freq="D"):
+        if day_type(d) == "hol_wd":
+            name = _jpholiday.is_holiday_name(d.date()) or "祝日"
+            reasons.append(f"{d.month}/{d.day} {name}")
+    reason_part = f"（{'・'.join(reasons)}）" if reasons else ""
+    period_label = "この7日間" if window == 7 else "この28日間"
+    text = f"{period_label}は営業日{biz}日{reason_part}。新入院と手術はその分少なく出ます。"
+    return {"window": window, "biz_days": biz, "std_days": std, "text": text}
+
+
+def build_window_notes(base_date) -> dict:
+    """7日・28日の両方をまとめて返す（Noneは省く）。"""
+    out = {}
+    for w in (7, 28):
+        n = build_window_note(base_date, w)
+        if n:
+            out[w] = n
+    return out
+
+
+def complete_week_end(base_date) -> pd.Timestamp:
+    """直近の日曜（base_date自身が日曜ならbase_date）を返す。
+
+    完全週（月〜日）の終端固定に使う（B12: PDF・掲示の完全週固定）。祝日は考慮しない
+    （暦週の区切りの話で営業日は別軸）。weekday()は月=0〜日=6。
+    """
+    base_date = pd.Timestamp(base_date)
+    return base_date - pd.Timedelta(days=(base_date.weekday() + 1) % 7)
 
 
 def build_calendar_preview(base_date) -> dict | None:

@@ -29,6 +29,9 @@ from app.lib.config import (  # noqa: E402
     is_long_holiday_eve,
     operational_days_between,
     is_operational_day,
+    fmt_jp_date,
+    fmt_jp_range,
+    fmt_jp_range_prevyear,
 )
 
 
@@ -190,6 +193,42 @@ class TestEquivalenceWithOldIsBiz(unittest.TestCase):
             if expected != actual:
                 mismatches.append((d.date(), expected, actual))
         self.assertEqual(mismatches, [], f"不一致: {mismatches[:10]}")
+
+
+# ════════════════════════════════════════
+# ★A4: 日付表示フォーマット（訴求力強化 Phase1 基盤）
+# ════════════════════════════════════════
+
+class TestFmtJpDate(unittest.TestCase):
+    def test_basic_format_with_weekday(self):
+        self.assertEqual(fmt_jp_date(pd.Timestamp("2026-09-03")), "9/3(木)")
+
+    def test_sunday(self):
+        self.assertEqual(fmt_jp_date(pd.Timestamp("2026-08-30")), "8/30(日)")
+
+
+class TestFmtJpRange(unittest.TestCase):
+    def test_same_month_range_does_not_omit_month(self):
+        # 同月でも月を省略しない（曖昧さ回避を優先）
+        self.assertEqual(
+            fmt_jp_range(pd.Timestamp("2026-09-01"), pd.Timestamp("2026-09-03")), "9/1〜9/3")
+
+    def test_cross_month_range(self):
+        self.assertEqual(
+            fmt_jp_range(pd.Timestamp("2026-08-28"), pd.Timestamp("2026-09-03")), "8/28〜9/3")
+
+
+class TestFmtJpRangePrevyear(unittest.TestCase):
+    def test_leading_year_on_start_only(self):
+        self.assertEqual(
+            fmt_jp_range_prevyear(pd.Timestamp("2025-08-29"), pd.Timestamp("2025-09-04")),
+            "2025/8/29〜9/4")
+
+    def test_year_crossing_prevyear_range(self):
+        # 年をまたぐ前年期間（開始日側の年のみ付す仕様どおり）
+        self.assertEqual(
+            fmt_jp_range_prevyear(pd.Timestamp("2025-12-29"), pd.Timestamp("2026-01-04")),
+            "2025/12/29〜1/4")
 
 
 if __name__ == "__main__":

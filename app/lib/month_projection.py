@@ -67,6 +67,23 @@ def _count_biz_days(start: pd.Timestamp, end: pd.Timestamp) -> int:
     return sum(1 for d in pd.date_range(start, end, freq="D") if is_operational_day(d))
 
 
+def _alos_28d(adm: pd.DataFrame, date) -> Optional[float]:
+    """28日在院平均 ÷ 日平均新入院（Little's law の簡易近似）。診断専用・非表示目標。
+
+    A8（在院の必要ペース＝週末在院維持率換算・副＝新入院換算）の入力として使う。
+    暦補正と学習ループ改修プラン.md P3 で ALOS が正式実装されたら、そちらへ寄せて
+    この複製は解消してよい（P3が未実装のため本スコープ内で自己完結させる）。
+    新入院が0件（日平均新入院が0以下）のときは None。
+    """
+    date = pd.Timestamp(date)
+    win = adm[(adm["日付"] >= date - pd.Timedelta(days=27)) & (adm["日付"] <= date)]
+    adm_avg = win["新入院患者数"].sum() / 28
+    if adm_avg <= 0:
+        return None
+    census_avg = win.groupby("日付")["在院患者数"].sum().mean()
+    return round(census_avg / adm_avg, 1)
+
+
 def profit_target_for_month(profit_monthly: Optional[pd.DataFrame],
                             month_start: pd.Timestamp,
                             dept: Optional[str] = None) -> Optional[float]:
@@ -168,6 +185,13 @@ def build_month_projection_payload(
     adm_rate = (round(adm_proj / adm_target * 100, 1)
                 if adm_target and adm_target > 0 else None)
 
+    # A8-8.2: 新入院「月末までのペース」（週換算）。達成見込み(remaining<=0)ならNone。
+    adm_needed_pace = None
+    if adm_target is not None:
+        remaining_needed_adm = adm_target - adm_mtd
+        if remaining_needed_adm > 0 and cal_days_remaining > 0:
+            adm_needed_pace = round(remaining_needed_adm / (cal_days_remaining / 7), 1)
+
     # ── 全身麻酔 (営業平日ペース) ──
     # dept指定時は術数対象（眼科=全手術、他科=全麻）基準、病院全体は従来通り全麻基準。
     op_mask = surg["術数対象"] if dept is not None else surg["全麻"]
@@ -189,6 +213,15 @@ def build_month_projection_payload(
         ga_target = TARGET_GA_DAILY * biz_days_total
     ga_rate = (round(ga_proj / ga_target * 100, 1)
                if ga_target and ga_target > 0 else None)
+
+    # A8-8.1: 全麻「必要ペース」（残り営業日◯日×◯件/日で目標到達）。達成見込みならNone。
+    ga_needed_total = None
+    ga_needed_pace = None
+    if ga_target is not None and biz_days_remaining > 0:
+        remaining_needed = ga_target - ga_mtd
+        if remaining_needed > 0:
+            ga_needed_total = round(remaining_needed, 1)
+            ga_needed_pace = round(remaining_needed / biz_days_remaining, 1)
 
     # ── 粗利 ──
     # 病院全体の月末予測は PLレポートと同じ G（MTDブレンド × recency補正）を使う。
@@ -244,6 +277,9 @@ def build_month_projection_payload(
                       else _tile("", surgery_metric_label(dept) if dept is not None else "全身麻酔",
                                  ga_mtd, _i(ga_proj), _i(ga_target),
                                  "件", ga_rate))
+    if operation_tile is not None:
+        operation_tile["needed_total"] = ga_needed_total
+        operation_tile["needed_pace"] = ga_needed_pace
 
     return {
         "meta": {
@@ -263,11 +299,14 @@ def build_month_projection_payload(
             round(inp_target, 0) if inp_target else None,
             "人/日", inp_rate,
         ),
-        "admission": _tile(
-            "", "新入院",
-            int(round(adm_mtd)), int(round(adm_proj)),
-            _i(adm_target),
-            "人", adm_rate,
-        ),
+        "admission": {
+            **_tile(
+                "", "新入院",
+                int(round(adm_mtd)), int(round(adm_proj)),
+                _i(adm_target),
+                "人", adm_rate,
+            ),
+            "needed_pace": adm_needed_pace,
+        },
         "operation": operation_tile,
     }

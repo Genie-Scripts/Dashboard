@@ -9,6 +9,8 @@ v2.1 変更点:
 """
 
 import json
+from pathlib import Path
+
 import pandas as pd
 import numpy as np
 from datetime import datetime
@@ -17,9 +19,11 @@ from typing import Optional
 from .config import (
     TARGET_INPATIENT_WEEKDAY, TARGET_INPATIENT_HOLIDAY,
     TARGET_INPATIENT_ALLDAY, TARGET_ADMISSION_WEEKLY, TARGET_GA_DAILY,
+    TARGET_WEEKEND_RETENTION,
     KPI_ICONS, AXIS_ICONS, status_display, status_label,
     SURGERY_DISPLAY_DEPTS, SURGERY_EVAL_DEPTS, surgery_metric_label,
     NADM_DISPLAY_DEPTS, PROFIT_ONLY_DISPLAY_DEPTS,
+    fmt_jp_date, fmt_jp_range,
 )
 from .metrics import (
     build_kpi_summary, build_dept_ranking, build_ward_ranking,
@@ -48,10 +52,15 @@ from .profit_estimate import (
     last_complete_driver_date,
 )
 from .profit_translate import build_translate_payload
-from .month_projection import build_month_projection_payload, profit_target_for_month
+from .month_projection import (
+    build_month_projection_payload, profit_target_for_month, _alos_28d,
+)
 from .moves_store import load_latest_moves
 from .surgery_ops import build_surgery_ops_payload
 from .ward_flow import build_ward_flow_payload
+from .stats_band import (
+    census_spread_samples, surgery_rate_spread_samples, unit_sigma, build_band,
+)
 
 
 def _json_safe(obj):
@@ -149,12 +158,19 @@ def _add_adm_breakdown(td: dict, planned_s: pd.DataFrame, emg_s: pd.DataFrame,
 
 def _ranking_to_list(df: pd.DataFrame, name_col: str = "診療科",
                      actual_col: str = "実績", target_col: str = "目標") -> list:
-    """ランキングDataFrameをJSON用リストに変換"""
+    """ランキングDataFrameをJSON用リストに変換
+
+    ★訴求力強化Phase1(A1持ち越し): 「目標_adj」列（新入院ランキングのみ・F3是正で
+    追加済み）があれば target_adj/biz_days/biz_days_full も同梱する。detail.html の
+    達成状況テーブルで「週目標X人／今週の暦なら Y人」の二重表示に使う（生目標と
+    補正後目標が異なる週だけJS側で発火）。
+    """
+    has_adj = "目標_adj" in df.columns
     rows = []
     for _, r in df.iterrows():
         rate = r.get("達成率")
         st = status_display(rate)
-        rows.append({
+        row = {
             "rank": int(r.get("順位", 0)),
             "name": r[name_col],
             "actual": float(r[actual_col]) if pd.notna(r[actual_col]) else 0,
@@ -163,8 +179,160 @@ def _ranking_to_list(df: pd.DataFrame, name_col: str = "診療科",
             "status": st["css"],
             "shape": st["shape"],
             "text": st["text"],
-        })
+        }
+        if has_adj:
+            adj = r.get("目標_adj")
+            bd = r.get("biz_days")
+            bdf = r.get("biz_days_full")
+            row["target_adj"] = float(adj) if pd.notna(adj) else None
+            row["biz_days"] = int(bd) if pd.notna(bd) else None
+            row["biz_days_full"] = int(bdf) if pd.notna(bdf) else None
+        rows.append(row)
     return rows
+
+
+# ═══════════════════════════════════════
+# 訴求力強化 Phase1 (A1〜A9) ヘルパー
+# ═══════════════════════════════════════
+
+def _build_freshness(base_date, generated_at, prior_generated_at=None) -> dict:
+    """A5: 鮮度1行。文言は §3/§7裁定のとおり固定「平日の朝に更新」
+    （運用の実態＝手動ビルドで欠測日があるため「次回は…」の約束文言は使わない）。
+
+    前回ビルド（last_kpi.jsonの直前スナップショット）から2日以上空いたときだけ
+    prev_label を立てる（stale=True）。
+    """
+    prev_label = None
+    if prior_generated_at is not None:
+        gap_days = (pd.Timestamp(generated_at).date() - pd.Timestamp(prior_generated_at).date()).days
+        if gap_days >= 2:
+            prev_label = f"前回更新 {prior_generated_at.month}/{prior_generated_at.day}"
+    text = (f"データは {fmt_jp_date(base_date)} まで｜"
+            f"{generated_at.month}/{generated_at.day} "
+            f"{generated_at.strftime('%H:%M')} 作成｜平日の朝に更新")
+    return {"text": text, "stale": prev_label is not None, "prev_label": prev_label}
+
+
+def _load_prev_generated_at(kpi_history_path):
+    """A5: last_kpi.json 履歴から「前回ビルド」の generated_at を読む。
+
+    generate_html.py の呼び出し順序上、build_weekly_story() が先に現在のビルドの
+    スナップショットを upsert・保存済みのため、この時点で履歴の末尾(-1)は現在の
+    ビルド。末尾から2番目(-2)が実質的な「前回」になる（同一base_dateの手動再ビルド
+    では前回が upsert で置換され消える既知の限界＝設計ドキュメント参照）。
+    読めない/存在しない場合は None（無害縮退）。
+    """
+    if not kpi_history_path:
+        return None
+    try:
+        from .weekly_story import load_history
+        history = load_history(Path(kpi_history_path))
+        if len(history) < 2:
+            return None
+        ga = history[-2].get("generated_at")
+        return pd.Timestamp(ga) if ga else None
+    except Exception:
+        return None
+
+
+def _nadm_dual_target_txt(target, target_adj, biz_days, biz_days_full=5) -> Optional[str]:
+    """Phase0持ち越し（A1）: 新入院の生目標と補正後目標が異なる週（祝日等で窓内営業日
+    ≠5）だけ二重表示。PDFバッジ dept_report._nadm_tgt_txt と同じ文言規則（ラベルのみ
+    ポータル/detail向けに「週目標」へ統一）。通常週（同値）は None（既存の単独表示のまま）。
+    """
+    if target is None:
+        return None
+    if target_adj is None or round(target_adj, 1) == round(target, 1):
+        return None
+    biz_txt = f"（営業日{biz_days}/{biz_days_full}）" if biz_days is not None else ""
+    return f"週目標 {target:g}人／今週の暦なら {target_adj:g}人{biz_txt}"
+
+
+def _build_last_week_prefix(kpi) -> Optional[str]:
+    """A2(§7裁定・バナー新設なし): 月曜ビュー（今週ここまでが存在しない＝基準日が
+    日曜）のときだけ、週次ストーリー見出しの前に「先週の確定 X〜Y」を前置する。
+    平日ビューでは常に None（A1のカード内「先週の確定」行と二重にしない）。
+    """
+    if kpi.get("admission_this_week_total") is not None:
+        return None
+    return f"先週の確定 {kpi['admission_last_week_range']}"
+
+
+def _week_note(actual, target, rate, unit) -> Optional[str]:
+    """A1: portal KPIカードの「今週ここまで」1行。裁定3により営業日1日でも出す
+    （this_week系が None＝月曜ビューのときは actual/target が None になり自動的に
+    非表示になる）。"""
+    if actual is None or target is None:
+        return None
+    rate_txt = f"{rate:.0f}%" if rate is not None else "—"
+    return f"今週ここまで {actual}{unit}／按分目標{target}{unit}（{rate_txt}）"
+
+
+def _build_fy_progress(kpi, base_date) -> Optional[dict]:
+    """A7: 年度進捗（病院全体のみ・科別は目標CSVに有効期日が無く対象外）。
+    3KPI分を1行にまとめて返す（例:
+    「年度 4/1〜9/3: 新入院 累計379人／按分目標303人（79%）・全麻 …・在院 …」）。
+    """
+    fy_year = base_date.year if base_date.month >= 4 else base_date.year - 1
+    fy_start = pd.Timestamp(f"{fy_year}-04-01")
+    parts = []
+    if kpi.get("admission_fy_actual_total") is not None and kpi.get("admission_fy_biz_target") is not None:
+        rate = kpi.get("admission_fy_rate")
+        rate_txt = f"（{rate:.0f}%）" if rate is not None else ""
+        parts.append(f"新入院 累計{kpi['admission_fy_actual_total']:g}人／"
+                     f"按分目標{kpi['admission_fy_biz_target']:g}人{rate_txt}")
+    if kpi.get("operation_fy_avg") is not None:
+        rate = kpi.get("operation_fy_rate")
+        rate_txt = f"（{rate:.0f}%）" if rate is not None else ""
+        parts.append(f"全麻 {kpi['operation_fy_avg']:g}件/日／目標{TARGET_GA_DAILY:g}件/日{rate_txt}")
+    if kpi.get("inpatient_fy_avg") is not None:
+        rate = kpi.get("inpatient_fy_rate")
+        rate_txt = f"（{rate:.0f}%）" if rate is not None else ""
+        parts.append(f"在院 年度平均{kpi['inpatient_fy_avg']:g}人／目標{TARGET_INPATIENT_ALLDAY:g}人{rate_txt}")
+    if not parts:
+        return None
+    return {"text": f"年度 {fmt_jp_range(fy_start, base_date)}: " + "・".join(parts)}
+
+
+# 在院の必要ペース（A8-8.3）で使う禁止語（退院を早める類の示唆は裁定1で禁止）。
+# tests/test_html_builder_a8.py が同リストで grep する。
+INPATIENT_PACE_BANNED_TERMS = ("退院を早める", "在院日数短縮", "促進", "退院促進", "早期退院")
+
+
+def _build_inpatient_pace(adm, base_date, kpi) -> Optional[str]:
+    """A8-8.3: 在院の必要ペース（既存レバーへの翻訳。退院を早める示唆は一切しない）。
+    主文=週末在院維持率換算（weekend_census_retention の total.room_per_week）、
+    副文=新入院換算（month_projection._alos_28d）を括弧で補足。未達時のみ返す。
+    主文80字以内・全体120字以内（§7裁定）。
+    """
+    gap = kpi.get("inpatient_gap")
+    if gap is None or gap >= 0:
+        return None
+    ret = weekend_census_retention(adm, base_date, entity="ward", weeks=8)
+    total = ret.get("total") or {}
+    retention = total.get("retention")
+    room_per_week = total.get("room_per_week")
+    if retention is None or room_per_week is None:
+        return None
+    gap_abs = abs(gap)
+    main = (f"在院が目標まであと{gap_abs:.0f}人。週末の在院維持率を"
+            f"{retention * 100:.0f}%→{TARGET_WEEKEND_RETENTION:g}%に近づけると、"
+            f"週+{room_per_week}人日の効果が見込めます")
+    alos = _alos_28d(adm, base_date)
+    sub = f"（新入院換算で1日あたり約{gap_abs / alos:.1f}人相当）" if alos else ""
+    return main + sub
+
+
+def _build_census_band(series: pd.DataFrame, base_date) -> dict:
+    """A6: 在院・新入院向けの通常変動帯（census型）。表示専用・判定不変。"""
+    samples = census_spread_samples(series, base_date)
+    return build_band("census", unit_sigma(samples))
+
+
+def _build_surgery_band(surg: pd.DataFrame, base_date) -> dict:
+    """A6: 全麻向けの通常変動帯（surgery_rate型）。表示専用・判定不変。"""
+    samples = surgery_rate_spread_samples(surg, base_date)
+    return build_band("surgery_rate", unit_sigma(samples))
 
 
 # ═══════════════════════════════════════
@@ -257,6 +425,9 @@ def build_portal_context(adm, surg, targets, surg_targets,
     # 改善トピック: 北極星KPIの前週比で各群上位3件（プラスのみ）
     improvement = _build_improvement(adm, surg, base_date)
 
+    # ── A4: 期間ラベル実日付化 ──
+    _range_7d = fmt_jp_range(base_date - pd.Timedelta(days=6), base_date)
+
     # KPIカード情報
     # 在院は「直近7日の平日平均／休日平均」を併記（枠・バッジは平日=主目標基準）
     _inp_wd, _inp_hd = kpi["inpatient_avg_7d_wd"], kpi["inpatient_avg_7d_hd"]
@@ -265,7 +436,7 @@ def build_portal_context(adm, surg, targets, surg_targets,
     kpi_cards = [
         {
             "id": "inpatient", "icon": KPI_ICONS["inpatient"],
-            "label": "在院患者数", "period": "直近7日平均（平日／休日）",
+            "label": "在院患者数", "period": f"直近7日（{_range_7d}）平均（平日／休日）",
             "value": kpi["inpatient_actual"], "unit": "人",
             "gap": kpi["inpatient_gap"], "gap_unit": "人",
             "status": status_display(_inp_wd_rate),
@@ -279,7 +450,7 @@ def build_portal_context(adm, surg, targets, surg_targets,
         },
         {
             "id": "admission", "icon": KPI_ICONS["admission"],
-            "label": "新入院患者数", "period": "直近7日累計",
+            "label": "新入院患者数", "period": f"直近7日（{_range_7d}）累計",
             "value": kpi["admission_actual_7d"], "unit": "人",
             "gap": kpi["admission_gap"], "gap_unit": "人",
             "status": kpi["admission_status"],
@@ -287,7 +458,7 @@ def build_portal_context(adm, surg, targets, surg_targets,
         },
         {
             "id": "operation", "icon": KPI_ICONS["operation"],
-            "label": "全身麻酔手術", "period": "直近1週・営業日平均",
+            "label": "全身麻酔手術", "period": f"直近1週（{_range_7d}）・営業日平均",
             "value": kpi["operation_daily_avg"], "unit": "件/日",
             "gap": kpi["operation_gap"], "gap_unit": "件/日",
             "status": kpi["operation_status"],
@@ -295,7 +466,27 @@ def build_portal_context(adm, surg, targets, surg_targets,
         },
     ]
 
+    # ── A1: 先週の確定／今週ここまで（裁定3: 営業日1日でも按分目標比を出す） ──
+    kpi_cards[0]["week_note"] = _week_note(
+        kpi["inpatient_this_week_avg"], kpi["inpatient_this_week_target"],
+        kpi["inpatient_this_week_rate"], "人")
+    kpi_cards[1]["week_note"] = _week_note(
+        kpi["admission_this_week_total"], kpi["admission_this_week_target"],
+        kpi["admission_this_week_rate"], "人")
+    kpi_cards[2]["week_note"] = _week_note(
+        kpi["operation_this_week_total"], kpi["operation_this_week_target"],
+        kpi["operation_this_week_rate"], "件")
+
+    # ── Phase0持ち越し: 新入院の生目標／今週の暦なら目標の二重表示 ──
+    kpi_cards[1]["dual_target_note"] = _nadm_dual_target_txt(
+        kpi["admission_target_weekly"], kpi["admission_target_weekly_adj"],
+        kpi["admission_biz_days"], kpi["admission_biz_days_full"])
+
+    # ── A8-8.3: 在院の必要ペース（既存レバーへの翻訳。未達時のみ） ──
+    kpi_cards[0]["pace"] = _build_inpatient_pace(adm, base_date, kpi)
+
     # ── A2: 前年同期比（build_kpi_summary の既存前年値を再利用）──
+    # ★A9是正: チップの窓をカード本体（在院=平日別・全麻=直近1週営業日平均）に揃える。
     def _yoy(cur, prev, note):
         if cur is None or prev is None or prev == 0:
             return None                     # 前年データ不足 → チップ非表示
@@ -304,9 +495,9 @@ def build_portal_context(adm, surg, targets, surg_targets,
         arrow = "↑" if pct >= 5 else ("↓" if pct <= -5 else "→")
         return {"pct": round(pct, 1), "prev": prev, "css": css, "arrow": arrow, "note": note}
 
-    kpi_cards[0]["yoy"] = _yoy(kpi["inpatient_avg_7d"],  kpi["inpatient_prev_7d_avg"],  "7日平均")
+    kpi_cards[0]["yoy"] = _yoy(kpi["inpatient_avg_7d_wd"], kpi["inpatient_prev_7d_avg_wd"], "7日平均・平日")
     kpi_cards[1]["yoy"] = _yoy(kpi["admission_actual_7d"], kpi["admission_prev_7d_total"], "7日累計")
-    kpi_cards[2]["yoy"] = _yoy(kpi["operation_4w_biz_avg"], kpi["operation_prev_4w_avg"], "4週平日平均")
+    kpi_cards[2]["yoy"] = _yoy(kpi["operation_daily_avg"], kpi["operation_prev_7d_biz_avg"], "直近1週営業日平均")
 
     # ── A2: 当月着地見込み（detail/deptと同じ month_projection を portal にも）──
     try:
@@ -364,17 +555,32 @@ def build_portal_context(adm, surg, targets, surg_targets,
                  if include_ai_alerts else [])
 
     # ── P4: 暦プレビュー（来週層・来月層・早期警戒層。判定不変・表示追加のみ）──
+    # ★A3: 第4層「いまの窓の暦注記」も同じ try/except で合流（build_calendar_preview
+    #   自体の既存契約は変更しない）。
     try:
-        from .calendar_preview import build_calendar_preview
+        from .calendar_preview import build_calendar_preview, build_window_notes
         calendar_preview = build_calendar_preview(base_date)
+        window_notes = build_window_notes(base_date)
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning(f"暦プレビュースキップ: {e}")
         calendar_preview = None
+        window_notes = {}
+
+    # ── A7: 年度進捗（病院全体のみ）──
+    fy_progress = _build_fy_progress(kpi, base_date)
+
+    # ── A2(§7裁定): 月曜ビューのみ、週次ストーリー見出しの前置文言 ──
+    last_week_prefix = _build_last_week_prefix(kpi)
+
+    # ── A5: 鮮度1行 ──
+    _generated_at = generated_at or datetime.now()
+    _prior_generated_at = _load_prev_generated_at(kpi_history_path)
+    freshness = _build_freshness(base_date, _generated_at, _prior_generated_at)
 
     return {
         "base_date": base_date.strftime("%Y-%m-%d"),
-        "generated_at": (generated_at or datetime.now()).strftime("%Y/%m/%d %H:%M"),
+        "generated_at": _generated_at.strftime("%Y/%m/%d %H:%M"),
         "headline": kpi["headline"],
         "kpi_cards": kpi_cards,
         "triage": triage,
@@ -384,6 +590,10 @@ def build_portal_context(adm, surg, targets, surg_targets,
         "weekly_story": weekly_story,
         "changes": changes,
         "calendar_preview": calendar_preview,
+        "window_notes": window_notes,
+        "fy_progress": fy_progress,
+        "last_week_prefix": last_week_prefix,
+        "freshness": freshness,
     }
 
 
@@ -495,7 +705,7 @@ def _build_ai_alerts(adm, surg, targets, surg_targets, base_date) -> list:
 
 def build_detail_json(adm, surg, targets, surg_targets,
                       profit_monthly, base_date, generated_at=None,
-                      profit_breakdown=None) -> str:
+                      profit_breakdown=None, kpi_history_path=None) -> str:
     """
     detail.html に埋め込む DATA JSON 文字列を生成。
     仕様書 付録D のスキーマに準拠。
@@ -572,6 +782,11 @@ def build_detail_json(adm, surg, targets, surg_targets,
         "admission": adm_trend,
         "operation": op_trend,
     }
+
+    # ── A6: 通常変動帯 ±1.5σ（病院全体3KPI分。表示専用・判定不変）──
+    band_inpatient = _build_census_band(series_inp, base_date)
+    band_admission = _build_census_band(series_nadm, base_date)
+    band_operation = _build_surgery_band(surg, base_date)
 
     # ── 入退院バランス（フロー収支・病院全体） ──
     # 病院全体では転入/転出は病棟間移動で相殺するため、在院数からの流出は退院合計
@@ -750,6 +965,15 @@ def build_detail_json(adm, surg, targets, surg_targets,
         else:
             dept_op_trend = {"dates": [], "values": [], "ma7": []}
 
+        # ★A6: 部門別の通常変動帯（在院・新入院のみ。全麻は stats_band.py が病院全体
+        # 専用の式のため対象外＝バッチ2のファイル所有範囲外の変更が必要になるため未実装）。
+        dept_inp_trend = (_trend_dict(dept_inp_series, prevyear=True) if len(dept_inp_series) > 0
+                          else {"dates": [], "values": [], "ma7": [], "ma28": []})
+        if len(dept_inp_series) > 0:
+            dept_inp_trend["band"] = _build_census_band(dept_inp_series, base_date)
+        if len(dept_nadm_series) > 0:
+            dept_adm_trend["band"] = _build_census_band(dept_nadm_series, base_date)
+
         drill[dept] = {
             "admission": {
                 "actual_7d": adm_actual,
@@ -771,7 +995,7 @@ def build_detail_json(adm, surg, targets, surg_targets,
             },
             "trend": {
                 "admission": dept_adm_trend,
-                "inpatient": _trend_dict(dept_inp_series, prevyear=True) if len(dept_inp_series) > 0 else {"dates":[],"values":[],"ma7":[],"ma28":[]},
+                "inpatient": dept_inp_trend,
                 "operation": dept_op_trend,
                 "outflow": (_trend_dict(dept_outflow_series) if len(dept_outflow_series) > 0
                             else {"dates":[],"values":[],"ma7":[],"ma28":[]}),
@@ -839,6 +1063,14 @@ def build_detail_json(adm, surg, targets, surg_targets,
                        else {"dates": [], "values": [], "ma7": [], "ma28": []})
         _add_adm_breakdown(w_adm_trend, w_planned_series, w_emg_series, base_date)
 
+        # ★A6: 病棟別の通常変動帯（在院・新入院のみ。全麻は病棟に無いため対象外）
+        w_inp_trend = (_trend_dict(w_inp_series, prevyear=True) if len(w_inp_series) > 0
+                      else {"dates": [], "values": [], "ma7": [], "ma28": []})
+        if len(w_inp_series) > 0:
+            w_inp_trend["band"] = _build_census_band(w_inp_series, base_date)
+        if len(w_nadm_series) > 0:
+            w_adm_trend["band"] = _build_census_band(w_nadm_series, base_date)
+
         drill[wname] = {
             "admission": {
                 "actual_7d": w_nadm,
@@ -865,7 +1097,7 @@ def build_detail_json(adm, surg, targets, surg_targets,
             },
             "trend": {
                 "admission": w_adm_trend,
-                "inpatient": _trend_dict(w_inp_series, prevyear=True) if len(w_inp_series) > 0 else {"dates":[],"values":[],"ma7":[],"ma28":[]},
+                "inpatient": w_inp_trend,
                 "operation": {"dates":[],"values":[],"ma7":[]},
                 "outflow": (_trend_dict(w_out_series) if len(w_out_series) > 0
                             else {"dates":[],"values":[],"ma7":[],"ma28":[]}),
@@ -1022,11 +1254,19 @@ def build_detail_json(adm, surg, targets, surg_targets,
         except Exception:
             profit_g_calibrated = None
 
+    # ── A5: 鮮度1行（前回ビルドとの間隔は last_kpi.json 履歴から判定）──
+    _generated_at = generated_at or datetime.now()
+    freshness = _build_freshness(base_date, _generated_at,
+                                 _load_prev_generated_at(kpi_history_path))
+
     # ── assemble ──
     data = {
         "meta": {
             "base_date": base_date.strftime("%Y-%m-%d"),
-            "generated": (generated_at or datetime.now()).isoformat(),
+            "generated": _generated_at.isoformat(),
+            "freshness": freshness,               # ★A5
+            "window_notes": portal_ctx["window_notes"],   # ★A3（detail/deptはmeta経由で自動継承）
+            "fy_biz_days_elapsed": kpi.get("fy_biz_days_elapsed"),   # ★A7
         },
         "headline": kpi["headline"],
         "kpi": {
@@ -1041,6 +1281,7 @@ def build_detail_json(adm, surg, targets, surg_targets,
                 "avg_7d": kpi["inpatient_avg_7d"],
                 "avg_28d": kpi["inpatient_avg_28d"],
                 "fy_avg": kpi["inpatient_fy_avg"],
+                "fy_rate": kpi["inpatient_fy_rate"],   # ★A7
                 "prev_avg": kpi["inpatient_prev_avg"],
                 "prev_7d_avg": kpi["inpatient_prev_7d_avg"],
                 "prev_28d_avg": kpi["inpatient_prev_28d_avg"],
@@ -1054,6 +1295,16 @@ def build_detail_json(adm, surg, targets, surg_targets,
                 "gap": kpi["inpatient_gap"],
                 "trend": kpi["inpatient_trend"],
                 "status": kpi["inpatient_status"],
+                # ★A1: 先週の確定（月〜日・週平均）／今週ここまで（月〜基準日・週平均・按分目標比）
+                "last_week_avg": kpi["inpatient_last_week_avg"],
+                "last_week_range": kpi["inpatient_last_week_range"],
+                "this_week_avg": kpi["inpatient_this_week_avg"],
+                "this_week_range": kpi["inpatient_this_week_range"],
+                "this_week_biz_days": kpi["inpatient_this_week_biz_days"],
+                "this_week_target": kpi["inpatient_this_week_target"],
+                "this_week_rate": kpi["inpatient_this_week_rate"],
+                "band": band_inpatient,   # ★A6
+                "pace": _build_inpatient_pace(adm, base_date, kpi),   # ★A8-8.3
             },
             "admission": {
                 "actual_7d": kpi["admission_actual_7d"],
@@ -1061,9 +1312,17 @@ def build_detail_json(adm, surg, targets, surg_targets,
                 "prior_range_weekly": kpi["admission_prior_range_weekly"],
                 "actual_28d": kpi["admission_actual_28d"],
                 "target_weekly": kpi["admission_target_weekly"],
+                "target_weekly_adj": kpi["admission_target_weekly_adj"],   # Phase0持ち越し
+                "biz_days": kpi["admission_biz_days"],
+                "biz_days_full": kpi["admission_biz_days_full"],
+                "dual_target_note": _nadm_dual_target_txt(
+                    kpi["admission_target_weekly"], kpi["admission_target_weekly_adj"],
+                    kpi["admission_biz_days"], kpi["admission_biz_days_full"]),
                 "rate_7d": kpi["admission_rate_7d"],
                 "fy_avg": kpi["admission_fy_avg"],
                 "fy_rate": kpi["admission_fy_rate"],
+                "fy_actual_total": kpi["admission_fy_actual_total"],   # ★A7
+                "fy_biz_target": kpi["admission_fy_biz_target"],       # ★A7
                 "prev_avg": kpi["admission_prev_avg"],
                 "prev_7d_total": kpi["admission_prev_7d_total"],
                 "prev_28d_total": kpi["admission_prev_28d_total"],
@@ -1072,11 +1331,21 @@ def build_detail_json(adm, surg, targets, surg_targets,
                 "daily_actual": kpi["admission_daily_actual"],
                 "trend": kpi["admission_trend"],
                 "status": kpi["admission_status"],
+                # ★A1: 先週の確定（月〜日・週累計）／今週ここまで（月〜基準日・累計・按分目標比）
+                "last_week_total": kpi["admission_last_week_total"],
+                "last_week_range": kpi["admission_last_week_range"],
+                "this_week_total": kpi["admission_this_week_total"],
+                "this_week_range": kpi["admission_this_week_range"],
+                "this_week_biz_days": kpi["admission_this_week_biz_days"],
+                "this_week_target": kpi["admission_this_week_target"],
+                "this_week_rate": kpi["admission_this_week_rate"],
+                "band": band_admission,   # ★A6
             },
             "operation": {
                 "daily_avg": kpi["operation_daily_avg"],
                 "target": kpi["operation_target"],
                 "rate": kpi["operation_rate"],
+                "fy_rate": kpi["operation_fy_rate"],   # ★A7
                 "week_total": kpi["operation_week_total"],   # 月〜基準日の部分週（「今週ここまで」用）
                 "total_7d": kpi["operation_7d_total"],        # ★F1: 真の直近7暦日合計
                 "prev_total_7d": kpi["operation_7d_prev_total"],
@@ -1092,6 +1361,13 @@ def build_detail_json(adm, surg, targets, surg_targets,
                 "prev_fy_avg": kpi["operation_fy_prev_avg"],
                 "trend": kpi["operation_trend"],
                 "status": kpi["operation_status"],
+                # ★A1: 今週ここまで（月〜基準日・累計・按分目標比。先週の確定は既存キーを流用）
+                "this_week_total": kpi["operation_this_week_total"],
+                "this_week_range": kpi["operation_this_week_range"],
+                "this_week_biz_days": kpi["operation_this_week_biz_days"],
+                "this_week_target": kpi["operation_this_week_target"],
+                "this_week_rate": kpi["operation_this_week_rate"],
+                "band": band_operation,   # ★A6
             },
             "balance": balance_kpi,
         },
