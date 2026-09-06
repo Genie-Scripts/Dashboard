@@ -4,11 +4,14 @@
 LLM(oMLX)・常駐サーバは一切呼ばない（jinja2 のテンプレートレンダーのみ・
 generate_html.py の main() は呼ばず `_build_jinja_env()` を再利用するだけ）。
 
-判定マトリクス（portal.html の sb-detail ブロック）:
-  story あり                      → 要約本文を表示（縮退文なし）
-  diffs あり + story なし         → 縮退1行（LLM要約失敗の可視化）
-  failed=True（生成例外）         → 縮退1行
-  weekly_story=None / 初回 / 差分なし週 → セクション自体なし（正当な欠落＝失敗ではない）
+★訴求力強化 Phase 2 B1（週次ストーリー昇格）でstory/縮退文は sb-detail の外
+（sb-row直下・常時表示）へ移設した。トグル「▼詳細」とその中身 id="sb-detail" は
+diffs のみに限定（story/縮退文はもはやトグルの中に無い）。判定マトリクスの表示先を
+更新（トグル自体の有無は diffs の有無のみで決まる）:
+  story あり                      → 要約本文を常時表示（sb-detail外・縮退文なし）
+  diffs あり + story なし         → 縮退1行を常時表示（LLM要約失敗の可視化・sb-detail外）
+  failed=True（生成例外）         → 縮退1行を常時表示（sb-detail外。diffsが無ければトグル自体も出ない）
+  weekly_story=None / 初回 / 差分なし週 → 縮退文・トグルとも出ない（正当な欠落＝失敗ではない）
 """
 import sys
 import unittest
@@ -21,7 +24,8 @@ from jinja2 import Environment, ChainableUndefined
 from generate_html import _build_jinja_env
 
 _DEGRADED_TEXT = "今週のストーリー要約は生成できませんでした"
-_DEGRADED_MARKER = 'class="sb-story sb-degraded"'
+# B1以降 class="sb-story sb-degraded sb-story-top" となるため末尾を固定しない部分一致にする
+_DEGRADED_MARKER = 'sb-story sb-degraded'
 _DETAIL_MARKER = 'id="sb-detail"'
 
 
@@ -60,11 +64,19 @@ class TestWeeklyStoryDegradedDisplay(unittest.TestCase):
         self.assertIn(_DEGRADED_MARKER, html)
 
     def test_failed_marker_shows_degraded_line(self):
-        """build_weekly_story 全体が例外（generate_html の except 経由）→ 縮退1行が出る。"""
+        """build_weekly_story 全体が例外（generate_html の except 経由）→ 縮退1行が出る。
+        B1以降、縮退文は sb-detail の外(常時表示)。diffsが空ならトグル自体も出ない。"""
         html = _render_portal({"base_date": None, "prior_date": None,
                                "diffs": [], "story": None, "failed": True})
         self.assertIn(_DEGRADED_TEXT, html)
-        self.assertIn(_DETAIL_MARKER, html)  # トグル詳細ごと可視化される
+        self.assertNotIn(_DETAIL_MARKER, html)  # diffsが空＝折り畳む中身が無いためトグル自体なし
+
+    def test_failed_marker_with_diffs_also_shows_toggle(self):
+        """failed=True かつ diffs もあれば、縮退文(常時表示)とは別にdiffsのトグルも出る。"""
+        html = _render_portal({"base_date": None, "prior_date": None,
+                               "diffs": ["合成差分1"], "story": None, "failed": True})
+        self.assertIn(_DEGRADED_TEXT, html)
+        self.assertIn(_DETAIL_MARKER, html)
 
     def test_none_weekly_story_renders_nothing(self):
         """weekly_story 未生成（そもそも呼ばれない構成）→ セクションなし・縮退文なし。"""

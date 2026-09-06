@@ -72,6 +72,8 @@
 .sb-detail{padding:0 16px 14px;border-top:1px dashed var(--color-border)}
 .sb-story{font-size:13.5px;line-height:1.75;color:var(--ink);margin:10px 0 8px;padding:10px 12px;background:rgba(255,255,255,.6);border-radius:10px}
 [data-theme="dark"] .sb-story{background:rgba(255,255,255,.06)}
+/* B1: 週次ストーリーを sb-detail の外（常時表示領域）へ昇格したときの余白調整 */
+.sb-story-top{margin:0 16px 10px}
 .sb-degraded{color:var(--sub);opacity:.85}
 .sb-items{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:4px}
 .sb-items li{font-size:12.5px;color:var(--sub);padding-left:14px;position:relative;line-height:1.55}
@@ -99,6 +101,13 @@
 .kc-week{font-size:11.5px;font-weight:700;color:var(--sub);margin-top:4px}
 .kc-tgt-note{font-size:10.5px;color:var(--mu);margin-top:2px}
 .kc-pace{font-size:11px;color:var(--sub);margin-top:6px;padding-top:6px;border-top:1px dashed var(--ln);line-height:1.5}
+/* ── B7: KPIカードのスパークライン（サーバSVG。ダークモードでも見えるstrokeへ上書き） ── */
+.kc-spark{margin:4px 0}
+.kc-spark svg{display:block;width:100%;height:40px}
+[data-theme="dark"] .kc-spark svg path{stroke:#5b9bd5}
+[data-theme="dark"] .kc-spark svg circle{fill:#5b9bd5}
+/* ── B4: マイ部門（自科/自病棟）導線。localStorageに保存済みのときのみJSで表示 ── */
+.my-unit-cta{display:block;text-decoration:none;font-size:12.5px;font-weight:700;color:var(--br);background:var(--bl);border-radius:var(--card-border-radius);padding:8px 14px;margin:-4px 0 16px;text-align:center}
 /* ── 最新の動向バナー ── */
 .chg-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--s);border:1px solid var(--ln);border-radius:var(--card-border-radius);box-shadow:var(--card-box-shadow);padding:9px 14px;margin-bottom:16px}
 .chg-title{font-size:12.5px;font-weight:800;color:var(--ink);flex-shrink:0}
@@ -107,6 +116,7 @@
 .chg-chip{font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:999px;text-decoration:none;white-space:nowrap}
 .chg-chip.in{background:var(--dr-bg);color:var(--dr-t)}
 .chg-chip.out{background:var(--ok-bg);color:var(--ok)}
+.chg-chip.warn{background:var(--wr-bg);color:#7c3a06}
 /* ── 連続チップ ── */
 .streak-chip{font-size:10px;font-weight:800;color:var(--dr-t);background:var(--dr-bg);border:1px solid rgba(196,49,75,.25);border-radius:999px;padding:1px 7px;flex-shrink:0}
 /* ── AIアラート（kpiカテゴリのみ・90dfa4cで一旦非表示化→再表示。密度/角丸/影は
@@ -157,6 +167,7 @@
 .triage-panel{padding:12px 0}
 .triage-group-label{font-size:12px;font-weight:800;color:var(--sub);padding:11px 18px 5px;background:var(--bg);border-bottom:1px solid var(--ln);letter-spacing:.02em}
 .triage-group-label .goal{color:var(--ink)}
+.imp-count{font-size:11px;font-weight:700;color:var(--ok);margin-left:4px}
 .triage-empty{color:var(--mu);font-size:12.5px;padding:12px 18px}
 .triage-trend{font-weight:900;font-size:13px;flex-shrink:0}
 .triage-trend.up{color:#27ae60}
@@ -214,6 +225,20 @@
   #freshness{font-size:11px;white-space:normal;overflow-wrap:anywhere}
   .triage-facts-body{flex-direction:column;gap:3px}
 }
+/* ── B2: 狭幅スマホはKPI1カラム＋在院カードの.dual-rowをステータス行末チップ化 ── */
+@media(max-width:480px){
+  .kpi{grid-template-columns:1fr}
+  .vl{font-size:32px}
+  .dual-val{font-size:32px}
+  .dual-row{flex-wrap:nowrap}
+  .dual-lab{order:1}
+  .dual-val{order:2}
+  .dual-tgt{order:3;margin-left:4px}
+  .dual-st{order:4;margin-left:auto;padding:2px 9px;border-radius:999px;font-weight:800;font-size:11px}
+  .dual-st.dr{background:var(--dr-bg)}
+  .dual-st.wr{background:var(--wr-bg)}
+  .dual-st.ok{background:var(--ok-bg)}
+}
 /* ★モバイル横向き: ヘッダを1段スリム化＋固定解除（自動非表示も無効・ナビは横並び維持） */
 @media (orientation:landscape) and (max-height:500px){
   .hdr{position:static;transition:none;flex-direction:row;align-items:center;flex-wrap:nowrap;gap:12px;padding:5px 14px}
@@ -261,27 +286,29 @@ h4{font-weight:var(--jp-head)!important}
 </header>
 <div class="wrap">
 
-  {# ── ステータスバー（①サマリーバナー + ②今週のハイライト 統合） ── #}
+  {# ── ステータスバー（①サマリーバナー + ②今週のハイライト 統合）
+       B1: 週次ストーリー本文は sb-detail（折り畳み）の外＝sb-row直下へ常時表示。
+       折り畳みは diffs のみ／生成失敗時の縮退文言のみに限定。 ── #}
   {% set sb_class = "sb-" + headline.level %}
   <section class="sb-bar {{ sb_class }}" aria-label="全体ステータス">
     <div class="sb-row">
       <span class="sb-icon">{{ headline.icon }}</span>
       <span class="sb-text">{% if last_week_prefix %}{{ last_week_prefix }}｜{% endif %}{{ headline.text }}</span>
-      {% if weekly_story and (weekly_story.story or weekly_story.diffs or weekly_story.failed) %}
+      {% if weekly_story and weekly_story.diffs %}
       <button class="sb-toggle" id="sb-toggle-btn"
               onclick="toggleStatusBar()" aria-expanded="false"
               aria-controls="sb-detail">▼ 詳細</button>
       {% endif %}
     </div>
-    {% if weekly_story and (weekly_story.story or weekly_story.diffs or weekly_story.failed) %}
+    {% if weekly_story and weekly_story.story %}
+    <p class="sb-story sb-story-top">{{ weekly_story.story }}</p>
+    {% elif weekly_story and (weekly_story.diffs or weekly_story.failed) %}
+    {# D3裁定(a): 差分あり要約なし(LLM失敗)・生成例外(failed)の欠落を可視化。
+       初回/差分なし週はこのブロック自体に入らないため出ない #}
+    <p class="sb-story sb-degraded sb-story-top">今週のストーリー要約は生成できませんでした（次回のビルドで再試行します）</p>
+    {% endif %}
+    {% if weekly_story and weekly_story.diffs %}
     <div class="sb-detail" id="sb-detail" hidden>
-      {% if weekly_story.story %}
-      <p class="sb-story">{{ weekly_story.story }}</p>
-      {% else %}
-      {# D3裁定(a): 差分あり要約なし(LLM失敗)・生成例外(failed)の欠落を可視化。
-         初回/差分なし週はこのブロック自体に入らないため出ない #}
-      <p class="sb-story sb-degraded">今週のストーリー要約は生成できませんでした（次回のビルドで再試行します）</p>
-      {% endif %}
       {% set extra_diffs = [] %}
       {% for d in weekly_story.diffs %}
         {% if "手術室稼働率" in d or "緊急入院" in d %}
@@ -297,28 +324,26 @@ h4{font-weight:var(--jp-head)!important}
     {% endif %}
   </section>
 
-  {# ── P4: 暦プレビュー（早期警戒→来週の順・各1行のシンプルな帯・判定不変） ── #}
+  {# ── P4/B1: 暦プレビュー（早期警戒→来週の順・視覚チップ＋短文。判定不変） ── #}
   {% if calendar_preview %}
   {% if calendar_preview.early %}
   <section class="chg-bar" aria-label="長い連休の早期警戒">
     <span class="chg-title">🗓️ 早期警戒</span>
+    {% if calendar_preview.early.chip %}
+    <span class="chg-chip warn">{{ calendar_preview.early.chip[0] }} {{ calendar_preview.early.chip[1] }}</span>
+    {% endif %}
     <span class="chg-none">{{ calendar_preview.early.text }}</span>
   </section>
   {% endif %}
   {% if calendar_preview.week %}
   <section class="chg-bar" aria-label="来週の暦プレビュー">
     <span class="chg-title">📅 来週の暦</span>
+    {% if calendar_preview.week.chip %}
+    <span class="chg-chip warn">{{ calendar_preview.week.chip[0] }} {{ calendar_preview.week.chip[1] }}</span>
+    {% endif %}
     <span class="chg-none">{{ calendar_preview.week.text }}</span>
   </section>
   {% endif %}
-  {% endif %}
-
-  {# ── A7: 年度進捗（病院全体のみ） ── #}
-  {% if fy_progress %}
-  <section class="chg-bar" aria-label="年度進捗">
-    <span class="chg-title">📈 年度進捗</span>
-    <span class="chg-none">{{ fy_progress.text }}</span>
-  </section>
   {% endif %}
 
   {# ── B4: 昨日からの最新の動向バナー ── #}
@@ -347,13 +372,14 @@ h4{font-weight:var(--jp-head)!important}
       <span class="st {{ card.status.css }}">{{ card.status.shape }} {{ card.status.text }}</span>
       <div class="lb">{{ card.icon }} {{ card.label }}</div>
       <div class="sb">{{ card.period }}</div>
+      {% if card.sparkline %}<div class="kc-spark">{{ card.sparkline | safe }}</div>{% endif %}
       {% if card.dual %}
       <div class="vl-dual">
         {% for d in [card.dual.wd, card.dual.hd] %}
         <div class="dual-row">
           <span class="dual-lab">{{ d.label }}</span>
           <span class="dual-val">{{ d.value }}<small>人</small></span>
-          <span class="dual-st" style="color:{{ d.status.color }}">{{ d.status.shape }} {{ d.status.text }}</span>
+          <span class="dual-st {{ d.status.css }}" style="color:{{ d.status.color }}">{{ d.status.shape }} {{ d.status.text }}</span>
           <span class="dual-tgt">目標{{ d.target }}</span>
         </div>
         {% endfor %}
@@ -383,6 +409,19 @@ h4{font-weight:var(--jp-head)!important}
     </a>
     {% endfor %}
   </section>
+
+  {# ── B4: マイ部門（localStorage）導線。保存済みのときのみJSで表示切替 ── #}
+  <div class="my-unit-link" id="myUnitLink" style="display:none">
+    <a id="myUnitLinkA" class="my-unit-cta" href="#">👤 自科/自病棟を見る</a>
+  </div>
+
+  {# ── A7: 年度進捗（病院全体のみ） ── #}
+  {% if fy_progress %}
+  <section class="chg-bar" aria-label="年度進捗">
+    <span class="chg-title">📈 年度進捗</span>
+    <span class="chg-none">{{ fy_progress.text }}</span>
+  </section>
+  {% endif %}
 
   {# ── A3: いまの窓の暦注記（KPIカード直下・発火時のみ） ── #}
   {% if window_notes %}
@@ -464,6 +503,22 @@ h4{font-weight:var(--jp-head)!important}
   </div>
   {% endmacro %}
 
+  {# ── B5: 今週よくなった部門（病棟/診療科横断・最大3件・順位数字なし。要注視セクションの前） ── #}
+  {% if top_improvements %}
+  <section class="ai-sec top-imp-sec" aria-label="今週よくなった部門">
+    <div class="ai-hd"><span class="ai-hd-title">📈 今週よくなった部門</span></div>
+    {% for imp in top_improvements %}
+    <a class="imp-row" href="{{ imp.href }}">
+      <span class="imp-rank">🎉</span>
+      <span class="imp-name">{{ imp.name }}</span>
+      <span style="font-size:12px;color:var(--sub)">{{ imp.metric_label }}</span>
+      <span class="imp-delta">+{{ imp.delta }}{{ imp.unit }}</span>
+      <span class="imp-compare">{{ imp.compare }}</span>
+    </a>
+    {% endfor %}
+  </section>
+  {% endif %}
+
   {# ── 部門トリアージ（2階層タブ: L1=病棟/診療科, L2=要注視/改善） ── #}
   <section class="triage-sec" aria-label="部門トリアージ">
     <div class="triage-hd">
@@ -481,18 +536,18 @@ h4{font-weight:var(--jp-head)!important}
     {# ── 病棟パネル ── #}
     <div id="triage-l1-ward" class="triage-l1-panel">
       <div class="triage-tabs-l2" role="tablist" aria-label="病棟サブタブ">
-        <button class="triage-tab-l2 active" data-l2="ward-attention" role="tab"
-                aria-selected="true"
+        <button class="triage-tab-l2{% if not ward_praise_first %} active{% endif %}" data-l2="ward-attention" role="tab"
+                aria-selected="{{ 'false' if ward_praise_first else 'true' }}"
                 onclick="switchTriageL2('ward','attention')">🔴 要注視</button>
-        <button class="triage-tab-l2" data-l2="ward-improvement" role="tab"
-                aria-selected="false"
+        <button class="triage-tab-l2{% if ward_praise_first %} active{% endif %}" data-l2="ward-improvement" role="tab"
+                aria-selected="{{ 'true' if ward_praise_first else 'false' }}"
                 onclick="switchTriageL2('ward','improvement')">📈 改善</button>
         <button class="triage-tab-l2" data-l2="ward-leveling" role="tab"
                 aria-selected="false"
                 onclick="switchTriageL2('ward','leveling')">🚪 曜日偏在</button>
       </div>
       {# 病棟 要注視 #}
-      <div id="triage-ward-attention" class="triage-panel" role="tabpanel">
+      <div id="triage-ward-attention" class="triage-panel" role="tabpanel"{% if ward_praise_first %} hidden{% endif %}>
         {% if triage.ward %}
           {% for item in triage.ward %}
           <div class="triage-item {{ item.priority }}">
@@ -530,11 +585,11 @@ h4{font-weight:var(--jp-head)!important}
         {% endif %}
       </div>
       {# 病棟 改善（在院WoW） #}
-      <div id="triage-ward-improvement" class="triage-panel" role="tabpanel" hidden>
+      <div id="triage-ward-improvement" class="triage-panel" role="tabpanel"{% if not ward_praise_first %} hidden{% endif %}>
         {% if improvement.ward %}
           {% for imp in improvement.ward %}
           <a class="imp-row" href="{{ imp.href }}">
-            <span class="imp-rank">{{ loop.index }}</span>
+            <span class="imp-rank">🎉</span>
             <span class="imp-name">{{ imp.name }}</span>
             <span style="font-size:12px;color:var(--sub)">{{ imp.metric_label }}</span>
             <span class="imp-delta">+{{ imp.delta }}{{ imp.unit }}</span>
@@ -576,18 +631,18 @@ h4{font-weight:var(--jp-head)!important}
     {# ── 診療科パネル ── #}
     <div id="triage-l1-dept" class="triage-l1-panel" hidden>
       <div class="triage-tabs-l2" role="tablist" aria-label="診療科サブタブ">
-        <button class="triage-tab-l2 active" data-l2="dept-attention" role="tab"
-                aria-selected="true"
+        <button class="triage-tab-l2{% if not dept_praise_first %} active{% endif %}" data-l2="dept-attention" role="tab"
+                aria-selected="{{ 'false' if dept_praise_first else 'true' }}"
                 onclick="switchTriageL2('dept','attention')">🔴 要注視</button>
-        <button class="triage-tab-l2" data-l2="dept-improvement" role="tab"
-                aria-selected="false"
+        <button class="triage-tab-l2{% if dept_praise_first %} active{% endif %}" data-l2="dept-improvement" role="tab"
+                aria-selected="{{ 'true' if dept_praise_first else 'false' }}"
                 onclick="switchTriageL2('dept','improvement')">📈 改善</button>
         <button class="triage-tab-l2" data-l2="dept-leveling" role="tab"
                 aria-selected="false"
                 onclick="switchTriageL2('dept','leveling')">🚪 曜日偏在</button>
       </div>
       {# 診療科 要注視（内科系=在院 / 外科系=手術 の北極星別。眼科=全手術・他外科系=全身麻酔） #}
-      <div id="triage-dept-attention" class="triage-panel" role="tabpanel">
+      <div id="triage-dept-attention" class="triage-panel" role="tabpanel"{% if dept_praise_first %} hidden{% endif %}>
         {% if triage.dept_internal or triage.dept_surgery %}
           <div class="triage-group-label">内科系 ｜ 目標: <span class="goal">在院患者数 ↑</span></div>
           {% if triage.dept_internal %}
@@ -606,13 +661,14 @@ h4{font-weight:var(--jp-head)!important}
         {% endif %}
       </div>
       {# 診療科 改善（内科系=在院WoW / 外科系=手術WoW） #}
-      <div id="triage-dept-improvement" class="triage-panel" role="tabpanel" hidden>
+      <div id="triage-dept-improvement" class="triage-panel" role="tabpanel"{% if not dept_praise_first %} hidden{% endif %}>
         {% if improvement.dept_internal or improvement.dept_surgery %}
-          <div class="triage-group-label">内科系 ｜ <span class="goal">在院の伸び</span></div>
+          <div class="triage-group-label">内科系 ｜ <span class="goal">在院の伸び</span>
+            {% if improvement.dept_internal %}<span class="imp-count">🎉 {{ improvement.dept_internal|length }}件</span>{% endif %}</div>
           {% if improvement.dept_internal %}
             {% for imp in improvement.dept_internal %}
             <a class="imp-row" href="{{ imp.href }}">
-              <span class="imp-rank">{{ loop.index }}</span>
+              <span class="imp-rank">🎉</span>
               <span class="imp-name">{{ imp.name }}</span>
               <span style="font-size:12px;color:var(--sub)">{{ imp.metric_label }}</span>
               <span class="imp-delta">+{{ imp.delta }}{{ imp.unit }}</span>
@@ -620,11 +676,12 @@ h4{font-weight:var(--jp-head)!important}
             </a>
             {% endfor %}
           {% else %}<p class="triage-empty">該当なし</p>{% endif %}
-          <div class="triage-group-label">外科系 ｜ <span class="goal">手術の伸び</span></div>
+          <div class="triage-group-label">外科系 ｜ <span class="goal">手術の伸び</span>
+            {% if improvement.dept_surgery %}<span class="imp-count">🎉 {{ improvement.dept_surgery|length }}件</span>{% endif %}</div>
           {% if improvement.dept_surgery %}
             {% for imp in improvement.dept_surgery %}
             <a class="imp-row" href="{{ imp.href }}">
-              <span class="imp-rank">{{ loop.index }}</span>
+              <span class="imp-rank">🎉</span>
               <span class="imp-name">{{ imp.name }}</span>
               <span style="font-size:12px;color:var(--sub)">{{ imp.metric_label }}</span>
               <span class="imp-delta">+{{ imp.delta }}{{ imp.unit }}</span>
@@ -755,6 +812,18 @@ function toggleNarrative(idx) {
     var b=document.querySelector('.dm-btn');
     if(b)b.textContent=h.getAttribute('data-theme')==='dark'?'☀️':'🌙';
   });
+})();
+
+/* B4: マイ部門（localStorage['myUnit']）。保存済みのときだけ導線を表示 */
+(function(){
+  try{
+    var u=localStorage.getItem('myUnit');
+    if(u){
+      var el=document.getElementById('myUnitLink');
+      var a=document.getElementById('myUnitLinkA');
+      if(el&&a){ a.href='dept.html#'+encodeURIComponent(u); el.style.display='block'; }
+    }
+  }catch(e){}
 })();
 </script>
 </body>

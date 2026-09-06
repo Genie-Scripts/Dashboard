@@ -578,6 +578,27 @@ def build_portal_context(adm, surg, targets, surg_targets,
     _prior_generated_at = _load_prev_generated_at(kpi_history_path)
     freshness = _build_freshness(base_date, _generated_at, _prior_generated_at)
 
+    # ── B5: 称賛先行。要注視が0件かつ改善があるときだけ既定タブを「改善」にする
+    #   （新しい閾値・スコアリングは導入せず、既存 triage/improvement の空/非空を読むだけ）。
+    ward_praise_first = (not triage.get("ward")) and bool(improvement.get("ward"))
+    dept_praise_first = (
+        not (triage.get("dept_internal") or triage.get("dept_surgery"))
+        and bool(improvement.get("dept_internal") or improvement.get("dept_surgery"))
+    )
+
+    # ── B5: 「今週よくなった部門」（病棟/診療科横断・最大3件・順位数字なし）──
+    top_improvements = sorted(
+        improvement.get("ward", []) + improvement.get("dept_internal", [])
+        + improvement.get("dept_surgery", []),
+        key=lambda x: (-x["delta"], x["name"]),
+    )[:3]
+
+    # ── B7: KPIカードのスパークライン（サーバSVG。portalはPlotly非依存のまま）──
+    sparklines = _build_kpi_sparklines(adm, surg, base_date)
+    kpi_cards[0]["sparkline"] = sparklines.get("inpatient", "")
+    kpi_cards[1]["sparkline"] = sparklines.get("admission", "")
+    kpi_cards[2]["sparkline"] = sparklines.get("operation", "")
+
     return {
         "base_date": base_date.strftime("%Y-%m-%d"),
         "generated_at": _generated_at.strftime("%Y/%m/%d %H:%M"),
@@ -586,6 +607,9 @@ def build_portal_context(adm, surg, targets, surg_targets,
         "triage": triage,
         "attention": attention,       # detail.html 用に維持
         "improvement": improvement,
+        "ward_praise_first": ward_praise_first,
+        "dept_praise_first": dept_praise_first,
+        "top_improvements": top_improvements,
         "ai_alerts": ai_alerts,
         "weekly_story": weekly_story,
         "changes": changes,
@@ -595,6 +619,40 @@ def build_portal_context(adm, surg, targets, surg_targets,
         "last_week_prefix": last_week_prefix,
         "freshness": freshness,
     }
+
+
+def _build_kpi_sparklines(adm, surg, base_date) -> dict:
+    """B7: portal KPIカード3枚（在院/新入院/全麻）の直近12週サーバSVGスパークラインを返す。
+
+    在院=週次平均（人）、新入院=週次合計（人）、全麻=週次平均（件/日相当）。失敗時は空dict
+    （呼び出し側は .get(..., "") でフォールバックし portal は完走する）。
+    """
+    try:
+        from .sparkline import render_sparkline_svg
+
+        def _weekly_tail(daily_df, agg, weeks=12):
+            if daily_df is None or daily_df.empty:
+                return []
+            df = daily_df.copy()
+            df["日付"] = pd.to_datetime(df["日付"])
+            df = df[df["日付"] <= pd.Timestamp(base_date)].set_index("日付").sort_index()
+            if df.empty:
+                return []
+            wk = df["値"].resample("W").mean() if agg == "mean" else df["値"].resample("W").sum()
+            return [None if pd.isna(v) else round(float(v), 1) for v in wk.tail(weeks).tolist()]
+
+        inp_vals = _weekly_tail(build_daily_series(adm, "在院患者数"), "mean")
+        adm_vals = _weekly_tail(build_daily_series(adm, "新入院患者数"), "sum")
+        op_vals = _weekly_tail(build_surgery_daily_series(surg), "mean")
+        return {
+            "inpatient": render_sparkline_svg(inp_vals, TARGET_INPATIENT_ALLDAY),
+            "admission": render_sparkline_svg(adm_vals, TARGET_ADMISSION_WEEKLY),
+            "operation": render_sparkline_svg(op_vals, TARGET_GA_DAILY),
+        }
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"スパークライン生成スキップ: {e}")
+        return {}
 
 
 def _build_improvement(adm, surg, base_date) -> dict:

@@ -35,6 +35,9 @@
 @media(max-width:768px){.unit-tabs{gap:7px}.unit-tab{flex:1 1 0;padding:10px 8px;font-size:13px}}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:16px}
 .gc{background:var(--s);border:1px solid var(--ln);border-radius:14px;padding:16px;cursor:pointer;transition:all .15s;box-shadow:0 2px 6px rgba(10,22,42,.04);text-decoration:none;color:inherit;border-top:4px solid var(--ln);position:relative}.gc:hover{box-shadow:0 8px 24px rgba(10,22,42,.12);transform:translateY(-2px)}.gc.ok{border-top-color:var(--ok)}.gc.wr{border-top-color:var(--wr)}.gc.dr{border-top-color:var(--dr)}
+/* B4: マイ部門（あなたの部門）ピン留めボタン */
+.pin-btn{position:absolute;left:10px;top:10px;background:none;border:none;font-size:16px;cursor:pointer;color:var(--mu);z-index:2}
+.pin-btn.on{color:#f5a623}
 .gc .nm{font-size:14px;font-weight:900;margin-bottom:10px;padding-right:60px}
 .gc .st{position:absolute;right:12px;top:12px;font-size:10px;font-weight:900;padding:2px 8px;border-radius:999px}.gc .st.dr{background:var(--dr-bg);color:var(--dr-t)}.gc .st.wr{background:var(--wr-bg);color:#7c3a06}.gc .st.ok{background:var(--ok-bg);color:#065f42}.gc .st.mu{background:#f6f8fb;color:var(--mu)}
 .gc .metrics{display:flex;flex-direction:column;gap:5px;margin-bottom:10px}
@@ -62,6 +65,8 @@
 .charts-container.layout-2x2{grid-template-columns:1fr 1fr}
 .charts-container.layout-3{grid-template-columns:repeat(3,1fr)}
 .cpnl{background:var(--s);border:1px solid var(--ln);border-radius:var(--r);padding:16px;box-shadow:var(--sh)}.cpnl h4{font-size:13px;font-weight:800;margin:0 0 8px;color:var(--sub)}.cpnl .chart{height:320px}
+/* B6: 決定論1行キャプション（chart1〜4のタイトル横） */
+.dhm-cap{font-weight:500;color:var(--mu);font-size:11px}
 /* 病棟フローカード */
 .kc.kc-flow{background:var(--s)}.flow-row{display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:12px}.flow-row .flow-label{color:var(--sub);font-weight:600}.flow-row .flow-val{font-weight:900;font-size:16px}
 @media(max-width:768px){.charts-container,.charts-container.layout-2plus1,.charts-container.layout-2x2,.charts-container.layout-3,.charts-container-3{grid-template-columns:1fr !important}.charts-container.layout-2plus1 .chart3-panel{grid-column:auto}}
@@ -294,10 +299,10 @@ h4{font-weight:var(--jp-head)!important}
     <div id="commentBox" class="comment" style="display:none"></div>
     <div class="tb" id="toolbar"></div>
     <div id="chartsWrap" class="charts-container layout-2plus1">
-      <div class="cpnl"><h4 id="chartTitle1">🚪 新入院 推移</h4><div class="chart" id="chart1"></div><button class="chart-fs-btn" onclick="chartFS('chart1',this)" aria-label="チャート全画面">⛶</button></div>
-      <div class="cpnl"><h4 id="chartTitle2">🛏️ 在院患者 推移</h4><div class="chart" id="chart2"></div><button class="chart-fs-btn" onclick="chartFS('chart2',this)" aria-label="チャート全画面">⛶</button></div>
-      <div class="cpnl chart3-panel"><h4 id="chartTitle3">💉 全麻手術 推移</h4><div class="chart" id="chart3"></div><button class="chart-fs-btn" onclick="chartFS('chart3',this)" aria-label="チャート全画面">⛶</button></div>
-      <div class="cpnl" id="chart4panel" style="display:none"><h4 id="chartTitle4">💰 月次粗利 推移</h4><div class="chart" id="chart4"></div><button class="chart-fs-btn" onclick="chartFS('chart4',this)" aria-label="チャート全画面">⛶</button></div>
+      <div class="cpnl"><h4 id="chartTitle1">🚪 新入院 推移</h4><span id="chart1Cap" class="dhm-cap"></span><div class="chart" id="chart1"></div><button class="chart-fs-btn" onclick="chartFS('chart1',this)" aria-label="チャート全画面">⛶</button></div>
+      <div class="cpnl"><h4 id="chartTitle2">🛏️ 在院患者 推移</h4><span id="chart2Cap" class="dhm-cap"></span><div class="chart" id="chart2"></div><button class="chart-fs-btn" onclick="chartFS('chart2',this)" aria-label="チャート全画面">⛶</button></div>
+      <div class="cpnl chart3-panel"><h4 id="chartTitle3">💉 全麻手術 推移</h4><span id="chart3Cap" class="dhm-cap"></span><div class="chart" id="chart3"></div><button class="chart-fs-btn" onclick="chartFS('chart3',this)" aria-label="チャート全画面">⛶</button></div>
+      <div class="cpnl" id="chart4panel" style="display:none"><h4 id="chartTitle4">💰 月次粗利 推移</h4><span id="chart4Cap" class="dhm-cap"></span><div class="chart" id="chart4"></div><button class="chart-fs-btn" onclick="chartFS('chart4',this)" aria-label="チャート全画面">⛶</button></div>
     </div>
     <div id="balancePanelWrap" style="display:none;margin-top:14px">
       <div class="cpnl">
@@ -396,6 +401,40 @@ function stCss(rate) { return rate==null?'mu':rate<90?'dr':rate<100?'wr':'ok'; }
 function stShape(rate) { return rate==null?'—':rate<90?'▼':rate<100?'―':'▲'; }
 function stText(rate) { return rate==null?'—':rate<90?'未達':rate<100?'接近':'達成'; }
 
+// ── B3: スマホ誤操作ズーム/パン防止。全Plotly.newPlot呼び出しはこの共通関数を通す ──
+function isMobile() { return window.innerWidth <= 768; }
+function lockMobileAxes(layout, config) {
+  layout = layout || {}; config = config || {};
+  if (!isMobile()) return [layout, config];
+  var L = Object.assign({}, layout, {dragmode: false});
+  Object.keys(layout).forEach(function(k) {
+    if (k === 'xaxis' || k === 'yaxis' || /^(xaxis|yaxis)\d+$/.test(k)) {
+      L[k] = Object.assign({}, layout[k], {fixedrange: true});
+    }
+  });
+  if (!('xaxis' in layout)) L.xaxis = {fixedrange: true};
+  if (!('yaxis' in layout)) L.yaxis = {fixedrange: true};
+  var C = Object.assign({}, config, {scrollZoom: false});
+  return [L, C];
+}
+function newPlotMobileSafe(divId, traces, layout, config) {
+  var lc = lockMobileAxes(layout, config);
+  return Plotly.newPlot(divId, traces, lc[0], lc[1]);
+}
+
+// ── B6: 決定論1行キャプション（chart1〜4用。elId+'Cap' の span を更新）──
+function setChartCaption(elId, last, tgt, unit) {
+  var el = document.getElementById(elId + 'Cap');
+  if (!el) return;
+  if (last == null || !tgt) { el.textContent = ''; return; }
+  var rate = Math.round(last / tgt * 100);
+  var gap = last - tgt;
+  var gapTxt = gap >= 0
+    ? ('+' + Math.abs(gap).toFixed(1) + unit + '超過')
+    : ('あと' + Math.abs(gap).toFixed(1) + unit);
+  el.textContent = stShape(rate) + ' 直近は' + last.toFixed(1) + unit + '／目標' + tgt + unit + '（' + gapTxt + '）';
+}
+
 /* 配列の末尾の非null値（最新点） */
 function lastVal(arr) {
   if (!arr) return null;
@@ -477,6 +516,22 @@ function classifyUnits() {
   return {depts, wards};
 }
 
+// ── B4: マイ部門（localStorage['myUnit']）。診療科/病棟を問わず1件だけ保存 ──
+function getMyUnit() {
+  try { return localStorage.getItem('myUnit') || ''; } catch (e) { return ''; }
+}
+function setMyUnit(name) {
+  try { localStorage.setItem('myUnit', name); } catch (e) {}
+}
+function clearMyUnit() {
+  try { localStorage.removeItem('myUnit'); } catch (e) {}
+}
+function toggleMyUnit(name, ev) {
+  if (ev) { ev.stopPropagation(); ev.preventDefault(); }
+  if (getMyUnit() === name) clearMyUnit(); else setMyUnit(name);
+  renderLanding();
+}
+
 // ══════════════════════════
 // Landing Grid
 // ══════════════════════════
@@ -498,7 +553,11 @@ function renderLanding() {
     };
     const opLabel = d.operation.label || '全麻';
     const showOp = isWard || d.operation.actual !== null;
-    return `<a class="gc ${sc}" href="#${encodeURIComponent(entry.name)}" onclick="selectUnit('${entry.name.replace(/'/g,"\\'")}');return false;">
+    const escName = entry.name.replace(/'/g,"\\'");
+    const mine = getMyUnit() === entry.name;
+    return `<a class="gc ${sc}" href="#${encodeURIComponent(entry.name)}" onclick="selectUnit('${escName}');return false;">
+      <button class="pin-btn ${mine?'on':''}" onclick="toggleMyUnit('${escName}', event)"
+              aria-label="あなたの部門に${mine?'解除':'登録'}">${mine?'★':'☆'}</button>
       <span class="st ${sc}">${ss} ${st}</span>
       <div class="nm">${entry.name}</div>
       <div class="metrics">
@@ -511,9 +570,17 @@ function renderLanding() {
     </a>`;
   }
 
+  // B4: あなたの部門（localStorage['myUnit']）。診療科/病棟どちらのタブでも先頭に横断表示
+  let html = '';
+  const myUnitName = getMyUnit();
+  const myUnitEntry = myUnitName ? depts.concat(wards).find(e => e.name === myUnitName) : null;
+  if (myUnitEntry) {
+    html += `<div class="sec-title">⭐ あなたの部門</div><div class="grid">${cardHtml(myUnitEntry)}</div>`;
+  }
+
   // 入り口タブ: 診療科/病棟を分けて表示（病棟がスクロール下に埋もれるのを解消）
   const isW = landingTab === 'wards';
-  let html = `<div class="unit-tabs" role="tablist">
+  html += `<div class="unit-tabs" role="tablist">
     <button class="unit-tab ${!isW ? 'active' : ''}" role="tab" aria-selected="${!isW}" onclick="showLanding('depts')">🩺 診療科 <span class="ut-n">${depts.length}</span></button>
     <button class="unit-tab ${isW ? 'active' : ''}" role="tab" aria-selected="${isW}" onclick="showLanding('wards')">🏥 病棟 <span class="ut-n">${wards.length}</span></button>
   </div>`;
@@ -889,6 +956,7 @@ function renderCharts(d) {
       chart4panel.style.display = 'none';
       document.getElementById('chartTitle3').textContent = `— データなし`;
       document.getElementById('chart3').innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">対象データなし</div>';
+      setChartCaption('chart3', null, null, '');
     }
   }
 
@@ -985,6 +1053,7 @@ function renderHybridDept(h) {
 function renderOneChart(elId, td, targetVal) {
   if (!td || !td.dates || !td.dates.length) {
     document.getElementById(elId).innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">データなし</div>';
+    setChartCaption(elId, null, null, '');
     return;
   }
   const cutoff = periodCutoff();
@@ -1018,11 +1087,11 @@ function renderOneChart(elId, td, targetVal) {
     }
   }
   if (showMA28 && m28.length) {
-    traces.push({name:'今年度(28日平均)',x:ds,y:m28,type:'scatter',mode:'lines',line:{color:'#E69F00',width:3}});
+    traces.push({name:'今年度(28日平均)',x:ds,y:m28,type:'scatter',mode:'lines',line:{color:'#2b6cb0',width:3}});
     yV.push(...m28.filter(v=>v!=null));
     let li28 = -1; for (let i=m28.length-1;i>=0;i--) if (m28[i]!=null) { li28=i; break; }
     if (li28 >= 0) {
-      traces.push({x:[ds[li28]],y:[m28[li28]],type:'scatter',mode:'markers+text',text:['今年度'],textposition:'middle right',textfont:{size:11,color:'#E69F00'},marker:{size:7,color:'#E69F00'},showlegend:false,hoverinfo:'skip',cliponaxis:false});
+      traces.push({x:[ds[li28]],y:[m28[li28]],type:'scatter',mode:'markers+text',text:['今年度'],textposition:'middle right',textfont:{size:11,color:'#2b6cb0'},marker:{size:7,color:'#2b6cb0'},showlegend:false,hoverinfo:'skip',cliponaxis:false});
     }
   }
   // ★A6: 通常変動帯 ±1.5σ（在院・新入院のみ。全麻は病棟に対応データが無いため対象外）
@@ -1043,7 +1112,7 @@ function renderOneChart(elId, td, targetVal) {
     shapes.push({type:'rect',xref:'paper',yref:'y',x0:0,x1:1,y0:targetVal,y1:yHi,fillcolor:'rgba(22,163,74,0.08)',line:{width:0}});
     shapes.push({type:'rect',xref:'paper',yref:'y',x0:0,x1:1,y0:targetVal*0.95,y1:targetVal,fillcolor:'rgba(245,158,11,0.10)',line:{width:0}});
   }
-  Plotly.newPlot(elId, traces, {
+  newPlotMobileSafe(elId, traces, {
     font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
     xaxis:{gridcolor:'#DCE1E9',tickformat:'%m/%d',tickangle:-45},
     yaxis:{range:[yLo,yHi],gridcolor:'#DCE1E9'},
@@ -1055,6 +1124,7 @@ function renderOneChart(elId, td, targetVal) {
   const badgeOk = showPrevYear;
   const badge = badgeOk ? yoyBadgeHtml(lastVal(allMA28), lastVal(prevMA28)) : '';
   setChartBadge(elId, badge + (targetVal ? ZONE_CAP : ''));
+  setChartCaption(elId, lastVal(allMA28), targetVal, '人');
 }
 
 // Surgery chart: 7-day rolling sum
@@ -1072,6 +1142,7 @@ function calcRollingSumByDate(dates, values, windowDays) {
 function renderSurgeryChart(elId, td, weeklyTarget) {
   if (!td || !td.dates || !td.dates.length) {
     document.getElementById(elId).innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">データなし</div>';
+    setChartCaption(elId, null, null, '');
     return;
   }
   const cutoff = periodCutoff();
@@ -1095,11 +1166,11 @@ function renderSurgeryChart(elId, td, weeklyTarget) {
     yV.push(...pvs.filter(v=>v!=null));
   }
   if (showMA28 && rs7ma28.length) {
-    traces.push({name:'今年度(週次合計)',x:ds,y:rs7ma28,type:'scatter',mode:'lines',line:{color:'#E69F00',width:3}});
+    traces.push({name:'今年度(週次合計)',x:ds,y:rs7ma28,type:'scatter',mode:'lines',line:{color:'#2b6cb0',width:3}});
     yV.push(...rs7ma28.filter(v=>v!=null));
     let liW = -1; for (let i=rs7ma28.length-1;i>=0;i--) if (rs7ma28[i]!=null) { liW=i; break; }
     if (liW >= 0) {
-      traces.push({x:[ds[liW]],y:[rs7ma28[liW]],type:'scatter',mode:'markers+text',text:['今年度'],textposition:'middle right',textfont:{size:11,color:'#E69F00'},marker:{size:7,color:'#E69F00'},showlegend:false,hoverinfo:'skip',cliponaxis:false});
+      traces.push({x:[ds[liW]],y:[rs7ma28[liW]],type:'scatter',mode:'markers+text',text:['今年度'],textposition:'middle right',textfont:{size:11,color:'#2b6cb0'},marker:{size:7,color:'#2b6cb0'},showlegend:false,hoverinfo:'skip',cliponaxis:false});
     }
   }
   if (tgt && ds.length) { traces.push({name:`週目標 ${tgt}`,x:[ds[0],ds[ds.length-1]],y:[tgt,tgt],type:'scatter',mode:'lines',line:{color:'#D55E00',width:2,dash:'dot'}}); yV.push(tgt); }
@@ -1111,7 +1182,7 @@ function renderSurgeryChart(elId, td, weeklyTarget) {
     shapes.push({type:'rect',xref:'paper',yref:'y',x0:0,x1:1,y0:tgt,y1:yHi,fillcolor:'rgba(22,163,74,0.08)',line:{width:0}});
     shapes.push({type:'rect',xref:'paper',yref:'y',x0:0,x1:1,y0:tgt*0.95,y1:tgt,fillcolor:'rgba(245,158,11,0.10)',line:{width:0}});
   }
-  Plotly.newPlot(elId, traces, {
+  newPlotMobileSafe(elId, traces, {
     font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
     xaxis:{gridcolor:'#DCE1E9',tickformat:'%m/%d',tickangle:-45},
     yaxis:{range:[yLo,yHi],gridcolor:'#DCE1E9'},
@@ -1122,11 +1193,13 @@ function renderSurgeryChart(elId, td, weeklyTarget) {
   // ★前年同期比バッジ（昨年度同期ON時。週次合計の28日平滑の最新点で比較）＋ゾーン凡例
   const opBadge = showPrevYear ? yoyBadgeHtml(lastVal(allRS7ma28), lastVal(td.weekly_prev && td.weekly_prev.values)) : '';
   setChartBadge(elId, opBadge + (tgt ? ZONE_CAP : ''));
+  setChartCaption(elId, lastVal(allRS7ma28), tgt, '件');
 }
 
 function renderProfitDeptChart(elId, bd, mp, projections) {
   if (!bd || !bd.months || !bd.months.length) {
     document.getElementById(elId).innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">粗利データなし</div>';
+    setChartCaption(elId, null, null, '');
     return;
   }
   // 期間フィルタを月初基準で適用（"2026-04" は 2026-04-01 とみなす）
@@ -1139,6 +1212,7 @@ function renderProfitDeptChart(elId, bd, mp, projections) {
     ? bd.targets.filter((_, i) => keep[i]) : null;
   if (!fMonths.length) {
     document.getElementById(elId).innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">粗利データなし（期間内）</div>';
+    setChartCaption(elId, null, null, '');
     return;
   }
 
@@ -1215,7 +1289,7 @@ function renderProfitDeptChart(elId, bd, mp, projections) {
     yHi = mx + span * 0.12;
   }
 
-  Plotly.newPlot(elId, traces, {
+  newPlotMobileSafe(elId, traces, {
     font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
     xaxis:{gridcolor:'#DCE1E9', tickangle:-45},
     yaxis:{range:[yLo,yHi],gridcolor:'#DCE1E9',title:{text:'百万円',font:{size:10}}},
@@ -1223,6 +1297,8 @@ function renderProfitDeptChart(elId, bd, mp, projections) {
     hovermode:'x unified',margin:{l:55,r:15,t:8,b:65},height:_pH(320),
     plot_bgcolor:'#fff',paper_bgcolor:'#fff',
   },{responsive:true});
+  const lastTgt = tgtArr ? tgtArr[tgtArr.length - 1] : bd.target;
+  setChartCaption(elId, fValues[fValues.length - 1], lastTgt, '百万円');
 }
 
 function renderDeptEstimateChart(bd, hy) {
@@ -1288,7 +1364,7 @@ function renderDeptEstimateChart(bd, hy) {
   const yLo = yMinN - Math.abs(yMinN) * 0.10;
   const yHi = yMax  + Math.abs(yMax)  * 0.05;
 
-  Plotly.newPlot('estimateChart', traces, {
+  newPlotMobileSafe('estimateChart', traces, {
     font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
     xaxis:{gridcolor:'#DCE1E9', type:'date'},
     yaxis:{gridcolor:'#DCE1E9', title:{text:'月末粗利 見込み（百万円）',font:{size:10}}, range:[yLo, yHi]},
@@ -1385,7 +1461,7 @@ function renderOpVsProfit(opTd, pc, opLabel) {
   const idxYAll = [...idxProfit, ...idxOps].filter(v => v != null);
   const idxLo = idxYAll.length ? Math.min(...idxYAll, 95) : 90;
   const idxHi = idxYAll.length ? Math.max(...idxYAll, 105) : 110;
-  Plotly.newPlot('opIndexChart', idxTraces, {
+  newPlotMobileSafe('opIndexChart', idxTraces, {
     font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
     xaxis:{gridcolor:'#DCE1E9', tickangle:-45, type:'category'},
     yaxis:{gridcolor:'#DCE1E9', title:{text:'指数（基準=100）', font:{size:10}},
@@ -1412,7 +1488,7 @@ function renderOpVsProfit(opTd, pc, opLabel) {
   const uLo = unitClean.length ? Math.min(...unitClean) : 0;
   const uHi = unitClean.length ? Math.max(...unitClean) : 1;
   const uPd = (uHi - uLo) * 0.15 || 0.5;
-  Plotly.newPlot('opUnitChart', unitTraces, {
+  newPlotMobileSafe('opUnitChart', unitTraces, {
     font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
     xaxis:{gridcolor:'#DCE1E9', tickangle:-45, type:'category'},
     yaxis:{gridcolor:'#DCE1E9', title:{text:'百万円 / 件', font:{size:10}},
@@ -1549,7 +1625,7 @@ function renderDowProfile(entity, name, wrapId){
       line:{color:'#2a9d8f', width:1, dash:'dot'}, opacity:0.45,
     }];
   }
-  Plotly.newPlot(chartId, traces, layout, {responsive:true, displayModeBar:false});
+  newPlotMobileSafe(chartId, traces, layout, {responsive:true, displayModeBar:false});
 }
 
 // 部門ビューでは選択中ユニットのプロファイルを表示（PROFIT_ONLY科・小規模単位は非表示）
@@ -1572,6 +1648,7 @@ function renderFlowChart(elId, admTd, outTd, opts) {
   const outLabel = opts.outLabel || '退院＋転出（死亡含む）';
   if (!admTd || !outTd || !admTd.dates || !admTd.dates.length) {
     document.getElementById(elId).innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">データなし</div>';
+    setChartCaption(elId, null, null, '');
     return;
   }
   const cutoff = periodCutoff();
@@ -1622,7 +1699,7 @@ function renderFlowChart(elId, admTd, outTd, opts) {
   const pd2 = (mx2 - mn2) * 0.15 || 1;
   const yAbs2 = Math.max(Math.abs(mn2) + pd2, mx2 + pd2);
 
-  Plotly.newPlot(elId, [
+  newPlotMobileSafe(elId, [
     { name:inLabel,  x:ds, y:adm,            type:'bar',     marker:{color:'#0072B2'}, opacity:0.75, yaxis:'y' },
     { name:outLabel, x:ds, y:out.map(v=>-v), type:'bar',     marker:{color:'#E69F00'}, opacity:0.75, yaxis:'y' },
     { name:'純増減 7日', x:ds, y:nm7,         type:'scatter', mode:'lines',
@@ -1646,6 +1723,8 @@ function renderFlowChart(elId, admTd, outTd, opts) {
       text:`<b>${basis.t}</b>（直近7日 純${net7>=0?'+':''}${net7}/日）`,
       font:{size:11,color:basis.c}}],
   }, {responsive:true});
+  // B6: 入退院フローは目標/達成率の概念を持たないためキャプションは空にする
+  setChartCaption(elId, null, null, '');
 }
 
 // ══════════════════════════
@@ -1676,6 +1755,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const hash = decodeURIComponent(location.hash.replace('#',''));
   if (hash && DATA.drill[hash]) {
+    // B4: dept.html#<unit> への直接着地（QRコード等）はその部門を自動的に「あなたの部門」に保存
+    setMyUnit(hash);
     selectUnit(hash);
   } else if (hash === 'wards' || hash === 'depts') {
     showLanding(hash);  // ディープリンク: dept.html#wards で病棟一覧を直接表示

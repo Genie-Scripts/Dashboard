@@ -72,12 +72,14 @@ def build_week_preview(base_date) -> dict | None:
             f"傾向があります。退院を連休前に固めすぎないこと、連休明けの受け入れ枠を"
             f"あらかじめ空けておくことが、この時期の目安になります。"
         )
+        chip = ["来週", f"{run_len}日連休"]
     else:
         text = (
             f"来週は営業日が{biz_days}日です（ふだんは5日）。"
             f"手術や新入院の件数は、その分だけ少なくなりやすい週です。"
         )
-    return {"biz_days": biz_days, "run_len": run_len, "is_eve": is_eve, "text": text}
+        chip = ["来週", f"営業日{biz_days}日"]
+    return {"biz_days": biz_days, "run_len": run_len, "is_eve": is_eve, "text": text, "chip": chip}
 
 
 def build_month_preview(base_date) -> dict | None:

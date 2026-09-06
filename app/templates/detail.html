@@ -132,7 +132,7 @@
 .mp-foot .mp-rate.dr{color:var(--dr)}
 .mp-pace{font-size:10px;color:var(--sub);margin-top:4px;padding-top:4px;border-top:1px dashed var(--ln)}
 @media(max-width:768px){.mp-grid{grid-template-columns:repeat(2,1fr);gap:8px}.mp-big{font-size:20px}}
-@media(max-width:768px){.tabs{display:flex;overflow:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}.tab{min-width:150px;flex:0 0 auto}.tab .big{font-size:22px}.sum{grid-template-columns:1fr}.bx-main .main-val{font-size:24px}.main{grid-template-columns:1fr}.chart{height:220px}.ri{grid-template-columns:24px 1fr auto}.bar,.stl{display:none}.drill-chart{height:200px}.drill-graphs{grid-template-columns:1fr}.role{display:none}.hdr{padding:6px 12px}.hdr .row{flex-wrap:nowrap;gap:8px;align-items:center}.left{min-width:0;flex:1 1 auto;overflow:hidden}.title{font-size:14px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.right{flex:0 0 auto;gap:6px}.act,.meta:not(#freshness){display:none}#freshness{font-size:11px;white-space:normal;overflow-wrap:anywhere}.hdr .nav-bar{display:none}
+@media(max-width:768px){.tabs{display:flex;overflow:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}.tab{min-width:150px;flex:0 0 auto}.tab .big{font-size:22px}.sum{grid-template-columns:1fr}.bx-main .main-val{font-size:24px}.main{grid-template-columns:1fr}.chart{height:220px}.ri{grid-template-columns:24px 1fr auto}.bar,.stl{display:none}.drill-chart{height:200px}.drill-graphs{grid-template-columns:1fr}.hdr .role{display:none}.hdr{padding:6px 12px}.hdr .row{flex-wrap:nowrap;gap:8px;align-items:center}.left{min-width:0;flex:1 1 auto;overflow:hidden}.title{font-size:14px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.right{flex:0 0 auto;gap:6px}.act,.meta:not(#freshness){display:none}#freshness{font-size:11px;white-space:normal;overflow-wrap:anywhere}.hdr .nav-bar{display:none}
 /* ★モバイル: KPIカード2列化・チャート1列化・はみ出し防止 */
 .kpi-row{grid-template-columns:repeat(2,1fr) !important;gap:8px}
 .charts-container,.charts-container.layout-2plus1,.charts-container.layout-2x2,.charts-container.layout-3{grid-template-columns:1fr !important}
@@ -151,7 +151,7 @@
   .hdr{position:static;transition:none;display:flex;align-items:center;flex-wrap:nowrap;gap:12px;padding:5px 14px}
   .hdr.hdr-hidden{transform:none}
   .hdr .row{flex:1 1 auto;min-width:0}.hdr .right{gap:8px}
-  .role,.act,.meta:not(#freshness){display:none}
+  .hdr .role,.act,.meta:not(#freshness){display:none}
   .title{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .hdr .nav-bar{display:flex;flex:0 0 auto;margin:0;padding:0;border-top:none}
 }
@@ -384,7 +384,7 @@ h4{font-weight:var(--jp-head)!important}
 <div class="row">
   <div class="left"><span class="badge">DETAIL</span><span class="title">📊 統合詳細ダッシュボード</span></div>
   <div class="right">
-    <div class="role"><a href="#" class="active" onclick="presetDoctor(event)">🩺 医師向け</a><a href="#" onclick="presetNurse(event)">🏥 看護師向け</a></div>
+    <div class="role" id="roleControls"><a href="#" class="active" onclick="presetDoctor(event)">🩺 医師向け</a><a href="#" onclick="presetNurse(event)">🏥 看護師向け</a></div>
     <a class="act" href="#" onclick="window.print()">🖨️ 印刷</a>
     <span class="meta" id="freshness">📅 {{ base_date }}</span>
     <button class="dm-btn" onclick="toggleDarkMode()">🌙</button>
@@ -421,7 +421,7 @@ h4{font-weight:var(--jp-head)!important}
   </div>
 
   <section class="main" id="mainSection">
-    <div class="pnl pnl-chart"><div class="pnl-ctrl" id="chartControls"></div><h3 id="chartTitle">📊 推移グラフ</h3><div class="chart" id="mainChart"></div><button class="chart-fs-btn" onclick="chartFS('mainChart',this)" aria-label="チャート全画面">⛶</button></div>
+    <div class="pnl pnl-chart"><div class="pnl-ctrl" id="chartControls"></div><h3 id="chartTitle">📊 推移グラフ</h3><span id="mainChartCap" class="dhm-cap"></span><div class="chart" id="mainChart"></div><button class="chart-fs-btn" onclick="chartFS('mainChart',this)" aria-label="チャート全画面">⛶</button></div>
     <div class="pnl pnl-rank" data-mc><div class="pnl-ctrl" id="rankControls"></div>
       <div class="mc-h" onclick="toggleMC(this)"><h3 id="rankTitle">🏆 達成状況</h3><span class="mc-caret">▾</span></div>
       <div class="mc-body">
@@ -651,6 +651,7 @@ h4{font-weight:var(--jp-head)!important}
     <div class="sheet-sec" id="sheetSecGlobal"><div class="sheet-sec-label">表示軸・入院種別</div></div>
     <div class="sheet-sec" id="sheetSecChart"><div class="sheet-sec-label">グラフ（期間・日種・描画）</div></div>
     <div class="sheet-sec" id="sheetSecRank"><div class="sheet-sec-label">ランキング順位基準</div></div>
+    <div class="sheet-sec" id="sheetSecRole"><div class="sheet-sec-label">表示プリセット</div></div>
   </div>
 </div>
 
@@ -720,7 +721,7 @@ function _drawHm(key, elId) {
     el.innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:40px 0">対象データなし</div>';
     return;
   }
-  Plotly.newPlot(el, hm.traces, Object.assign({}, hm.layout), hm.config || {responsive:true})
+  newPlotMobileSafe(el, hm.traces, Object.assign({}, hm.layout), hm.config || {responsive:true})
     .then(gd => gd.on('plotly_click', ev => {
       if (ev.points && ev.points[0]) openDhmDrill(ev.points[0].y);
     }));
@@ -767,7 +768,7 @@ function _drawOps(node, elId) {
     el.innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:40px 0">対象データなし</div>';
     return;
   }
-  Plotly.newPlot(el, node.traces, Object.assign({}, node.layout), node.config || {responsive:true});
+  newPlotMobileSafe(el, node.traces, Object.assign({}, node.layout), node.config || {responsive:true});
 }
 
 function _opsCap(id, text, foot) {
@@ -1122,6 +1123,45 @@ function renderMonthProjection() {
 function stCss(rate) { return rate==null?'mu':rate<90?'dr':rate<100?'wr':'ok'; }
 function stShape(rate) { return rate==null?'—':rate<90?'▼':rate<100?'―':'▲'; }
 function stText(rate) { return rate==null?'—':rate<90?'未達':rate<100?'接近':'達成'; }
+
+// ── B3: スマホ誤操作ズーム/パン防止。全Plotly.newPlot呼び出しはこの共通関数を通す ──
+function isMobile() { return window.innerWidth <= 768; }
+function lockMobileAxes(layout, config) {
+  layout = layout || {}; config = config || {};
+  if (!isMobile()) return [layout, config];
+  var L = Object.assign({}, layout, {dragmode: false});
+  Object.keys(layout).forEach(function(k) {
+    if (k === 'xaxis' || k === 'yaxis' || /^(xaxis|yaxis)\d+$/.test(k)) {
+      L[k] = Object.assign({}, layout[k], {fixedrange: true});
+    }
+  });
+  if (!('xaxis' in layout)) L.xaxis = {fixedrange: true};
+  if (!('yaxis' in layout)) L.yaxis = {fixedrange: true};
+  var C = Object.assign({}, config, {scrollZoom: false});
+  return [L, C];
+}
+function newPlotMobileSafe(divId, traces, layout, config) {
+  var lc = lockMobileAxes(layout, config);
+  return Plotly.newPlot(divId, traces, lc[0], lc[1]);
+}
+
+// ── B6: 決定論1行キャプション（mainChart用。既存の▲/―/▼と「あと◯／+◯超過」表記を流用） ──
+function renderMainChartCaption(seriesVals, tgt, unit) {
+  var el = document.getElementById('mainChartCap');
+  if (!el) return;
+  if (!seriesVals || !tgt) { if (el) el.textContent = ''; return; }
+  var last = null;
+  for (var i = seriesVals.length - 1; i >= 0; i--) {
+    if (seriesVals[i] != null) { last = seriesVals[i]; break; }
+  }
+  if (last == null) { el.textContent = ''; return; }
+  var rate = Math.round(last / tgt * 100);
+  var gap = last - tgt;
+  var gapTxt = gap >= 0
+    ? ('+' + Math.abs(gap).toFixed(1) + unit + '超過')
+    : ('あと' + Math.abs(gap).toFixed(1) + unit);
+  el.textContent = stShape(rate) + ' 直近は' + last.toFixed(1) + unit + '／目標' + tgt + unit + '（' + gapTxt + '）';
+}
 
 // ── KPIカード HTML生成 (ドリルパネル用) ──
 // mode:
@@ -1821,7 +1861,7 @@ function renderDowProfile(entity, name, wrapId){
       line:{color:'#2a9d8f', width:1, dash:'dot'}, opacity:0.45,
     }];
   }
-  Plotly.newPlot(chartId, traces, layout, {responsive:true, displayModeBar:false});
+  newPlotMobileSafe(chartId, traces, layout, {responsive:true, displayModeBar:false});
 }
 
 function renderLeveling(){
@@ -2085,7 +2125,7 @@ function renderEstimateChart() {
   const yLo = yMinN - Math.abs(yMinN) * 0.10;
   const yHi = yMax  + Math.abs(yMax)  * 0.05;
 
-  Plotly.newPlot('estimateChart', traces, {
+  newPlotMobileSafe('estimateChart', traces, {
     font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
     xaxis:{gridcolor:'#DCE1E9', type:'date'},
     yaxis:{gridcolor:'#DCE1E9', title:{text:'月末粗利 見込み（百万円）',font:{size:10}}, range:[yLo, yHi]},
@@ -2549,15 +2589,15 @@ function renderChart() {
     traces.push({name:'昨年度同期(28日平均)', x:pPrevDates, y:pPrevVals, type:'scatter', mode:'lines',
       line:{color:'#B0B5BC',width:1.5,dash:'dot'}});
   }
-  // ★ 28日移動平均（今年度・橙太線）
+  // ★ 28日移動平均（今年度・青太線。B9: 旧オレンジ線色から#2b6cb0へ統一）
   if (showMA28) {
     traces.push({name:'今年度(28日平均)', x:fDates, y:fMA28, type:'scatter', mode:'lines',
-      line:{color:'#E69F00',width:3}});
+      line:{color:'#2b6cb0',width:3}});
     let li28 = -1; for (let i=fMA28.length-1;i>=0;i--) if (fMA28[i]!=null) { li28=i; break; }
     if (li28 >= 0) {
       traces.push({x:[fDates[li28]], y:[fMA28[li28]], type:'scatter', mode:'markers+text',
-        text:['今年度'], textposition:'middle right', textfont:{size:11,color:'#E69F00'},
-        marker:{size:7,color:'#E69F00'}, showlegend:false, hoverinfo:'skip', cliponaxis:false});
+        text:['今年度'], textposition:'middle right', textfont:{size:11,color:'#2b6cb0'},
+        marker:{size:7,color:'#2b6cb0'}, showlegend:false, hoverinfo:'skip', cliponaxis:false});
     }
   }
   // ★A6: 通常変動帯 ±1.5σ（表示専用・判定不変。既定オフ）
@@ -2608,7 +2648,8 @@ function renderChart() {
     plot_bgcolor:'#fff',paper_bgcolor:'#fff',
     shapes: shapes,
   };
-  Plotly.newPlot('mainChart',traces,layout,{responsive:true});
+  newPlotMobileSafe('mainChart',traces,layout,{responsive:true});
+  renderMainChartCaption(fMA28, tgt, '人');
   const titles = {inpatient:'在院患者数',admission:'新入院患者数'};
   const admLabel = currentTab==='admission' && admType!=='all' ? (admType==='planned'?' ／ 予定入院':' ／ 緊急入院') : '';
   const titleBase = `📊 ${titles[currentTab]||''} ${admLabel} 推移（${pLabels[currentPeriod]}${dayLabel}）`;
@@ -2663,7 +2704,7 @@ function renderBalanceChart() {
   if (showBalMA28) balTraces.push({ name:'純増減 28日平均', x:ds, y:nm28, type:'scatter', mode:'lines',
       line:{color:'#9333ea', width:1.8, dash:'dash'}, yaxis:'y2' });
 
-  Plotly.newPlot('mainChart', balTraces, {
+  newPlotMobileSafe('mainChart', balTraces, {
     barmode:'relative',
     font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
     xaxis:{gridcolor:'#DCE1E9', tickformat:'%m/%d', tickangle:-45},
@@ -2677,6 +2718,8 @@ function renderBalanceChart() {
     margin:{l:48,r:46,t:10,b:55}, height:_pH(340),
     plot_bgcolor:'#fff', paper_bgcolor:'#fff',
   }, {responsive:true});
+  // B6: 入退院バランスは目標/達成率の概念を持たないためキャプションは空にする
+  renderMainChartCaption(null, null, '');
 
   const pLabels = {'12w':'直近12週','24w':'直近24週','365d':'直近365日','ytd':'年度開始来','all':'全期間'};
   const dayLabel = (showWeekday&&showHoliday)?'':showWeekday?' 平日のみ':' 休日のみ';
@@ -2728,13 +2771,13 @@ function renderOperationChart() {
     const si = Math.max(0, bm.dates.findIndex(d => d >= cutoff));
     const ds = bm.dates.slice(si), vs = bm.values.slice(si);
     traces.push({name:'今年度(30平日)', x:ds, y:vs, type:'scatter', mode:'lines',
-      line:{color:'#0072B2',width:3}});
+      line:{color:'#2b6cb0',width:3}});
     yV.push(...vs.filter(v=>v!=null));
     let liOp = -1; for (let i=vs.length-1;i>=0;i--) if (vs[i]!=null) { liOp=i; break; }
     if (liOp >= 0) {
       traces.push({x:[ds[liOp]], y:[vs[liOp]], type:'scatter', mode:'markers+text',
-        text:['今年度'], textposition:'middle right', textfont:{size:11,color:'#0072B2'},
-        marker:{size:7,color:'#0072B2'}, showlegend:false, hoverinfo:'skip', cliponaxis:false});
+        text:['今年度'], textposition:'middle right', textfont:{size:11,color:'#2b6cb0'},
+        marker:{size:7,color:'#2b6cb0'}, showlegend:false, hoverinfo:'skip', cliponaxis:false});
     }
   }
 
@@ -2781,7 +2824,7 @@ function renderOperationChart() {
   }
 
   const pLabels = {'12w':'直近12週','24w':'直近24週','365d':'直近365日','ytd':'年度開始来','all':'全期間'};
-  Plotly.newPlot('mainChart', traces, {
+  newPlotMobileSafe('mainChart', traces, {
     font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
     xaxis:{gridcolor:'#DCE1E9',tickformat:'%m/%d',tickangle:-45},
     yaxis:{range:[yLo,yHi],gridcolor:'#DCE1E9',title:{text:'件/平日',font:{size:10}}},
@@ -2790,6 +2833,7 @@ function renderOperationChart() {
     margin:{l:50,r:70,t:10,b:55},height:_pH(340),
     plot_bgcolor:'#fff',paper_bgcolor:'#fff',shapes,
   },{responsive:true});
+  renderMainChartCaption(bm && bm.values, tgt, '件/日');
   const opTitleBase = `📊 全身麻酔手術 推移（${pLabels[currentPeriod]}・平日基準）`;
   const opBadge = showPrevYear
     ? yoyBadgeHtml(lastVal(trend.biz_ma30 && trend.biz_ma30.values),
@@ -2992,7 +3036,7 @@ function renderProfitChart() {
     yHi = mx + span * 0.12;
   }
 
-  Plotly.newPlot('mainChart', traces, {
+  newPlotMobileSafe('mainChart', traces, {
     font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
     xaxis:{gridcolor:'#DCE1E9',tickangle:-45},
     yaxis:{range:[yLo,yHi],gridcolor:'#DCE1E9',title:{text:'百万円',font:{size:10}}},
@@ -3001,6 +3045,7 @@ function renderProfitChart() {
     margin:{l:55,r:20,t:10,b:65},height:_pH(340),
     plot_bgcolor:'#fff',paper_bgcolor:'#fff',
   },{responsive:true});
+  renderMainChartCaption(g.values, g.targets[g.targets.length - 1], '百万円');
   document.getElementById('chartTitle').textContent = '📊 粗利 月次推移（全科合計・営業日換算の達成状況で色分け）';
 }
 
@@ -3131,7 +3176,7 @@ function openProfitDrill(dept) {
       {name:'達成率', x:bd.months, y:bd.achievements, type:'scatter', mode:'lines+markers', line:{color:'#0072B2',width:2.5}, marker:{size:5}},
       {name:'100%', x:[bd.months[0],bd.months[bd.months.length-1]], y:[100,100], type:'scatter', mode:'lines', line:{color:'#D55E00',width:2,dash:'dot'}},
     ];
-    Plotly.newPlot('drillChartAch', achTraces, {font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},xaxis:{gridcolor:'#DCE1E9',tickangle:-45},yaxis:{gridcolor:'#DCE1E9',title:{text:'%',font:{size:10}}},legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},hovermode:'x unified',margin:{l:45,r:15,t:8,b:65},height:_pH(320),plot_bgcolor:'#fff',paper_bgcolor:'#fff'},{responsive:true});
+    newPlotMobileSafe('drillChartAch', achTraces, {font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},xaxis:{gridcolor:'#DCE1E9',tickangle:-45},yaxis:{gridcolor:'#DCE1E9',title:{text:'%',font:{size:10}}},legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},hovermode:'x unified',margin:{l:45,r:15,t:8,b:65},height:_pH(320),plot_bgcolor:'#fff',paper_bgcolor:'#fff'},{responsive:true});
   } else {
     document.getElementById('drillChartAch').innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">達成率データなし</div>';
   }
@@ -3153,7 +3198,7 @@ function _renderProfitBreakdownChart(elId, months, values, targets, barColor, ta
   }
   const allY = [...values, ...(targets || [])].filter(v => v != null);
   const yMax = allY.length ? Math.max(...allY) * 1.15 : 10;
-  Plotly.newPlot(elId, traces, {
+  newPlotMobileSafe(elId, traces, {
     font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
     xaxis:{gridcolor:'#DCE1E9',tickangle:-45},
     yaxis:{range:[0,yMax],gridcolor:'#DCE1E9',title:{text:'百万円',font:{size:10}}},
@@ -3209,7 +3254,8 @@ function closeDrill() {
     {id:'pageNav',       sec:'sheetSecPage'},
     {id:'globalBar',     sec:'sheetSecGlobal'},
     {id:'chartControls', sec:'sheetSecChart'},
-    {id:'rankControls',  sec:'sheetSecRank'}
+    {id:'rankControls',  sec:'sheetSecRank'},
+    {id:'roleControls',  sec:'sheetSecRole'}
   ];
   var saved=moves.map(function(m){
     var el=document.getElementById(m.id);
