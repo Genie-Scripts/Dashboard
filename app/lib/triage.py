@@ -330,7 +330,9 @@ def score_departments(adm: pd.DataFrame, surg: pd.DataFrame,
         is_surgery = dept in SURGERY_EVAL_DEPTS
 
         adm_actual  = r7_nadm["by_dept"].get(dept, 0)
-        adm_target  = nadm_tgt.get(dept)
+        # ★F3是正: 新入院の週目標にも全麻(op_target)と同じ営業日期待値の割引を適用する
+        # （達成率・目標表示・ギャップのすべてが同じ調整後目標を参照する＝相互不整合を防ぐ）。
+        adm_target  = adjusted_weekly_target(nadm_tgt.get(dept), base_date)
         inp_actual  = inp_by_dept.get(dept, 0)
         inp_target  = inp_tgt.get(dept)
         op_actual   = r7_surg["by_dept"].get(dept, 0) if is_surgery else None
@@ -386,7 +388,9 @@ def score_wards(adm: pd.DataFrame, targets: dict,
             continue
 
         adm_actual = r7_nadm["by_ward"].get(wcode, 0)
-        adm_target = nadm_tgt.get(wcode)
+        # ★F3是正: 病棟トリアージの新入院目標も score_departments と同型で
+        # 営業日期待値の割引を適用する（診療科/病棟で判定基準が食い違わないようにする）。
+        adm_target = adjusted_weekly_target(nadm_tgt.get(wcode), base_date)
         inp_actual = inp_by_ward.get(wcode, 0)
         inp_target = inp_tgt.get(wcode)
 
@@ -469,15 +473,21 @@ def pick_targets(scored: list[dict], adm: pd.DataFrame,
             pass
 
         # KPI サマリー行（テンプレート headline 用: 北極星KPIを先頭にコンパクト表示）
-        def _gap_s(gap):
-            return f"▲{gap:.1f}" if gap > 0 else f"+{abs(gap):.1f}"
+        # ★F4是正: 「▲」は config.status_display の達成(ok)専用記号のため、不足/超過の
+        # 表現には使わない（不足=あと〜／超過=+〜超過／0=±0）。
+        def _gap_s(gap, unit):
+            if gap > 0:
+                return f"あと{gap:.1f}{unit}"
+            if gap < 0:
+                return f"+{abs(gap):.1f}{unit}超過"
+            return f"±0{unit}"
         adm_kpi = inp_kpi = op_kpi = None
         if item["adm_rate"] is not None:
-            adm_kpi = f"新入院{item['adm_rate']:.0f}%({_gap_s(item.get('adm_gap', 0) or 0)}人)"
+            adm_kpi = f"新入院{item['adm_rate']:.0f}%({_gap_s(item.get('adm_gap', 0) or 0, '人')})"
         if item["inp_rate"] is not None:
-            inp_kpi = f"在院{item['inp_rate']:.0f}%({_gap_s(item.get('inp_gap', 0) or 0)}人)"
+            inp_kpi = f"在院{item['inp_rate']:.0f}%({_gap_s(item.get('inp_gap', 0) or 0, '人')})"
         if is_surgery and item["op_rate"] is not None:
-            op_kpi = f"{surgery_metric_label(item['name'], short=True)}{item['op_rate']:.0f}%({_gap_s(item.get('op_gap', 0) or 0)}件)"
+            op_kpi = f"{surgery_metric_label(item['name'], short=True)}{item['op_rate']:.0f}%({_gap_s(item.get('op_gap', 0) or 0, '件')})"
 
         if is_surgery:
             # 全麻が主軸。在院・新入院は達成率のみを文脈として併記

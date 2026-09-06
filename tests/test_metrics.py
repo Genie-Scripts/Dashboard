@@ -284,5 +284,28 @@ class TestGaRollingBizAvgCalendarWindow(unittest.TestCase):
         self.assertIsNone(r["fy_biz_avg"])
 
 
+class TestPrevyearOffsetIsWeekdayAligned(unittest.TestCase):
+    """F2是正: 前年オフセットは PREVYEAR_OFFSET_DAYS(=364) に統一。365日オフセットだと
+    年によって前年窓の終端の曜日が基準日とずれる（364=52週ちょうどなら常に一致する）。"""
+
+    def test_offset_constant_is_364(self):
+        self.assertEqual(PREVYEAR_OFFSET_DAYS, 364)
+
+    def test_prevyear_window_end_matches_base_date_weekday(self):
+        for base_s in ("2026-09-03", "2026-01-18", "2026-08-30", "2026-12-31"):
+            base = pd.Timestamp(base_s)
+            prev_end = base - pd.Timedelta(days=PREVYEAR_OFFSET_DAYS)
+            self.assertEqual(prev_end.weekday(), base.weekday(),
+                             f"{base_s}: 364日前の曜日が基準日と一致しない")
+
+    def test_365day_offset_breaks_weekday_alignment(self):
+        # 対照: 365 = 52週+1日のため、365日オフセットは常に曜日が1日ずれる
+        # （364日オフセットに統一するF2の理由そのものの確認）。
+        for base_s in ("2026-09-03", "2026-01-18", "2026-08-30"):
+            base = pd.Timestamp(base_s)
+            prev_end_365 = base - pd.Timedelta(days=365)
+            self.assertNotEqual(prev_end_365.weekday(), base.weekday())
+
+
 if __name__ == "__main__":
     unittest.main()

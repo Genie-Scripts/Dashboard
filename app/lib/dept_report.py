@@ -27,6 +27,7 @@ from .config import (
     SURGERY_DISPLAY_DEPTS, SURGERY_EVAL_DEPTS, surgery_metric_label, unit_narration_kind,
     TARGET_INPATIENT_ALLDAY, TARGET_ADMISSION_WEEKLY, TARGET_GA_DAILY,
     TARGET_WEEKEND_RETENTION, FEE_REVISION_DATE, FEE_REVISION_PROFIT_UPLIFT,
+    operational_days_between,
 )
 from .metrics import (
     weekend_census_retention, rolling7_inpatient_avg,
@@ -701,7 +702,7 @@ def _ma_window_trend(cur: list, prior_end: int, pt: float) -> str:
 
 def _nadm_highlight(na, na_tgt, na_series) -> Optional[str]:
     """内科系の一手に添える新入院ハイライト1行（数値駆動・AI不要・Tier2-2）。
-    外科=_surg_highlight・病棟=_util_highlight と同型で、直近7日累計(件/週) vs 週次目標
+    外科=_surg_highlight・病棟=_util_highlight と同型で、直近7日累計(人/週) vs 週次目標
     ＋28日線の方向＋目標までの差を1行に。「改善余地」の抽象語を数字で接地する。"""
     if not na_tgt:
         return None
@@ -711,12 +712,12 @@ def _nadm_highlight(na, na_tgt, na_series) -> Optional[str]:
     trend = _ma_window_trend(cur, prior_end=28, pt=5)   # ≒4週前を終点とする窓（28日MAの日次系列）
     gap = na_tgt - na
     if gap > 0.5:
-        gap_phrase = f"あと約{gap:.0f}件/週で目標"
+        gap_phrase = f"あと約{gap:.0f}人/週で目標"
     elif gap < -0.5:
-        gap_phrase = f"目標を{-gap:.0f}件/週上回る"
+        gap_phrase = f"目標を{-gap:.0f}人/週上回る"
     else:
         gap_phrase = "ほぼ目標どおり"
-    return (f"新入院：直近7日 {na:g}件／週目標{na_tgt:g}（{rate}%）。"
+    return (f"新入院：直近7日 {na:g}人／週目標{na_tgt:g}（{rate}%）。"
             f"28日線は{trend}／{gap_phrase}")
 
 
@@ -1071,16 +1072,20 @@ def _build_parts(adm, surg, base_date, entity, name, code, dd, r7_inp, r7_nadm,
         parts["A"] = _trend_part("A", "在院患者数", s, inp_tgt or 0, f"目標{inp_tgt:g}" if inp_tgt else "",
                                  "人", _ach_badge(r7, inp_tgt))
 
-    # B: 新入院（28日移動平均=件/日、目標=週次÷7。KPI/バッジは直近7日累計）。軸で列が変わる
+    # B: 新入院（28日移動平均=人/日、目標=週次÷7。KPI/バッジは直近7日累計）。軸で列が変わる
     na = r7_nadm[by].get(code)
     na_tgt = targets.get("new_admission", {}).get(tgt_axis, {}).get(code)
     daily_na_tgt = round(na_tgt / 7, 1) if na_tgt else 0
+    # ★F3是正: バッジ(直近7日累計 vs 週次目標)は単週の達成率のため、Cブロックの全麻と
+    # 同じ営業日期待値の割引(adjusted_weekly_target)を適用する（目標線=flatはC同様に
+    # 暦補正しない・週次目標そのままの na_tgt を使う）。
+    na_tgt_adj = adjusted_weekly_target(na_tgt, base_date)
     b_col = "新入院患者数_病棟" if is_ward else "新入院患者数"
     b_grp, b_val = ("病棟コード", code) if is_ward else ("診療科名", name)
     bs = _unit_ma_series(adm, b_col, base_date, b_grp, b_val, 28, "mean")
     parts["B"] = _trend_part("B", "新入院患者数", bs, daily_na_tgt,
-                             f"目標{daily_na_tgt:g}" if daily_na_tgt else "", "件/日",
-                             _ach_badge(na, na_tgt))
+                             f"目標{daily_na_tgt:g}" if daily_na_tgt else "", "人/日",
+                             _ach_badge(na, na_tgt_adj))
 
     # C: 手術（外科系診療科のみ）。公開版 dept.html と統一＝週次合計(件/週)の28日移動平均、
     #    目標線は週次目標そのもの（flat・複数週にまたがる基準線なので暦補正しない）。
@@ -1143,6 +1148,19 @@ def _ok(actual, target):
     return actual >= target
 
 
+def _nadm_tgt_txt(na_tgt, na_tgt_adj, base_date) -> str:
+    """★F3: 新入院KPIバッジの目標表示。生目標と補正後目標が異なる週（祝日等で窓内
+    営業日≠5）だけ両方を併記し、同じ週は従来どおり1本のまま出す。"""
+    if not na_tgt:
+        return "目標未設定"
+    if na_tgt_adj is None or round(na_tgt_adj, 1) == round(na_tgt, 1):
+        return f"目標 {na_tgt:g}/週"
+    biz_days = (operational_days_between(base_date - pd.Timedelta(days=6), base_date)
+               if base_date is not None else None)
+    biz_txt = f"（営業日{biz_days}/5）" if biz_days is not None else ""
+    return f"目標 {na_tgt:g}人／今週の暦なら {na_tgt_adj:g}人{biz_txt}"
+
+
 def _kpi_band(type_key, entity, name, code, dd, r7_inp, r7_nadm, r7_surg,
               targets, surg_targets, profit_series, retention, total_ret_pct,
               base_date=None) -> list:
@@ -1154,12 +1172,15 @@ def _kpi_band(type_key, entity, name, code, dd, r7_inp, r7_nadm, r7_surg,
     inp_tgt = targets.get("inpatient", {}).get(tgt_axis, {}).get(code)
     na = r7_nadm[by].get(code)
     na_tgt = targets.get("new_admission", {}).get(tgt_axis, {}).get(code)
+    # ★F3是正: 直近7日累計 vs 週次目標は単週の達成率比較なので、手術(C)と同じ営業日
+    # 期待値の割引を適用する（達成バッジ・表示目標とも同じ調整後目標で一貫させる）。
+    na_tgt_adj = adjusted_weekly_target(na_tgt, base_date) if base_date is not None else na_tgt
     ret_pct = round(retention * 100, 1) if retention is not None else None
 
     inp_kpi = lambda lead: _kpi("在院患者数", "直近7日平均", _fmt(r7, 1), "人", lead=lead,
                                 tgt=f"目標 {inp_tgt:g}" if inp_tgt else "目標未設定", ok=_ok(r7, inp_tgt))
-    nadm_kpi = _kpi("新入院", "直近7日累計", _fmt(na), "件",
-                    tgt=f"目標 {na_tgt:g}/週" if na_tgt else "目標未設定", ok=_ok(na, na_tgt))
+    nadm_kpi = _kpi("新入院", "直近7日累計", _fmt(na), "人",
+                    tgt=_nadm_tgt_txt(na_tgt, na_tgt_adj, base_date), ok=_ok(na, na_tgt_adj))
     ret_kpi = _kpi("週末 在院維持率", "土日/平日", _fmt(ret_pct, 1), "%",
                    tgt=f"全体 {total_ret_pct:g}%" if total_ret_pct else None)
 
@@ -1286,7 +1307,10 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
             tk0 = ("ward" if entity == "ward"
                    else "surgical" if name0 in SURGERY_EVAL_DEPTS else "internal")
             na0 = r7_nadm[by_gap].get(code0)
-            na_tgt0 = targets.get("new_admission", {}).get(tgt_axis_gap, {}).get(code0)
+            # ★F3是正: 新入院の週目標も全麻(sv_tgt0)と同じ営業日期待値の割引を適用する
+            # （量子化タグ na_level0・topic0 選定のすべてに単一箇所の調整で伝播させる）。
+            na_tgt0 = adjusted_weekly_target(
+                targets.get("new_admission", {}).get(tgt_axis_gap, {}).get(code0), base_date)
             sv0 = r7_surg["by_dept"].get(name0, 0) if tk0 == "surgical" else None
             # P1暦是正: 週目標は窓内(直近7暦日)の実際の営業日数/5で割り引く（triage.py
             # score_departments と同じ調整＝直近7日累計 vs 週次目標の比較箇所すべてに統一）。
@@ -1381,7 +1405,11 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
             # 内科系・病棟は 病床平準化／新入院 のうち目標未達が大きい方を選ぶ
             # （病床管理一辺倒にしない）。
             na_gap = r7_nadm[by_gap].get(code)
-            na_tgt_gap = targets.get("new_admission", {}).get(tgt_axis_gap, {}).get(code)
+            # ★F3是正: 新入院の週目標も全麻(surg_tgt_gap)と同じ営業日期待値の割引を適用する。
+            # 以降のトピック選定・水準×傾向・LLM一手生成（narrate_admission_action）は
+            # すべてこの na_tgt_gap を参照するため、ここ1箇所で調整すれば全箇所に伝播する。
+            na_tgt_gap = adjusted_weekly_target(
+                targets.get("new_admission", {}).get(tgt_axis_gap, {}).get(code), base_date)
             sv_gap = r7_surg["by_dept"].get(name, 0) if type_key == "surgical" else None
             # P1暦是正: 以降のトピック選定・水準×傾向・LLM一手生成（narrate_surgery_action）は
             # すべてこの surg_tgt_gap を参照するため、ここ1箇所で調整すれば全箇所に伝播する。
@@ -1806,10 +1834,10 @@ def build_hospital_overview_context(adm, surg, targets, surg_targets, profit_mon
         TARGET_INPATIENT_ALLDAY, f"目標{TARGET_INPATIENT_ALLDAY:g}", "人",
         "12週・28日移動平均", _ach_badge(kpi["inpatient_avg_7d"], TARGET_INPATIENT_ALLDAY))
 
-    # B 新入院（28日移動平均=件/日・目標=週次÷7）
+    # B 新入院（28日移動平均=人/日・目標=週次÷7）
     daily_na_tgt = round(TARGET_ADMISSION_WEEKLY / 7, 1)
     add("B", "新入院患者数", _ma_series(adm, "新入院患者数", base_date, 28, "mean"),
-        daily_na_tgt, f"目標{daily_na_tgt:g}", "件/日", "12週・28日移動平均（件/日）",
+        daily_na_tgt, f"目標{daily_na_tgt:g}", "人/日", "12週・28日移動平均（人/日）",
         _ach_badge(kpi["admission_actual_7d"], TARGET_ADMISSION_WEEKLY))
 
     # C 全麻（病院全体KPIと統一＝30営業平日移動平均・件/日）
@@ -1867,7 +1895,7 @@ def build_hospital_overview_context(adm, surg, targets, surg_targets, profit_mon
     kpis = [
         _kpi("在院患者数", "直近7日平均", _fmt(inp_v, 1), "人", lead=True,
              tgt=f"目標 {TARGET_INPATIENT_ALLDAY:g}", ok=_ok(inp_v, TARGET_INPATIENT_ALLDAY)),
-        _kpi("新入院", "直近7日累計", _fmt(kpi["admission_actual_7d"]), "件",
+        _kpi("新入院", "直近7日累計", _fmt(kpi["admission_actual_7d"]), "人",
              tgt=f"目標 {TARGET_ADMISSION_WEEKLY:g}/週",
              ok=_ok(kpi["admission_actual_7d"], TARGET_ADMISSION_WEEKLY)),
         _kpi("全身麻酔手術", "直近1週・営業日平均", _fmt(kpi["operation_daily_avg"], 1), "件/日",

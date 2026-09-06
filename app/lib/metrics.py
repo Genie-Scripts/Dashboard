@@ -353,6 +353,34 @@ def weekly_surgery(surg: pd.DataFrame, date: pd.Timestamp) -> dict:
     return {"monday": monday, "date": date, "total": total, "by_dept": by_dept}
 
 
+# ── F1: 日付ラベル・完全週ヘルパー（★P0 訴求力強化） ──
+
+def _fmt_md(d: pd.Timestamp) -> str:
+    """「9/3」形式（年なし月日）。"""
+    return f"{d.month}/{d.day}"
+
+
+def _fmt_range(start: pd.Timestamp, end: pd.Timestamp) -> str:
+    """「8/28〜9/3」形式（同一年の期間ラベル）。"""
+    return f"{_fmt_md(start)}〜{_fmt_md(end)}"
+
+
+def _fmt_range_prevyear(start: pd.Timestamp, end: pd.Timestamp) -> str:
+    """「2025/8/29〜9/4」形式（前年同期ラベル・開始日のみ年を付す）。"""
+    return f"{start.year}/{_fmt_md(start)}〜{_fmt_md(end)}"
+
+
+def _last_complete_week(date: pd.Timestamp) -> tuple:
+    """基準日以前で最新の完全週（月〜日）の(月曜, 日曜)を返す。基準日が日曜ならその週。"""
+    monday_this_week = date - timedelta(days=date.weekday())
+    if date.weekday() == 6:   # 日曜 = 今週がすでに完全週
+        last_monday = monday_this_week
+    else:
+        last_monday = monday_this_week - timedelta(days=7)
+    last_sunday = last_monday + timedelta(days=6)
+    return last_monday, last_sunday
+
+
 def rolling7_inpatient_avg(adm: pd.DataFrame, date: pd.Timestamp) -> dict:
     """直近7暦日の在院患者数日平均（診療科別・病棟別）
 
@@ -786,12 +814,27 @@ def build_dept_ranking(adm: pd.DataFrame, date: pd.Timestamp,
         data = r7["by_dept"]
         target_map = targets.get("new_admission", {}).get("dept", {})
 
+    # ★F3是正: 新入院ランキングの達成率/statusは営業日期待値で割り引いた目標を使う
+    # （全麻ランキングとの非対称=祝日週に新入院だけ不当に未達扱いになる、を解消）。
+    # 「目標」列は生の週目標のまま維持（診療科内の相対比較=peer比に使われるため）し、
+    # 「目標_adj」「biz_days」「biz_days_full」を新設して並置する。
+    from .triage import adjusted_weekly_target  # 遅延import（triage⇄metrics の循環回避）
+    biz_days = (operational_days_between(date - timedelta(days=6), date)
+               if metric != "inpatient" else None)
     rows = []
     for dept, actual in data.items():
         target = target_map.get(dept)
-        rate = achievement_rate(actual, target)
+        if metric == "inpatient":
+            rate = achievement_rate(actual, target)
+            row = {"診療科": dept, "実績": actual, "目標": target, "達成率": rate}
+        else:
+            target_adj = adjusted_weekly_target(target, date)
+            rate = achievement_rate(actual, target_adj)
+            row = {"診療科": dept, "実績": actual, "目標": target, "達成率": rate,
+                  "目標_adj": target_adj, "biz_days": biz_days, "biz_days_full": 5}
         st = status_label(rate)
-        rows.append({"診療科": dept, "実績": actual, "目標": target, "達成率": rate, "status": st})
+        row["status"] = st
+        rows.append(row)
 
     df = pd.DataFrame(rows)
     if len(df) == 0:
@@ -821,20 +864,34 @@ def build_ward_ranking(adm: pd.DataFrame, date: pd.Timestamp,
         target_map = targets.get("new_admission", {}).get("ward", {})
         beds_map = targets.get("inpatient", {}).get("ward_beds", {})
 
+    # ★F3是正: 新入院ランキング（病棟軸）も dept 版と同じ営業日期待値の割引を適用する
+    # （detail.html の「達成状況」テーブルは軸トグルで同じ表に出るため、dept/ward で
+    # 判定基準が食い違わないようにする）。
+    from .triage import adjusted_weekly_target  # 遅延import（triage⇄metrics の循環回避）
+    biz_days = (operational_days_between(date - timedelta(days=6), date)
+               if metric != "inpatient" else None)
     rows = []
     for ward_code, actual in data.items():
         if ward_code in WARD_HIDDEN:
             continue
         target = target_map.get(ward_code)
-        rate = achievement_rate(actual, target)
         beds = beds_map.get(ward_code)
         utilization = round(actual / beds * 100, 1) if beds else None
-        st = status_label(rate)
-        rows.append({
+        row = {
             "病棟コード": ward_code, "病棟名": WARD_NAMES.get(ward_code, ward_code),
-            "実績": actual, "目標": target, "病床数": beds,
-            "達成率": rate, "利用率": utilization, "status": st,
-        })
+            "実績": actual, "目標": target, "病床数": beds, "利用率": utilization,
+        }
+        if metric == "inpatient":
+            rate = achievement_rate(actual, target)
+        else:
+            target_adj = adjusted_weekly_target(target, date)
+            rate = achievement_rate(actual, target_adj)
+            row["目標_adj"] = target_adj
+            row["biz_days"] = biz_days
+            row["biz_days_full"] = 5
+        row["達成率"] = rate
+        row["status"] = status_label(rate)
+        rows.append(row)
 
     df = pd.DataFrame(rows)
     if len(df) == 0:
@@ -1067,12 +1124,12 @@ def build_kpi_summary(adm: pd.DataFrame, surg: pd.DataFrame,
     prev_avg_inp = round(prev_series["値"].mean(), 1) if len(prev_series) > 0 else None
 
     # 前年同期 7日平均・28日平均（在院）
-    prev_7d_end_inp = date - timedelta(days=365)
+    prev_7d_end_inp = date - timedelta(days=PREVYEAR_OFFSET_DAYS)
     prev_7d_start_inp = prev_7d_end_inp - timedelta(days=6)
     prev_7d_inp = series_inp[(series_inp["日付"] >= prev_7d_start_inp) & (series_inp["日付"] <= prev_7d_end_inp)]
     prev_avg_7d_inp = round(prev_7d_inp["値"].mean(), 1) if len(prev_7d_inp) > 0 else None
 
-    prev_28d_end_inp = date - timedelta(days=365)
+    prev_28d_end_inp = date - timedelta(days=PREVYEAR_OFFSET_DAYS)
     prev_28d_start_inp = prev_28d_end_inp - timedelta(days=27)
     prev_28d_inp = series_inp[(series_inp["日付"] >= prev_28d_start_inp) & (series_inp["日付"] <= prev_28d_end_inp)]
     prev_avg_28d_inp = round(prev_28d_inp["値"].mean(), 1) if len(prev_28d_inp) > 0 else None
@@ -1097,7 +1154,14 @@ def build_kpi_summary(adm: pd.DataFrame, surg: pd.DataFrame,
     rolling7_start = date - timedelta(days=6)
     rolling7 = series_nadm[(series_nadm["日付"] >= rolling7_start) & (series_nadm["日付"] <= date)]
     nadm_7d = int(rolling7["値"].sum())
-    nadm_7d_rate = achievement_rate(nadm_7d, TARGET_ADMISSION_WEEKLY)
+    # ★F3是正: 新入院の週目標にも全麻と同じ営業日期待値の割引（adjusted_weekly_target）
+    # を適用する（連休週に「全麻は達成・新入院は未達」の非対称が出ないようにする）。
+    # 通常週(biz=5)は恒等短絡のため判定・数値とも変化しない。生の週目標キーは維持し、
+    # 隣に _adj と biz_days/biz_days_full（=5）を追加する。
+    from .triage import adjusted_weekly_target  # 遅延import（triage⇄metrics の循環回避）
+    admission_biz_days = operational_days_between(date - timedelta(days=6), date)
+    admission_target_weekly_adj = adjusted_weekly_target(TARGET_ADMISSION_WEEKLY, date)
+    nadm_7d_rate = achievement_rate(nadm_7d, admission_target_weekly_adj)
 
     # 直近14日累計 → 7日換算（÷2）
     rolling14_nadm = series_nadm[
@@ -1125,12 +1189,12 @@ def build_kpi_summary(adm: pd.DataFrame, surg: pd.DataFrame,
     fy_rate_nadm = achievement_rate(fy_avg_nadm, TARGET_ADMISSION_WEEKLY)
 
     # 前年同期 7日/28日合計（新入院）
-    prev_nadm_7d_end = date - timedelta(days=365)
+    prev_nadm_7d_end = date - timedelta(days=PREVYEAR_OFFSET_DAYS)
     prev_nadm_7d_start = prev_nadm_7d_end - timedelta(days=6)
     prev_nadm_7d_s = series_nadm[(series_nadm["日付"] >= prev_nadm_7d_start) & (series_nadm["日付"] <= prev_nadm_7d_end)]
     prev_nadm_7d_total = int(prev_nadm_7d_s["値"].sum()) if len(prev_nadm_7d_s) > 0 else None
 
-    prev_nadm_28d_end = date - timedelta(days=365)
+    prev_nadm_28d_end = date - timedelta(days=PREVYEAR_OFFSET_DAYS)
     prev_nadm_28d_start = prev_nadm_28d_end - timedelta(days=27)
     prev_nadm_28d_s = series_nadm[(series_nadm["日付"] >= prev_nadm_28d_start) & (series_nadm["日付"] <= prev_nadm_28d_end)]
     prev_nadm_28d_total = int(prev_nadm_28d_s["値"].sum()) if len(prev_nadm_28d_s) > 0 else None
@@ -1140,9 +1204,9 @@ def build_kpi_summary(adm: pd.DataFrame, surg: pd.DataFrame,
     prev_fy_weeks_nadm = max(((prev_fy_end - prev_fy_start).days + 1) / 7, 1)
     prev_fy_avg_nadm = round(prev_fy_nadm_s["値"].sum() / prev_fy_weeks_nadm, 1) if len(prev_fy_nadm_s) > 0 else None
 
-    cutoff_365 = date - timedelta(days=364)
-    series_365 = series_nadm[(series_nadm["日付"] >= cutoff_365) & (series_nadm["日付"] <= date)]
-    prev_avg_nadm = round(series_365["値"].sum() / max(len(series_365) / 7, 1), 1) if len(series_365) > 0 else None
+    cutoff_364 = date - timedelta(days=364)
+    series_364 = series_nadm[(series_nadm["日付"] >= cutoff_364) & (series_nadm["日付"] <= date)]
+    prev_avg_nadm = round(series_364["値"].sum() / max(len(series_364) / 7, 1), 1) if len(series_364) > 0 else None
 
     # ── 手術（病院全体=営業平日基準）──
     ga_biz = ga_rolling_biz_avg(surg, date, window=7)
@@ -1153,17 +1217,35 @@ def build_kpi_summary(adm: pd.DataFrame, surg: pd.DataFrame,
     # 4週平日平均: 直近5週(35日)から直近7日を除いた期間の平日全麻平均
     op_4w_biz_avg = _ga_biz_avg_in_range(surg, date - timedelta(days=34), date - timedelta(days=7))
     op_4w_prev_avg = _ga_biz_avg_in_range(surg,
-                                           date - timedelta(days=34 + 365),
-                                           date - timedelta(days=7 + 365))
+                                           date - timedelta(days=34 + PREVYEAR_OFFSET_DAYS),
+                                           date - timedelta(days=7 + PREVYEAR_OFFSET_DAYS))
 
     # 前年同期 週間合計
-    prev_yr_date = date - timedelta(days=365)
+    prev_yr_date = date - timedelta(days=PREVYEAR_OFFSET_DAYS)
     prev_yr_monday = prev_yr_date - timedelta(days=prev_yr_date.weekday())
     prev_wk_ga = surg[(surg["手術実施日"] >= prev_yr_monday) & (surg["手術実施日"] <= prev_yr_date) & surg["全麻"]]
     op_prev_week_total = len(prev_wk_ga)
 
     # 前年度 FY平日平均（手術）
     op_fy_prev_avg = _ga_biz_avg_in_range(surg, prev_fy_start, prev_fy_end)
+
+    # ── F1是正: 全麻「直近7日合計」の真の直近7暦日（date-6..date）と、
+    # その364日前の同区間（曜日を揃えた前年同期）を別途算出する（★P0 訴求力強化）。
+    # 旧 operation_week_total は月〜基準日の部分週のまま「今週ここまで」用に残す。
+    r7_surg = rolling7_surgery(surg, date)
+    op_7d_total = r7_surg["total"]
+    op_7d_range = _fmt_range(r7_surg["start"], date)
+    op_7d_prev_date = date - timedelta(days=PREVYEAR_OFFSET_DAYS)
+    r7_surg_prev = rolling7_surgery(surg, op_7d_prev_date)
+    op_7d_prev_total = r7_surg_prev["total"]
+    op_7d_prev_range = _fmt_range_prevyear(r7_surg_prev["start"], op_7d_prev_date)
+
+    # 先週の確定（月〜日の直近完全週）。基準日が日曜ならその週。
+    last_week_monday, last_week_sunday = _last_complete_week(date)
+    last_week_ga = surg[(surg["手術実施日"] >= last_week_monday) &
+                        (surg["手術実施日"] <= last_week_sunday) & surg["全麻"]]
+    op_last_week_total = len(last_week_ga)
+    op_last_week_range = _fmt_range(last_week_monday, last_week_sunday)
 
     # ── トレンド方向（先週比±5%で判定）──
     def _trend(curr, prev):
@@ -1244,7 +1326,10 @@ def build_kpi_summary(adm: pd.DataFrame, surg: pd.DataFrame,
         "admission_actual_14d_weekly": nadm_14d_weekly,  # 14日÷2 (7日換算)
         "admission_prior_range_weekly": nadm_prior_range_weekly,  # days 15-42の7日換算÷4
         "admission_actual_28d": nadm_28d,
-        "admission_target_weekly": TARGET_ADMISSION_WEEKLY,
+        "admission_target_weekly": TARGET_ADMISSION_WEEKLY,   # 生の週目標（既存キー・維持）
+        "admission_target_weekly_adj": admission_target_weekly_adj,   # ★F3: 営業日期待値
+        "admission_biz_days": admission_biz_days,
+        "admission_biz_days_full": 5,
         "admission_rate_7d": nadm_7d_rate,
         "admission_fy_avg": fy_avg_nadm,
         "admission_fy_rate": fy_rate_nadm,
@@ -1252,7 +1337,7 @@ def build_kpi_summary(adm: pd.DataFrame, surg: pd.DataFrame,
         "admission_prev_7d_total": prev_nadm_7d_total,
         "admission_prev_28d_total": prev_nadm_28d_total,
         "admission_prev_fy_avg": prev_fy_avg_nadm,
-        "admission_gap": round(nadm_7d - TARGET_ADMISSION_WEEKLY, 1),
+        "admission_gap": round(nadm_7d - admission_target_weekly_adj, 1),
         "admission_daily_actual": nadm["total_new"],
         "admission_trend": trend_adm,
         "admission_status": status_display(nadm_7d_rate),
@@ -1261,7 +1346,13 @@ def build_kpi_summary(adm: pd.DataFrame, surg: pd.DataFrame,
         "operation_daily_avg": ga_biz["avg"],
         "operation_target": TARGET_GA_DAILY,
         "operation_rate": operation_rate,
-        "operation_week_total": wk_surg["total"],
+        "operation_week_total": wk_surg["total"],  # 月〜基準日の部分週（「今週ここまで」用に維持）
+        "operation_7d_total": op_7d_total,          # ★F1: 真の直近7暦日(date-6..date)合計
+        "operation_7d_prev_total": op_7d_prev_total,
+        "operation_7d_range": op_7d_range,
+        "operation_7d_prev_range": op_7d_prev_range,
+        "operation_last_week_total": op_last_week_total,   # 先週の確定（月〜日）
+        "operation_last_week_range": op_last_week_range,
         "operation_fy_avg": ga_biz["fy_biz_avg"],
         "operation_4w_biz_avg": op_4w_biz_avg,
         "operation_gap": round((ga_biz["avg"] or 0) - TARGET_GA_DAILY, 1),

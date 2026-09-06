@@ -62,7 +62,8 @@ _GOLDEN = [
            "delta": None,
            "ai_body": "ADM::呼吸器内科",
            "ai_action": "ADM-ACT::呼吸器内科",
-           "nadm_line": "新入院：直近7日 5件／週目標20（25%）。28日線は—／あと約15件/週で目標"}},
+           # ★F5是正: 新入院の単位は件→人（全麻=件は変更なし）
+           "nadm_line": "新入院：直近7日 5人／週目標20（25%）。28日線は—／あと約15人/週で目標"}},
  {"axis": "dept", "type_key": "surgical", "order": 2, "unit": "整形外科",
   "total_retention_pct": 80.0,
   "charts": [{"kind": "A", "priority": 1}],

@@ -275,10 +275,10 @@ class TestNadmHighlight(unittest.TestCase):
     def test_gap_phrases(self):
         from app.lib.dept_report import _nadm_highlight
         line = _nadm_highlight(20, 25, {"cur": [20.0 / 7] * 40})
-        self.assertIn("あと約5件/週で目標", line)
+        self.assertIn("あと約5人/週で目標", line)   # ★F5是正: 新入院の単位は件→人
         self.assertIn("週目標25", line)
         line2 = _nadm_highlight(30, 25, None)
-        self.assertIn("目標を5件/週上回る", line2)
+        self.assertIn("目標を5人/週上回る", line2)
         self.assertIn("ほぼ目標どおり", _nadm_highlight(25, 25, None))
 
     def test_no_target_returns_none(self):
