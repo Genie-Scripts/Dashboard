@@ -123,9 +123,9 @@ def build_html(ctx) -> str:
     t_inp = hs.render_trend_svg(t["inpatient"], TARGET_INPATIENT_ALLDAY, f"目標{TARGET_INPATIENT_ALLDAY:.0f}",
                                 "人", "在院患者数（12週・7日移動平均）")
     t_adm = hs.render_trend_svg(t["admission"], TARGET_ADMISSION_WEEKLY, f"目標{TARGET_ADMISSION_WEEKLY:.0f}",
-                                "人/週", "新入院（12週・週次ラン＝直近7日合計）", color="#3d5a80")
+                                "人/週", "新入院（12週・週合計）")
     t_op = hs.render_trend_svg(t["operation"], TARGET_GA_DAILY, f"目標{TARGET_GA_DAILY:.0f}",
-                               "件/日", "全身麻酔手術（12週・30営業平日移動平均）", color="#2a9d8f")
+                               "件/日", "全身麻酔手術（12週・30営業平日移動平均）")
     ward = hs.render_ward_table(ctx["ward_rows"])
     dept = hs.render_dept_table(ctx["dept_rows"])
     legend = hs.render_legend()

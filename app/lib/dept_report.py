@@ -96,6 +96,46 @@ TYPE_ORDER = {
     "internal": ["A", "D", "B", "E"],
     "ward":     ["A", "B", "E"],
 }
+# B10（裁定4: 図は3枚）: 「この期間の一手」が選んだトピックに対応するチャート種別。
+# per-unit・病院全体サマリの両方の選定ロジックで共有する（値は同一のため定数を分けない）。
+_TOPIC_CHART_KIND = {"admission": "B", "surgery": "C", "leveling": "E"}
+
+
+def _pick_top3_charts(ordered: list, topic: Optional[str]) -> list:
+    """B10（裁定4: 図は3枚。per-unit=surgical/internal/ward向け）。
+
+    ①ヒーロー(先頭・種別ごとの北極星指標)は必ず残す②その回の「一手」が選んだトピックに
+    対応する図（_TOPIC_CHART_KIND）があれば必ず残す③残り1枠は元の優先順(TYPE_ORDER)で
+    最も高いもの。3枚以下（ward等）ならそのまま返す＝絞り込まない。
+    """
+    if len(ordered) <= 3 or not ordered:
+        return ordered
+    hero = ordered[0]
+    topic_chart = next((p for p in ordered[1:] if p["kind"] == _TOPIC_CHART_KIND.get(topic)), None)
+    picked = [hero] + ([topic_chart] if topic_chart else [])
+    for p in ordered[1:]:
+        if len(picked) >= 3:
+            break
+        if p is not topic_chart:
+            picked.append(p)
+    return picked
+
+
+def _pick_hospital_charts(charts: list, h_topic: str) -> list:
+    """B10（裁定4: 図は3枚。病院全体サマリ向け）。
+
+    ①ヒーロー(A在院)②D粗利（財務は週替わりのトピックに関係なく定点観測するため必須固定）
+    ③一手のトピック対応図、の3枚（対応図が無ければ2枚のまま）。kind の重複は除去する。
+    """
+    by_kind = {c["kind"]: c for c in charts}
+    hero = by_kind.get("A")
+    must_have_d = by_kind.get("D")
+    topic_chart = by_kind.get(_TOPIC_CHART_KIND.get(h_topic))
+    picked = [c for c in [hero, must_have_d, topic_chart] if c is not None]
+    seen: set = set()
+    return [c for c in picked if not (c["kind"] in seen or seen.add(c["kind"]))]
+
+
 TYPE_LABEL = {"surgical": "外科系・診療科版", "internal": "内科系・診療科版", "ward": "病棟版"}
 TYPE_SUBTITLE = {"surgical": "診療科パフォーマンスレポート",
                  "internal": "診療科パフォーマンスレポート",
@@ -110,13 +150,17 @@ TYPE_PRIO_TXT = {
 # ════════════════════════════════════════════════════════════
 # 曜日プロファイル SVG（renderDowProfile の Python 静的版）
 # ════════════════════════════════════════════════════════════
-def _render_dow_svg(discharge: list, admission: list, census: list) -> str:
+def _render_dow_svg(discharge: list, admission: list, census: list, height: int = 270) -> str:
     """退院(橙)・入院(紺)の棒＋在院指数(緑・平日平均=100)の谷ラインを SVG 文字列で返す。
 
     discharge / admission / census は曜日別[月..日]の日平均（dow_unit_detail の w8）。
     左軸=人/日（データに応じてnice上限）、右軸=在院指数（renderDowProfile と同じ範囲ロジック）。
+    height: B10是正（2026-09-06）。旧2列レイアウトでは半幅(≈313px)表示だったため
+    viewBox比270のままでも実高さ≈117pxで収まっていたが、全幅化(≈611px)後は同じ270だと
+    ≈229pxまで伸びてA4縦1枚からの溢れの主因になった。render_trend_svgの非ヒーロー段
+    (height=150)と揃え、呼び出し側からデフォルトを上書きする。
     """
-    W, H, L, R, T, B = 720, 270, 46, 672, 14, 232
+    W, H, L, R, T, B = 720, height, 46, 672, 14, height - 38
     n = 7
     bars = [v for v in (list(discharge) + list(admission)) if v is not None]
     mx = max(bars) if bars else 1.0
@@ -1031,7 +1075,9 @@ def _trend_part(kind, name, series, ref, ref_label, unit, badge, note="") -> Opt
 def _dow_part(dd) -> Optional[dict]:
     if not dd:
         return None
-    svg = _render_dow_svg(dd["discharge"]["w8"], dd["admission"]["w8"], dd["census"]["w8"])
+    # B10: E は TYPE_ORDER 上ヒーローになることが無いため常に非ヒーロー高さ(150)で描画。
+    svg = _render_dow_svg(dd["discharge"]["w8"], dd["admission"]["w8"], dd["census"]["w8"],
+                         height=150)
     return {"kind": "E", "name": "曜日プロファイル", "badge": None,
             "note": "", "is_dow": True, "svg": svg}
 
@@ -1638,14 +1684,16 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
 
             # 優先順にチャートを並べ、利用可能なものだけ採用
             ordered = [parts[k] for k in TYPE_ORDER[type_key] if k in parts and parts[k]]
+            # B10（裁定4: 図は3枚）: 3枚超なら選定（ヒーロー＋一手トピック対応図＋優先順上位）
+            ordered = _pick_top3_charts(ordered, topic)
             if not ordered:
                 continue
-            # ヒーロー(先頭)=高さ256、以降=232 で SVG 描画
+            # ヒーロー(先頭)=高さ190、以降=150 で SVG 描画（B10: 3枚とも全幅表示）
             for i, p in enumerate(ordered):
                 if not p["is_dow"]:
                     p["svg"] = render_trend_svg(p["_data"], p["_ref"], p["_ref_label"],
                                                 p["_unit"], p["_win"], color=p["_color"],
-                                                height=256 if i == 0 else 232,
+                                                height=190 if i == 0 else 150,
                                                 proj=p["_data"].get("proj"))
                 p["priority"] = i + 1
 
@@ -1873,21 +1921,13 @@ def build_hospital_overview_context(adm, surg, targets, surg_targets, profit_mon
         add("D", "粗利", ps, ps["ref"], f"目標{ps['ref']:g}" if ps["ref"] else "",
             "百万円", "12か月・月次（確報＋当月見込み）", badge, note=note)
 
-    # E 曜日プロファイル（病院全体）
+    # E 曜日プロファイル（病院全体）。B10: E はヒーローにならないため height=150 固定。
     dd = _hospital_dow(adm, base_date)
     if any(dd["discharge"]) or any(dd["admission"]):
         charts.append({"kind": "E", "name": "曜日プロファイル",
                        "badge": None, "note": "", "is_dow": True,
-                       "svg": _render_dow_svg(dd["discharge"], dd["admission"], dd["census"])})
-
-    # SVG 描画（ヒーロー=256・以降=232）
-    for i, p in enumerate(charts):
-        if not p["is_dow"]:
-            p["svg"] = render_trend_svg(p["_data"], p["_ref"], p["_ref_label"],
-                                        p["_unit"], p["_win"], color=p["_color"],
-                                        height=256 if i == 0 else 232,
-                                        proj=p["_data"].get("proj"))
-        p["priority"] = i + 1
+                       "svg": _render_dow_svg(dd["discharge"], dd["admission"], dd["census"],
+                                             height=150)})
 
     # 週末在院維持率（病院全体・病棟ベース＝ hospital_summary.build_hero_text と同一定義）
     wr = weekend_census_retention(adm, base_date, entity="ward")
@@ -1945,6 +1985,20 @@ def build_hospital_overview_context(adm, surg, targets, surg_targets, profit_mon
     }
     h_topic = _select_hospital_topic(topic_scores)
     h_primary_state = topic_states.get(h_topic) or leveling_state or "目標を下回っている"
+
+    # B10（裁定4: 図は3枚）: ①ヒーロー(A在院)②D粗利は必須固定③一手のトピック対応図。
+    # by_kind は上で構築済みの「全種別」辞書（A〜E）＝トピック判定用のフル系列は
+    # 選定後も _trend_of_kind 等で既に使い終えているため、ここで charts 自体を絞り込む。
+    charts = _pick_hospital_charts(charts, h_topic)
+
+    # SVG 描画（ヒーロー=190・以降=150。B10: 3枚とも全幅表示）
+    for i, p in enumerate(charts):
+        if not p["is_dow"]:
+            p["svg"] = render_trend_svg(p["_data"], p["_ref"], p["_ref_label"],
+                                        p["_unit"], p["_win"], color=p["_color"],
+                                        height=190 if i == 0 else 150,
+                                        proj=p["_data"].get("proj"))
+        p["priority"] = i + 1
 
     # ① 差分ナラティブ（病院全体）: 3トピックの達成度バケットを状態として保存し、
     # アンカー（約4週前）との遷移を主トピックについてのみ言及（単一ユニットと同じ保守則）。

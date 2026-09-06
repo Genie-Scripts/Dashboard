@@ -25,6 +25,7 @@ from .config import (
 # ── 配色（dashboard と一致）──
 INK, SUB, LINE, PREV = "#1f2d3d", "#5a6b7b", "#2b6cb0", "#b9c2cd"
 OK_FILL, WR_FILL = "rgba(14,122,84,0.13)", "rgba(180,83,9,0.13)"  # 達成ゾーン塗り（目標超=緑/目標割=橙）
+WR_HATCH_ID = "wrHatch"  # B11: 白黒印刷でも達成/未達を判別できるよう未達側に斜線ハッチを重ねる
 WEEKS = 12
 PREVYEAR_DAYS = 364   # 52週=曜日合わせ
 
@@ -377,7 +378,11 @@ def render_trend_svg(data: dict, ref: float, ref_label: str, unit: str,
     def X(i): return L + (R - L) * (i / (n - 1)) if n > 1 else (L + R) / 2
     def Y(v): return B - (B - T) * ((v - y0) / (y1 - y0))
 
-    el = [f'<text x="{L}" y="14" font-size="12" font-weight="800" fill="{INK}">{window_label}'
+    # B11: 白黒生存性。<defs>はSVG冒頭に1回だけ（未達ゾーンの斜線ハッチパターン）。
+    el = [f'<defs><pattern id="{WR_HATCH_ID}" width="6" height="6" patternTransform="rotate(45)" '
+          f'patternUnits="userSpaceOnUse"><rect width="6" height="6" fill="{WR_FILL}"/>'
+          f'<line x1="0" y1="0" x2="0" y2="6" stroke="{SUB}" stroke-width="1.4" opacity="0.35"/></pattern></defs>',
+          f'<text x="{L}" y="14" font-size="12" font-weight="800" fill="{INK}">{window_label}'
           f'<tspan font-size="10.5" font-weight="400" fill="{SUB}">（{unit}）</tspan></text>']
     for g in range(3):
         v = y0 + (y1 - y0) * (g + 0.5) / 3
@@ -385,12 +390,13 @@ def render_trend_svg(data: dict, ref: float, ref_label: str, unit: str,
         el.append(f'<line x1="{L}" y1="{yy:.1f}" x2="{R}" y2="{yy:.1f}" stroke="#eef2f7"/>')
         el.append(f'<text x="{L-7:.1f}" y="{yy+3.5:.1f}" font-size="10.5" fill="#9aa7b4" text-anchor="end">{v:.0f}</text>')
     yr = Y(ref)
-    # 達成ゾーン: cur線とref線の間を、区間ごとに 目標超=緑 / 目標割=橙 で塗る
+    # 達成ゾーン: cur線とref線の間を、区間ごとに 目標超=緑無地 / 目標割=橙ハッチ で塗る
+    # （白黒印刷でも「模様の有無」で区別できるよう、未達側だけハッチパターンに差し替える）
     for i in range(n - 1):
         a, b = cur[i], cur[i + 1]
         if a is None or b is None:
             continue
-        fill = OK_FILL if (a + b) / 2 >= ref else WR_FILL
+        fill = OK_FILL if (a + b) / 2 >= ref else f"url(#{WR_HATCH_ID})"
         el.append(f'<polygon points="{X(i):.1f},{Y(a):.1f} {X(i+1):.1f},{Y(b):.1f} '
                   f'{X(i+1):.1f},{yr:.1f} {X(i):.1f},{yr:.1f}" fill="{fill}"/>')
 

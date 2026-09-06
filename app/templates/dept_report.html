@@ -54,6 +54,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP"
 /* 達成アピールは目標文字でなく「実績値の色」＋「左枠ステータス帯」で表現 */
 .kpi .k-val.ok{color:var(--ok)}
 .kpi .k-val.wr{color:var(--wr)}
+/* B11: 白黒印刷でも達成/接近を記号（▲/―）で判別できるようにする（色のみに依存しない） */
+.k-shape{margin-right:2px; font-weight:900}
 .kpi.ach-ok{border-left:4px solid var(--ok)}
 .kpi.ach-wr{border-left:4px solid var(--wr)}
 
@@ -64,12 +66,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP"
 .prio .tail{margin-left:auto; color:var(--mu)}
 
 .grid{display:flex; flex-direction:column; gap:9px; flex:1}
-.hero-wrap{flex:1.25; display:flex; flex-direction:column}
-.move-wrap{flex:.7; display:flex; flex-direction:column}
-.row{display:grid; grid-template-columns:1fr 1fr; gap:9px; flex:1}
 
 .card{border:1px solid var(--ln); border-radius:11px; padding:9px 11px 6px;
-  background:var(--s); display:flex; flex-direction:column}
+  background:var(--s); display:flex; flex-direction:column; flex:1}
 .card.hero{border-color:#cdd8e6}
 .card-h{display:flex; align-items:center; gap:6px; margin-bottom:2px}
 .card-h .pr{font-size:8px; font-weight:900; color:#fff; background:var(--in);
@@ -383,7 +382,7 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
       <div class="kpi{% if k.lead %} lead{% endif %}{% if k.ok %} ach-ok{% elif k.ok is not none %} ach-wr{% endif %}">
         <div class="k-lbl">{% if k.lead %}<span class="k-lead">最優先</span>{% endif %}{{ k.label }} <span>{{ k.sub }}</span></div>
         <div class="k-row">
-          <span class="k-val{% if k.ok %} ok{% elif k.ok is not none %} wr{% endif %}">{{ k.val }}{% if k.unit %}<small>{{ k.unit }}</small>{% endif %}</span>
+          <span class="k-val{% if k.ok %} ok{% elif k.ok is not none %} wr{% endif %}">{% if k.ok is not none %}<span class="k-shape">{{ '▲' if k.ok else '―' }}</span>{% endif %}{{ k.val }}{% if k.unit %}<small>{{ k.unit }}</small>{% endif %}</span>
           {% if k.tgt %}<span class="k-tgt">{{ k.tgt }}</span>{% endif %}
         </div>
       </div>
@@ -396,15 +395,8 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
     </div>
 
     <div class="grid">
-      <div class="hero-wrap">{{ card(s.charts[0], true) }}</div>
-      {% set rest = s.charts[1:] %}
-      {% for i in range(0, rest|length, 2) %}
-        <div class="row">
-          {{ card(rest[i]) }}
-          {% if i + 1 < rest|length %}{{ card(rest[i+1]) }}{% elif s.move %}{{ movecard(s.move, s) }}{% endif %}
-        </div>
-      {% endfor %}
-      {% if rest|length % 2 == 0 and s.move %}<div class="move-wrap">{{ movecard(s.move, s) }}</div>{% endif %}
+      {% if s.move %}{{ movecard(s.move, s) }}{% endif %}
+      {% for c in s.charts %}{{ card(c, loop.first) }}{% endfor %}
     </div>
 
     <div class="chartkey">
