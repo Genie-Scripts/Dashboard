@@ -175,5 +175,95 @@ class FmtImprovementTxtTest(unittest.TestCase):
         self.assertEqual(bwd._fmt_improvement_txt(imp), "該当なし")
 
 
+class RelabelDiffsForCompleteWeekTest(unittest.TestCase):
+    """B12: weekly_story.compute_wow_diffs() 由来の「直近7日」表記を「対象週」へ置換
+    （値は変えず文言のみ・実走で「直近7日」がHTML/txtに漏れる欠陥の是正）。"""
+
+    def test_replaces_all_occurrences(self):
+        diffs = [
+            "手術室稼働率（直近7日）: 72.3%→75.1%（+2.8pt）",
+            "新入院（直近7日累計）: 370人 → 364人（-6人、-2%）",
+            "緊急入院（直近7日累計）: 41件 → 38件（-3件、-7%）",
+        ]
+        out = bwd.relabel_diffs_for_complete_week(diffs)
+        self.assertEqual(out, [
+            "手術室稼働率（対象週）: 72.3%→75.1%（+2.8pt）",
+            "新入院（対象週累計）: 370人 → 364人（-6人、-2%）",
+            "緊急入院（対象週累計）: 41件 → 38件（-3件、-7%）",
+        ])
+        for d in out:
+            self.assertNotIn("直近7日", d)
+
+    def test_leaves_unrelated_text_untouched(self):
+        diffs = ["在院患者数（7日平均）: 554.7人 → 548.2人（+6.5人）"]
+        self.assertEqual(bwd.relabel_diffs_for_complete_week(diffs), diffs)
+
+    def test_empty_list(self):
+        self.assertEqual(bwd.relabel_diffs_for_complete_week([]), [])
+
+
+class ResolveBaseDateTest(unittest.TestCase):
+    """B12: --base-date 未指定時は直近日曜（完全週の終端）へ丸める。明示指定時はそのまま。"""
+
+    def test_unspecified_rounds_to_complete_week_end(self):
+        # データ最終日=火曜(2026-09-08) → 直近日曜(2026-09-06)へ丸める
+        resolved = bwd.resolve_base_date(None, pd.Timestamp("2026-09-08"))
+        self.assertEqual(resolved, pd.Timestamp("2026-09-06"))
+
+    def test_explicit_base_date_is_not_rounded(self):
+        # --base-date で火曜を明示指定 → 丸めずそのまま
+        resolved = bwd.resolve_base_date("2026-09-08", pd.Timestamp("2026-09-08"))
+        self.assertEqual(resolved, pd.Timestamp("2026-09-08"))
+
+
+class BuildPeriodHeadingTest(unittest.TestCase):
+    """B12: 見出し「対象週 8/24(月)〜8/30(日)｜比較: その前の週 8/17〜8/23」。「直近7日」は出ない。"""
+
+    def test_heading_format(self):
+        heading = bwd.build_period_heading(pd.Timestamp("2026-08-24"), pd.Timestamp("2026-08-30"))
+        self.assertEqual(heading, "対象週 8/24(月)〜8/30(日)｜比較: その前の週 8/17〜8/23")
+
+    def test_no_rolling7_wording(self):
+        heading = bwd.build_period_heading(pd.Timestamp("2026-08-24"), pd.Timestamp("2026-08-30"))
+        self.assertNotIn("直近7日", heading)
+
+
+class BuildPosterKpisTest(unittest.TestCase):
+    """B13: 掲示用の大きな数字3枚（在院・新入院・全麻）。全麻は§3共通規約どおり単位=件。"""
+
+    def test_three_tiles_in_order(self):
+        kpi_now = _kpi()
+        kpi_now["operation_7d_total"] = 145
+        rows = bwd.build_kpi_rows(kpi_now, _kpi(), _snap(), _snap())
+        tiles = bwd.build_poster_kpis(kpi_now, rows, pd.Timestamp("2026-08-30"))
+        self.assertEqual([t["label"] for t in tiles], ["在院", "新入院", "全麻"])
+
+    def test_operation_tile_unit_is_count_not_rate(self):
+        kpi_now = _kpi()
+        kpi_now["operation_7d_total"] = 145
+        rows = bwd.build_kpi_rows(kpi_now, _kpi(), _snap(), _snap())
+        tiles = bwd.build_poster_kpis(kpi_now, rows, pd.Timestamp("2026-08-30"))
+        op_tile = tiles[2]
+        self.assertEqual(op_tile["unit"], "件")
+        self.assertEqual(op_tile["now_s"], "145")
+
+    def test_inpatient_and_admission_tiles_reuse_kpi_rows(self):
+        kpi_now = _kpi(inp_avg7d=554.7, adm_actual7d=370)
+        kpi_now["operation_7d_total"] = 145
+        rows = bwd.build_kpi_rows(kpi_now, _kpi(), _snap(), _snap())
+        tiles = bwd.build_poster_kpis(kpi_now, rows, pd.Timestamp("2026-08-30"))
+        self.assertEqual(tiles[0]["now_s"], "554.7")
+        self.assertEqual(tiles[0]["unit"], "人")
+        self.assertEqual(tiles[1]["now_s"], "370")
+        self.assertEqual(tiles[1]["unit"], "人")
+
+    def test_missing_operation_total_degrades_to_dash(self):
+        kpi_now = _kpi()  # operation_7d_total 未設定
+        rows = bwd.build_kpi_rows(kpi_now, _kpi(), _snap(), _snap())
+        tiles = bwd.build_poster_kpis(kpi_now, rows, pd.Timestamp("2026-08-30"))
+        self.assertEqual(tiles[2]["now_s"], "—")
+        self.assertEqual(tiles[2]["status_shape"], "—")
+
+
 if __name__ == "__main__":
     unittest.main()

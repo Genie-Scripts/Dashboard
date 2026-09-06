@@ -15,6 +15,9 @@
 
 PDF化は headless Chrome の --print-to-pdf。SVG/レイアウトは Python 側で完成済みなので
 JS 実行は不要（タイミング問題なし）。
+
+--base-date 未指定時はデータ最終日を直近日曜（完全週=月〜日の終端）へ丸める
+（B12: PDF・掲示の完全週固定。明示指定時は丸めない）。
 """
 import argparse
 import json
@@ -32,6 +35,7 @@ try:
     from app.lib.config import REPORT_HOSPITAL_NAME
 except ImportError:
     REPORT_HOSPITAL_NAME = ""
+from app.lib.calendar_preview import complete_week_end
 from app.lib.dept_report import build_dept_report_contexts
 
 AXIS_DIR = {"dept": "診療科", "ward": "病棟"}
@@ -113,6 +117,18 @@ def _strip_serve_argv(argv: list) -> list:
             continue
         out.append(a)
     return out
+
+
+def resolve_base_date(explicit_base_date, base_date):
+    """B12: --base-date 未指定時は直近日曜（完全週の終端）へ丸める。
+
+    explicit_base_date は argparse の生値（未指定なら None）。base_date は
+    load_and_preprocess が解決済みの値（未指定時はデータ最終日）。明示指定時は
+    そのまま返す（丸めない）。
+    """
+    if explicit_base_date is not None:
+        return base_date
+    return complete_week_end(base_date)
 
 
 def _pin_base_date(argv: list, date_str: str) -> list:
@@ -368,6 +384,10 @@ def main():
     from generate_html import load_and_preprocess
     adm, surg, targets, surg_targets, profit_monthly, base_date, profit_breakdown = \
         load_and_preprocess(args.data_dir, args.base_date, no_validate=False)
+    resolved_base_date = resolve_base_date(args.base_date, base_date)
+    if resolved_base_date != base_date:
+        log(f"--base-date 未指定のため直近日曜（{resolved_base_date:%Y-%m-%d}）へ丸めました")
+    base_date = resolved_base_date
     generated_at = datetime.now()
 
     # ── 差分ナラティブ用アンカー（約4週前の量子化状態）──

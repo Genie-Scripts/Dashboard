@@ -13,9 +13,11 @@ import unittest
 from datetime import datetime
 from pathlib import Path
 
+import pandas as pd
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from scripts.build_dept_reports import _pin_base_date, find_narr_cache_seed
+from scripts.build_dept_reports import _pin_base_date, find_narr_cache_seed, resolve_base_date
 
 
 class TestFindNarrCacheSeed(unittest.TestCase):
@@ -100,6 +102,19 @@ class TestPinBaseDate(unittest.TestCase):
     def test_noop_when_already_specified_equals_form(self):
         argv = ["--base-date=2026-05-31", "--no-ai"]
         self.assertEqual(_pin_base_date(argv, "2026-05-31"), argv)
+
+
+class TestResolveBaseDate(unittest.TestCase):
+    """B12: --base-date 未指定時は直近日曜（完全週の終端）へ丸める。明示指定時はそのまま。"""
+
+    def test_unspecified_rounds_to_complete_week_end(self):
+        # データ最終日=火曜(2026-09-08) → 直近日曜(2026-09-06)へ丸める
+        resolved = resolve_base_date(None, pd.Timestamp("2026-09-08"))
+        self.assertEqual(resolved, pd.Timestamp("2026-09-06"))
+
+    def test_explicit_base_date_is_not_rounded(self):
+        resolved = resolve_base_date("2026-09-08", pd.Timestamp("2026-09-08"))
+        self.assertEqual(resolved, pd.Timestamp("2026-09-08"))
 
 
 if __name__ == "__main__":

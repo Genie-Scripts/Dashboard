@@ -10,6 +10,9 @@ A4縦で:
 PDF化は headless Chrome --print-to-pdf（build_dept_reports を踏襲・JS不要）。
 
   python scripts/build_hospital_report.py [--base-date YYYY-MM-DD] [--keep-html]
+
+--base-date 未指定時はデータ最終日を直近日曜（完全週=月〜日の終端）へ丸める
+（B12: PDF・掲示の完全週固定。明示指定時は丸めない）。
 """
 import argparse
 import shutil
@@ -22,11 +25,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from app.lib.config import (DEFAULT_DATA_DIR, TARGET_INPATIENT_ALLDAY,
-                            TARGET_ADMISSION_WEEKLY, TARGET_GA_DAILY)
+                            TARGET_ADMISSION_WEEKLY, TARGET_GA_DAILY,
+                            fmt_jp_date, fmt_jp_range)
 try:
     from app.lib.config import REPORT_HOSPITAL_NAME
 except Exception:
     REPORT_HOSPITAL_NAME = ""
+from app.lib.calendar_preview import complete_week_end
 from app.lib import hospital_summary as hs
 
 OUT_DIR = ROOT / "output" / "comedix"
@@ -63,6 +68,27 @@ def html_to_pdf(chrome, html_path: Path, pdf_path: Path) -> bool:
     return res.returncode == 0 and pdf_path.exists()
 
 
+def resolve_base_date(explicit_base_date, base_date):
+    """B12: --base-date 未指定時は直近日曜（完全週の終端）へ丸める。
+
+    explicit_base_date は argparse の生値（未指定なら None）。base_date は
+    load_and_preprocess が解決済みの値（未指定時はデータ最終日）。明示指定時は
+    そのまま返す（丸めない）。
+    """
+    if explicit_base_date is not None:
+        return base_date
+    return complete_week_end(base_date)
+
+
+def build_period_heading(week_start, week_end) -> str:
+    """B12: 「対象週 8/24(月)〜8/30(日)｜比較: その前の週 8/17〜8/23」。
+    「直近7日」の語は使わない（正本§3・§7裁定）。"""
+    prior_start = week_start - timedelta(days=7)
+    prior_end = week_end - timedelta(days=7)
+    return (f"対象週 {fmt_jp_date(week_start)}〜{fmt_jp_date(week_end)}"
+            f"｜比較: その前の週 {fmt_jp_range(prior_start, prior_end)}")
+
+
 def _headline_banner(hl: dict) -> str:
     lvl = (hl or {}).get("level", "ok")
     bg = {"danger": "#fdf0f2", "warn": "#fef7ee", "ok": "#ecfdf5"}.get(lvl, "#f6f8fb")
@@ -85,7 +111,7 @@ def _calendar_line(cp) -> str:
 
 def build_html(ctx) -> str:
     bd = ctx["base_date"]
-    period = f"{bd - timedelta(days=6):%Y年%-m月%-d日}〜{bd:%-m月%-d日}（直近7日）"
+    period = build_period_heading(bd - timedelta(days=6), bd)
     title = REPORT_HOSPITAL_NAME or "全病院"
     kpi = ctx["kpi"]
     hero = hs.render_hero(ctx["hero"]["headline"], ctx["hero"]["body"], ctx["hero"]["chips"])
@@ -148,6 +174,10 @@ def main():
     log("データ読込・前処理中（load_and_preprocess）...")
     adm, surg, targets, surg_targets, profit_monthly, base_date, profit_breakdown = \
         load_and_preprocess(args.data_dir, args.base_date, no_validate=False)
+    resolved_base_date = resolve_base_date(args.base_date, base_date)
+    if resolved_base_date != base_date:
+        log(f"--base-date 未指定のため直近日曜（{resolved_base_date:%Y-%m-%d}）へ丸めました")
+    base_date = resolved_base_date
     ctx = hs.build_summary_context(adm, surg, targets, surg_targets, base_date,
                                    profit_monthly=profit_monthly,
                                    profit_breakdown=profit_breakdown)

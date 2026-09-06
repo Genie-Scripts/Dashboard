@@ -10,7 +10,11 @@ pull型（毎日更新の portal/detail/dept）に加え、push型の周知チ�
   python scripts/build_weekly_digest.py --base-date YYYY-MM-DD
 
 出力: output/weekly_digest/{基準日}/週次ダイジェスト_{基準日}.{html,pdf,txt}
+     ／週次掲示_{基準日}.{html,pdf}（B13: 壁掲示用・大きな数字3つ＋1文＋QRのみ）
 PDF化は headless Chrome（scripts.build_dept_reports の find_chrome/html_to_pdf を再利用）。
+
+--base-date 未指定時はデータ最終日を直近日曜（完全週=月〜日の終端）へ丸める
+（B12: PDF・掲示の完全週固定。明示指定時は丸めない）。
 """
 import argparse
 import sys
@@ -20,15 +24,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from app.lib.config import DEFAULT_DATA_DIR, PUBLIC_BASE_URL, status_display
+from app.lib.config import (DEFAULT_DATA_DIR, PUBLIC_BASE_URL, TARGET_GA_DAILY,
+                            status_display, fmt_jp_date, fmt_jp_range)
 try:
     from app.lib.config import REPORT_HOSPITAL_NAME
 except ImportError:
     REPORT_HOSPITAL_NAME = ""
+from app.lib.calendar_preview import complete_week_end
 from app.lib.metrics import build_kpi_summary, achievement_rate
 from app.lib.weekly_story import build_kpi_snapshot, compute_wow_diffs, narrate_weekly_story
 from app.lib.month_projection import build_month_projection_payload
-from app.lib.triage import score_departments, score_wards, pick_targets
+from app.lib.triage import score_departments, score_wards, pick_targets, adjusted_weekly_target
 from app.lib.qr import qr_svg_inline
 from scripts.build_dept_reports import find_chrome, html_to_pdf
 
@@ -41,6 +47,36 @@ def log(msg, lv="info"):
 # ════════════════════════════════════════
 # 純関数（テキスト整形・WoW再計算）— tests/test_weekly_digest.py の対象
 # ════════════════════════════════════════
+
+def resolve_base_date(explicit_base_date, base_date):
+    """B12: --base-date 未指定時は直近日曜（完全週の終端）へ丸める。
+
+    explicit_base_date は argparse の生値（未指定なら None）。base_date は
+    load_and_preprocess が解決済みの値（未指定時はデータ最終日）。明示指定時は
+    ユーザーが特定の日を指定しているのでそのまま返す（丸めない）。
+    """
+    if explicit_base_date is not None:
+        return base_date
+    return complete_week_end(base_date)
+
+
+def build_period_heading(week_start, week_end) -> str:
+    """B12: 「対象週 8/24(月)〜8/30(日)｜比較: その前の週 8/17〜8/23」。
+    「直近7日」「直近7日 vs 前週」の語は使わない（正本§3・§7裁定）。"""
+    prior_start = week_start - timedelta(days=7)
+    prior_end = week_end - timedelta(days=7)
+    return (f"対象週 {fmt_jp_date(week_start)}〜{fmt_jp_date(week_end)}"
+            f"｜比較: その前の週 {fmt_jp_range(prior_start, prior_end)}")
+
+
+def relabel_diffs_for_complete_week(diffs: list) -> list:
+    """B12: weekly_story.compute_wow_diffs()（本バッチの編集対象外）が生成する差分文言
+    には「（直近7日）」「（直近7日累計）」という部分週前提の語が残っている。B12丸め後は
+    その窓が丁度「対象週」（月〜日の完全週）と一致するため、weekly_story.py 側のロジックは
+    変更せず、表示直前でラベルだけ「対象週」に置き換える（値は不変・文言のみ）。
+    """
+    return [d.replace("直近7日", "対象週") for d in diffs]
+
 
 def _fmt_num(v) -> str:
     """None→「—」。整数値は小数なし、それ以外は小数1桁。"""
@@ -100,6 +136,39 @@ def build_kpi_rows(kpi_now: dict, kpi_prev: dict,
         _row("手術室稼働率", op.get("or_util_7d"), op_p.get("or_util_7d"), "%", None, None),
         _row("緊急入院", ad.get("emergency_7d"), ad_p.get("emergency_7d"), "人", None, None),
     ]
+
+
+def build_poster_kpis(kpi_now: dict, kpi_rows: list, base_date) -> list:
+    """B13: 壁掲示用の大きな数字3枚（在院・新入院・全麻）。
+
+    在院・新入院はkpi_rows（在院7日平均／新入院7日累計）をそのまま使う（B12丸め後は
+    真の直近7暦日＝対象週と一致・単位=人・目標/達成率は既存ロジックを流用）。
+    全麻はkpi_rowsの行が件/日の営業日平均のため、掲示は§3共通規約（全麻=件）に
+    合わせてoperation_7d_total（対象週の実件数）を、F3と同じ営業日期待値の割引
+    （triage.adjusted_weekly_target・triage.pyは変更せず再利用のみ）で判定し直す。
+    """
+    by_label = {r["label"]: r for r in kpi_rows}
+    tiles = []
+    for label, poster_label in (("在院7日平均", "在院"), ("新入院7日累計", "新入院")):
+        row = by_label.get(label)
+        if row is None:
+            continue
+        tiles.append({
+            "label": poster_label, "unit": row["unit"],
+            "now_s": row["now_s"], "target_s": row["target_s"],
+            "status_css": row["status"]["css"], "status_shape": row["status"]["shape"],
+        })
+
+    op_total = kpi_now.get("operation_7d_total")
+    op_target = adjusted_weekly_target(TARGET_GA_DAILY * 5, base_date)
+    op_rate = achievement_rate(op_total, op_target) if op_total is not None else None
+    op_status = status_display(op_rate)
+    tiles.append({
+        "label": "全麻", "unit": "件",
+        "now_s": _fmt_num(op_total), "target_s": _fmt_num(op_target),
+        "status_css": op_status["css"], "status_shape": op_status["shape"],
+    })
+    return tiles
 
 
 def _fmt_improvement_txt(imp: dict) -> str:
@@ -186,17 +255,22 @@ def main():
     log("データ読込・前処理中（load_and_preprocess）...")
     adm, surg, targets, surg_targets, profit_monthly, base_date, profit_breakdown = \
         load_and_preprocess(args.data_dir, args.base_date, no_validate=False)
+    resolved_base_date = resolve_base_date(args.base_date, base_date)
+    if resolved_base_date != base_date:
+        log(f"--base-date 未指定のため直近日曜（{resolved_base_date:%Y-%m-%d}）へ丸めました")
+    base_date = resolved_base_date
     generated_at = datetime.now()
 
     prior_date = base_date - timedelta(days=7)
     week_start = base_date - timedelta(days=6)
+    period_heading = build_period_heading(week_start, base_date)
 
     log(f"KPIサマリー構築中（今週={base_date:%Y-%m-%d} / 先週={prior_date:%Y-%m-%d}）...")
     kpi_now = build_kpi_summary(adm, surg, base_date, targets, surg_targets)
     kpi_prev = build_kpi_summary(adm, surg, prior_date, targets, surg_targets)
     snap_now = build_kpi_snapshot(adm, surg, kpi_now, profit_monthly, base_date)
     snap_prev = build_kpi_snapshot(adm, surg, kpi_prev, profit_monthly, prior_date)
-    diffs = compute_wow_diffs(snap_now, snap_prev)
+    diffs = relabel_diffs_for_complete_week(compute_wow_diffs(snap_now, snap_prev))
     kpi_rows = build_kpi_rows(kpi_now, kpi_prev, snap_now, snap_prev)
 
     story = None
@@ -240,12 +314,17 @@ def main():
 
     qr_svg = qr_svg_inline(f"{PUBLIC_BASE_URL}portal.html", size_mm=18)
 
+    poster_kpis = build_poster_kpis(kpi_now, kpi_rows, base_date)
+    poster_story = story or (diffs[0] if diffs else
+                              "今週も引き続き、日々の目標達成をよろしくお願いします。")
+
     date_str = base_date.strftime("%Y-%m-%d")
     html_ctx = {
         "hospital_name": REPORT_HOSPITAL_NAME,
         "base_date": date_str,
         "week_start": week_start.strftime("%Y-%m-%d"),
         "week_end": date_str,
+        "period_heading": period_heading,
         "generated_at": generated_at.strftime("%Y/%m/%d %H:%M"),
         "story": story,
         "diffs": diffs,
@@ -262,14 +341,21 @@ def main():
     txt_ctx["week_start"] = week_start
     txt_ctx["week_end"] = base_date
 
+    poster_ctx = dict(html_ctx)
+    poster_ctx["poster_kpis"] = poster_kpis
+    poster_ctx["story"] = poster_story
+
     from jinja2 import Environment, FileSystemLoader
     env = Environment(loader=FileSystemLoader(str(ROOT / "app" / "templates")), autoescape=False)
     tmpl = env.get_template("weekly_digest.html")
     html = tmpl.render(**html_ctx)
+    poster_tmpl = env.get_template("weekly_poster.html")
+    poster_html = poster_tmpl.render(**poster_ctx)
 
     out_root = Path(args.output_dir) / date_str
     out_root.mkdir(parents=True, exist_ok=True)
     base_name = f"週次ダイジェスト_{date_str}"
+    poster_name = f"週次掲示_{date_str}"
 
     html_path = out_root / f"{base_name}.html"
     html_path.write_text(html, encoding="utf-8")
@@ -279,6 +365,10 @@ def main():
     txt_path.write_text(render_txt(txt_ctx), encoding="utf-8")
     log(f"{txt_path.name}", "ok")
 
+    poster_path = out_root / f"{poster_name}.html"
+    poster_path.write_text(poster_html, encoding="utf-8")
+    log(f"{poster_path.name}", "ok")
+
     chrome = find_chrome()
     if chrome:
         pdf_path = out_root / f"{base_name}.pdf"
@@ -286,6 +376,12 @@ def main():
             log(f"{pdf_path.name}", "ok")
         else:
             log("PDF生成に失敗しました", "warn")
+
+        poster_pdf_path = out_root / f"{poster_name}.pdf"
+        if html_to_pdf(chrome, poster_path, poster_pdf_path):
+            log(f"{poster_pdf_path.name}", "ok")
+        else:
+            log("掲示PDF生成に失敗しました", "warn")
     else:
         log("Chrome/Chromium が見つからないため PDF はスキップします", "warn")
 
