@@ -414,13 +414,28 @@ def main():
         if ov_carry:
             log(f"前回の添削 {len(ov_carry)} 部門を保持（レビュー画面で再適用できます）")
 
+    # ── 粗利の当月見込み（較正済み hybrid+recency補正 pipeline）──
+    # 病院全体サマリ・部門コンテキスト（診療科の粗利チャート）の両方でこの1回の結果を
+    # 使い回す（本番ダッシュボード・PLレポートと同一の値に揃える）。
+    from app.lib.profit_estimate import (compute_calibrated_profit_projection,
+                                         last_complete_driver_date)
+    # 粗利予測は adm/surg 両方が揃う最終日で行う（本番ダッシュボードと同じ日で揃える）
+    profit_base_date = last_complete_driver_date(adm, surg) or base_date
+    profit_projection = None
+    if profit_breakdown is not None and len(profit_breakdown):
+        try:
+            profit_projection = compute_calibrated_profit_projection(
+                profit_breakdown, surg, adm, profit_base_date)
+        except Exception:
+            profit_projection = None
+
     # ── コンテキスト構築（AI一手は全ユニット）──
     log(f"レポート構築中… axes={axes} AI={'OFF' if args.no_ai else 'ON(全ユニット)'}")
     contexts = build_dept_report_contexts(
         adm, surg, targets, surg_targets, profit_monthly, base_date, generated_at,
         hospital_name=args.hospital_name, with_ai=not args.no_ai,
         axes=axes, quiet=args.quiet, profit_breakdown=profit_breakdown,
-        delta_anchor=anchor, overrides=overrides,
+        delta_anchor=anchor, overrides=overrides, profit_projection=profit_projection,
     )
     if args.only:
         contexts = [c for c in contexts if c["unit"] == args.only]
@@ -491,19 +506,8 @@ def main():
         from app.lib import hospital_summary as hs
         from app.lib.dept_report import (build_hospital_overview_context,
                                          render_summary_table_pages)
-        from app.lib.profit_estimate import (compute_calibrated_profit_projection,
-                                             last_complete_driver_date)
         from app.lib.report_overrides import default_expires
         log("病院全体サマリ（3ページ）を生成中…")
-        # 粗利予測は adm/surg 両方が揃う最終日で行う（本番ダッシュボードと同じ日で揃える）
-        profit_base_date = last_complete_driver_date(adm, surg) or base_date
-        profit_projection = None
-        if profit_breakdown is not None and len(profit_breakdown):
-            try:
-                profit_projection = compute_calibrated_profit_projection(
-                    profit_breakdown, surg, adm, profit_base_date)
-            except Exception:
-                profit_projection = None
         hosp_ctx = build_hospital_overview_context(
             adm, surg, targets, surg_targets, profit_monthly, base_date, generated_at,
             hospital_name=args.hospital_name, profit_breakdown=profit_breakdown,
