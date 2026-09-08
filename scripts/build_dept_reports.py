@@ -596,7 +596,10 @@ def main():
             log(f"few-shot 添削コーパス再構築スキップ: {e}", "warn")
 
         # ── A1: 一手の確定値スナップショット（dept.html への掲載用・オーバーライド適用後）──
-        _MOVE_KEYS = ("body", "action", "surg_line", "util_line", "nadm_line", "topic", "src")
+        # calib: 案3(09-08)のトピック選定閾値校正用の生入力（retention/na/na_tgt/sv/
+        # surg_tgt/scores）。公開HTML側（moves_store.MOVE_PUBLIC_KEYS）は含めない別枠キー。
+        _MOVE_KEYS = ("body", "action", "surg_line", "util_line", "nadm_line", "topic", "src",
+                     "calib")
         def _move_lite(m):
             return {k: m[k] for k in _MOVE_KEYS if m.get(k)}
         moves_payload = {

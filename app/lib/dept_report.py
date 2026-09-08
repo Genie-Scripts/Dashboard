@@ -535,7 +535,13 @@ def _fallback_move_emergency_admission(state: Optional[str]) -> dict:
 # 病床平準化ののびしろ(room_per_week)だけを常に採用すると、新入院/全麻の方が
 # 明確に不足している部門でも「現状維持」の定型文で埋まってしまう。3トピックの
 # 目標未達の大きさを比べ、最も目立つものを一手のトピックに選ぶ。
-ACTION_TOPIC_MIN_SCORE = 0.12   # これ未満の不足差はノイズ扱い→病床平準化を既定にする
+# 案3(09-08): leveling を room_per_week の相対順位からadmission/surgeryと同じ
+# 「目標比の絶対不足率」(_leveling_gap_score)へ統一したことに合わせて足切りを再校正
+# （36断面×38ユニットの本番同等再現）。通常病棟の leveling_new は p90=0.078・max=0.115しか
+# 無く、旧来の0.12のままだと「単独eligible」経路が0.0%まで枯渇する。0.03は両群
+# （診療科・病棟）とも eligible空率50%未満を保ちつつ週末偏重を大きく是正する
+# （通常病棟 leveling主93.5%→約67%）唯一の候補（詳細=次にやること/校正ログ）。
+ACTION_TOPIC_MIN_SCORE = 0.03   # これ未満の不足差はノイズ扱い→病床平準化を既定にする
 # 全麻(surgery)の優先度は2段階で強化してきた:
 #   ①足切りの非対称（診療科98%/病院全体95%で候補入り）→ ただし leveling が相対スコアで
 #     ほぼ常に勝ち、外科系でも手術の一手が出にくかった。
@@ -574,13 +580,15 @@ def _leveling_gap_score(ret_pct, target_pct=TARGET_WEEKEND_RETENTION) -> float:
     return max(0.0, 1 - ret_pct / target_pct)
 
 
-def _select_action_topic(type_key: str, room: float, max_room: float,
+def _select_action_topic(type_key: str, retention,
                          na, na_tgt, sv, surg_tgt,
                          *, surgery_min: float = SURGERY_TOPIC_MIN_SCORE):
     """"leveling"(病床平準化) / "admission"(新入院) / "surgery"(全麻・外科系のみ) の
-    うち主トピックを選ぶ。leveling は room_per_week を全ユニット中の相対値、
-    admission/surgery は目標比の絶対的な不足率で評価する（スケールが完全には揃わないが、
-    いずれも0〜1の「どれだけ気にすべきか」の目安として扱う）。
+    うち主トピックを選ぶ。3トピックとも同じ物差し＝目標比の絶対的な不足率
+    （0〜1の「どれだけ気にすべきか」の目安）で評価する。leveling は
+    weekend_census_retention の retention（0〜1の実数）を _leveling_gap_score で
+    admission/surgery と同じ土俵に揃える（案3・09-08。旧式は room_per_week の
+    全ユニット中の相対値で、週末が構造的に常勝していた＝根治）。
 
     外科系（手術目標あり）は達成状況によらず surgery を主トピックに固定する
     （2026-07-22 発信方針: 外科系の一手は必ず全麻〔眼科=全手術〕コメントで始める。
@@ -596,7 +604,7 @@ def _select_action_topic(type_key: str, room: float, max_room: float,
     軽く併記」する P3(トンネル視野の解消)に使う。内科系・病棟は surgery キーが scores に
     入らないため従来と完全に同一挙動（surgery_min は無関係）。
     """
-    scores = {"leveling": (room / max_room) if max_room else 0.0,
+    scores = {"leveling": _leveling_gap_score(retention * 100) if retention is not None else 0.0,
               "admission": _admission_gap_score(na, na_tgt)}
     mins = {"leveling": ACTION_TOPIC_MIN_SCORE, "admission": ACTION_TOPIC_MIN_SCORE}
     if type_key == "surgical":
@@ -1333,7 +1341,6 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
         # トピックが新入院/全麻に決まるユニットは後段で別途AI生成するため、この一括生成では
         # skip して無駄打ちを避ける（病床平準化が結局のトピックに選ばれるユニットのためだけに、
         # ここで先に一括生成する）。
-        max_room = max((u.get("room_per_week", 0) or 0 for u in wl["units"]), default=1) or 1
         by_gap = "by_ward" if entity == "ward" else "by_dept"
         tgt_axis_gap = "ward" if entity == "ward" else "dept"
         n_ai = sum(1 for u in wl["units"] if (u.get("room_per_week", 0) or 0) > 0.5)
@@ -1390,7 +1397,7 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
             # （u["narrative"] が読まれるのは非救急×topic=leveling×room>0.5 のときだけ）。
             room0 = u.get("room_per_week", 0) or 0
             topic0, _sec0, _sc0 = _select_action_topic(
-                tk0, room0, max_room, na0, na_tgt0, sv0, sv_tgt0)
+                tk0, u.get("retention"), na0, na_tgt0, sv0, sv_tgt0)
             unit_meta[name0]["skip_leveling_gen"] = (
                 is_em0 or topic0 in ("admission", "surgery") or room0 <= 0.5)
         # leveling バッチは leveling トピック整合の差分を渡す（topic が admission/surgery に
@@ -1465,7 +1472,7 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
             # すべてこの surg_tgt_gap を参照するため、ここ1箇所で調整すれば全箇所に伝播する。
             surg_tgt_gap = (adjusted_weekly_target(surg_targets.get(name), base_date)
                            if (type_key == "surgical" and isinstance(surg_targets, dict)) else None)
-            topic, secondary, _scores = _select_action_topic(type_key, room, max_room,
+            topic, secondary, scores = _select_action_topic(type_key, ret,
                                                              na_gap, na_tgt_gap, sv_gap, surg_tgt_gap)
 
             # parts（グラフA-E）はチャート描画だけでなく、新入院(B)/全麻(C)の一手にも使う。
@@ -1555,6 +1562,7 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
                 "ov": ov, "unit_ai": unit_ai, "type_key": type_key,
                 "na_gap": na_gap, "na_tgt_gap": na_tgt_gap, "sv_gap": sv_gap,
                 "surg_tgt_gap": surg_tgt_gap, "topic": topic, "secondary": secondary,
+                "scores": scores,
                 "parts": parts, "profit_series": profit_series,
                 "na_trend": na_trend, "surg_trend": surg_trend,
                 "na_yoy": na_yoy, "surg_yoy": surg_yoy, "na_state": na_state,
@@ -1587,7 +1595,7 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
             type_key = st["type_key"]
             na_gap, na_tgt_gap = st["na_gap"], st["na_tgt_gap"]
             sv_gap, surg_tgt_gap = st["sv_gap"], st["surg_tgt_gap"]
-            topic, secondary = st["topic"], st["secondary"]
+            topic, secondary, scores = st["topic"], st["secondary"], st["scores"]
             parts, profit_series = st["parts"], st["profit_series"]
             na_trend, surg_trend = st["na_trend"], st["surg_trend"]
             na_yoy, surg_yoy = st["na_yoy"], st["surg_yoy"]
@@ -1626,8 +1634,12 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
 
             # 計測用メタ（テンプレは参照しない）: topic=選定トピック、src=ai(採択)/tpl(定型文)。
             # scripts/report_comment_diversity.py が fallback 率・重複率を axis×topic で集計する。
+            # calib: 案3(09-08)の閾値校正用生入力（次回以降の校正で再ビルド不要にする・
+            # 公開HTML側は MOVE_PUBLIC_KEYS で除外され表に出ない）。
             move = {**move, "topic": (f"{special}-" if special else "") + topic,
-                    "src": move.get("src", "tpl"), "delta": d_txt}
+                    "src": move.get("src", "tpl"), "delta": d_txt,
+                    "calib": {"retention": ret, "na": na_gap, "na_tgt": na_tgt_gap,
+                             "sv": sv_gap, "surg_tgt": surg_tgt_gap, "scores": scores}}
 
             # P3: 未達が複数ある科は、主トピックの一手に加えて副トピックを本文へ軽く併記
             # （actionは主トピックに集中）。救命救急系は語彙が異なるため対象外。
