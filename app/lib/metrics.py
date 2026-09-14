@@ -24,6 +24,7 @@ from .config import (
     is_operational_day,
     operational_days_between,
     fmt_jp_range, fmt_jp_range_prevyear,
+    TURN_REF_MONTHS, TURN_FILL_RATIO, TURN_GAP_MIN, TURN_HINTS,
 )
 
 # 前年同期アラインの既定オフセット日数。
@@ -1513,3 +1514,203 @@ def build_kpi_summary(adm: pd.DataFrame, surg: pd.DataFrame,
         "transfer_in": nadm["total_transfer_in"],
         "transfer_out": nadm["total_transfer_out"],
     }
+
+
+# ════════════════════════════════════════
+# 回転3指標（在院=守り／新入院=攻め／期間III超え=退院促進）
+# ════════════════════════════════════════
+# 号令を「粗利/人日を上げろ」「在院日数を短くしろ」ではなく「在院は目標を守る＋新入院あと
+# ○人/日＋期間III超え患者数を減らす」に置き換えるための指標群。在院日数の短縮そのものは
+# 号令にしない（延伸禁止に加え、短縮も号令にしない＝config.TURN_HINTS を参照）。
+#
+# 恒等式: 在院患者数 ≒ 新入院/日 × 在院日数。在院目標を守ったまま新入院を増やせば、
+# 在院日数は結果として縮む（＝直接の号令は在院と新入院の2つだけで足りる）。
+
+def alos_proxy(adm: pd.DataFrame, end_date: pd.Timestamp, window_days: int = 28,
+               group_col: str = None, unit: str = None, display_filter: bool = True):
+    """在院日数の近似＝窓内の在院患者数合計 ÷ 退院数合計（延患者数÷退院数の「みなし在院日数」）。
+
+    group_col（"診療科名" or "病棟コード"）と unit を指定すると当該単位に絞る。
+    退院数（退院患者数＋死亡患者数＝preprocess.py の「退院合計」）が0の窓は None。
+
+    display_filter=False は全科（健診センター等の非表示科も含む）で集計する。
+    粗利タブ（profit_unit.py）は粗利/人日の分母を全科で取るため、同じタブ内に
+    並べる在院日数も全科に揃える必要があり、そこからのみ False で呼ばれる。
+    回転3指標（turnover_metrics / reference_alos）は既定の True のままで、
+    portal の在院KPI と母集団が一致する。
+    """
+    end_date = pd.Timestamp(end_date)
+    start = end_date - timedelta(days=window_days - 1)
+    census_s = build_daily_series(adm, "在院患者数", group_col=group_col, group_val=unit,
+                                  display_filter=display_filter)
+    disch_s = build_daily_series(adm, "退院合計", group_col=group_col, group_val=unit,
+                                 display_filter=display_filter)
+    c = census_s[(census_s["日付"] >= start) & (census_s["日付"] <= end_date)]["値"].sum()
+    d = disch_s[(disch_s["日付"] >= start) & (disch_s["日付"] <= end_date)]["値"].sum()
+    if not d:
+        return None
+    return float(c) / float(d)
+
+
+def reference_alos(adm: pd.DataFrame, base_date: pd.Timestamp, months: int = TURN_REF_MONTHS,
+                   group_col: str = None, unit: str = None):
+    """基準在院日数＝当月を除く直近 months 完全月の月次 alos_proxy の中央値。
+
+    退院数0の月は中央値の対象から除外する。対象月が1つも取れない場合は None。
+    """
+    base_date = pd.Timestamp(base_date)
+    current_month_start = base_date.replace(day=1)
+    census_s = build_daily_series(adm, "在院患者数", group_col=group_col, group_val=unit)
+    disch_s = build_daily_series(adm, "退院合計", group_col=group_col, group_val=unit)
+    cmap = dict(zip(census_s["日付"], census_s["値"]))
+    dmap = dict(zip(disch_s["日付"], disch_s["値"]))
+    vals = []
+    for i in range(1, months + 1):
+        month_start = current_month_start - pd.DateOffset(months=i)
+        month_end = month_start + pd.offsets.MonthEnd(0)
+        days = pd.date_range(month_start, month_end, freq="D")
+        c_sum = sum(cmap.get(d, 0) for d in days)
+        d_sum = sum(dmap.get(d, 0) for d in days)
+        if not d_sum:
+            continue
+        vals.append(c_sum / d_sum)
+    if not vals:
+        return None
+    return float(np.median(vals))
+
+
+def _over_iii_window(los_df, end_date: pd.Timestamp, days: int = 7,
+                     group_col: str = None, unit: str = None):
+    """los_df（data_loader.load_los_data の戻り値）から窓内の期間III超え患者数の日平均を返す。
+
+    group_col・unit を指定すると当該列で絞り込む（列が無ければ None＝呼び出し側が
+    alos_proxy へフォールバックする）。los_df が空・列が無ければ None。
+    """
+    if los_df is None or len(los_df) == 0 or "期間III超え患者数" not in los_df.columns:
+        return None
+    end_date = pd.Timestamp(end_date)
+    start = end_date - timedelta(days=days - 1)
+    w = los_df[(los_df["日付"] >= start) & (los_df["日付"] <= end_date)]
+    if group_col and unit is not None:
+        if group_col not in w.columns:
+            return None
+        w = w[w[group_col] == unit]
+    if w.empty:
+        return None
+    daily = w.groupby("日付")["期間III超え患者数"].sum()
+    return float(daily.mean())
+
+
+def _turn_neutral(census_target) -> dict:
+    """turnover_metrics のデータ不足時フォールバック（全てNone・state=hold）。"""
+    return {
+        "census_7d": None, "census_target": census_target, "census_gap": None,
+        "nadm_per_day_7d": None, "ref_alos": None, "nadm_required": None, "nadm_gap": None,
+        "alos_28d": None, "alos_prev_28d": None,
+        "over_iii": None, "over_iii_prev": None, "mode": "alos_proxy",
+        "state": "hold", "hint": TURN_HINTS["hold"],
+    }
+
+
+def turnover_metrics(adm: pd.DataFrame, base_date: pd.Timestamp, census_target,
+                     group_col: str = None, unit: str = None, los_df=None) -> dict:
+    """回転3指標（①在院＝守り、②新入院＝攻め、③期間III超え＝退院促進）をまとめて返す。
+
+    新入院列は preprocess 後の「新入院患者数」（入院＋緊急入院、転入含まない）を使う。
+    病棟軸（group_col="病棟コード"）だけは病棟実態に合わせ「新入院患者数_病棟」
+    （転入含む）を使う（rolling7_new_admission の by_ward と同じ列）。
+
+    census_target が None（在院目標未設定の単位）でも例外にせず、目標比較が必要な
+    フィールド（census_gap・nadm_required・nadm_gap）が None のまま返る
+    （format_turn_line が「—」で埋める）。
+
+    adm が想定列を欠く等で計算できない場合は例外を出さず _turn_neutral（state="hold"）
+    へ縮退する（レポート生成全体を落とさないための安全側フォールバック）。
+    """
+    try:
+        base_date = pd.Timestamp(base_date)
+        nadm_col = "新入院患者数_病棟" if group_col == "病棟コード" else "新入院患者数"
+        census_s = build_daily_series(adm, "在院患者数", group_col=group_col, group_val=unit)
+        nadm_s = build_daily_series(adm, nadm_col, group_col=group_col, group_val=unit)
+
+        start7 = base_date - timedelta(days=6)
+        c7 = census_s[(census_s["日付"] >= start7) & (census_s["日付"] <= base_date)]["値"]
+        census_7d = round(float(c7.mean()), 1) if len(c7) else None
+        n7 = nadm_s[(nadm_s["日付"] >= start7) & (nadm_s["日付"] <= base_date)]["値"]
+        nadm_per_day_7d = round(float(n7.sum()) / 7, 1) if len(n7) else None
+
+        census_gap = (round(max(0.0, census_target - census_7d), 1)
+                     if (census_target is not None and census_7d is not None) else None)
+
+        ref_alos = reference_alos(adm, base_date, group_col=group_col, unit=unit)
+        nadm_required = (round(census_target / ref_alos, 1)
+                        if (census_target is not None and ref_alos) else None)
+        nadm_gap = (round(max(0.0, nadm_required - nadm_per_day_7d), 1)
+                   if (nadm_required is not None and nadm_per_day_7d is not None) else None)
+
+        alos_28d = alos_proxy(adm, base_date, window_days=28, group_col=group_col, unit=unit)
+        alos_28d = round(alos_28d, 1) if alos_28d is not None else None
+        alos_prev_28d = alos_proxy(adm, base_date - timedelta(days=28), window_days=28,
+                                   group_col=group_col, unit=unit)
+        alos_prev_28d = round(alos_prev_28d, 1) if alos_prev_28d is not None else None
+
+        over_iii = over_iii_prev = None
+        mode = "alos_proxy"
+        if los_df is not None and len(los_df):
+            ov = _over_iii_window(los_df, base_date, days=7, group_col=group_col, unit=unit)
+            if ov is not None:
+                ov_prev = _over_iii_window(los_df, base_date - timedelta(days=7), days=7,
+                                          group_col=group_col, unit=unit)
+                over_iii = int(round(ov))
+                over_iii_prev = int(round(ov_prev)) if ov_prev is not None else None
+                mode = "over_iii"
+
+        if (census_7d is not None and census_target
+                and census_7d < census_target * TURN_FILL_RATIO):
+            state = "fill"
+        elif nadm_gap is not None and nadm_gap >= TURN_GAP_MIN:
+            state = "turn"
+        else:
+            state = "hold"
+
+        def _g(v):
+            return "" if v is None else f"{v:g}"
+
+        hint = TURN_HINTS[state].format(census_gap=_g(census_gap), nadm_gap=_g(nadm_gap))
+
+        return {
+            "census_7d": census_7d, "census_target": census_target, "census_gap": census_gap,
+            "nadm_per_day_7d": nadm_per_day_7d, "ref_alos": (round(ref_alos, 1) if ref_alos else None),
+            "nadm_required": nadm_required, "nadm_gap": nadm_gap,
+            "alos_28d": alos_28d, "alos_prev_28d": alos_prev_28d,
+            "over_iii": over_iii, "over_iii_prev": over_iii_prev, "mode": mode,
+            "state": state, "hint": hint,
+        }
+    except Exception:
+        return _turn_neutral(census_target)
+
+
+def format_turn_line(m: dict) -> str:
+    """turnover_metrics の戻り値を1行の表示文字列にする（None は「—」）。
+
+    例: 「回転：在院 572／目標575・新入院 51.6／必要55.3（あと3.7）・
+    期間III超え 48人」。mode="alos_proxy"（期間IIIフィード未配置）のときは
+    末尾を「・在院日数 11.1日（参考）」にする（目標を持たない参考値）。
+
+    【長さの制約】部門別レポートPDFは A4 1枚/部門 が設計要件で、一手の数値行
+    （surg_line / util_line / nadm_line）は実測41〜45字に収まっている。初版の
+    本関数は66字あり、診療科版が21頁→33頁、病棟版が17頁→23頁に膨らんだ。
+    そのため「（目標 X）」→「／目標X」、前週・前4週の併記と単位の重複を削って
+    45字前後に圧縮してある。項目を足すときは同じ長さに収めること。
+    """
+    def g(v):
+        return "—" if v is None else f"{v:g}"
+
+    census_part = f"在院 {g(m.get('census_7d'))}／目標{g(m.get('census_target'))}"
+    nadm_part = (f"新入院/日 {g(m.get('nadm_per_day_7d'))}／必要{g(m.get('nadm_required'))}"
+                 f"（あと{g(m.get('nadm_gap'))}）")
+    if m.get("mode") == "alos_proxy":
+        tail = f"在院日数 {g(m.get('alos_28d'))}日（参考）"
+    else:
+        tail = f"期間III超え {g(m.get('over_iii'))}人"
+    return f"回転：{census_part}・{nadm_part}・{tail}"

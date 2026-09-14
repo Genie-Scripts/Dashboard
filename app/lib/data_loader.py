@@ -287,6 +287,57 @@ def load_admission_data(data_dir: str = DEFAULT_DATA_DIR) -> pd.DataFrame:
     return merged
 
 
+def load_los_data(data_dir: str = DEFAULT_DATA_DIR) -> pd.DataFrame:
+    """
+    los_data/ フォルダ内の期間III超え患者数フィード（.csv・任意）を読み込んでマージ。
+
+    回転3指標③（期間III超え患者数）専用の任意フィード。医事データ未接続の間は
+    フォルダ・ファイルが存在しないのが既定運用のため、無くても警告を出さず
+    空DataFrameを返す（在院日数近似へのフォールバックは呼び出し側
+    metrics.turnover_metrics が行う）。
+
+    列: 日付, 診療科名（任意）, 病棟コード（任意）, 期間III超え患者数
+    複数ファイルがある場合、(日付, 診療科名, 病棟コード) の重複は
+    最新ファイル（更新日時が新しい方）を優先する。
+
+    Returns:
+        DataFrame: 日付, 診療科名, 病棟コード, 期間III超え患者数（未配置なら空DataFrame）
+    """
+    folder = _folder(data_dir, "los_data")
+    empty = pd.DataFrame(columns=["日付", "診療科名", "病棟コード", "期間III超え患者数"])
+    if not folder.exists():
+        return empty
+
+    files = _list_files(folder, [".csv"])
+    if not files:
+        return empty
+
+    frames = []
+    for f in files:
+        try:
+            df = _read_csv_robust(f)
+            df = _normalize_columns(df)
+            df["日付"] = pd.to_datetime(df["日付"], errors="coerce")
+            df = df.dropna(subset=["日付"])
+            if "期間III超え患者数" in df.columns:
+                df["期間III超え患者数"] = pd.to_numeric(
+                    df["期間III超え患者数"], errors="coerce").fillna(0).astype(int)
+            frames.append(df)
+        except Exception as e:
+            warnings.warn(f"los_dataファイル読込スキップ: {f.name} — {e}")
+
+    if not frames:
+        return empty
+
+    # ファイルは _list_files により更新日時の古い順 → drop_duplicates(keep="last") で
+    # (日付, 診療科名, 病棟コード) の重複を最新ファイル優先に集約する（既存 admission/surgery と同型）。
+    combined = pd.concat(frames, ignore_index=True)
+    key_cols = [c for c in ["日付", "診療科名", "病棟コード"] if c in combined.columns]
+    if key_cols:
+        combined = combined.drop_duplicates(subset=key_cols, keep="last")
+    return combined.sort_values("日付").reset_index(drop=True)
+
+
 def load_surgery_data(data_dir: str = DEFAULT_DATA_DIR) -> pd.DataFrame:
     """
     op_data/ フォルダ内の全手術データファイルを読み込んでマージ。
@@ -569,6 +620,7 @@ def load_all(data_dir: str = DEFAULT_DATA_DIR) -> dict:
             profit_targets            — 粗利目標（外来＋入院合算）
             profit_breakdown          — 粗利の外来/入院内訳（None 可）
             profit_targets_breakdown  — 粗利目標の外来/入院内訳（None 可）
+            los_data                  — 期間III超え患者数フィード（任意・未配置なら空DataFrame）
     """
     return {
         "admission":                load_admission_data(data_dir),
@@ -579,6 +631,7 @@ def load_all(data_dir: str = DEFAULT_DATA_DIR) -> dict:
         "profit_targets":           load_profit_targets(data_dir),
         "profit_breakdown":         load_profit_breakdown(data_dir),
         "profit_targets_breakdown": load_profit_targets_breakdown(data_dir),
+        "los_data":                 load_los_data(data_dir),
     }
 
 
