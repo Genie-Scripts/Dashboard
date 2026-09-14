@@ -319,10 +319,21 @@ def generate(data_dir: str = DEFAULT_DATA_DIR,
     # Layer-2: detail.html
     # ════════════════════════════════════════
     log("detail.html 生成中...")
+    # 入院粗利目標の内訳（粗利タブ確報バンドの目標比バッジに使う）。読み込み失敗は
+    # 握りつぶして None（バッジ非表示のまま静かに縮退）。data_dir は generate() 引数を
+    # そのまま使う（ハードコードしない＝ --data-dir 指定時にも追随させる）。
+    try:
+        from app.lib.data_loader import load_profit_targets_breakdown
+        profit_targets_breakdown_raw = load_profit_targets_breakdown(data_dir)
+    except Exception as e:
+        log(f"粗利目標内訳の読込スキップ（目標比バッジ非表示）: {e}", "warn")
+        profit_targets_breakdown_raw = None
+
     detail_json = build_detail_json(
         adm, surg, targets, surg_targets, profit_monthly, base_date, generated_at,
         profit_breakdown=profit_breakdown_raw,
         kpi_history_path=out_dir / "output" / "last_kpi.json",
+        profit_targets_breakdown=profit_targets_breakdown_raw,
     )
     detail_ctx = {
         "data_json": detail_json,

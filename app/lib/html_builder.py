@@ -52,11 +52,11 @@ from .profit_estimate import (
     last_complete_driver_date,
 )
 from .profit_translate import build_translate_payload
+from .profit_unit import build_profit_unit_payload
 from .month_projection import (
     build_month_projection_payload, profit_target_for_month, _alos_28d,
 )
 from .moves_store import load_latest_moves
-from .surgery_ops import build_surgery_ops_payload
 from .ward_flow import build_ward_flow_payload
 from .stats_band import (
     census_spread_samples, surgery_rate_spread_samples, unit_sigma, build_band,
@@ -763,7 +763,8 @@ def _build_ai_alerts(adm, surg, targets, surg_targets, base_date) -> list:
 
 def build_detail_json(adm, surg, targets, surg_targets,
                       profit_monthly, base_date, generated_at=None,
-                      profit_breakdown=None, kpi_history_path=None) -> str:
+                      profit_breakdown=None, kpi_history_path=None,
+                      profit_targets_breakdown=None) -> str:
     """
     detail.html に埋め込む DATA JSON 文字列を生成。
     仕様書 付録D のスキーマに準拠。
@@ -917,12 +918,6 @@ def build_detail_json(adm, surg, targets, surg_targets,
     from .ai_narrative import narrate_leveling_actions
     weekend_leveling = narrate_leveling_actions(weekend_leveling, dow_unit_detail, top_n=6)
 
-    # 手術分析（S1〜S7・surgery_opsタブ）。集計失敗はタブ非表示に無害縮退。
-    try:
-        surgery_ops = build_surgery_ops_payload(surg, base_date)
-    except Exception:
-        surgery_ops = None
-
     # 病棟フロー（W1〜W4・入退院バランスタブの病棟フローサブタブ）。集計失敗はタブ非表示に無害縮退。
     try:
         ward_flow = build_ward_flow_payload(adm, targets, base_date)
@@ -1063,7 +1058,7 @@ def build_detail_json(adm, surg, targets, surg_targets,
         }
         mv = moves and moves["units"].get(f"dept:{dept}")
         if mv:
-            drill[dept]["move"] = {k: mv[k] for k in ("body", "action", "surg_line", "util_line", "nadm_line") if mv.get(k)}
+            drill[dept]["move"] = {k: mv[k] for k in ("body", "action", "surg_line", "util_line", "nadm_line", "turn_line") if mv.get(k)}
             drill[dept]["move"]["report_date"] = _report_label
 
     # ── drill: 病棟ドリルダウン ──
@@ -1165,7 +1160,7 @@ def build_detail_json(adm, surg, targets, surg_targets,
         }
         mv = moves and moves["units"].get(f"ward:{wname}")
         if mv:
-            drill[wname]["move"] = {k: mv[k] for k in ("body", "action", "surg_line", "util_line", "nadm_line") if mv.get(k)}
+            drill[wname]["move"] = {k: mv[k] for k in ("body", "action", "surg_line", "util_line", "nadm_line", "turn_line") if mv.get(k)}
             drill[wname]["move"]["report_date"] = _report_label
 
     # ── attention / improvement ──
@@ -1205,6 +1200,8 @@ def build_detail_json(adm, surg, targets, surg_targets,
                     "target": round(float(r["月次目標"]) / 1000, 1) if pd.notna(r["月次目標"]) else None,
                     "adj_target": round(float(r["月次補正目標"]) / 1000, 1) if pd.notna(r.get("月次補正目標")) else None,
                     "rate": float(r["達成率"]) if pd.notna(r["達成率"]) else None,
+                    "rate_rev_adj": (float(r["達成率_改定換算"])
+                                      if pd.notna(r.get("達成率_改定換算")) else None),
                     "daily_pace": dp,                                      # 万円/営業日
                     "daily_target": dt,                                    # 万円/営業日
                     "biz_days": int(biz) if pd.notna(biz) else None,
@@ -1311,6 +1308,31 @@ def build_detail_json(adm, surg, targets, surg_targets,
                         ]
         except Exception:
             profit_g_calibrated = None
+
+    # ── profit_unit: 入院粗利の「数量×単価」分解（粗利/人日・平均在院日数の近似・
+    #   前年同月差の数量/単価効果・限界人日単価・確報バンド）。粗利タブの新設ブロック用。
+    #   入院粗利目標の内訳（確報バンドの目標比に使う）は呼び出し元（generate_html.py）が
+    #   data_dir で読み込んで引数 profit_targets_breakdown 経由で渡す。ここではファイルを
+    #   読まない（build_detail_json を純粋関数のまま保つ＝テストの密閉性を壊さない）。
+    #   未指定（None）なら目標比バッジ非表示のまま静かに縮退する。
+    #   ★上の recency 補正ブロックより後で構築すること（profit_hybrid_section["meta"] に
+    #   校正済みの latest_final_nyuin が入るのを待ってから profit_hybrid_meta として渡す。
+    #   先に構築すると見込みの分子が未校正の latest_mtdblend_nyuin のままになる）。
+    #   hospital_series も同じ理由で校正後（values_final_nyuin 注入後）のものを渡す
+    #   （Phase4 S2 の「確報待ち月の見込み」の抽出元）。 ──
+    profit_unit_section = None
+    if profit_breakdown is not None and len(profit_breakdown) > 0:
+        try:
+            profit_unit_section = build_profit_unit_payload(
+                profit_breakdown=profit_breakdown, adm=adm, base_date=profit_base_date,
+                profit_targets_breakdown=profit_targets_breakdown,
+                profit_hybrid_meta=(profit_hybrid_section or {}).get("meta"),
+                hospital_series=(profit_hybrid_section or {}).get("hospital_series"),
+            )
+            if not profit_unit_section.get("global"):
+                profit_unit_section = None
+        except Exception:
+            profit_unit_section = None
 
     # ── A5: 鮮度1行（前回ビルドとの間隔は last_kpi.json 履歴から判定）──
     _generated_at = generated_at or datetime.now()
@@ -1441,11 +1463,13 @@ def build_detail_json(adm, surg, targets, surg_targets,
             "dow_heatmaps": dow_heatmaps,
             "dow_unit_detail": dow_unit_detail,
             "weekend_leveling": weekend_leveling,
-            "surgery_ops": surgery_ops,
             "profit_translate": profit_translate,
             "ward_flow": ward_flow,
         },
     }
+
+    if profit_unit_section:
+        data["profit_unit"] = profit_unit_section
 
     if profit_section:
         data["profit"] = profit_section
@@ -1462,6 +1486,7 @@ def build_detail_json(adm, surg, targets, surg_targets,
                     "target": pr["target"],
                     "adj_target": pr.get("adj_target"),
                     "rate": pr["rate"],
+                    "rate_rev_adj": pr.get("rate_rev_adj"),
                     "status": pr["status"],
                     "shape": pr["shape"],
                     "text": pr["text"],
@@ -1591,10 +1616,14 @@ def build_detail_json(adm, surg, targets, surg_targets,
 # dept 側では剥がす（ページ重量と additive 規律）。
 DETAIL_ONLY_CHART_KEYS = ("surgery_ops", "profit_translate", "ward_flow")
 
+# detail.html 専用（dept.html には同梱しない）トップレベルキー。profit_unit（粗利タブの
+# 数量×単価分解・13か月×診療科別で重い）は detail 専用ブロックのため dept 側では剥がす。
+DETAIL_ONLY_TOP_KEYS = ("profit_unit",)
+
 
 def strip_detail_only_json(detail_json: str) -> str:
     """detail用JSONから DETAIL_ONLY_CHART_KEYS（charts.surgery_ops / charts.profit_translate /
-    charts.ward_flow）を除いた dept.html 用JSONを返す。
+    charts.ward_flow）・DETAIL_ONLY_TOP_KEYS（profit_unit）を除いた dept.html 用JSONを返す。
 
     dept.html は detail.html と同じ DATA を埋め込む設計だが、detail 専用タブの
     チャートは dept 側へは同梱しない（ページ重量と additive 規律）。
@@ -1605,4 +1634,6 @@ def strip_detail_only_json(detail_json: str) -> str:
     if isinstance(charts, dict):
         for key in DETAIL_ONLY_CHART_KEYS:
             charts.pop(key, None)
+    for key in DETAIL_ONLY_TOP_KEYS:
+        data.pop(key, None)
     return json.dumps(data, ensure_ascii=False, default=_json_safe)

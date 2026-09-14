@@ -25,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app.lib.profit_translate import (  # noqa: E402
     _k1_item,
     _k1_dept_row,
+    _build_k1,
     build_k2,
     build_k3,
     build_translate_payload,
@@ -123,6 +124,25 @@ class TestK1ItemGuard(unittest.TestCase):
         self.assertTrue(out["shown"])
         self.assertEqual(out["value"], 1.0)
 
+    def test_reason_code_matches_reason_for_each_guard(self):
+        """★Phase6: 非表示セルの短い記号（—ᴿ/—ᴺ/—ᶜ）用 reason_code が
+        フルセンテンスreasonと1対1で対応すること（R=当てはまり不足/N=係数が負/C=上限超）。"""
+        low_fit = _k1_item("k", "l", "件", 100.0, 0.69, 20, 1.0, 1e6, 5, True)
+        self.assertEqual(low_fit["reason"], REASON_LOW_FIT)
+        self.assertEqual(low_fit["reason_code"], "R")
+
+        neg_coef = _k1_item("k", "l", "件", 0.0, 0.9, 20, 10.0, 1e6, 5, True)
+        self.assertEqual(neg_coef["reason"], REASON_NEG_COEF)
+        self.assertEqual(neg_coef["reason_code"], "N")
+
+        over_cap = _k1_item("k", "l", "件", 1.0, 0.9, 20, 100.0, 50.0, 5, True)
+        self.assertEqual(over_cap["reason"], REASON_OVER_CAP)
+        self.assertEqual(over_cap["reason_code"], "C")
+
+        shown = _k1_item("k", "l", "件", 1000.0, 0.9, 20, 1.0, 50.0, 5, True)
+        self.assertTrue(shown["shown"])
+        self.assertIsNone(shown["reason_code"])
+
 
 # ════════════════════════════════════════
 # ③⑦⑧⑨: _k1_dept_row （項目単位の非表示・ペース併記・達成済み文言）
@@ -183,6 +203,25 @@ class TestK1DeptRow(unittest.TestCase):
         row2 = _k1_dept_row("Dept", -3.0, None, {}, rem_biz=5)
         self.assertFalse(row2["shown"])
         self.assertEqual(row2["reason"], REASON_ACHIEVED)
+
+    def test_dominant_reason_code_prioritizes_low_fit_over_others(self):
+        """★Phase6: 全項目非表示（4項目に理由が混在）でも束ね表示用の代表コードは
+        1つに決まり、優先順（R=当てはまり不足 > N=係数が負 > C=上限超）どおりになる。
+        nyuin式のr2が0.5(<0.70)でG1不合格＝nyuin側3項目(入院手術/新入院/在院)は全てR。
+        gairai式は合格するがbetaが負＝外来手術はN。→ 代表はR（Rが1つでもあれば最優先）。
+        """
+        est = {
+            "gairai": {"alpha": 100.0, "beta": -50.0, "r2": 0.9, "n": 20},
+            "nyuin":  {"d": 30.0, "e": 5.0, "f": 2.0, "r2": 0.5, "n": 20},
+        }
+        driver_avgs = {"Dept": {"入院手術件数": 1e6, "外来手術件数": 1e6,
+                                 "新入院": 1e6, "純在院延べ": 1e6}}
+        row = _k1_dept_row("Dept", 10.0, est, driver_avgs, rem_biz=5)
+        self.assertFalse(row["shown"])
+        by_key = {it["key"]: it for it in row["items"]}
+        self.assertEqual(by_key["nyuin_op"]["reason_code"], "R")
+        self.assertEqual(by_key["gairai_op"]["reason_code"], "N")
+        self.assertEqual(row["reason_code"], "R")
 
 
 # ════════════════════════════════════════
@@ -381,6 +420,50 @@ class TestK1AllAchieved(unittest.TestCase):
         self.assertEqual(k1["hospital"]["reason"], REASON_ACHIEVED)
         self.assertIn("上回っています", k1["caption"])
         self.assertNotIn("ばらつき", k1["caption"])
+
+
+class TestK1Breakdown(unittest.TestCase):
+    """★Phase6: 全科を「達成済／一部換算できた／換算できなかった」の3分類に動的に
+    仕分け、caption・breakdown・excluded（理由別）へ反映すること。科数はすべて
+    フィクスチャから算出する（ハードコード禁止の確認を兼ねる）。
+    """
+
+    def setUp(self):
+        # 達成済(gap<=0): 整形外科
+        # 一部換算できた(gap>0・一部shown): 外科A（外来手術のみ通過、入院式はr2不足）
+        # 換算できなかった(gap>0・全項目非表示): 外科B（gairai/nyuinとも係数が負）
+        self.profit_section = {"ranking": [
+            {"name": "整形外科", "actual": 10.0, "target": 8.0, "adj_target": 8.0},
+            {"name": "外科A", "actual": 5.0, "target": 8.0, "adj_target": 8.0},
+            {"name": "外科B", "actual": 5.0, "target": 8.0, "adj_target": 8.0},
+        ]}
+        self.estimators = {
+            "外科A": {
+                "gairai": {"alpha": 100.0, "beta": 200.0, "r2": 0.9, "n": 20},
+                "nyuin":  {"d": 30.0, "e": 5.0, "f": 2.0, "r2": 0.5, "n": 20},   # r2不足→R
+            },
+            "外科B": {
+                "gairai": {"alpha": 100.0, "beta": -200.0, "r2": 0.9, "n": 20},  # 係数負→N
+                "nyuin":  {"d": -30.0, "e": -5.0, "f": -2.0, "r2": 0.9, "n": 20},  # 係数負→N
+            },
+        }
+        self.driver_avgs = {
+            "外科A": {"入院手術件数": 1e6, "外来手術件数": 1e6, "新入院": 1e6, "純在院延べ": 1e6},
+            "外科B": {"入院手術件数": 1e6, "外来手術件数": 1e6, "新入院": 1e6, "純在院延べ": 1e6},
+        }
+
+    def test_breakdown_counts_are_computed_dynamically(self):
+        k1, depts_shown, depts_total = _build_k1(
+            self.profit_section, self.estimators, self.driver_avgs, rem_biz=5)
+        self.assertEqual(depts_total, 3)
+        self.assertEqual(k1["breakdown"],
+                         {"total": 3, "achieved": 1, "partial": 1, "none": 1})
+        self.assertIn("全3科のうち、目標達成済 1科（換算不要）／一部換算できた 1科／"
+                      "換算できなかった 1科です。", k1["caption"])
+
+    def test_excluded_groups_by_reason_code(self):
+        k1, _, _ = _build_k1(self.profit_section, self.estimators, self.driver_avgs, rem_biz=5)
+        self.assertEqual(k1["excluded"], [{"name": "外科B", "reason_code": "N"}])
 
 
 if __name__ == "__main__":

@@ -43,6 +43,25 @@ REASON_NEG_COEF  = "この項目は過去の関係がはっきりしないため
 REASON_OVER_CAP  = "目標との差が大きく、件数の置き換えでは説明しきれません。"
 REASON_ACHIEVED  = "目標を上回っています。"
 
+# ★Phase6: セル横に常時表示する短い記号（—ᴿ/—ᴺ/—ᶜ）用の理由コード。フルセンテンスの
+# reason はテスト・title属性用に残したまま、UIの可視化専用に追加する（既存キーは壊さない）。
+_REASON_CODE = {
+    REASON_LOW_FIT:  "R",   # 当てはまり不足（G1/G2: r2 または n が不足）
+    REASON_NEG_COEF: "N",   # 係数が負（G3）
+    REASON_OVER_CAP: "C",   # 外挿上限超（G4）
+}
+# 束ね表示（tkK1Excluded）の代表理由を選ぶ優先順。1科の4項目に複数理由が混在しうるため、
+# 最も根本的な原因（式そのものが当てはまらない=R）を優先して代表させる。
+_REASON_PRIORITY = ("R", "N", "C")
+
+
+def _dominant_reason_code(items: List[dict]) -> Optional[str]:
+    codes = {it.get("reason_code") for it in items if it.get("reason_code")}
+    for c in _REASON_PRIORITY:
+        if c in codes:
+            return c
+    return None
+
 _OK = "#0e7a54"
 _DR = "#c4314b"
 _OTHER_COLOR = "#a6b3c4"
@@ -115,6 +134,7 @@ def _k1_item(key: str, label: str, unit: str, coef: Optional[float],
         "key": key, "label": label, "value": value, "unit": unit,
         "pace": pace, "pace_unit": pace_unit,
         "shown": reason is None, "reason": reason,
+        "reason_code": _REASON_CODE.get(reason),
     }
 
 
@@ -122,7 +142,7 @@ def _k1_dept_row(name: str, gap_mm: float, est: Optional[dict],
                   driver_avgs: Dict[str, Dict[str, float]], rem_biz: int) -> dict:
     if gap_mm <= 0:
         return {"name": name, "gap_mm": round(gap_mm, 1), "items": [],
-                "shown": False, "reason": REASON_ACHIEVED}
+                "shown": False, "reason": REASON_ACHIEVED, "reason_code": None}
 
     est = est or {}
     g = est.get("gairai") or {}
@@ -140,8 +160,12 @@ def _k1_dept_row(name: str, gap_mm: float, est: Optional[dict],
                  gap_mm, avgs.get("純在院延べ"), rem_biz, False),
     ]
     shown = any(it["shown"] for it in items)
+    # ★Phase6: tkK1Excluded（全項目非表示の科）を理由別に束ねるための代表コード
+    # （束ね表示専用。row["reason"]の全文センテンスは既存どおりLOW_FIT固定のまま）。
+    dominant = None if shown else _dominant_reason_code(items)
     return {"name": name, "gap_mm": round(gap_mm, 1), "items": items,
-            "shown": shown, "reason": None if shown else REASON_LOW_FIT}
+            "shown": shown, "reason": None if shown else REASON_LOW_FIT,
+            "reason_code": dominant}
 
 
 def _k1_hospital_row(dept_rows: List[dict]) -> dict:
@@ -185,13 +209,22 @@ def _fmt1(v) -> str:
     return f"{v:.1f}" if v is not None else "—"
 
 
-def _k1_caption(hospital: dict, depts_shown: int, depts_total: int) -> str:
+def _k1_breakdown_text(depts_total: int, achieved_n: int, partial_n: int, none_n: int) -> str:
+    """★Phase6: 目標達成済/一部換算できた/換算できなかった の3分類を実数で明示する。
+    旧文言「換算できた8科の合計です（全25科中）」は達成済10科の存在が伝わらなかった
+    （換算不要＝達成済という良い状態と、換算できなかった＝ガード不足という状態が
+    区別できていなかった）ため、3分類すべてを毎回動的に算出して書き出す。"""
+    return (f"全{depts_total}科のうち、目標達成済 {achieved_n}科（換算不要）／"
+            f"一部換算できた {partial_n}科／換算できなかった {none_n}科です。")
+
+
+def _k1_caption(hospital: dict, depts_total: int,
+                achieved_n: int, partial_n: int, none_n: int) -> str:
+    breakdown = _k1_breakdown_text(depts_total, achieved_n, partial_n, none_n)
     if not hospital or not hospital.get("shown"):
         if hospital and hospital.get("reason") == REASON_ACHIEVED:
-            return (f"目標との差がある科はありません。"
-                    f"各科とも補正後の目標を上回っています（全{depts_total}科中）。")
-        return (f"換算できた科がありません（全{depts_total}科中）。"
-                "月ごとのばらつきが大きい科は目安を出していません。")
+            return breakdown + "各科とも補正後の目標を上回っています。"
+        return breakdown + "月ごとのばらつきが大きい科は目安を出していません。"
     items = {it["key"]: it for it in hospital["items"]}
     main = (
         f"目標との差は{_fmt1(hospital['gap_mm'])}百万円です。"
@@ -201,8 +234,7 @@ def _k1_caption(hospital: dict, depts_shown: int, depts_total: int) -> str:
         f"在院でおよそ{_fmt1(items.get('bed_days', {}).get('value'))}人日にあたります。"
         "過去12か月の関係から計算した目安で、実際にはほかの要因も影響します。"
     )
-    foot = (f"換算できた{depts_shown}科の合計です（全{depts_total}科中）。"
-            "月ごとのばらつきが大きい科は目安を出していません。")
+    foot = breakdown + "月ごとのばらつきが大きい科は目安を出していません。"
     return main + " " + foot
 
 
@@ -224,16 +256,24 @@ def _build_k1(profit_section: dict, estimators: dict,
         row = _k1_dept_row(name, gap_mm, estimators.get(name), driver_avgs, rem_biz)
         dept_rows.append(row)
         if gap_mm > 0 and not row["shown"]:
-            excluded.append(name)
+            excluded.append({"name": name, "reason_code": row["reason_code"]})
 
     hospital = _k1_hospital_row(dept_rows)
     depts_shown = sum(1 for r in dept_rows if r["shown"])
 
+    # ★Phase6: 3分類（達成済/一部換算/換算不可）はすべて dept_rows から動的に算出する
+    # （科数・項目数のハードコード禁止）。
+    achieved_n = sum(1 for r in dept_rows if r["gap_mm"] <= 0)
+    partial_n = sum(1 for r in dept_rows if r["gap_mm"] > 0 and r["shown"])
+    none_n = sum(1 for r in dept_rows if r["gap_mm"] > 0 and not r["shown"])
+
     k1 = {
         "hospital": hospital,
         "depts": dept_rows,
-        "excluded": sorted(excluded),
-        "caption": _k1_caption(hospital, depts_shown, depts_total),
+        "excluded": sorted(excluded, key=lambda x: x["name"]),
+        "caption": _k1_caption(hospital, depts_total, achieved_n, partial_n, none_n),
+        "breakdown": {"total": depts_total, "achieved": achieved_n,
+                      "partial": partial_n, "none": none_n},
     }
     return k1, depts_shown, depts_total
 
@@ -315,23 +355,26 @@ def build_k2(profit_breakdown: pd.DataFrame, adm: pd.DataFrame, surg: pd.DataFra
     # 残差は「丸め後の実測Δ − 丸め後の成分和」として定義し、恒等式を丸め後同士で厳密に保つ。
     residual_r = round(round(actual_delta_mm, 1) - sum(comp_r.values()), 1)
 
-    labels = ["前年実績"] + [lbl for _, lbl in _K2_COMPONENTS] + ["その他", "当年実績"]
-    values = [prev_r] + [comp_r[k] for k, _ in _K2_COMPONENTS] + [residual_r, curr_r]
+    # ★Phase5: 水準2本（前年実績・当年実績）はチャートから外す（増減成分46.8倍・
+    #   rangemode:tozero との組み合わせで増減の棒が軸の2%に潰れていたため）。
+    #   増減要因だけのウォーターフォールにし、水準の始点→終点は caption のテキストで示す
+    #   （下の level_caption / caption）。0起点で積み上げ、最後のバーの天井が実測Δと一致する。
+    labels = [lbl for _, lbl in _K2_COMPONENTS] + ["その他"]
+    values = [comp_r[k] for k, _ in _K2_COMPONENTS] + [residual_r]
 
-    cum = prev_r
-    bases = [0.0]
-    for v in values[1:-1]:
+    cum = 0.0
+    bases = []
+    for v in values:
         bases.append(cum)
         cum += v
-    bases.append(0.0)
 
-    is_other = [False] + [False] * len(_K2_COMPONENTS) + [True, False]
+    is_other = [False] * len(_K2_COMPONENTS) + [True]
     inc_x, inc_y, inc_base = [], [], []
     dec_x, dec_y, dec_base = [], [], []
-    abs_x, abs_y, abs_base = [], [], []
+    oth_x, oth_y, oth_base = [], [], []
     for lbl, v, b, oth in zip(labels, values, bases, is_other):
-        if oth or lbl in ("前年実績", "当年実績"):
-            abs_x.append(lbl); abs_y.append(v); abs_base.append(b)
+        if oth:
+            oth_x.append(lbl); oth_y.append(v); oth_base.append(b)
         elif v >= 0:
             inc_x.append(lbl); inc_y.append(v); inc_base.append(b)
         else:
@@ -342,13 +385,18 @@ def build_k2(profit_breakdown: pd.DataFrame, adm: pd.DataFrame, surg: pd.DataFra
          "marker": {"color": _OK}, "hovertemplate": "%{x}: %{y:+.1f}百万円<extra></extra>"},
         {"name": "減少", "x": dec_x, "y": dec_y, "base": dec_base, "type": "bar",
          "marker": {"color": _DR}, "hovertemplate": "%{x}: %{y:+.1f}百万円<extra></extra>"},
-        {"name": "実績・その他", "x": abs_x, "y": abs_y, "base": abs_base, "type": "bar",
-         "marker": {"color": _OTHER_COLOR}, "hovertemplate": "%{x}: %{y:.1f}百万円<extra></extra>"},
+        {"name": "その他（残差）", "x": oth_x, "y": oth_y, "base": oth_base, "type": "bar",
+         "marker": {"color": _OTHER_COLOR}, "hovertemplate": "%{x}: %{y:+.1f}百万円<extra></extra>"},
     ]
 
     layout = _base_layout("", height=360)
     layout["xaxis"] = {"type": "category", "gridcolor": "#DCE1E9", "categoryarray": labels}
     layout["yaxis"]["title"] = {"text": "百万円", "font": {"size": 10}}
+    # ★水準を外して増減だけになったぶん負値(-0.4等)がゼロ起点固定で見えなくなるため、
+    #   0起点固定(tozero)を外す（第2軸・対数軸は使わない方針のまま）。
+    layout["yaxis"]["rangemode"] = "normal"
+    layout["yaxis"]["zeroline"] = True
+    layout["yaxis"]["zerolinecolor"] = "#B0B5BC"
 
     shapes = []
     tops = [b + v for b, v in zip(bases, values)]
@@ -361,8 +409,11 @@ def build_k2(profit_breakdown: pd.DataFrame, adm: pd.DataFrame, surg: pd.DataFra
         })
     layout["shapes"] = shapes
 
+    delta_r = round(actual_delta_mm, 1)   # ウォーターフォールの最終天井と一致する丸め後Δ
+    delta_sign = "+" if delta_r >= 0 else ""
+    level_caption = f"{prev_r:,.1f} → {curr_r:,.1f} 百万円（{delta_sign}{delta_r:,.1f}）"
     caption = (
-        "前年同月からの差を、要因ごとに分けたものです。"
+        f"{level_caption}。前年同月からの差を、要因ごとに分けたものです。"
         "いちばん左の『暦』は営業日数の違いによる分です。"
         "『その他』には、ここで扱っていない要因と計算の誤差が入ります。"
     )
@@ -370,6 +421,7 @@ def build_k2(profit_breakdown: pd.DataFrame, adm: pd.DataFrame, surg: pd.DataFra
     return {
         "chart": {"traces": traces, "layout": layout, "config": {"responsive": True}},
         "caption": caption,
+        "level_caption": level_caption,
         "months": {"current": curr_month.strftime("%Y-%m"), "prev": prev_month.strftime("%Y-%m")},
     }
 

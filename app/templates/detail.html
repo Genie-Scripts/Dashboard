@@ -19,7 +19,7 @@
 .w{max-width:1280px;margin:0 auto;padding:16px 20px 48px}
 /* ★課題4: タブを大きく、数字を目立たせる */
 .tabs{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));background:var(--s);border:1px solid var(--ln);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh)}.tab{padding:16px 18px;border-right:1px solid var(--ln);cursor:pointer;transition:background .15s}.tab:last-child{border-right:none}.tab:hover{background:#f8fafc}.tab:not(.active){background:#f0f4f8;color:var(--sub)}.tab.active{background:var(--s);color:var(--ink);box-shadow:inset 0 -4px 0 var(--br),0 4px 12px rgba(14,77,164,.10)}.tab .nm{font-size:13px;font-weight:800}.tab .big{font-size:28px;font-weight:900;line-height:1.1;margin:4px 0}.tab .tab-dual{font-size:18px;font-weight:900}.tab .tab-unit{font-size:13px;font-weight:600;color:var(--sub);margin-left:1px}.tab:not(.active) .big{color:var(--sub)}.tab .per{font-size:11px;color:var(--sub);margin-top:2px}.tab .st{display:inline-block;font-size:10px;font-weight:900;padding:2px 8px;border-radius:999px;margin-left:4px;background:var(--dr-bg);color:var(--dr-t)}
-.sum{display:grid;grid-template-columns:1.4fr repeat(3,1fr);gap:10px;margin-top:12px}.bx{background:var(--bg);border:1px solid var(--ln);border-radius:14px;padding:12px 14px;box-shadow:0 2px 6px rgba(10,22,42,.04)}.bx h2{font-size:16px;margin:0}.bx .k{font-size:13px;color:var(--sub);font-weight:700}.bx .v{font-size:24px;font-weight:900;margin-top:4px}.bx .v.dr{color:var(--dr)}
+.sum{display:grid;grid-template-columns:1.6fr repeat(3,1fr);gap:10px;margin-top:12px}.bx{background:var(--bg);border:1px solid var(--ln);border-radius:14px;padding:12px 14px;box-shadow:0 2px 6px rgba(10,22,42,.04)}.bx h2{font-size:16px;margin:0}.bx .k{font-size:13px;color:var(--sub);font-weight:700}.bx .v{font-size:24px;font-weight:900;margin-top:4px}.bx .v.dr{color:var(--dr)}
 .bx .cmp-bar{height:4px;background:#edf2f7;border-radius:999px;overflow:hidden;margin-top:8px}.bx .cmp-fill{height:100%;border-radius:999px;transition:width .3s}.bx .cmp-fill.ok{background:var(--ok)}.bx .cmp-fill.wr{background:var(--wr)}.bx .cmp-fill.dr{background:var(--dr)}.bx .cmp-fill.mu{background:var(--mu)}.bx .cmp-meta{display:flex;justify-content:space-between;align-items:center;margin-top:3px}.bx .cmp-prev{font-size:13px;color:var(--sub);font-weight:600}.bx .cmp-dir{font-size:11px;font-weight:900;padding:2px 6px;border-radius:4px}.bx .cmp-dir.ok{background:var(--ok-bg);color:#065f42}.bx .cmp-dir.wr{background:var(--wr-bg);color:#7c3a06}.bx .cmp-dir.dr{background:var(--dr-bg);color:var(--dr-t)}.bx .cmp-dir.mu{color:var(--mu)}
 /* ★Plan-B: 実績+目標+差分 統合カード */
 .bx-main{background:var(--s);border:1px solid var(--ln);border-radius:14px;padding:14px 16px;box-shadow:0 2px 6px rgba(10,22,42,.04)}.bx-main.ok{background:var(--ok-bg)}.bx-main.wr{background:var(--wr-bg)}.bx-main.dr{background:var(--dr-bg)}.bx-main h2{font-size:14px;margin:0 0 6px;font-weight:800}.bx-main .period-note{font-size:11px;color:var(--sub);margin-bottom:4px}.bx-main .main-val{font-size:28px;font-weight:900;line-height:1.15}.bx-main .main-val.dr{color:var(--dr)}.bx-main .main-unit{font-size:14px;font-weight:400;color:var(--sub)}.bx-main .dual-main-row{display:flex;align-items:baseline;gap:8px;margin:6px 0;flex-wrap:wrap}.bx-main .dual-main-row .main-val{margin:0}.bx-main .dual-main-lab{font-size:13px;font-weight:800;color:var(--sub);min-width:34px}.bx-main .dual-main-tgt{font-size:11px;color:var(--mu);margin-left:auto}.bx-main .main-foot{font-size:10px;color:var(--mu);margin-top:5px}
@@ -132,6 +132,34 @@
 .mp-foot .mp-rate.dr{color:var(--dr)}
 .mp-pace{font-size:10px;color:var(--sub);margin-top:4px;padding-top:4px;border-top:1px dashed var(--ln)}
 @media(max-width:768px){.mp-grid{grid-template-columns:repeat(2,1fr);gap:8px}.mp-big{font-size:20px}}
+/* 粗利の数量×単価分解: 確報バンド（4タイル）＋当月見込み行。グリッドの列数・ブレーク
+   ポイントは .mp-grid（当月予測カード）を流用し、新しい閾値は増やさない。 */
+.pu-band-head{font-size:12px;font-weight:800;color:var(--sub);margin-bottom:8px}
+.pu-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+@media(max-width:768px){.pu-grid{grid-template-columns:repeat(2,1fr);gap:8px}}
+.pu-tile{padding:11px 13px;border-radius:12px;border:1px solid var(--ln);background:var(--bg);display:flex;flex-direction:column;gap:6px;min-width:0}
+.pu-label{font-size:12px;font-weight:800;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pu-big{font-size:22px;font-weight:900;line-height:1.1;color:var(--ink)}
+.pu-big .pu-unit{font-size:11px;font-weight:500;color:var(--sub);margin-left:3px}
+.pu-foot{font-size:11px;color:var(--sub);font-weight:700}
+.pu-badge{margin-top:2px;font-size:11px;font-weight:900;padding:2px 8px;border-radius:6px;display:inline-block;width:fit-content}
+.pu-badge.ok{background:var(--ok-bg);color:#065f42}
+.pu-badge.wr{background:var(--wr-bg);color:#7c3a06}
+.pu-badge.dr{background:var(--dr-bg);color:var(--dr-t)}
+/* ★Phase3: 見込み帯を主役へ昇格。タイル自体は確報(.pu-grid/.pu-tile)と同寸法・実線に
+   揃え、「破線」だけ帯全体の外枠1本として残す（薄青背景・小さい文字は副役の記号だった
+   ため撤去）。 */
+.pu-proj-row{padding:10px 14px;border:1px dashed #9db3c9;border-radius:10px}
+.pu-proj-head{font-size:12px;font-weight:800;color:var(--br);margin-bottom:8px}
+.pu-proj-note{font-size:10.5px;color:var(--mu);margin-top:8px;line-height:1.5}
+.pu-proj-up{color:var(--ok)}
+.pu-proj-down{color:var(--dr)}
+/* ★Phase3: 確報バンドは基準（下段）に降格したぶん文字を1段落とす */
+.pu-band-sub .pu-band-head{font-size:11px}
+.pu-band-sub .pu-big{font-size:18px}
+.pu-band-sub .pu-label{font-size:11px}
+.pu-band-sub .pu-foot{font-size:10px}
+.pu-band-sub .pu-badge{font-size:10px}
 @media(max-width:768px){.tabs{display:flex;overflow:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}.tab{min-width:150px;flex:0 0 auto}.tab .big{font-size:22px}.sum{grid-template-columns:1fr}.bx-main .main-val{font-size:24px}.main{grid-template-columns:1fr}.chart{height:220px}.ri{grid-template-columns:24px 1fr auto}.bar,.stl{display:none}.drill-chart{height:200px}.drill-graphs{grid-template-columns:1fr}.hdr .role{display:none}.hdr{padding:6px 12px}.hdr .row{flex-wrap:nowrap;gap:8px;align-items:center}.left{min-width:0;flex:1 1 auto;overflow:hidden}.title{font-size:14px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.right{flex:0 0 auto;gap:6px}.act,.meta:not(#freshness){display:none}#freshness{font-size:11px;white-space:normal;overflow-wrap:anywhere}.hdr .nav-bar{display:none}
 /* ★モバイル: KPIカード2列化・チャート1列化・はみ出し防止 */
 .kpi-row{grid-template-columns:repeat(2,1fr) !important;gap:8px}
@@ -344,7 +372,7 @@ body.chart-fs-lock{overflow:hidden}
   /* (5) 印刷可能領域を一杯に使う（横向き＝グリッド維持のまま広げる） */
   .w{ max-width:none; margin:0; padding:0 }
   /* (5b) 印刷ビューポートが狭くてもモバイル折返しさせず、横向きで画面の多段グリッドを維持 */
-  .sum{ display:grid !important; grid-template-columns:1.4fr repeat(3,1fr) !important; overflow:visible !important }
+  .sum{ display:grid !important; grid-template-columns:1.6fr repeat(3,1fr) !important; overflow:visible !important }
   .sum>*{ flex:none !important }
   .tabs{ display:grid !important; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)) !important; overflow:visible !important }
   .main{ grid-template-columns:1.15fr .85fr !important }
@@ -403,7 +431,8 @@ h4{font-weight:var(--jp-head)!important}
   <div class="sum" id="summaryBar"></div>
   <div class="global-bar" id="globalBar"></div>
 
-  <!-- 当月予測 (4 KPI: 粗利・在院日平均・新入院・全身麻酔) -->
+  <!-- 当月予測 (在院日平均・新入院・全身麻酔・粗利の4 KPI。粗利タブでは #summaryBar 主カードと
+       の重複表示を避けるため粗利タイルのみ非表示にする→タイル3枚) -->
   <section id="monthProjectionSection" style="margin-top:12px;display:none">
     <div class="pnl" style="background:var(--s);border:1px solid var(--ln);border-radius:var(--r);padding:14px 16px;box-shadow:var(--sh)">
       <h3 style="margin:0 0 10px;font-size:14px;font-weight:800">📅 当月予測 <span id="monthProjectionMeta" style="font-weight:500;color:var(--mu);font-size:11px"></span></h3>
@@ -526,41 +555,6 @@ h4{font-weight:var(--jp-head)!important}
     </div>
   </section>
 
-  <!-- 手術分析（S1〜S7・surgery_opsタブ限定） -->
-  <section class="main" id="surgeryOpsSection" style="grid-template-columns:1fr;display:none">
-    <div class="pnl">
-      <h3>🕐 手術分析</h3>
-      <div id="opsIntro" class="dhm-cap" style="margin:0 0 10px"></div>
-
-      <h4 class="dhm-sub">⏰ 時間外手術比率（月次） <span id="opsS1Cap" class="dhm-cap"></span></h4>
-      <div class="dhm-chart" id="opsS1Chart"></div>
-
-      <h4 class="dhm-sub" style="margin-top:14px">⏰ 科別 時間外手術比率（直近24週） <span id="opsS1bCap" class="dhm-cap"></span></h4>
-      <div class="dhm-chart" id="opsS1bChart"></div>
-
-      <h4 class="dhm-sub" style="margin-top:14px">🔄 入替時間（室別・直近24週） <span id="opsS2Cap" class="dhm-cap"></span></h4>
-      <div class="dhm-chart" id="opsS2Chart"></div>
-
-      <h4 class="dhm-sub" style="margin-top:14px">📦 科別キャパ占有シェア（直近12週） <span id="opsS3Cap" class="dhm-cap"></span></h4>
-      <div class="dhm-chart" id="opsS3Chart"></div>
-
-      <h4 class="dhm-sub" style="margin-top:14px">🚨 緊急・臨時の曜日×時間帯（直近52週） <span id="opsS4Cap" class="dhm-cap"></span></h4>
-      <div class="dhm-chart" id="opsS4Chart"></div>
-
-      <h4 class="dhm-sub" style="margin-top:14px">🕐 週間ORタイムライン <span id="opsS5Cap" class="dhm-cap"></span></h4>
-      <div class="dhm-toggle" id="opsS5DaySeg"></div>
-      <div class="dhm-chart" id="opsS5Chart"></div>
-
-      <h4 class="dhm-sub" style="margin-top:14px">📐 科別 予実比（直近24週） <span id="opsS6Cap" class="dhm-cap"></span></h4>
-      <div class="dhm-chart" id="opsS6Chart"></div>
-
-      <h4 class="dhm-sub" style="margin-top:14px">🧩 割り込み率と構成（月次） <span id="opsS7Cap" class="dhm-cap"></span></h4>
-      <div class="dhm-chart" id="opsS7ChartA"></div>
-      <div class="dhm-chart" id="opsS7ChartKind" style="margin-top:10px"></div>
-      <div class="dhm-chart" id="opsS7ChartIo" style="margin-top:10px"></div>
-    </div>
-  </section>
-
   <!-- 月末粗利 見込み 推移（profitタブ専用、ハイブリッド予測） -->
   <section class="main" id="estimateSection" style="display:none;grid-template-columns:1fr">
     <div class="pnl pnl-chart">
@@ -591,6 +585,9 @@ h4{font-weight:var(--jp-head)!important}
       <div style="overflow-x:auto">
         <table class="hybrid-table" id="tkK1Table"></table>
       </div>
+      <!-- ★Phase6: タッチ操作では不可視な title属性のみに頼らず、非表示セルの理由を
+           表の下の凡例として常時可視化する（該当する理由だけ動的に表示） -->
+      <div id="tkK1Legend" style="margin-top:4px"></div>
       <div id="tkK1Excluded" style="margin-top:6px"></div>
 
       <h4 class="dhm-sub" style="margin-top:16px">② 前年同月からの差の内訳 <span id="tkK2Cap" class="dhm-cap"></span></h4>
@@ -617,6 +614,33 @@ h4{font-weight:var(--jp-head)!important}
           <div id="hybridMeta" style="margin-top:8px;font-size:11px;color:var(--mu);line-height:1.5"></div>
         </div>
       </details>
+    </div>
+  </section>
+
+  <!-- 数量×単価分解（profitタブ専用・入院のみ。粗利/人日という「単価」の概念を新設） -->
+  <section class="main" id="profitUnitSection" style="display:none;grid-template-columns:1fr">
+    <div class="pnl">
+      <h3>📐 粗利の数量×単価分解 <span id="puScope" style="font-weight:500;color:var(--mu);font-size:11px"></span></h3>
+      <div style="font-size:11px;color:var(--sub);margin:2px 0 12px;line-height:1.5">
+        粗利/人日 = 入院粗利 ÷ 延患者数（患者1人が1日在院したときの平均粗利）。
+        平均在院日数は 延患者数 ÷ 退院数 の近似値で、医事の在院日数とは一致しない。
+      </div>
+
+      <!-- ★Phase3: 見込み(上段・主役)→確報(下段・基準)の順に昇格。IDはJS参照との
+           互換のため変えない。 -->
+      <div id="puProjectionRow" style="display:none;margin-bottom:14px"></div>
+      <div id="puLatestBand" style="margin-bottom:14px"></div>
+
+      <h4 class="dhm-sub">① 前年同月差を「量」と「単価」の2つに分ける（百万円） <span class="dhm-cap">数量効果＝延患者数の増減分、単価効果＝粗利/人日の増減分。上の「前年同月からの差の内訳」と同じ差を、要因別ではなく量と単価の2つだけで説明したもの（両者の合計は差の実績に一致）</span></h4>
+      <div class="dhm-chart" id="puDecompChart"></div>
+
+      <h4 class="dhm-sub" style="margin-top:16px">② 入院粗利/人日（円）</h4>
+      <div class="dhm-chart" id="puPpdChart"></div>
+
+      <h4 class="dhm-sub" style="margin-top:16px">③ 平均在院日数の近似（日）</h4>
+      <div class="dhm-chart" id="puAlosChart"></div>
+
+      <div id="puMarginalCaption" style="margin-top:12px;padding:10px 14px;background:#f8fafc;border-radius:10px;font-size:13px;color:var(--sub)"></div>
     </div>
   </section>
 
@@ -676,6 +700,7 @@ let dhmAdm = 'admission'; // 入院ヒートの指標: admission|planned|emergen
 let dhmDrillUnit = null;  // 行クリックで開いている単一ユニット名
 let currentPeriod = '12w';
 const hasProfit = !!(DATA.profit && DATA.profit.kpi);
+const hasProfitUnit = !!(DATA.profit_unit && DATA.profit_unit.global);
 let showWeekday = true;
 let showHoliday = true;
 let inpDayFilter = 'all'; // 'all' | 'wd' | 'hd'
@@ -697,7 +722,7 @@ function _pH(desktop) { return window.innerWidth <= 768 ? 200 : desktop; }
 document.addEventListener('DOMContentLoaded', () => {
   const hash = location.hash.replace('#','');
   const params = new URLSearchParams(location.hash.includes('?') ? location.hash.split('?')[1] : '');
-  if (['inpatient','admission','balance','operation','profit','surgery_ops'].includes(hash.split('?')[0])) currentTab = hash.split('?')[0];
+  if (['inpatient','admission','balance','operation','profit'].includes(hash.split('?')[0])) currentTab = hash.split('?')[0];
   if (params.get('axis')) currentAxis = params.get('axis');
   renderTabs(); renderAll();
   document.querySelectorAll('#dhmAdmRadio input').forEach(i =>
@@ -754,13 +779,8 @@ function renderDowHeatmaps() {
 }
 
 // ══════════════════════════
-// 手術分析（S1〜S7・surgery_opsタブ）
+// Plotly描画の共通ヘルパー（profit_translate・ward_flow 等で使用）
 // ══════════════════════════
-const OPS_FOOT_CORE = '対象は平日の主要手術室（OP-1〜10, 12）です。眼科は外来手術センターが中心のため、この画面の集計にはほとんど入りません。';
-const OPS_FOOT_ALL  = '対象は全室です。';
-const OPS_FOOT_S7   = '割り込み率は平日の主要手術室（OP-1〜10, 12）、構成の内訳は全室が対象です。';
-let opsDay = null;  // S5（週間ORタイムライン）で選択中の日付("YYYY-MM-DD")
-
 function _drawOps(node, elId) {
   const el = document.getElementById(elId);
   if (!el) return;
@@ -769,77 +789,6 @@ function _drawOps(node, elId) {
     return;
   }
   newPlotMobileSafe(el, node.traces, Object.assign({}, node.layout), node.config || {responsive:true});
-}
-
-function _opsCap(id, text, foot) {
-  const el = document.getElementById(id);
-  if (el) el.textContent = (text ? text + '　' : '') + foot;
-}
-
-function renderSurgeryOps() {
-  const ops = (DATA.charts && DATA.charts.surgery_ops) || null;
-  if (!ops) return;
-
-  const introEl = document.getElementById('opsIntro');
-  if (introEl) introEl.textContent = (ops.meta && ops.meta.intro) || '';
-
-  _drawOps(ops.s1 && ops.s1.chart, 'opsS1Chart');
-  _opsCap('opsS1Cap', ops.s1 && ops.s1.caption, OPS_FOOT_CORE);
-  _drawOps(ops.s1b && ops.s1b.chart, 'opsS1bChart');
-  _opsCap('opsS1bCap', ops.s1b && ops.s1b.caption, OPS_FOOT_CORE);
-  _drawOps(ops.s2 && ops.s2.chart, 'opsS2Chart');
-  _opsCap('opsS2Cap', ops.s2 && ops.s2.caption, OPS_FOOT_CORE);
-  _drawOps(ops.s3 && ops.s3.chart, 'opsS3Chart');
-  _opsCap('opsS3Cap', ops.s3 && ops.s3.caption, OPS_FOOT_CORE);
-  _drawOps(ops.s4 && ops.s4.chart, 'opsS4Chart');
-  _opsCap('opsS4Cap', ops.s4 && ops.s4.caption, OPS_FOOT_ALL);
-
-  // S5: 日切替トグル（既定=直前完全週の最終日）
-  const dayLabels = (ops.s5 && ops.s5.day_labels) || [];
-  const segEl = document.getElementById('opsS5DaySeg');
-  if (!opsDay || !dayLabels.some(d => d[0] === opsDay)) {
-    opsDay = dayLabels.length ? dayLabels[dayLabels.length - 1][0] : null;
-  }
-  if (segEl) {
-    segEl.innerHTML = dayLabels.map(([dKey, lbl]) =>
-      `<button class="dhm-tg${dKey===opsDay?' active':''}" onclick="setOpsDay('${dKey}')">${lbl}</button>`
-    ).join('');
-  }
-  const dayChart = (ops.s5 && ops.s5.days && opsDay) ? ops.s5.days[opsDay] : null;
-  _drawOps(dayChart, 'opsS5Chart');
-  _opsCap('opsS5Cap', ops.s5 && ops.s5.caption, OPS_FOOT_CORE);
-
-  _drawOps(ops.s6 && ops.s6.chart, 'opsS6Chart');
-  _opsCap('opsS6Cap', ops.s6 && ops.s6.caption, OPS_FOOT_CORE);
-
-  _drawOps(ops.s7 && ops.s7.chart, 'opsS7ChartA');
-  _drawOps(ops.s7 && ops.s7.mix_kind, 'opsS7ChartKind');
-  _drawOps(ops.s7 && ops.s7.mix_io, 'opsS7ChartIo');
-  _opsCap('opsS7Cap', ops.s7 && ops.s7.caption, OPS_FOOT_S7);
-}
-
-function setOpsDay(d) {
-  opsDay = d;
-  renderSurgeryOps();
-}
-
-// 手術分析タブだけに表示。他セクションは非表示にし、非表示→表示に切り替わる
-// 瞬間にだけ描画する（display:noneではPlotlyが幅を取得できないため）。
-function renderSurgeryOpsLayout() {
-  const sec = document.getElementById('surgeryOpsSection');
-  if (!sec) return;
-  if (currentTab !== 'surgery_ops') { sec.style.display = 'none'; return; }
-  const mainSec = document.getElementById('mainSection');
-  const heatSec = document.getElementById('dischargeHeatmapSection');
-  const lvlSec  = document.getElementById('levelingSection');
-  const bar     = document.getElementById('balanceSubtabs');
-  if (mainSec) mainSec.style.display = 'none';
-  if (heatSec) heatSec.style.display = 'none';
-  if (lvlSec)  lvlSec.style.display  = 'none';
-  if (bar)     bar.style.display     = 'none';
-  const wasHidden = sec.style.display === 'none';
-  sec.style.display = '';
-  if (wasHidden) renderSurgeryOps();
 }
 
 // ── 単一ユニットの入退院 曜日プロファイル（行クリック・ドリル → 共通部品 renderDowProfile）──
@@ -933,13 +882,6 @@ function renderTabs() {
       big:`${pk.hospital_total}百万円`, per:`${pk.base_month} 全科合計${bdLabel}${projLabel}`,
       st:pSt});
   }
-  if (DATA.charts && DATA.charts.surgery_ops) {
-    const ops = DATA.charts.surgery_ops;
-    tabs.push({id:'surgery_ops', icon:'🕐', name:'手術分析',
-      big:`${ops.s1.latest_rate!=null?ops.s1.latest_rate+'%':'—'}`,
-      per:(ops.meta && ops.meta.tab_per) || '時間外手術比率（直近24週・平日×主要手術室）',
-      st:{css:'mu',shape:'',text:''}});
-  }
   document.getElementById('kpiTabs').innerHTML = tabs.map(t =>
     `<div class="tab${t.id===currentTab?' active':''}" onclick="switchTab('${t.id}')">
       <div class="nm">${t.icon} ${t.name} <span class="st">${t.st.shape} ${t.st.text}</span></div>
@@ -969,10 +911,6 @@ function switchTab(id) {
   admType = 'all';   // タブ切替でフィルタリセット
   inpDayFilter = 'all'; // 在院 全日/平日/休日リセット
   rankSort = 'gap_asc';
-  if (id === 'surgery_ops') {
-    const dayLabels = ((DATA.charts && DATA.charts.surgery_ops) || {}).s5 && DATA.charts.surgery_ops.s5.day_labels;
-    opsDay = (dayLabels && dayLabels.length) ? dayLabels[dayLabels.length - 1][0] : null;  // 既定=週の最終日
-  }
   renderTabs(); renderAll();
 }
 // ★モバイル: 補助セクション折りたたみ（提案5）。desktopは常に展開、mobileは初回のみ既定で畳む。
@@ -1066,7 +1004,12 @@ function renderMonthProjection() {
   if (metaEl) {
     metaEl.textContent = `(${meta.month || ''} 経過 ${meta.cal_days_elapsed||'—'}/${meta.cal_days_total||'—'}日 ／ 営業 ${meta.biz_days_elapsed||'—'}/${meta.biz_days_total||'—'}日)`;
   }
-  const order = ['profit', 'inpatient', 'admission', 'operation'];
+  // ★Phase2/A: 粗利タブでは #summaryBar の主カードが同じ month_projection.profit.projection
+  //   を出すため、同じ数値が縦に2回並ぶのを避けたい→粗利タブ表示中のみ 'profit' を外す
+  //   （他タブ閲覧中は当月見込み粗利が視界から消えてしまうため、そちらでは4枚に戻す）。
+  const order = currentTab === 'profit'
+    ? ['inpatient', 'admission', 'operation']
+    : ['profit', 'inpatient', 'admission', 'operation'];
   const fmt = v => (v==null) ? '—' : (typeof v === 'number' ? v.toLocaleString('ja-JP') : v);
   const html = order.map(key => {
     const k = mp[key];
@@ -1320,10 +1263,7 @@ function refCardHtml(r) {
 
 /* ★Plan-B: renderSummary — 実績+目標+差分を統合カードに集約 */
 function renderSummary() {
-  // 手術分析タブは DATA.kpi に対応キーが無い（surgery_opsは charts 側のみ）ため、
-  // ここで早期returnしないと最終elseブロックが kpi.daily_avg 等で例外化し白画面になる。
   const sumEl = document.getElementById('summaryBar');
-  if (currentTab === 'surgery_ops') { if (sumEl) sumEl.style.display = 'none'; return; }
   if (sumEl) sumEl.style.display = '';
   const kpi = DATA.kpi[currentTab];
   let main, refs;
@@ -1432,23 +1372,62 @@ function renderSummary() {
     const pRate = pk.hospital_achievement;
     const pAdj = pk.hospital_adj_target != null ? pk.hospital_adj_target : null;
     const pTgt = pAdj != null ? pAdj : pk.hospital_target;
-    const pGap = pTgt ? Math.round((pk.hospital_total - pTgt)*10)/10 : 0;
-    const pSt = pRate >= 100 ? {css:'ok',shape:'▲',text:'達成'} : pRate >= 90 ? {css:'wr',shape:'―',text:'接近'} : {css:'dr',shape:'▼',text:'未達'};
     const bdNote = pk.current_biz_days != null
       ? (pk.has_breakdown
           ? ` (営業${pk.current_biz_days}日 / 暦${pk.current_cal_days}日 補正)`
           : ` (営業${pk.current_biz_days}日 / 標準${pk.std_biz_days}日換算)`)
       : '';
-    main = {
-      icon:'💰', label:'粗利（全科合計）', periodNote:`${pk.base_month} 月次${bdNote}`,
-      actual:pk.hospital_total, unit:'百万円', targetLabel: pAdj != null ? '月次目標(補正)' : '月次目標',
-      target:pTgt, gap:pGap, gapUnit:'百万円',
-      rate:pRate, status:pSt,
-      footNote: pAdj != null ? `※名目目標 ${pk.hospital_target}百万円（営業${pk.std_biz_days}日・暦${pk.std_cal_days}日 基準）` : ''
-    };
+    // ★2026-06改定の換算後達成率（参考表示）。改定前月・値が同一のときは重複表示しない。
+    const pRateRevAdj = (pk.hospital_achievement_rev_adj != null
+                          && pk.hospital_achievement_rev_adj !== pRate)
+                         ? pk.hospital_achievement_rev_adj : null;
+
+    // ★Phase2: 主カードを「当月見込み」へ主役交代（既存 month_projection.profit を昇格。
+    //   新しい推計器は作らない）。確報(pk)は refs[0]「◯月 確報」へ降格する。
+    const mp = (DATA.month_projection && DATA.month_projection.profit) || null;
+    if (mp) {
+      const projMonthRaw = (DATA.month_projection.meta && DATA.month_projection.meta.month) || '';
+      const [projY, projM] = projMonthRaw.split('-');
+      const monthLabel = (projY && projM) ? `${projY}年${parseInt(projM,10)}月` : projMonthRaw;
+      // 基準日はページ全体の基準日(DATA.meta.base_date)ではなく見込みの実際の算出日
+      // （profit_estimate.meta.window_end）を使う（1日ずれることがあるため）。
+      const windowEndRaw = (DATA.profit_estimate && DATA.profit_estimate.meta
+                            && DATA.profit_estimate.meta.window_end) || DATA.meta.base_date;
+      const we = new Date(windowEndRaw);
+      const asOfLabel = `${we.getMonth()+1}/${we.getDate()}時点`;
+      const mpGap = mp.target != null ? Math.round((mp.projection - mp.target)*10)/10 : null;
+      main = {
+        icon:'💰', label:'粗利（全科合計）',
+        periodNote:`${monthLabel} 月末見込み（${asOfLabel}・診療実績ベース・暫定）`,
+        actual:mp.projection, unit:mp.unit || '百万円', targetLabel:'月次目標',
+        target:mp.target, gap:mpGap, gapUnit:'百万円',
+        rate:mp.rate, status:{css:mp.status_css, shape:mp.status_shape, text:mp.status_text},
+        rateSuffix:'（±2%）',
+        footNote:'※ 見込みの誤差は月間 ±2%程度。単価そのものの変化（加算・コーディング・改定）は映りません',
+      };
+    } else {
+      // 見込みが組めないビルド（データ欠落等）は従来どおり確報を主カードのまま維持（静かに縮退）
+      const pGap = pTgt ? Math.round((pk.hospital_total - pTgt)*10)/10 : 0;
+      const pSt = pRate >= 100 ? {css:'ok',shape:'▲',text:'達成'} : pRate >= 90 ? {css:'wr',shape:'―',text:'接近'} : {css:'dr',shape:'▼',text:'未達'};
+      main = {
+        icon:'💰', label:'粗利（全科合計）', periodNote:`${pk.base_month} 月次${bdNote}`,
+        actual:pk.hospital_total, unit:'百万円', targetLabel: pAdj != null ? '月次目標(補正)' : '月次目標',
+        target:pTgt, gap:pGap, gapUnit:'百万円',
+        rate:pRate, status:pSt, revAdjRate:pRateRevAdj,
+        footNote: pAdj != null ? `※名目目標 ${pk.hospital_target}百万円（営業${pk.std_biz_days}日・暦${pk.std_cal_days}日 基準）` : ''
+      };
+    }
+
+    // refs[0]: 確報カード（旧主カード相当を降格。現行の「日次ペース」は副文字列として畳む）
+    const [, confirmedM] = (pk.base_month || '').split('-');
+    const confirmedLabel = confirmedM ? `${parseInt(confirmedM,10)}月 確報` : '確報';
+    const paceLabel = pk.hospital_daily_pace != null
+      ? `日次ペース ${pk.hospital_daily_pace}万/営業日${pk.hospital_daily_target!=null ? `（目標 ${pk.hospital_daily_target}万/営業日）` : ''}`
+      : '日次ペース —';
     refs = [
-      {k:'日次ペース',     v:pk.hospital_daily_pace!==null?`${pk.hospital_daily_pace}万/営業日`:'—', unit:'万/営業日',
-       curr:pk.hospital_daily_pace, refTarget:pk.hospital_daily_target, refTargetLabel:'日次目標'},
+      {k:confirmedLabel, v:pk.hospital_total!==null?`${pk.hospital_total}百万円`:'—', unit:'百万円',
+       curr:pk.hospital_total, refTarget:pTgt, refTargetLabel: pAdj != null ? '補正目標' : '目標',
+       prevLabel:paceLabel},
       {k:'直近3ヶ月平均', v:pk.hospital_3m_avg!==null?`${pk.hospital_3m_avg}百万/月`:'—', unit:'百万/月',
        curr:pk.hospital_3m_avg, prev:pk.prev_3m_avg},
       {k:'年度累計月平均', v:pk.hospital_ytd_monthly_avg!==null?`${pk.hospital_ytd_monthly_avg}百万/月`:'—', unit:'百万/月',
@@ -1517,7 +1496,10 @@ function renderSummary() {
     <div class="prog-wrap">
       <div class="prog-bar"><div class="prog-fill ${sc}" style="width:${barW}%"></div></div>
       <div class="prog-meta">
-        <span class="prog-pct ${sc}">${main.rate!=null?main.rate+'%':'—'}</span>
+        <span style="display:flex;align-items:baseline;gap:6px">
+          <span class="prog-pct ${sc}">${main.rate!=null?main.rate+'%'+(main.rateSuffix||''):'—'}</span>
+          ${main.revAdjRate!=null ? `<span style="font-size:10px;font-weight:700;color:var(--mu)" title="粗利目標は改定前水準のまま。改定換算後は改定がなかった場合に相当する達成率">改定換算後 ${main.revAdjRate}%</span>` : ''}
+        </span>
         <span class="prog-status ${sc}">${ss} ${st}</span>
       </div>
     </div>
@@ -1551,7 +1533,6 @@ function renderGlobalBar() {
 
 // ── グラフパネル内コントロール: 期間 + 日種 + 描画 ──
 function renderChartControls() {
-  if (currentTab === 'surgery_ops') return;
   const isOp = currentTab === 'operation';
   const isProfit = currentTab === 'profit';
   const mkChk = (id,lbl,checked,fn) => `<label style="font-size:11px;font-weight:700;color:var(--sub);cursor:pointer;display:flex;align-items:center;gap:2px"><input type="checkbox" ${checked?'checked':''} onchange="${fn}"> ${lbl}</label>`;
@@ -1668,7 +1649,6 @@ function toggleDayType(type, checked) {
 
 function renderContent() {
   renderBalanceLayout();   // レイアウト（balanceの可視/全幅）を先に確定 → renderChart が正しい幅で描画
-  renderSurgeryOpsLayout();
   renderChart();
   renderRanking();
   renderEstimateSection();
@@ -2042,16 +2022,17 @@ const hasEstimate = !!(
   || (DATA.profit_estimate && DATA.profit_estimate.series && DATA.profit_estimate.series.dates)
 );
 function renderEstimateSection() {
-  if (currentTab === 'surgery_ops') return;
   const sec = document.getElementById('estimateSection');
   const csec = document.getElementById('contributionSection');
   const hsec = document.getElementById('hybridSection');
   const tsec = document.getElementById('translateSection');
+  const pusec = document.getElementById('profitUnitSection');
   if (currentTab !== 'profit') {
     if (sec) sec.style.display = 'none';
     if (csec) csec.style.display = 'none';
     if (hsec) hsec.style.display = 'none';
     if (tsec) tsec.style.display = 'none';
+    if (pusec) pusec.style.display = 'none';
     return;
   }
   if (sec) {
@@ -2061,6 +2042,7 @@ function renderEstimateSection() {
   renderContribution();
   renderHybridSection();
   renderTranslateSection();
+  renderProfitUnitSection(null);   // ★タブ再描画のたびに病院全体へリセット（科ドリルは openProfitDrill 側で切替）
 }
 
 function renderEstimateChart() {
@@ -2309,11 +2291,36 @@ function _tkCell(text, title) {
   return td;
 }
 
+// ★Phase6: 非表示セルの理由をtitle属性（タッチ操作では実質不可視）だけに頼らず、
+// —の横に短い記号を常時表示する（凡例は_tkRenderLegendが表の下に置く）。
+const TK_REASON_MARK = {R: 'ᴿ', N: 'ᴺ', C: 'ᶜ'};
+const TK_REASON_LABEL = {R: '当てはまり不足', N: '係数が負', C: '外挿上限超'};
+
 function _tkItemText(it) {
-  if (!it || !it.shown) return '—';
+  if (!it) return '—';
+  if (!it.shown) return '—' + (TK_REASON_MARK[it.reason_code] || '');
   let s = `${it.value}${it.unit}`;
   if (it.pace != null) s += `（必要ペース ${it.pace}${it.pace_unit || ''}）`;
   return s;
+}
+
+// 表の下に置く凡例。実際にどこかのセルで使われている記号だけを動的に表示する
+// （科数・項目数と同じくハードコードせず payload から算出する）。
+function _tkRenderLegend(k1) {
+  const el = document.getElementById('tkK1Legend');
+  if (!el) return;
+  const codes = new Set();
+  (k1.depts || []).forEach(row => (row.items || []).forEach(it => {
+    if (!it.shown && it.reason_code) codes.add(it.reason_code);
+  }));
+  if (!codes.size) { el.textContent = ''; return; }
+  const parts = ['R', 'N', 'C'].filter(c => codes.has(c))
+    .map(c => `—${TK_REASON_MARK[c]}＝${TK_REASON_LABEL[c]}`);
+  const span = document.createElement('span');
+  span.className = 'dhm-cap';
+  span.textContent = '凡例: ' + parts.join('　');
+  el.textContent = '';
+  el.appendChild(span);
 }
 
 function _tkBuildK1Table(k1) {
@@ -2351,15 +2358,26 @@ function _tkBuildK1Table(k1) {
   table.appendChild(tbody);
 }
 
+// ★Phase6: 全項目非表示の科は理由別に束ねて表示する（k1.excluded は
+// [{name, reason_code}, ...]。件数・グルーピングはすべて payload から動的に算出）。
 function _tkRenderExcluded(k1) {
   const el = document.getElementById('tkK1Excluded');
   if (!el) return;
   while (el.firstChild) el.removeChild(el.firstChild);
-  const names = k1.excluded || [];
-  if (!names.length) return;
+  const items = k1.excluded || [];
+  if (!items.length) return;
+  const groups = {};
+  items.forEach(it => {
+    const code = it.reason_code || '?';
+    (groups[code] = groups[code] || []).push(it.name);
+  });
+  const lines = ['R', 'N', 'C', '?'].filter(c => groups[c] && groups[c].length).map(c => {
+    const label = TK_REASON_LABEL[c] || '理由不明';
+    return `${label}: ${groups[c].join('、')}`;
+  });
   const span = document.createElement('span');
   span.className = 'dhm-cap';
-  span.textContent = '● 目安を出していない科: ' + names.join('、');
+  span.textContent = `● 目安を出していない科（${items.length}科）　` + lines.join('　／　');
   el.appendChild(span);
 }
 
@@ -2375,6 +2393,7 @@ function renderTranslateSection() {
     const cap1 = document.getElementById('tkK1Cap');
     if (cap1) cap1.textContent = k1.caption || '';
     _tkBuildK1Table(k1);
+    _tkRenderLegend(k1);
     _tkRenderExcluded(k1);
   } catch (e) {}
 
@@ -2403,6 +2422,324 @@ function renderTranslateSection() {
       if (cap3) cap3.textContent = '';
     }
   } catch (e) {}
+}
+
+// ══════════════════════════
+// 粗利タブ: 数量×単価分解（DATA.profit_unit・入院のみ）
+//   ①前年同月差の内訳（数量効果+単価効果の積み上げ＋Δ粗利実績を重ね線）
+//   ②粗利/人日（今年=図/昨年=地の線文法。commit cc75611 と同じ扱い）
+//   ③平均在院日数の近似（②と同じ時間軸の別チャート・第2軸は使わない）
+//   科別ドリルは既存の軸切替（openProfitDrill/closeDrill の currentDrill）に合わせる。
+// ══════════════════════════
+
+function renderProfitUnitSection(dept) {
+  const sec = document.getElementById('profitUnitSection');
+  if (!sec) return;
+  if (currentTab !== 'profit' || !hasProfitUnit) { sec.style.display = 'none'; return; }
+
+  let data, scopeLabel;
+  if (dept) {
+    data = DATA.profit_unit.by_dept && DATA.profit_unit.by_dept[dept];
+    scopeLabel = `（${dept}）`;
+  } else {
+    data = DATA.profit_unit.global;
+    scopeLabel = '（病院全体）';
+  }
+  sec.style.display = 'grid';
+  const scopeEl = document.getElementById('puScope');
+  if (scopeEl) scopeEl.textContent = scopeLabel;
+
+  if (!data) {
+    // 入院粗利/延患者数が取れない科（静かに縮退）
+    ['puDecompChart', 'puPpdChart', 'puAlosChart'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:40px 0">対象データなし（入院粗利データが無い科です）</div>';
+    });
+    const capEl = document.getElementById('puMarginalCaption');
+    if (capEl) capEl.textContent = '';
+    _renderPuLatestBand(null, null, dept);
+    _renderPuProjectionRow(null, null, null, dept);
+    return;
+  }
+  // ★Phase4 S2: 確報遅れ（prev_month_pending）は病院全体のみ（by_dept には付与されない
+  //   ＝科ドリル時は常に undefined→falsy で下段は通常の確報バンドのまま）。
+  _renderPuLatestBand(data.latest, data.prev_month_pending, dept);
+  // ★見込み行は病院全体のみ（by_dept には projection が無い＝科ドリル時は常に非表示。
+  //   dept 引数でも明示的にガードして「無いから結果的に非表示」に依存しない）。
+  _renderPuProjectionRow(data.projection, data.latest, data.prev_month_pending, dept);
+  _renderPuDecompChart(data.decomp);
+  _renderPuPpdChart(data.ppd, data.projection, data.prev_month_pending, dept);
+  _renderPuAlosChart(data.alos);
+  const capEl = document.getElementById('puMarginalCaption');
+  if (capEl) capEl.textContent = (data.marginal && data.marginal.caption) || '';
+}
+
+// 確報バンド（4タイル: 入院粗利/延患者数/粗利/人日/平均在院日数(近似)）。
+// 達成率バッジ（▲達成/―接近/▼未達）は既存の stCss/stShape/stText（≥100/90-99/<90）を
+// そのまま流用し、判定ロジックを新規に増やさない。latest が無ければ帯ごと非表示。
+function _puFmt(v, opts) {
+  return (v == null) ? '—' : v.toLocaleString('ja-JP', opts || {});
+}
+function _puFmtPct(v) {
+  if (v == null) return '—';
+  return (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
+}
+function _renderPuLatestBand(latest, pending, dept) {
+  const el = document.getElementById('puLatestBand');
+  if (!el) return;
+  // ★Phase3: 基準（下段）に降格したぶん文字を1段落とす（.pu-band-sub）
+  el.className = 'pu-band-sub';
+
+  // ★Phase4 S2: 確報遅れ（前月Pの確報がまだ無い）。P月の見込み（確報待ち・暫定）を
+  // 基準バンドの主表示にし、A月（最新確報）は小さく1行だけ添える。新規推計器は使わず
+  // pending は既存の日次系列からそのまま抽出済みの値（_build_prev_month_pending）。
+  if (pending) {
+    const oneDec = {minimumFractionDigits: 1, maximumFractionDigits: 1};
+    const [py, pm] = String(pending.month).split('-');
+    const headText = `${py}年${parseInt(pm, 10)}月 見込み（確報待ち・暫定）・入院のみ${dept ? `（${dept}）` : '・全科'}`;
+    const tile1 = `<div class="pu-tile">
+        <div class="pu-label">入院粗利</div>
+        <div class="pu-big">${_puFmt(pending.profit_mm, oneDec)}<span class="pu-unit">百万円</span></div>
+      </div>`;
+    const tile2 = `<div class="pu-tile">
+        <div class="pu-label">延患者数</div>
+        <div class="pu-big">${_puFmt(pending.patient_days)}<span class="pu-unit">人日</span></div>
+      </div>`;
+    const tile3 = `<div class="pu-tile">
+        <div class="pu-label">粗利/人日</div>
+        <div class="pu-big">${_puFmt(pending.ppd)}<span class="pu-unit">円</span></div>
+      </div>`;
+    const tile4 = `<div class="pu-tile">
+        <div class="pu-label">平均在院日数</div>
+        <div class="pu-big">—</div>
+      </div>`;
+    const [, am] = String(pending.confirmed_month).split('-');
+    const confirmedNote = (latest && latest.profit_mm != null)
+      ? `<div class="pu-foot" style="margin-top:8px">${parseInt(am, 10)}月 確報 ${_puFmt(latest.profit_mm, oneDec)}百万円</div>`
+      : '';
+    el.innerHTML = `<div class="pu-band-head">${headText}</div>
+      <div class="pu-grid">${tile1}${tile2}${tile3}${tile4}</div>
+      ${confirmedNote}`;
+    return;
+  }
+
+  if (!latest) { el.innerHTML = ''; return; }
+
+  const parts = String(latest.month).split('-');
+  const headText = `${parts[0]}年${parseInt(parts[1], 10)}月 確報・入院のみ${dept ? `（${dept}）` : '・全科'}`;
+  const py = latest.prev_year || {};
+  const yoy = latest.yoy_pct || {};
+  const oneDec = {minimumFractionDigits: 1, maximumFractionDigits: 1};
+
+  let achFoot = '', achBadge = '';
+  if (latest.achievement_pct != null) {
+    const css = stCss(latest.achievement_pct);
+    achFoot = `<div class="pu-foot">目標比 ${_puFmt(latest.achievement_pct, oneDec)}%</div>`;
+    achBadge = `<div class="pu-badge ${css}">${stShape(latest.achievement_pct)} ${stText(latest.achievement_pct)}</div>`;
+  }
+  const tile1 = `<div class="pu-tile">
+      <div class="pu-label">入院粗利</div>
+      <div class="pu-big">${_puFmt(latest.profit_mm, oneDec)}<span class="pu-unit">百万円</span></div>
+      ${achFoot}${achBadge}
+    </div>`;
+
+  const tile2 = `<div class="pu-tile">
+      <div class="pu-label">延患者数</div>
+      <div class="pu-big">${_puFmt(latest.patient_days)}<span class="pu-unit">人日</span></div>
+      ${yoy.patient_days != null ? `<div class="pu-foot">前年 ${_puFmtPct(yoy.patient_days)}</div>` : ''}
+    </div>`;
+
+  const tile3 = `<div class="pu-tile">
+      <div class="pu-label">粗利/人日</div>
+      <div class="pu-big">${_puFmt(latest.ppd)}<span class="pu-unit">円</span></div>
+      ${yoy.ppd != null ? `<div class="pu-foot">前年 ${_puFmtPct(yoy.ppd)}</div>` : ''}
+    </div>`;
+
+  const tile4 = `<div class="pu-tile">
+      <div class="pu-label">平均在院日数(近似)</div>
+      <div class="pu-big">${_puFmt(latest.alos, oneDec)}<span class="pu-unit">日</span></div>
+      ${py.alos != null ? `<div class="pu-foot">前年 ${_puFmt(py.alos, oneDec)}日</div>` : ''}
+    </div>`;
+
+  el.innerHTML = `<div class="pu-band-head">${headText}</div>
+    <div class="pu-grid">${tile1}${tile2}${tile3}${tile4}</div>`;
+}
+
+// ★Phase3: 当月（進行中）の粗利/人日 見込みを主役（上段）へ昇格。タイルは確報
+// （.pu-grid/.pu-tile）と同寸法・実線にし、破線は帯全体の外枠1本（.pu-proj-row）だけ
+// に留める（薄青背景・小さい文字は副役の記号だったため撤去）。
+// 比較軸は「前月比」に統一（前年同月比は下段の確報バンド側の役割）。
+// 科ドリル時は projection 自体が payload に無いが、dept 引数でも明示的にガードする。
+// ★Phase4 S2: pending（確報遅れ時のP月見込み）があるときは比較軸ラベルを
+// 「前月(見込み)比」に切り替え、比較対象も stale な A(latest)ではなく P(pending)にする
+// （サーバ側の vs_prev_pct/direction も同じ理由で reference_ppd を pending 優先に
+// 切り替え済み。JS側はラベルと延患者数の対照値だけ揃える）。
+function _renderPuProjectionRow(projection, latest, pending, dept) {
+  const el = document.getElementById('puProjectionRow');
+  if (!el) return;
+  if (dept || !projection) { el.style.display = 'none'; el.innerHTML = ''; return; }
+
+  const oneDec = {minimumFractionDigits: 1, maximumFractionDigits: 1};
+  const mParts = String(projection.month).split('-');
+  const asOf = String(projection.as_of).split('-');
+  const headText = `🔄 当月${parseInt(mParts[1], 10)}月 月末見込み（`
+    + `${parseInt(asOf[1], 10)}/${parseInt(asOf[2], 10)}時点・診療実績ベース・暫定）`;
+  const cmpLabel = pending ? '前月(見込み)比' : '前月比';
+
+  // 入院粗利: 目標比バッジ（当月の暦日補正目標。既存 stCss/stShape/stText を流用）
+  let profitFoot = '', profitBadge = '';
+  if (projection.achievement_pct != null) {
+    const css = stCss(projection.achievement_pct);
+    profitFoot = `<div class="pu-foot">目標比 ${_puFmt(projection.achievement_pct, oneDec)}%（±2%）</div>`;
+    profitBadge = `<div class="pu-badge ${css}">${stShape(projection.achievement_pct)} ${stText(projection.achievement_pct)}</div>`;
+  }
+
+  // 延患者数: 前月比（S2ならpending.patient_days・S1ならlatest.patient_daysが対照）
+  let pdFoot = '';
+  const refPd = pending ? pending.patient_days : (latest && latest.patient_days);
+  if (refPd) {
+    const pdPct = (projection.patient_days - refPd) / refPd * 100;
+    pdFoot = `<div class="pu-foot">${cmpLabel} ${_puFmtPct(Math.round(pdPct * 10) / 10)}</div>`;
+  }
+
+  // 粗利/人日: direction矢印 + 前月比（flat時は矢印も数値も出さず「横ばい」だけ）
+  let ppdFoot;
+  if (projection.direction === 'up') {
+    ppdFoot = `<div class="pu-foot"><span class="pu-proj-up">↑</span> ${cmpLabel} ${_puFmtPct(projection.vs_prev_pct)}（±2%）</div>`;
+  } else if (projection.direction === 'down') {
+    ppdFoot = `<div class="pu-foot"><span class="pu-proj-down">↓</span> ${cmpLabel} ${_puFmtPct(projection.vs_prev_pct)}（±2%）</div>`;
+  } else {
+    ppdFoot = `<div class="pu-foot">横ばい</div>`;
+  }
+
+  const tile1 = `<div class="pu-tile">
+      <div class="pu-label">入院粗利</div>
+      <div class="pu-big">${_puFmt(projection.profit_mm, oneDec)}<span class="pu-unit">百万円</span></div>
+      ${profitFoot}${profitBadge}
+    </div>`;
+  const tile2 = `<div class="pu-tile">
+      <div class="pu-label">延患者数</div>
+      <div class="pu-big">${_puFmt(projection.patient_days)}<span class="pu-unit">人日</span></div>
+      ${pdFoot}
+    </div>`;
+  const tile3 = `<div class="pu-tile">
+      <div class="pu-label">粗利/人日</div>
+      <div class="pu-big">${_puFmt(projection.ppd)}<span class="pu-unit">円</span></div>
+      ${ppdFoot}
+    </div>`;
+  // 平均在院日数: 分子分母が同じ推計器で情報が無いため見込みは出さない
+  const tile4 = `<div class="pu-tile">
+      <div class="pu-label">平均在院日数</div>
+      <div class="pu-big">—</div>
+    </div>`;
+
+  el.innerHTML = `
+    <div class="pu-proj-head">${headText}</div>
+    <div class="pu-grid">${tile1}${tile2}${tile3}${tile4}</div>
+    <div class="pu-proj-note">※手術件数と患者の回転から推計。単価そのものの変化は映りません</div>`;
+  el.style.display = '';
+}
+
+function _renderPuDecompChart(decomp) {
+  const el = document.getElementById('puDecompChart');
+  if (!el) return;
+  if (!decomp || !decomp.months || !decomp.months.length) {
+    el.innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:40px 0">対象データなし</div>';
+    return;
+  }
+  const traces = [
+    {name:'数量効果', x:decomp.months, y:decomp.volume_effect, type:'bar',
+     marker:{color:'#0072B2'}, opacity:0.85, hovertemplate:'%{y:+.1f}百万円<extra>数量効果</extra>'},
+    {name:'単価効果', x:decomp.months, y:decomp.price_effect, type:'bar',
+     marker:{color:'#E69F00'}, opacity:0.85, hovertemplate:'%{y:+.1f}百万円<extra>単価効果</extra>'},
+    {name:'Δ粗利実績', x:decomp.months, y:decomp.actual_delta, type:'scatter', mode:'lines+markers',
+     line:{color:'#D55E00', width:2.5}, marker:{size:6, color:'#D55E00'},
+     hovertemplate:'%{y:+.1f}百万円<extra>Δ粗利実績</extra>'},
+  ];
+  const allY = [...decomp.volume_effect, ...decomp.price_effect, ...decomp.actual_delta, 0]
+    .filter(v => v != null);
+  const mn = Math.min(...allY), mx = Math.max(...allY);
+  const pad = Math.max((mx - mn) * 0.12, 1);
+  newPlotMobileSafe('puDecompChart', traces, {
+    font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
+    barmode:'relative',
+    xaxis:{gridcolor:'#DCE1E9',tickangle:-45},
+    yaxis:{range:[mn-pad,mx+pad],gridcolor:'#DCE1E9',zeroline:true,zerolinecolor:'#888',
+           title:{text:'百万円',font:{size:10}}},
+    legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},
+    hovermode:'x unified',margin:{l:55,r:20,t:8,b:65},height:_pH(320),
+    plot_bgcolor:'#fff',paper_bgcolor:'#fff',
+  },{responsive:true});
+}
+
+// 今年=図(実線太)/昨年=地(破線細・先にpush)の線文法（commit cc75611 と同じ扱い）で
+// 月次系列を1本描く共通ヘルパー。ppd/alos で色だけ変えて共用する。
+// projPoint（{month, value}）を渡すと、今年度の最終点から中空マーカー＋点線で
+// 「当月見込み」を第3トレースとして1点だけ延長する（ppdチャートのみ・科ドリル時は
+// 呼び出し元で渡さない）。
+// extraPoints: 末尾の確定点から先へ続く点線の追加点配列（省略時は末尾固定・従来どおり）。
+// 通常(S1)は [D月見込み] の1点、Phase4 S2（確報遅れ）は [P月見込み, D月見込み] の2点。
+function _renderPuYearLineChart(elId, months, values, prevValues, color, yTitle, height, extraPoints) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  if (!values || !values.some(v => v != null)) {
+    el.innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:40px 0">対象データなし</div>';
+    return;
+  }
+  const traces = [];
+  if (prevValues && prevValues.some(v => v != null)) {
+    traces.push({name:'前年同月', x:months, y:prevValues, type:'scatter', mode:'lines',
+                 line:{color:'#B0B5BC', width:1.5, dash:'dash'}});
+  }
+  traces.push({name:'今年度', x:months, y:values, type:'scatter', mode:'lines+markers',
+               line:{color:color, width:3}, marker:{size:5, color:color}});
+  let li = -1;
+  for (let i = values.length - 1; i >= 0; i--) { if (values[i] != null) { li = i; break; } }
+  if (li >= 0) {
+    traces.push({x:[months[li]], y:[values[li]], type:'scatter', mode:'markers+text',
+                 text:['今年度'], textposition:'middle right', textfont:{size:11,color:color},
+                 marker:{size:7,color:color}, showlegend:false, hoverinfo:'skip', cliponaxis:false});
+  }
+  const extraPts = (extraPoints || []).filter(p => p && p.value != null);
+  if (li >= 0 && extraPts.length) {
+    traces.push({name:'当月見込み', x:[months[li], ...extraPts.map(p => p.month)],
+                 y:[values[li], ...extraPts.map(p => p.value)],
+                 type:'scatter', mode:'lines+markers',
+                 line:{color:color, width:2, dash:'dot'},
+                 marker:{size:[0, ...extraPts.map(() => 9)], color:'#fff', symbol:'circle-open',
+                         line:{width:2, color:color}},
+                 hovertemplate:'%{y}<extra>当月見込み</extra>'});
+  }
+  const allY = [...values, ...(prevValues || []), ...extraPts.map(p => p.value)]
+    .filter(v => v != null);
+  const mn = Math.min(...allY), mx = Math.max(...allY);
+  // ★ppd（粗利/人日）は赤字科だと負値を取り得るため、alos同様0床上げしない
+  //   （0でフロアすると mn<0 のとき range が反転する）。
+  const pad = Math.max((mx - mn) * 0.12, Math.abs(mx) * 0.05, 1);
+  newPlotMobileSafe(elId, traces, {
+    font:{family:'Noto Sans JP,sans-serif',size:11,color:'#5A6A82'},
+    xaxis:{gridcolor:'#DCE1E9',tickangle:-45},
+    yaxis:{range:[mn-pad,mx+pad],gridcolor:'#DCE1E9',title:{text:yTitle,font:{size:10}}},
+    legend:{orientation:'h',x:0,y:-0.22,font:{size:10}},
+    hovermode:'x unified',margin:{l:60,r:70,t:8,b:65},height:_pH(height),
+    plot_bgcolor:'#fff',paper_bgcolor:'#fff',
+  },{responsive:true});
+}
+
+function _renderPuPpdChart(ppd, projection, pending, dept) {
+  if (!ppd) { document.getElementById('puPpdChart').innerHTML = ''; return; }
+  // ★Phase4 S2: 確報遅れ時はP月見込みも通過点として挟み、点線を2点(P,D)へ延長する
+  //   （現行=D月見込みの1点固定）。dept指定時はどちらも出さない（既存裁定のまま）。
+  const extraPoints = [];
+  if (!dept && pending && pending.ppd != null) extraPoints.push({month: pending.month, value: pending.ppd});
+  if (!dept && projection && projection.ppd != null) extraPoints.push({month: projection.month, value: projection.ppd});
+  _renderPuYearLineChart('puPpdChart', ppd.months, ppd.values, ppd.prev_values, '#0072B2', '円/人日', 300,
+    extraPoints);
+}
+
+function _renderPuAlosChart(alos) {
+  if (!alos) { document.getElementById('puAlosChart').innerHTML = ''; return; }
+  _renderPuYearLineChart('puAlosChart', alos.months, alos.values, alos.prev_values, '#E69F00', '日', 280);
 }
 
 // ══════════════════════════
@@ -2519,7 +2856,6 @@ function filterByDayType(dates, values, isWeekday) {
 }
 
 function renderChart() {
-  if (currentTab === 'surgery_ops') return;
   if (currentTab === 'profit') { renderProfitChart(); return; }
   if (currentTab === 'operation') { renderOperationChart(); return; }
   if (currentTab === 'balance') { renderBalanceChart(); return; }
@@ -2847,7 +3183,6 @@ const RANK_SHOW = 10;
 let rankExpanded = false;
 
 function renderRanking() {
-  if (currentTab === 'surgery_ops') return;
   if (currentTab === 'profit') { renderProfitRanking(); return; }
   // 入退院バランスは在院数の増減を示すため、ランキングは在院（達成状況）を流用
   const rankTab = (currentTab === 'balance') ? 'inpatient' : currentTab;
@@ -3181,6 +3516,8 @@ function openProfitDrill(dept) {
     document.getElementById('drillChartAch').innerHTML = '<div style="color:var(--mu);font-size:12px;text-align:center;padding:100px 0">達成率データなし</div>';
   }
 
+  renderProfitUnitSection(dept);   // ★数量×単価分解ブロックも同じ科へ切替（既存の軸切替に合わせる）
+
   drillPanel.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 
@@ -3212,6 +3549,7 @@ function closeDrill() {
   currentDrill = null;
   document.getElementById('drillPanel').classList.remove('open');
   ['drillChartGairai','drillChartNyuin','drillChartAch'].forEach(id => { try{Plotly.purge(id)}catch(e){} });
+  renderProfitUnitSection(null);   // ★数量×単価分解ブロックを病院全体へ戻す
 }
 </script>
 <script>
