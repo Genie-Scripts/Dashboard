@@ -20,7 +20,11 @@ from typing import Optional
 from .config import (
     STD_BIZ_DAYS_PER_MONTH, STD_CAL_DAYS_PER_MONTH,
     biz_days_in_month, calendar_days_in_month,
+    FEE_REVISION_DATE, FEE_REVISION_PROFIT_UPLIFT,
 )
+
+# 改定日（Timestamp化）。達成率の改定換算（表示専用の参考値）で使う。
+_FEE_REVISION_TS = pd.Timestamp(FEE_REVISION_DATE)
 
 
 def _fy_start(month: pd.Timestamp) -> pd.Timestamp:
@@ -47,6 +51,36 @@ def _has_breakdown(profit_breakdown, profit_targets_breakdown) -> bool:
             and profit_targets_breakdown is not None and len(profit_targets_breakdown) > 0)
 
 
+def _add_revision_adjusted_rate(df: pd.DataFrame, has_breakdown: bool) -> pd.DataFrame:
+    """達成率_改定換算（表示専用の参考値・判定用の達成率は変えない）を付加する。
+
+    2026-06診療報酬改定で入院/外来の粗利単価が一段上がったため、改定後の月は
+    「達成率」（生実績÷月次補正目標）が改定前より一律にインフレする。目標自体の
+    リベースは経営判断のため据え置き、参考として改定が無かった場合に相当する
+    達成率を並置する: 対象月が FEE_REVISION_DATE 以降なら
+      達成率_改定換算 = (外来粗利/係数外来 + 入院粗利/係数入院) ÷ 月次補正目標 × 100
+    改定前の月・内訳が無い/欠けている月・旧式（内訳非対応）モードは、既存の
+    達成率とそのまま同値にする（フォールバック時に不当な値を作らないため）。
+    """
+    if not has_breakdown:
+        df["達成率_改定換算"] = df["達成率"]
+        return df
+
+    f_g = FEE_REVISION_PROFIT_UPLIFT.get("外来", 1.0)
+    f_n = FEE_REVISION_PROFIT_UPLIFT.get("入院", 1.0)
+    both_present = df["外来粗利"].notna() & df["入院粗利"].notna()
+    is_post_revision = df["月"] >= _FEE_REVISION_TS
+    has_target = df["月次補正目標"].notna() & (df["月次補正目標"] > 0)
+    rev_adj_total = df["外来粗利"] / f_g + df["入院粗利"] / f_n
+
+    df["達成率_改定換算"] = np.where(
+        is_post_revision & both_present & has_target,
+        (rev_adj_total / df["月次補正目標"] * 100).round(1),
+        df["達成率"],
+    )
+    return df
+
+
 def build_profit_monthly(profit_data: pd.DataFrame,
                           profit_targets: pd.DataFrame,
                           profit_breakdown: Optional[pd.DataFrame] = None,
@@ -60,11 +94,14 @@ def build_profit_monthly(profit_data: pd.DataFrame,
       月次補正目標 = 月次目標 × biz/STD_BIZ
       達成率 = 日次粗利 / 日次目標 × 100
 
+    達成率_改定換算（表示専用の参考値。判定用の達成率とは別）は
+    _add_revision_adjusted_rate を参照。
+
     Returns:
         DataFrame (内訳モード時は追加列あり):
           [common]
           診療科名, 月, 粗利, 月次目標, 当月営業日数, 日次粗利, 日次目標,
-          月次補正目標, 達成率, 前月比, 前月比率
+          月次補正目標, 達成率, 達成率_改定換算, 前月比, 前月比率
           [内訳モードのみ追加]
           外来粗利, 入院粗利, 外来目標, 入院目標, 当月暦日数,
           外来補正目標, 入院補正目標
@@ -84,7 +121,8 @@ def build_profit_monthly(profit_data: pd.DataFrame,
         np.nan,
     )
 
-    if _has_breakdown(profit_breakdown, profit_targets_breakdown):
+    has_breakdown = _has_breakdown(profit_breakdown, profit_targets_breakdown)
+    if has_breakdown:
         # 内訳モード: 外来/入院別の補正後目標を作って合算
         bd_pivot = (profit_breakdown.pivot_table(
                         index=["診療科名", "月"], columns="区分",
@@ -160,6 +198,8 @@ def build_profit_monthly(profit_data: pd.DataFrame,
             (df["日次粗利"] / df["日次目標"] * 100).round(1),
             np.nan,
         )
+
+    df = _add_revision_adjusted_rate(df, has_breakdown)
 
     df = df.sort_values(["診療科名", "月"])
     df["前月比"] = df.groupby("診療科名")["粗利"].diff().round(1)
@@ -246,6 +286,7 @@ def build_profit_kpi(profit_monthly: pd.DataFrame,
           "hospital_target": float,            # 全科合計目標 百万円
           "hospital_adj_target": float,        # 全科補正後目標 百万円
           "hospital_achievement": float,       # 全科達成率(補正後ベース)
+          "hospital_achievement_rev_adj": float,  # 全科達成率(改定換算後・参考値。改定前月は上と同値)
           "hospital_daily_pace": float,        # 全科 日次粗利 万円/営業日
           "hospital_daily_target": float,      # 全科 日次目標 万円/営業日
           "current_biz_days": int,             # 当月営業日数
@@ -296,6 +337,17 @@ def build_profit_kpi(profit_monthly: pd.DataFrame,
         round(total / adj_tgt_total * 100, 1)
         if adj_tgt_total and adj_tgt_total > 0 else None
     )
+
+    # 全科達成率（改定換算後・表示専用の参考値。判定用の hospital_achievement は変えない）
+    ach_total_rev_adj = ach_total
+    if (has_breakdown and pd.Timestamp(base_month) >= _FEE_REVISION_TS
+            and adj_tgt_total and adj_tgt_total > 0):
+        f_g = FEE_REVISION_PROFIT_UPLIFT.get("外来", 1.0)
+        f_n = FEE_REVISION_PROFIT_UPLIFT.get("入院", 1.0)
+        gairai_sum = float(latest["外来粗利"].sum())
+        nyuin_sum  = float(latest["入院粗利"].sum())
+        rev_adj_total = gairai_sum / f_g + nyuin_sum / f_n
+        ach_total_rev_adj = round(rev_adj_total / adj_tgt_total * 100, 1)
 
     # 内訳ペース（内訳モードのみ）
     gairai_total = nyuin_total = None
@@ -370,6 +422,8 @@ def build_profit_kpi(profit_monthly: pd.DataFrame,
             "target":       round(float(row["月次目標"]) / 1000, 1) if pd.notna(row["月次目標"]) else None,
             "adj_target":   round(float(row["月次補正目標"]) / 1000, 1) if pd.notna(row.get("月次補正目標")) else None,
             "achievement":  float(row["達成率"]) if pd.notna(row["達成率"]) else None,
+            "achievement_rev_adj": (float(row["達成率_改定換算"])
+                                     if pd.notna(row.get("達成率_改定換算")) else None),
             "daily_pace":   daily_pace,
             "daily_target": daily_target,
             "biz_days":     int(biz) if pd.notna(biz) else None,
@@ -395,6 +449,7 @@ def build_profit_kpi(profit_monthly: pd.DataFrame,
         "hospital_target":           round(tgt_total / 1000, 1),
         "hospital_adj_target":       round(adj_tgt_total / 1000, 1) if adj_tgt_total else None,
         "hospital_achievement":      ach_total,
+        "hospital_achievement_rev_adj": ach_total_rev_adj,
         "hospital_daily_pace":       daily_pace_total,
         "hospital_daily_target":     daily_target_total,
         "current_biz_days":          int(current_biz_days),

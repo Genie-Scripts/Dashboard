@@ -262,7 +262,11 @@ class TestFitProfitEstimatorsGate(unittest.TestCase):
 
 class TestCacheReusePredicate(unittest.TestCase):
     METRIC = "latest_mtdblend_total"
-    MODEL_REV = "feerev@2026-06-01(入院:1.144,外来:1.053)"
+    # ★係数依存のゴールデン文字列をベタ書きせず _calib_model_rev() から都度導出する
+    #   （2026-09-14 係数再測定で 外来1.053/入院1.144 → 外来1.000/入院1.076 に更新された
+    #   際、ベタ書きだと本テストが無関係に壊れていた）。この関数自体の書式は
+    #   test_model_rev_mismatch_false 等の別ケースで固定文字列との不一致を検証する。
+    MODEL_REV = profit_estimate._calib_model_rev()
 
     def _cached(self, **overrides):
         base = {"proj": 100.0, "actual": 95.0, "metric": self.METRIC,
