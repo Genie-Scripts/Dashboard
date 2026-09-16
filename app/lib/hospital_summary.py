@@ -169,6 +169,12 @@ def build_hero_text(adm, surg, surg_targets, base_date) -> dict:
         chips.append(tuple(cp["early"]["chip"]))
     elif cp and cp.get("week"):
         chips.append(("来週の営業日", f"{cp['week']['biz_days']}日"))
+    # 回転3指標（病院全体・在院=守り＋新入院=攻め＋期間III超え/在院日数近似=退院促進）。
+    # 既存の床平準化1文と両立させる＝末尾に1行添える。state="turn"（新入院を増やすべき
+    # 局面）のときは長くなりすぎないよう、数値の全行ではなくルール文(hint)を優先する。
+    turn_m = metrics.turnover_metrics(adm, base_date, TARGET_INPATIENT_ALLDAY)
+    turn_addition = turn_m["hint"] if turn_m["state"] == "turn" else metrics.format_turn_line(turn_m)
+    body = f"{body} {turn_addition}"
     return {"headline": headline, "body": body, "chips": chips}
 
 

@@ -5,6 +5,7 @@ test_data_loader.py — 入院データのマージ（重複除去）ロジッ�
 「ファイル間の真の重複（日付範囲の重なり）」のみを除去することを検証する。
 """
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -15,7 +16,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.lib.data_loader import _merge_admission_files  # noqa: E402
+from app.lib.data_loader import _merge_admission_files, load_los_data  # noqa: E402
 
 
 def _row(d, ward, dept, census, **extra):
@@ -88,6 +89,67 @@ class TestMergeAdmissionFiles(unittest.TestCase):
         # 真の重複ぶんは集約され、正当な多重度2は保たれる
         self.assertEqual(len(orth), 2)
         self.assertEqual(int(orth["在院患者数"].sum()), 2)
+
+
+class TestLoadLosData(unittest.TestCase):
+    """回転3指標③（期間III超え患者数）の任意フィード load_los_data のテスト。"""
+
+    def test_missing_folder_returns_empty_without_warning(self):
+        import warnings
+        with tempfile.TemporaryDirectory() as d:
+            with warnings.catch_warnings():
+                warnings.simplefilter("error")   # 警告が出たら失敗させる
+                out = load_los_data(data_dir=d)
+            self.assertTrue(out.empty)
+            self.assertIn("期間III超え患者数", out.columns)
+
+    def test_empty_folder_returns_empty_without_warning(self):
+        import warnings
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "los_data").mkdir()
+            with warnings.catch_warnings():
+                warnings.simplefilter("error")
+                out = load_los_data(data_dir=d)
+            self.assertTrue(out.empty)
+
+    def test_reads_csv_from_los_data_folder(self):
+        with tempfile.TemporaryDirectory() as d:
+            folder = Path(d) / "los_data"
+            folder.mkdir()
+            (folder / "los.csv").write_text(
+                "日付,診療科名,期間III超え患者数\n"
+                "2026-08-01,内科A,5\n"
+                "2026-08-02,内科A,6\n",
+                encoding="utf-8-sig")
+            out = load_los_data(data_dir=d)
+            self.assertEqual(len(out), 2)
+            self.assertEqual(int(out["期間III超え患者数"].sum()), 11)
+            self.assertEqual(out["日付"].dt.strftime("%Y-%m-%d").tolist(),
+                             ["2026-08-01", "2026-08-02"])
+
+    def test_duplicate_prefers_newest_file(self):
+        """(日付, 診療科名, 病棟コード) が重複する場合、更新日時が新しいファイルを優先する。"""
+        import os
+        import time
+        with tempfile.TemporaryDirectory() as d:
+            folder = Path(d) / "los_data"
+            folder.mkdir()
+            old_path = folder / "old.csv"
+            new_path = folder / "new.csv"
+            old_path.write_text(
+                "日付,診療科名,期間III超え患者数\n2026-08-01,内科A,5\n",
+                encoding="utf-8-sig")
+            time.sleep(0.01)
+            new_path.write_text(
+                "日付,診療科名,期間III超え患者数\n2026-08-01,内科A,9\n",
+                encoding="utf-8-sig")
+            # 明示的に mtime を離す（ファイルシステムの時刻分解能に依存しないため）
+            now = time.time()
+            os.utime(old_path, (now - 100, now - 100))
+            os.utime(new_path, (now, now))
+            out = load_los_data(data_dir=d)
+            self.assertEqual(len(out), 1)
+            self.assertEqual(int(out["期間III超え患者数"].iloc[0]), 9)
 
 
 if __name__ == "__main__":

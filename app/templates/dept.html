@@ -745,7 +745,8 @@ function renderMove(d) {
   document.getElementById('moveMeta').textContent = mv.report_date ? `（${mv.report_date} 部門レポートより）` : '';
   document.getElementById('moveBody').textContent = mv.body;
   document.getElementById('moveAction').innerHTML = mv.action ? `<span style="color:var(--br)">→</span> ${esc(mv.action)}` : '';
-  document.getElementById('moveExtra').textContent = mv.surg_line || mv.util_line || mv.nadm_line || '';
+  const extraLines = [mv.surg_line || mv.util_line || mv.nadm_line, mv.turn_line].filter(Boolean);
+  document.getElementById('moveExtra').textContent = extraLines.join('　');
 }
 
 function kpiCardHtml(c) {
@@ -769,7 +770,10 @@ function kpiCardHtml(c) {
     <div class="prog">
       <div class="prog-bar"><div class="prog-fill ${sc}" style="width:${barW}%"></div></div>
       <div class="prog-meta">
-        <span class="prog-pct ${sc}">${c.rate!=null?c.rate+'%':'—'}</span>
+        <span style="display:flex;align-items:baseline;gap:5px">
+          <span class="prog-pct ${sc}">${c.rate!=null?c.rate+'%':'—'}</span>
+          ${c.revAdjRate!=null ? `<span style="font-size:9px;font-weight:700;color:var(--mu)" title="粗利目標は改定前水準のまま。改定換算後は改定がなかった場合に相当する達成率">改定換算後 ${c.revAdjRate}%</span>` : ''}
+        </span>
         <span class="prog-st ${sc}">${ss} ${st}</span>
       </div>
     </div>` : `<div style="font-size:10px;color:var(--mu);margin-top:6px">目標未設定</div>`}
@@ -824,7 +828,10 @@ function renderKpiCards(d) {
       {icon:'🛏️', label:'在院患者', period:DATA.meta.base_date+' 時点', actual:d.inpatient.actual, unit:'人', target:d.inpatient.target, rate:d.inpatient.rate},
     ];
     if (showOp) cards.push({icon:'💉', label:opLabel, period:`直近7日（${range7d}）累計`, actual:d.operation.actual, unit:'件', target:d.operation.target, rate:d.operation.rate});
-    if (d.profit) cards.push({icon:'💰', label:'粗利', period:'今月', actual:d.profit.actual, unit:'百万円', gapUnit:'百万円', target:(d.profit.adj_target != null ? d.profit.adj_target : d.profit.target), rate:d.profit.rate});
+    // ★2026-06改定の換算後達成率（参考表示）。改定前月・値が同一のときは重複表示しない。
+    const profitRateRevAdj = (d.profit && d.profit.rate_rev_adj != null && d.profit.rate_rev_adj !== d.profit.rate)
+      ? d.profit.rate_rev_adj : null;
+    if (d.profit) cards.push({icon:'💰', label:'粗利', period:'今月', actual:d.profit.actual, unit:'百万円', gapUnit:'百万円', target:(d.profit.adj_target != null ? d.profit.adj_target : d.profit.target), rate:d.profit.rate, revAdjRate:profitRateRevAdj});
     document.getElementById('kpiCards').innerHTML = cards.map(kpiCardHtml).join('');
     const cols = cards.length >= 4 ? 2 : Math.min(cards.length, 3);
     document.getElementById('kpiCards').style.gridTemplateColumns = `repeat(${cols},1fr)`;

@@ -13,8 +13,12 @@
 *{box-sizing:border-box; margin:0; padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
   background:var(--bg); color:var(--ink); -webkit-font-smoothing:antialiased; line-height:1.5}
+/* 天地の余白は A4 1枚/部門 を守るための調整代。回転3指標の数値行（約4mm）を
+   足した際に最大シートが 299.7mm となり A4(297mm) を超えて 診療科版21→33頁・
+   病棟版17→23頁に膨らんだため、天 11→7mm・地 8→6mm で6mm回収した。
+   行を増やすときはここではなく本文側を削ること（印刷余白はこれ以上詰めない）。 */
 .sheet{width:190mm; min-height:277mm; margin:0 auto; background:var(--s);
-  padding:11mm 11mm 8mm; display:flex; flex-direction:column}
+  padding:7mm 11mm 6mm; display:flex; flex-direction:column}
 /* 連結時は各レポートを1ページに分割（一括印刷用） */
 .sheet + .sheet{ break-before:page; page-break-before:always }
 
@@ -100,6 +104,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP"
 .move-act .txt{font-size:10.5px; font-weight:800; color:#0b5e41; line-height:1.55}
 .move-surg{margin-top:8px; padding-top:7px; border-top:1px dashed #b6d6c8;
   font-size:10px; font-weight:800; color:#0b5e41; line-height:1.5}
+/* 回転行は直前の数値行に続けて出す（A4 1枚/部門に収めるため罫線と上余白を持たせない）。
+   直前に数値行が無い＝先頭に来る場合のみ通常の枠に戻す。 */
+.move-surg.cont{margin-top:2px; padding-top:0; border-top:none}
+.move-act + .move-surg.cont{margin-top:8px; padding-top:7px; border-top:1px dashed #b6d6c8}
 
 .chartkey{margin-top:9px; padding-top:6px; border-top:1px solid var(--ln);
   font-size:8.5px; color:var(--sub); font-weight:700; display:flex; gap:10px; flex-wrap:wrap; align-items:center}
@@ -337,7 +345,8 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
   {% if m.surg_line %}<div class="move-surg">{{ m.surg_line }}</div>{% endif %}
   {% if m.util_line %}<div class="move-surg">{{ m.util_line }}</div>{% endif %}
   {% if m.nadm_line %}<div class="move-surg">{{ m.nadm_line }}</div>{% endif %}
-  {% if m.surg_line or m.util_line or m.nadm_line %}<div class="lock-note">※数値行はデータ由来（編集対象外）</div>{% endif %}
+  {% if m.turn_line %}<div class="move-surg cont">{{ m.turn_line }}</div>{% endif %}
+  {% if m.surg_line or m.util_line or m.nadm_line or m.turn_line %}<div class="lock-note">※数値行はデータ由来（編集対象外）</div>{% endif %}
 </div>
 {% else %}
 <div class="move">
@@ -349,6 +358,7 @@ body.review .sheet{margin:18px auto; box-shadow:0 3px 14px rgba(20,40,70,.13); b
   {% if m.surg_line %}<div class="move-surg">{{ m.surg_line }}</div>{% endif %}
   {% if m.util_line %}<div class="move-surg">{{ m.util_line }}</div>{% endif %}
   {% if m.nadm_line %}<div class="move-surg">{{ m.nadm_line }}</div>{% endif %}
+  {% if m.turn_line %}<div class="move-surg cont">{{ m.turn_line }}</div>{% endif %}
 </div>
 {% endif %}
 {% endmacro %}

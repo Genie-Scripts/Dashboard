@@ -38,7 +38,7 @@ try:
     from app.lib.moves_store import load_latest_moves, MOVE_PUBLIC_KEYS
 except Exception:  # fail-soft: moves_store が無い/壊れていてもselfcontained自体は動く
     load_latest_moves = None
-    MOVE_PUBLIC_KEYS = ("body", "action", "surg_line", "util_line", "nadm_line")
+    MOVE_PUBLIC_KEYS = ("body", "action", "surg_line", "util_line", "nadm_line", "turn_line")
 
 # GAブロック判定マーカー（このいずれかを含む <script> を丸ごと除去）
 GA_MARKERS = ("googletagmanager", "google-analytics", "gtag(")

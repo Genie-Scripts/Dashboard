@@ -384,6 +384,11 @@ def main():
     from generate_html import load_and_preprocess
     adm, surg, targets, surg_targets, profit_monthly, base_date, profit_breakdown = \
         load_and_preprocess(args.data_dir, args.base_date, no_validate=False)
+
+    # 回転3指標③（期間III超え患者数）の任意フィード。医事データ未接続の間は
+    # data/los_data/ が存在せず空DataFrameになる（警告なし・在院日数近似へ自動フォールバック）。
+    from app.lib.data_loader import load_los_data
+    los_df = load_los_data(args.data_dir)
     resolved_base_date = resolve_base_date(args.base_date, base_date)
     if resolved_base_date != base_date:
         log(f"--base-date 未指定のため直近日曜（{resolved_base_date:%Y-%m-%d}）へ丸めました")
@@ -456,6 +461,7 @@ def main():
         hospital_name=args.hospital_name, with_ai=not args.no_ai,
         axes=axes, quiet=args.quiet, profit_breakdown=profit_breakdown,
         delta_anchor=anchor, overrides=overrides, profit_projection=profit_projection,
+        los_df=los_df,
     )
     if args.only:
         contexts = [c for c in contexts if c["unit"] == args.only]
@@ -532,7 +538,7 @@ def main():
             adm, surg, targets, surg_targets, profit_monthly, base_date, generated_at,
             hospital_name=args.hospital_name, profit_breakdown=profit_breakdown,
             profit_projection=profit_projection, with_ai=not args.no_ai, quiet=args.quiet,
-            delta_anchor=anchor, overrides=overrides)
+            delta_anchor=anchor, overrides=overrides, los_df=los_df)
         hosp_ctx["qr_svg"] = qr_svg_inline(f"{PUBLIC_BASE_URL}portal.html")
 
         # ── §6-1 一手レビューHTML（病院全体サマリ＋全部門を1ファイル・PDFと同テンプレ）──
@@ -596,7 +602,8 @@ def main():
             log(f"few-shot 添削コーパス再構築スキップ: {e}", "warn")
 
         # ── A1: 一手の確定値スナップショット（dept.html への掲載用・オーバーライド適用後）──
-        _MOVE_KEYS = ("body", "action", "surg_line", "util_line", "nadm_line", "topic", "src")
+        _MOVE_KEYS = ("body", "action", "surg_line", "util_line", "nadm_line", "turn_line",
+                     "topic", "src")
         def _move_lite(m):
             return {k: m[k] for k in _MOVE_KEYS if m.get(k)}
         moves_payload = {

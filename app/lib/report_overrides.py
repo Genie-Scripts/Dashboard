@@ -220,7 +220,7 @@ def is_full_override(ov: Optional[dict]) -> bool:
 def apply_override(move: dict, ov: dict) -> dict:
     """move 確定直後の1箇所で呼ぶ。body/action を差し替え src="manual" 刻印。
 
-    数値行（surg_line/util_line/nadm_line）・topic 等はデータ由来のため保持。
+    数値行（surg_line/util_line/nadm_line/turn_line）・topic 等はデータ由来のため保持。
     ov_fields はレビューHTMLが「どちらが手動か」を表示・再保存するのに使う。
     """
     out = {**move, "src": "manual",

@@ -36,6 +36,7 @@ from .metrics import (
     build_kpi_summary, dow_event_profile,
     build_dept_ranking, build_surgery_ranking,
     daily_or_utilization,
+    turnover_metrics, format_turn_line,
 )
 from .triage import adjusted_weekly_target
 from .charts import build_dow_unit_detail, _dow_unit_candidates
@@ -461,34 +462,51 @@ def _is_met(state: Optional[str]) -> bool:
     return bool(state) and ("達成" in state or "上回" in state)
 
 
-def _fallback_move_admission(state: Optional[str], peer: Optional[str] = None) -> dict:
-    """新入院トピックの定型文（oMLX未起動/ハルシネーション棄却時）。peer=同種科内の相対位置。"""
+def _append_turn_hint(move: dict, turn_hint: Optional[str]) -> dict:
+    """定型フォールバックの action へ回転3指標のルール文（state="turn"時のみ呼び出し側が
+    渡す）を追記する。turn_hint=None（fill/hold、または turnover_metrics がデータ不足で
+    hold に縮退した場合）は何もしない＝既存の直接文言（件数増に専念／患者数増に取り組む等）
+    を変えない後方互換の据え置き。"""
+    if not turn_hint:
+        return move
+    return {**move, "action": move["action"].rstrip("。") + "。" + turn_hint}
+
+
+def _fallback_move_admission(state: Optional[str], peer: Optional[str] = None,
+                             turn_hint: Optional[str] = None) -> dict:
+    """新入院トピックの定型文（oMLX未起動/ハルシネーション棄却時）。peer=同種科内の相対位置。
+    turn_hint: 回転3指標のルール文（呼び出し側が state="turn" のときだけ渡す）。"""
     lead = f"同種の診療科では{peer}ながら、" if peer else ""
     if _is_met(state) and "鈍って" in state:
-        return {"body": f"{lead}新入院は{state}状況です。",
+        move = {"body": f"{lead}新入院は{state}状況です。",
                 "action": "受け入れ体制を維持しつつ、直近の受け入れ状況を注視しましょう。"}
-    if _is_met(state):
-        return {"body": f"{lead}新入院は直近で目標水準を確保できています。",
+    elif _is_met(state):
+        move = {"body": f"{lead}新入院は直近で目標水準を確保できています。",
                 "action": "現状の受け入れ体制を維持しましょう。"}
-    # state 自体が「直近は〜」の傾向を含むため接頭辞「直近で」は付けない（重複回避）
-    return {"body": f"{lead}新入院は{state or '目標を下回っている'}状況です。",
-            "action": "地域医療連携での紹介受け入れ強化や予定入院枠の調整で、新入院の患者数増に取り組みましょう。"}
+    else:
+        # state 自体が「直近は〜」の傾向を含むため接頭辞「直近で」は付けない（重複回避）
+        move = {"body": f"{lead}新入院は{state or '目標を下回っている'}状況です。",
+                "action": "地域医療連携での紹介受け入れ強化や予定入院枠の調整で、新入院の患者数増に取り組みましょう。"}
+    return _append_turn_hint(move, turn_hint)
 
 
-def _fallback_move_ward_admission(state: Optional[str]) -> dict:
+def _fallback_move_ward_admission(state: Optional[str], turn_hint: Optional[str] = None) -> dict:
     """一般病棟（特例でない病棟）向け・新規受け入れトピックの定型文（oMLX未起動/棄却時）。
     病棟は外来・地域連携の窓口を持たないため紹介・地域医療連携は一切含めない。actionは
     UNIT_ROLE_LEVERS["ward"]の語彙（空床の把握・ベッドコントロール、緊急入院/転入の受け入れ、
-    退院・転棟のタイミング調整）で書く。peerは病棟軸に無いため引数を持たない。"""
+    退院・転棟のタイミング調整）で書く。peerは病棟軸に無いため引数を持たない。
+    turn_hint: 回転3指標のルール文（呼び出し側が state="turn" のときだけ渡す）。"""
     if _is_met(state) and "鈍って" in state:
-        return {"body": f"新規の受け入れは{state}状況です。",
+        move = {"body": f"新規の受け入れは{state}状況です。",
                 "action": "空床の把握とベッドコントロールを続けつつ、直近の受け入れ状況を注視しましょう。"}
-    if _is_met(state):
-        return {"body": "新規の受け入れは直近で目標水準を確保できています。",
+    elif _is_met(state):
+        move = {"body": "新規の受け入れは直近で目標水準を確保できています。",
                 "action": "空床の把握とベッドコントロールを続け、緊急入院・転入の受け入れ体制を維持しましょう。"}
-    # state 自体が「直近は〜」の傾向を含むため接頭辞「直近で」は付けない（重複回避）
-    return {"body": f"新規の受け入れは{state or '目標を下回っている'}状況です。",
-            "action": "空床の把握を細かく行い、緊急入院・転入の受け入れと退院・転棟のタイミング調整で新規の受け入れを増やしましょう。"}
+    else:
+        # state 自体が「直近は〜」の傾向を含むため接頭辞「直近で」は付けない（重複回避）
+        move = {"body": f"新規の受け入れは{state or '目標を下回っている'}状況です。",
+                "action": "空床の把握を細かく行い、緊急入院・転入の受け入れと退院・転棟のタイミング調整で新規の受け入れを増やしましょう。"}
+    return _append_turn_hint(move, turn_hint)
 
 
 def _fallback_move_surgery(state: Optional[str], peer: Optional[str] = None,
@@ -1279,8 +1297,12 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
                                profit_breakdown: pd.DataFrame = None,
                                delta_anchor: Optional[dict] = None,
                                overrides: Optional[dict] = None,
-                               profit_projection: Optional[dict] = None) -> list:
+                               profit_projection: Optional[dict] = None,
+                               los_df: Optional[pd.DataFrame] = None) -> list:
     """診療科版・病棟版それぞれの 1部門=1コンテキスト を返す（PDF描画用）。
+
+    los_df: data_loader.load_los_data の戻り値（回転3指標③・期間III超え患者数の任意
+    フィード）。渡さない/空なら turnover_metrics は在院日数近似（alos_proxy）で代替表示する。
 
     profit_projection: profit_estimate.compute_calibrated_profit_projection の戻り値。
     渡すと診療科の粗利見込みスロットがこちらを優先する（hospital_summary._dept_profit_proj
@@ -1336,6 +1358,8 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
         max_room = max((u.get("room_per_week", 0) or 0 for u in wl["units"]), default=1) or 1
         by_gap = "by_ward" if entity == "ward" else "by_dept"
         tgt_axis_gap = "ward" if entity == "ward" else "dept"
+        # 回転3指標: 単位軸→ turnover_metrics の group_col（在院・新入院の集計列を切替える）。
+        turn_group_col = "病棟コード" if entity == "ward" else "診療科名"
         n_ai = sum(1 for u in wl["units"] if (u.get("room_per_week", 0) or 0) > 0.5)
         # 1-1(f): 週末在院の維持(retention)の同種科内相対位置（診療科軸のみ・P2-bと同じ中立トーン）。
         # LLMプロンプトの事実にのみ使う（fallbackには入れず、文の複雑化を避ける）。
@@ -1599,6 +1623,14 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
             # ai_results に無く、そのケースは ai_out=False として下の `or fallback` に落ちる）。
             ai_out = ai_results.get(idx) if unit_ai else False
 
+            # 回転3指標: 在院＝守り／新入院＝攻め／期間III超え＝退院促進（在院日数の短縮その
+            # ものは号令にしない）。特例ユニットも含め全ユニット共通で数値行を出す。
+            turn_census_target = targets.get("inpatient", {}).get(tgt_axis_gap, {}).get(code)
+            turn_m = turnover_metrics(adm, base_date, turn_census_target,
+                                      group_col=turn_group_col, unit=code, los_df=los_df)
+            turn_line = format_turn_line(turn_m)
+            turn_state, turn_hint = turn_m["state"], turn_m["hint"]
+
             if special:
                 # oMLX 未起動/棄却時の定型文は救急病棟用を全特例で共用する（いずれも
                 # 「予定入院・紹介」を含まない受け入れ体制ベースの安全な文言。稀な縮退経路）。
@@ -1609,10 +1641,14 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
             elif topic == "admission":
                 # 一般病棟（特例でない病棟）は紹介・地域医療連携を業務として持たないため、
                 # oMLX未起動/棄却時の定型文も専用版（_fallback_move_ward_admission）を使う。
+                # turn_hint は state="turn"（新入院を増やすべき局面）のときだけ定型文へ渡す
+                # （fill/hold は新入院トピックの一手として直接馴染まないため据え置く）。
+                fb_turn_hint = turn_hint if turn_state == "turn" else None
                 if entity == "ward":
-                    move = ai_out or _fallback_move_ward_admission(na_state)
+                    move = ai_out or _fallback_move_ward_admission(na_state, turn_hint=fb_turn_hint)
                 else:
-                    move = ai_out or _fallback_move_admission(na_state, peer=na_peer)
+                    move = ai_out or _fallback_move_admission(na_state, peer=na_peer,
+                                                              turn_hint=fb_turn_hint)
             elif topic == "surgery":
                 move = ai_out or _fallback_move_surgery(surg_state, peer=surg_peer,
                                                         label=surgery_metric_label(name))
@@ -1681,6 +1717,11 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
                                         b_part.get("_data") if b_part else None)
                 if nline:
                     move = {**move, "nadm_line": nline}
+
+            # 回転3指標: 種別を問わず全ユニット共通で数値行を1行追加
+            # （在院＝守り・新入院＝攻め・期間III超え/在院日数近似＝退院促進。号令は在院と
+            # 新入院の2つに限定し、在院日数の短縮そのものは求めない）。
+            move = {**move, "turn_line": turn_line, "turn_state": turn_state, "turn_hint": turn_hint}
 
             # 優先順にチャートを並べ、利用可能なものだけ採用
             ordered = [parts[k] for k in TYPE_ORDER[type_key] if k in parts and parts[k]]
@@ -1853,8 +1894,12 @@ def build_hospital_overview_context(adm, surg, targets, surg_targets, profit_mon
                                     profit_breakdown=None, profit_projection=None,
                                     with_ai: bool = True, quiet: bool = False,
                                     delta_anchor: Optional[dict] = None,
-                                    overrides: Optional[dict] = None) -> dict:
+                                    overrides: Optional[dict] = None,
+                                    los_df: Optional[pd.DataFrame] = None) -> dict:
     """病院全体サマリ（dept_report.html 1シート）のコンテキスト。
+
+    los_df: data_loader.load_los_data の戻り値（回転3指標③・任意）。渡さない/空なら
+    turnover_metrics は在院日数近似（alos_proxy）で代替表示する。
 
     profit_projection: profit_estimate.compute_calibrated_profit_projection の戻り値
     （病院全体・診療科別の当月見込み粗利＝ダッシュボードと同一 pipeline）。渡すと粗利KPI/
@@ -2066,6 +2111,13 @@ def build_hospital_overview_context(adm, surg, targets, surg_targets, profit_mon
         if not quiet:
             print(f"  ✏️ [手動] hospital:{unit_name} の一手を差し替え "
                   f"({'+'.join(move['ov_fields'])})")
+
+    # 回転3指標（病院全体・group_col=None・在院目標=TARGET_INPATIENT_ALLDAY）。
+    # 単一ユニットと同じく種別を問わず数値行を1行追加する。
+    hosp_turn_m = turnover_metrics(adm, base_date, TARGET_INPATIENT_ALLDAY,
+                                   group_col=None, unit=None, los_df=los_df)
+    move = {**move, "turn_line": format_turn_line(hosp_turn_m),
+            "turn_state": hosp_turn_m["state"], "turn_hint": hosp_turn_m["hint"]}
 
     return {
         "_state": h_tags,   # 差分ナラティブ用（CLIがスナップショット保存）

@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Optional
 
 MOVES_MAX_AGE_DAYS = 45   # これより古い一手は載せない（古い助言の残留防止）
-MOVE_PUBLIC_KEYS = ("body", "action", "surg_line", "util_line", "nadm_line")  # 公開してよいキー
+MOVE_PUBLIC_KEYS = ("body", "action", "surg_line", "util_line", "nadm_line", "turn_line")  # 公開してよいキー
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _DEFAULT_STATE_DIR = _REPO_ROOT / "dept_reports" / "_state"
