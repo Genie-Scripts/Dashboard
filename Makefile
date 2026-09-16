@@ -85,6 +85,13 @@ test:
 	@echo "$(CYAN)🧪 ユニットテスト実行中...$(RESET)"
 	$(PYTHON) -m unittest discover -s tests -v
 
+## P2 判定閾値用 ユニット別σ 測定（読み取り専用・stdoutのみ。app/lib/unit_sigma.py への
+## 貼り付けは手動。build系には含めない＝毎ビルド再計算するとσが揺れて安定化の目的を壊すため）
+.PHONY: unit-sigma
+unit-sigma:
+	@echo "$(CYAN)📐 ユニット別σ 測定中...$(RESET)"
+	$(PYTHON) scripts/measure_unit_sigma.py --data-dir $(DATA_DIR)
+
 ## 特定の基準日で生成
 ## 使用例: make build-date DATE=2026-03-26
 .PHONY: build-date

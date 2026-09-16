@@ -326,6 +326,32 @@ def operational_days_between(start, end) -> int:
     return sum(1 for d in _pd.date_range(s, e, freq="D") if is_operational_day(d))
 
 
+def is_isolated_weekend(d) -> bool:
+    """d が孤立土日（nonop_run_len(d) == 2 の土日）かどうかを返す。
+
+    前後を営業日に挟まれ、祝日とも連結しない、ふだん通りの土日を指す。
+    """
+    import pandas as _pd
+    ts = _pd.Timestamp(d)
+    if ts.weekday() not in (5, 6):
+        return False
+    return nonop_run_len(ts) == 2
+
+
+def is_holiday_adjacent_weekday(d) -> bool:
+    """d が営業日で、かつ前日または翌日が長さ3以上の非営業runに属するかどうかを返す。
+
+    連休（GW・年末年始・ハッピーマンデー等）の前後日に接する平日を検出する。
+    """
+    import pandas as _pd
+    ts = _pd.Timestamp(d)
+    if not is_operational_day(ts):
+        return False
+    prev_run = nonop_run_len(ts - _pd.Timedelta(days=1))
+    next_run = nonop_run_len(ts + _pd.Timedelta(days=1))
+    return prev_run >= 3 or next_run >= 3
+
+
 # ──────────────────────────────
 # 粗利 営業日換算評価
 # ──────────────────────────────

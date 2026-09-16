@@ -74,6 +74,40 @@ def surgery_rate_spread_samples(surg: pd.DataFrame, base_date, weeks: int = DEFA
     return out
 
 
+def surgery_rate_spread_samples_by_dept(surg: pd.DataFrame, base_date, dept: str,
+                                         weeks: int = DEFAULT_WEEKS, window: int = 28) -> list[float]:
+    """直近 weeks 週、週次サンプル点での 28日窓 件/営業日レート の
+    直近28日 vs 前28日 スプレッド(%)（診療科別・術数対象基準）。
+
+    術数対象（眼科=全手術、他科=全麻）基準で dept 単独の件数を集計する
+    （`metrics.rolling28_surgery_dept` と同一の対象定義。眼科は全麻がほぼ0のため、
+    既存の全麻固定 `surgery_rate_spread_samples` を眼科に流用するとσが恒久的に
+    縮退する既知バグの是正。P2: `暦補正と学習ループ改修プラン.md` §2）。
+    dept は必須（術数対象基準は診療科ごとに評価対象定義が異なるため）。
+
+    triage._surgery_trend と同一式（判定コードは共有しない。本モジュール冒頭の注記参照）。
+    """
+    base_date = pd.Timestamp(base_date)
+    monday = base_date - pd.Timedelta(days=base_date.weekday())
+    target = surg[surg["術数対象"] & (surg["実施診療科"] == dept)]
+    daily = target.groupby("手術実施日").size()
+    out: list[float] = []
+    for i in range(weeks):
+        d = monday - pd.Timedelta(weeks=i)
+        now_start, now_end = d - pd.Timedelta(days=window - 1), d
+        prev_start, prev_end = d - pd.Timedelta(days=2 * window - 1), d - pd.Timedelta(days=window)
+        now_cnt = daily[(daily.index >= now_start) & (daily.index <= now_end)].sum()
+        prev_cnt = daily[(daily.index >= prev_start) & (daily.index <= prev_end)].sum()
+        biz_now = operational_days_between(now_start, now_end)
+        biz_prev = operational_days_between(prev_start, prev_end)
+        if biz_now == 0 or biz_prev == 0:
+            continue
+        rate_now, rate_prev = now_cnt / biz_now, prev_cnt / biz_prev
+        if rate_prev:
+            out.append((rate_now - rate_prev) / rate_prev * 100.0)
+    return out
+
+
 def unit_sigma(samples: list[float]) -> Optional[float]:
     """サンプル数が MIN_SAMPLES 未満なら None（縮退）。"""
     if len(samples) < MIN_SAMPLES:

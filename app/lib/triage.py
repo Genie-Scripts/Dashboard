@@ -24,13 +24,14 @@ from .config import (
     SURGERY_EVAL_DEPTS, surgery_metric_label,
     WARD_NAMES, WARD_HIDDEN,
     unit_narration_kind, UNIT_ROLE_LEVERS, WARD_BANNED_LEVER_TERMS,
-    operational_days_between,
+    operational_days_between, is_operational_day,
 )
 from .metrics import (
     rolling7_new_admission, rolling7_surgery, rolling28_surgery_dept,
     daily_inpatient, build_daily_series, week_over_week,
     achievement_rate, discharge_dow_profile,
 )
+from .unit_sigma import arrow_threshold
 from .llm import DEFAULT_MODEL, chat_json
 
 logger = logging.getLogger(__name__)
@@ -64,10 +65,21 @@ WATCH_CEILING   = 110.0      # 早期警戒(watch)の上限。これ以上の達
                              #   悪化傾向でも非対象（breach リスクが低いため騒がない）
 CENSUS_MA_SHORT = 7          # 在院: 短期MA(日)
 CENSUS_MA_LONG  = 28         # 在院: 長期MA(日)。7d窓で曜日季節性は除去済み
-CENSUS_TREND_PT = 3.0        # 在院: スプレッド ±3% 以上で 改善/悪化
+CENSUS_TREND_PT = 3.0        # 在院: スプレッド ±3% 以上で 改善/悪化（floor。実際の判定は
+                             #   unit_sigma.arrow_threshold の動的閾値=max(floor, 1.5σ_unit)）
 SURGERY_TREND_WIN     = 28   # 全麻: 直近28日 vs 前28日 の件数比
-SURGERY_TREND_PT      = 15.0 # 全麻: ±15% 以上で 改善/悪化（件数は跳ねるため広め）
-SURGERY_TREND_MIN_28D = 8    # 全麻: 直近28日が8件未満の小規模科はノイズのため非対象
+SURGERY_TREND_PT      = 15.0 # 全麻: ±15% 以上で 改善/悪化（件数は跳ねるため広め。floor。
+                             #   実際の判定は unit_sigma.arrow_threshold の動的閾値）
+SURGERY_TREND_MIN_28D = 40   # 全麻: 直近28日の術数対象件数がこれ未満の科はノイズのため非対象
+                             #   （P2: 8→40。ユニット別σが安定する術数対象ベースの母数）
+
+# ── P2 判定の統計是正（暦補正と学習ループ改修プラン.md §2）──
+# 極小窓ガード: 窓の営業日数がこれ未満なら判定保留(None)。未定義の窓幅は max(3, days//4)。
+_MIN_BIZ_DAYS = {7: 3, 28: 10}
+# 在院: 28日窓(営業日)平均がこれ未満の科・病棟は母数不足のため矢印非表示(None)
+CENSUS_MIN_AVG_28D = 15.0
+# 2週連続確定＋非対称ヒステリシス（消灯=即時／点灯=2週確定）の畳み込み窓（週）
+TREND_LOOKBACK_WEEKS = 8
 
 # fallback 文言（未達 KPI ごと）
 FALLBACK_SUGGESTIONS = {
@@ -153,23 +165,49 @@ def _priority_from_rate(rate: float) -> str:
     return "low"
 
 
-def _ma_spread(series: pd.DataFrame, base_date, short: int, long_: int) -> Optional[float]:
+def _biz_window_avg(series: pd.DataFrame, base_date: pd.Timestamp, days: int) -> Optional[float]:
+    """days日窓・営業日のみの平均値（P2 極小窓ガード）。
+    窓内の営業日数が `_MIN_BIZ_DAYS`（未定義の窓幅は max(3, days // 4)）未満なら
+    判定保留として None を返す。"""
+    if series is None or len(series) == 0:
+        return None
+    base_date = pd.Timestamp(base_date)
+    start = base_date - pd.Timedelta(days=days - 1)
+    min_n = _MIN_BIZ_DAYS.get(days, max(3, days // 4))
+    if operational_days_between(start, base_date) < min_n:
+        return None
+    work = series[series["日付"].apply(is_operational_day)]
+    w = work[(work["日付"] >= start) & (work["日付"] <= base_date)]
+    return float(w["値"].mean()) if len(w) > 0 else None
+
+
+def _ma_spread(series: pd.DataFrame, base_date, short: int, long_: int,
+               biz_only: bool = True) -> Optional[float]:
     """日次系列の 短期MA vs 長期MA スプレッド(%)。
     正=短期が中期平均を上回る（上昇）。データ不足/長期MA=0 のとき None。
 
+    biz_only=True（既定・P2）: 両窓とも `config.is_operational_day` で営業日のみに
+    絞る（GW・年末年始等の非営業日を挟む窓ほど暦日ベースでは実勢と乖離しやすいため）。
+    窓内の営業日数が極小（`_biz_window_avg` 参照）なら None（判定保留）。
+    biz_only=False は旧来の暦日ベース（下位互換・現行/新方式の比較検証用）。
+
     ★訴求力強化A6: `app/lib/stats_band.py::census_spread_samples()` は同一式を
     表示専用（通常変動帯 ±1.5σ）として複製している（判定コードとは意図的に非共有）。
-    P2（暦補正と学習ループ改修プラン.md §2）着手時はこちらを stats_band.py へ寄せる。
     """
     if series is None or len(series) == 0:
         return None
+    base_date = pd.Timestamp(base_date)
 
-    def _avg(days):
-        start = base_date - pd.Timedelta(days=days - 1)
-        w = series[(series["日付"] >= start) & (series["日付"] <= base_date)]
-        return float(w["値"].mean()) if len(w) >= max(3, days // 4) else None
+    if biz_only:
+        ma_s = _biz_window_avg(series, base_date, short)
+        ma_l = _biz_window_avg(series, base_date, long_)
+    else:
+        def _avg(days):
+            start = base_date - pd.Timedelta(days=days - 1)
+            w = series[(series["日付"] >= start) & (series["日付"] <= base_date)]
+            return float(w["値"].mean()) if len(w) >= max(3, days // 4) else None
+        ma_s, ma_l = _avg(short), _avg(long_)
 
-    ma_s, ma_l = _avg(short), _avg(long_)
     if ma_s is None or ma_l is None or ma_l == 0:
         return None
     return (ma_s - ma_l) / ma_l * 100.0
@@ -186,11 +224,76 @@ def _trend_dir(spread: Optional[float], pt: float) -> Optional[str]:
     return "flat"
 
 
-def _census_trend(adm, base_date, group_col, group_val) -> tuple[Optional[float], Optional[str]]:
-    """在院患者数の 7d/28d スプレッド(%)と方向。"""
+def confirmed_trend_dir(spread_at, base_date: pd.Timestamp, thr: float,
+                        lookback_weeks: int = TREND_LOOKBACK_WEEKS) -> Optional[str]:
+    """週次スプレッドを「2週連続確定＋非対称ヒステリシス」で up/down/flat に確定する（P2）。
+
+    spread_at: Callable[[Timestamp], float|None]。週次サンプル点でのスプレッド(%)を返す。
+    - raw(d): spread(d) >= thr なら up、<= -thr なら down、それ以外は flat。
+      spread(d) が None（極小窓ガード等で判定保留）なら raw も None。
+    - 点灯: raw(d) と raw(d-7週) が一致し、かつ flat でない（2週連続同方向）。
+    - 消灯（非対称ヒステリシス）: 点灯中は |spread| >= thr/2 の間だけ状態を維持し、
+      割ったら即時 flat（保守側）。逆方向へ移るには再び2週確定が必要
+      （＝点灯条件が消灯条件より優先して評価される）。
+    - 状態は base_date - 7*lookback_weeks 時点を "flat" として週次に前進させる
+      決定論的畳み込み（状態ファイルは持たない・毎回この窓だけで再計算する）。
+    - 直近時点（base_date）が判定不能（spread None）なら、判定保留を透過して
+      None を返す（過去の状態を引きずらない）。
+    """
+    base_date = pd.Timestamp(base_date)
+    weeks = [base_date - pd.Timedelta(weeks=k) for k in range(lookback_weeks, -1, -1)]
+    spreads = [spread_at(d) for d in weeks]
+    if spreads[-1] is None:
+        return None   # 直近点が判定不能 → 判定保留を透過
+
+    def _raw(s):
+        if s is None:
+            return None
+        if s >= thr:
+            return "up"
+        if s <= -thr:
+            return "down"
+        return "flat"
+
+    raws = [_raw(s) for s in spreads]
+    state = "flat"   # lookback境界（最古の週）は必ず消灯（flat）から始める＝保守側
+    for i in range(1, len(weeks)):
+        cur_raw, prev_raw = raws[i], raws[i - 1]
+        cur_spread = spreads[i]
+        if cur_raw is not None and cur_raw != "flat" and cur_raw == prev_raw:
+            state = cur_raw   # 2週連続同方向 → 点灯（逆方向への切替もここのみ）
+        elif state != "flat" and cur_spread is not None and abs(cur_spread) >= thr / 2:
+            pass   # ヒステリシス維持（|spread|がthr/2を割っていない間は点灯を保持）
+        else:
+            state = "flat"   # 即時消灯
+    return state
+
+
+def _census_trend(adm, base_date, group_col, group_val,
+                  kind: str) -> tuple[Optional[float], Optional[str]]:
+    """在院患者数の 7d/28d スプレッド(%)と方向（P2: 営業日ベース・ユニット別動的閾値・
+    2週連続確定＋非対称ヒステリシス）。
+
+    kind: unit_sigma.arrow_threshold の第1引数（"dept_census" | "ward_census"）。
+    """
     s = build_daily_series(adm, "在院患者数", group_col=group_col, group_val=group_val)
+    return _census_trend_from_series(s, base_date, kind, group_val)
+
+
+def _census_trend_from_series(s: pd.DataFrame, base_date: pd.Timestamp,
+                              kind: str, unit: str) -> tuple[Optional[float], Optional[str]]:
+    """`_census_trend` の系列版（系列を1回だけ取得して週次サンプル点の評価に使い回す
+    ための分割。系列取得コスト（build_daily_series）を毎週サンプルごとに払わない）。"""
     spread = _ma_spread(s, base_date, CENSUS_MA_SHORT, CENSUS_MA_LONG)
-    return spread, _trend_dir(spread, CENSUS_TREND_PT)
+    if spread is None:
+        return None, None
+    avg_28 = _biz_window_avg(s, base_date, CENSUS_MA_LONG)
+    if avg_28 is None or avg_28 < CENSUS_MIN_AVG_28D:
+        return spread, None   # 最小母数ゲート: 28日窓の営業日在院平均が小さい科・病棟は矢印非表示
+    thr = arrow_threshold(kind, unit)
+    trend_dir = confirmed_trend_dir(
+        lambda d: _ma_spread(s, d, CENSUS_MA_SHORT, CENSUS_MA_LONG), base_date, thr)
+    return spread, trend_dir
 
 
 def adjusted_weekly_target(target: Optional[float], base_date: pd.Timestamp) -> Optional[float]:
@@ -213,16 +316,21 @@ def adjusted_weekly_target(target: Optional[float], base_date: pd.Timestamp) -> 
     return target * biz_days / 5
 
 
-def _surgery_trend(recent_28d: int, prior_28d: int,
-                   base_date: pd.Timestamp) -> tuple[Optional[float], Optional[str]]:
+def _surgery_trend(recent_28d: int, prior_28d: int, base_date: pd.Timestamp,
+                   dept: Optional[str] = None, surg: Optional[pd.DataFrame] = None
+                   ) -> tuple[Optional[float], Optional[str]]:
     """全麻の 直近28暦日 vs 前28暦日 の件/営業日レート比(%)と方向（P1暦是正:
     生件数比→レート比。窓内に祝日が偏っていても暦影響を受けにくくする）。
-    直近28日が小規模(<MIN・生件数ゲートは現状維持)・前期間の営業日レートが0 は
+    直近28日が小規模(<SURGERY_TREND_MIN_28D)・前期間の営業日レートが0 は
     ノイズのため非対象(None)。
+
+    dept・surg を指定すると（score_departments からの呼び出し）P2の判定へ切り替わる:
+    ユニット別動的閾値(unit_sigma.arrow_threshold)＋2週連続確定・非対称ヒステリシス
+    (confirmed_trend_dir) で方向を確定する。省略時（既存呼び出し互換）は固定閾値
+    SURGERY_TREND_PT による単純離散化（P1までの挙動）のまま。
 
     ★訴求力強化A6: `app/lib/stats_band.py::surgery_rate_spread_samples()` は同一式を
     表示専用（通常変動帯 ±1.5σ）として複製している（判定コードとは意図的に非共有）。
-    P2（暦補正と学習ループ改修プラン.md §2）着手時はこちらを stats_band.py へ寄せる。
     """
     if recent_28d < SURGERY_TREND_MIN_28D:
         return None, None
@@ -233,7 +341,24 @@ def _surgery_trend(recent_28d: int, prior_28d: int,
     if rate_now is None or not rate_prev:
         return None, None
     spread = (rate_now - rate_prev) / rate_prev * 100.0
-    return spread, _trend_dir(spread, SURGERY_TREND_PT)
+
+    if dept is None or surg is None:
+        return spread, _trend_dir(spread, SURGERY_TREND_PT)
+
+    thr = arrow_threshold("dept_surgery", dept)
+
+    def _spread_at(d):
+        if d == base_date:
+            return spread   # 直近点は呼び出し元が既に計算済みの値をそのまま使う（二重計算・乖離防止）
+        now = rolling28_surgery_dept(surg, d)["by_dept"].get(dept, 0)
+        if now < SURGERY_TREND_MIN_28D:
+            return None
+        prev = rolling28_surgery_dept(surg, d - pd.Timedelta(days=SURGERY_TREND_WIN))["by_dept"].get(dept, 0)
+        s, _ = _surgery_trend(now, prev, d)
+        return s
+
+    trend_dir = confirmed_trend_dir(_spread_at, base_date, thr)
+    return spread, trend_dir
 
 
 def _triage_status(primary_rate: float, trend_dir: Optional[str]) -> tuple[str, str]:
@@ -359,9 +484,11 @@ def score_departments(adm: pd.DataFrame, surg: pd.DataFrame,
         # 北極星KPIの傾向: 外科系=全麻(第3段)、内科系=在院
         if is_surgery:
             primary_trend, trend_dir = _surgery_trend(
-                r28_now.get(dept, 0), r28_prev.get(dept, 0), base_date)
+                r28_now.get(dept, 0), r28_prev.get(dept, 0), base_date,
+                dept=dept, surg=surg)
         else:
-            primary_trend, trend_dir = _census_trend(adm, base_date, "診療科名", dept)
+            primary_trend, trend_dir = _census_trend(
+                adm, base_date, "診療科名", dept, kind="dept_census")
 
         rec = _make_entity_record(
             name=dept, entity_type="dept", is_surgery=is_surgery,
@@ -406,7 +533,8 @@ def score_wards(adm: pd.DataFrame, targets: dict,
 
         adm_rate = achievement_rate(adm_actual, adm_target)
         inp_rate = achievement_rate(inp_actual, inp_target)
-        primary_trend, trend_dir = _census_trend(adm, base_date, "病棟コード", wcode)
+        primary_trend, trend_dir = _census_trend(
+            adm, base_date, "病棟コード", wcode, kind="ward_census")
 
         rec = _make_entity_record(
             name=wname, entity_type="ward", is_surgery=False,

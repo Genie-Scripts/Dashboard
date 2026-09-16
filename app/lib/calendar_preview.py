@@ -153,6 +153,10 @@ def build_window_note(base_date, window: int) -> dict | None:
     reason_part = f"（{'・'.join(reasons)}）" if reasons else ""
     period_label = "この7日間" if window == 7 else "この28日間"
     text = f"{period_label}は営業日{biz}日{reason_part}。新入院と手術はその分少なく出ます。"
+    if biz < 3:
+        # P2 極小窓ガード（triage._biz_window_avg 等と同じ思想）: 営業日が極端に少ない窓は
+        # 矢印判定そのものを保留するため、その旨を暦注記の文末に追記する（値は置換しない）。
+        text += "営業日が少ないため、傾向の矢印は保留しています。"
     return {"window": window, "biz_days": biz, "std_days": std, "text": text}
 
 

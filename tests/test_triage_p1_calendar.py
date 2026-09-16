@@ -52,30 +52,31 @@ class TestAdjustedWeeklyTarget(unittest.TestCase):
 
 class TestSurgeryTrendRateBased(unittest.TestCase):
     def test_below_min_gate_returns_none(self):
-        # 生件数ゲート(SURGERY_TREND_MIN_28D=8)は現状維持
+        # 生件数ゲート(SURGERY_TREND_MIN_28D=40。P2で8→40に変更)は健在
         spread, direction = _surgery_trend(7, 20, pd.Timestamp("2026-03-06"))
         self.assertIsNone(spread)
         self.assertIsNone(direction)
 
     def test_zero_prior_rate_returns_none(self):
-        spread, direction = _surgery_trend(20, 0, pd.Timestamp("2026-03-06"))
+        spread, direction = _surgery_trend(45, 0, pd.Timestamp("2026-03-06"))
         self.assertIsNone(spread)
         self.assertIsNone(direction)
 
     def test_equal_raw_counts_across_holiday_skewed_windows_shows_rate_trend(self):
         # 直近28暦日窓(2025-12-19〜2026-01-15)は年末年始をまたぎ営業日14日。
         # 前28暦日窓(2025-11-21〜2025-12-18)は平常期で営業日19日。
-        # 生件数は両窓とも28件で同一（旧ロジックなら「横ばい」＝スプレッド0%）だが、
-        # 件/営業日レートで比較すると 28/14=2.0 vs 28/19≒1.47 で実質+36%の改善として
-        # 検出される（片窓に祝日を含む場合の暦補正効果）。
+        # 生件数は両窓とも45件で同一（旧ロジックなら「横ばい」＝スプレッド0%）だが、
+        # 件/営業日レートで比較すると 45/14≒3.21 vs 45/19≒2.37 で実質+36%の改善として
+        # 検出される（片窓に祝日を含む場合の暦補正効果）。件数はP2のSURGERY_TREND_MIN_28D
+        # =40ゲートを超えるよう45に調整（P1時点の28から変更・レート比の結論は不変）。
         base = pd.Timestamp("2026-01-15")
         biz_now = operational_days_between(base - pd.Timedelta(days=27), base)
         biz_prev = operational_days_between(base - pd.Timedelta(days=55), base - pd.Timedelta(days=28))
         self.assertEqual(biz_now, 14)
         self.assertEqual(biz_prev, 19)
 
-        spread, direction = _surgery_trend(28, 28, base)
-        expected = (28 / biz_now - 28 / biz_prev) / (28 / biz_prev) * 100.0
+        spread, direction = _surgery_trend(45, 45, base)
+        expected = (45 / biz_now - 45 / biz_prev) / (45 / biz_prev) * 100.0
         self.assertAlmostEqual(spread, expected, places=6)
         self.assertGreater(spread, 15.0)
         self.assertEqual(direction, "up")
@@ -83,13 +84,14 @@ class TestSurgeryTrendRateBased(unittest.TestCase):
     def test_ordinary_equal_biz_days_window_is_flat(self):
         # 両窓の営業日数が同じ(祝日構成が対称)なら、生件数が同じ場合は横ばい(flat)のまま
         # （旧ロジックと結果が一致すること＝レート化による過剰検知が無いことの確認）。
+        # 件数はP2のSURGERY_TREND_MIN_28D=40ゲートを超えるよう40に調整。
         base = pd.Timestamp("2026-07-01")
         prior_base = base - pd.Timedelta(days=28)
         biz_now = operational_days_between(base - pd.Timedelta(days=27), base)
         biz_prev = operational_days_between(prior_base - pd.Timedelta(days=27), prior_base)
         self.assertEqual(biz_now, biz_prev)
         self.assertEqual(biz_now, 20)
-        spread, direction = _surgery_trend(20, 20, base)
+        spread, direction = _surgery_trend(40, 40, base)
         self.assertAlmostEqual(spread, 0.0)
         self.assertEqual(direction, "flat")
 
