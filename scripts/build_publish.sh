@@ -47,7 +47,7 @@ copy_if_exists "admission/index.html" "${PUBLISH_DIR}/admission/index.html"
 copy_if_exists "inpatient/index.html" "${PUBLISH_DIR}/inpatient/index.html"
 copy_if_exists "operation/index.html" "${PUBLISH_DIR}/operation/index.html"
 copy_if_exists "docs/dept_reports_manual.html" "${PUBLISH_DIR}/docs/dept_reports_manual.html"
-copy_if_exists "運用マニュアル.html" "${PUBLISH_DIR}/運用マニュアル.html"
+copy_if_exists "docs/運用マニュアル.html" "${PUBLISH_DIR}/運用マニュアル.html"
 copy_if_exists "robots.txt" "${PUBLISH_DIR}/robots.txt"
 
 # ルート index.html は portal.html の実体コピー（リダイレクトではない）
@@ -61,7 +61,7 @@ cp "portal.html" "${PUBLISH_DIR}/index.html"
 #                                                  現行の部門レポートは dept_reports/ 系（別系統）で運用。
 #                                                  古い数値が現行レポートと誤認されるため配信しない。
 # app/templates/                                 … Jinja2テンプレート（ソース。生成物のみ配信）
-# hospital_analysis_report.html                  … 別系統の作業成果物・配信対象外
+# deliverables/病院分析レポート/hospital_analysis_report.html … 別系統の作業成果物・配信対象外
 # 粗利ダッシュボード_配信用.html                 … 財務データ含む院内限定配布物（.gitignore対象）
 # *.py / *.md / Makefile                         … ソース・ドキュメント（配信物ではない）
 # data/ / output/ / tests/ / .venv/ / .git/       … ローカル専用・非配信ディレクトリ

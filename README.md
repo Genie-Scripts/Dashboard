@@ -270,7 +270,12 @@ python generate_html.py [オプション]
 │   ├── 新入院患者_目標値.csv
 │   ├── 入院患者ダッシュボード_目標値.csv
 │   ├── 粗利データ.xlsx
-│   └── 粗利目標.xlsx
+│   ├── 粗利目標.xlsx
+│   └── dpc_bundle/       # 包括薬剤・材料（DPC）
+│
+├── deliverables/         # 会議資料・配布物（月/テーマ別・gitignore）
+├── docs/                 # 運用マニュアル.html ほか
+├── scripts/legacy/       # 旧アドホック集計（未参照）
 │
 ├── index.html            # ← 生成される（Cloudflare Pages で配信）
 └── reports/              # ← 生成される（診療科別詳細ページ）

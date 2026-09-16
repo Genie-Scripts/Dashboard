@@ -84,3 +84,6 @@ operation/index.html
 # 孤立レガシー（v2.1移行前の生成物・現行導線から未参照）
 admission_index.html
 inpatient_index.html
+
+# 会議資料・配布物（pptx/html/pdf）。追跡したい場合はこの行を外す
+deliverables/
