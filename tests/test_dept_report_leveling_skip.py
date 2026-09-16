@@ -88,7 +88,8 @@ def _make_leveling_fake(respect_skip: bool, skip_log: list):
       生成も律儀に行っていた」旧挙動を模した対照）。
     """
     def fake(weekend_leveling, dow_unit_detail=None, top_n=6, model=None,
-             temperature=None, quiet=False, peers=None, deltas=None, skip=None):
+             temperature=None, quiet=False, peers=None, deltas=None, skip=None,
+             drivers=None, next_week=None, force_disperse=False):
         for entity, wl in weekend_leveling.items():
             eff_skip = set(skip or ()) if respect_skip else set()
             skip_log.append((entity, set(skip or ())))

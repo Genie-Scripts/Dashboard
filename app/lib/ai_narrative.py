@@ -484,11 +484,16 @@ def _q_thin_latewk_adm(dd) -> Optional[str]:
 
 
 def _leveling_levers(entity: str, latewk: Optional[dict], adm: Optional[dict],
-                     thin: Optional[str]) -> tuple:
+                     thin: Optional[str], force_disperse: bool = False) -> tuple:
     """平準化レバー文の共通ビルダー。(disperse文, refill文, mode) を返す。
     mode: "disperse"（退院分散を主に）/"refill"（週末補充を主に）/"both"。
     LLMプロンプトの「レバーの軸」と _fallback_move の action の両方が使う
-    （文言の乖離を防ぐ）。曜日名は科の実データから（数字を含まないためガードと両立）。"""
+    （文言の乖離を防ぐ）。曜日名は科の実データから（数字を含まないためガードと両立）。
+
+    force_disperse: 来週の暦構造（連休 run_len>=3 または長期連休の前日 is_eve）が
+    週末入院での補充を実務的に当てにできない局面のときだけ True を渡し、mode を
+    disperse に固定する（Track B P3 ①-7 next_week_calendar と連動。既定 False は
+    従来どおりで挙動不変）。"""
     days = (latewk or {}).get("days") or "金曜"
     early = "月〜木" if days == "金曜" else "月〜水" if days == "木曜" else "週前半"
     if entity == "dept":
@@ -498,6 +503,8 @@ def _leveling_levers(entity: str, latewk: Optional[dict], adm: Optional[dict],
     else:
         disperse = f"相乗り科の{days}退院を{early}へ分散する"
         refill = "週末の入院受け入れを強化して空床を埋める"
+    if force_disperse:
+        return disperse, refill, "disperse"
     strong = bool(latewk) and latewk["level"] == "strong"
     weak = bool(adm) and adm["level"] in ("limited", "none")
     mode = ("disperse" if (strong and not weak)
@@ -507,7 +514,10 @@ def _leveling_levers(entity: str, latewk: Optional[dict], adm: Optional[dict],
 
 def _build_leveling_prompt(unit: dict, entity: str, max_room: float, dd: Optional[dict],
                            peer: Optional[str] = None,
-                           delta: Optional[str] = None) -> str:
+                           delta: Optional[str] = None,
+                           driver: Optional[str] = None,
+                           next_week: Optional[str] = None,
+                           force_disperse: bool = False) -> str:
     label = "診療科" if entity == "dept" else "病棟"
     facts = [
         # 現状×傾向は逆接の接続まで含めて1事実に確定（順接での誤接続を防ぐ）
@@ -533,9 +543,12 @@ def _build_leveling_prompt(unit: dict, entity: str, max_room: float, dd: Optiona
                 grp = None
         facts.append(f"{grp or '同種'}の{label}の中での週末在院の維持: {peer}に位置する")
     if delta: facts.append(f"前回レポートとの比較: {delta}")
+    if driver: facts.append(driver)
+    if next_week: facts.append(next_week)
     facts_block = "\n".join(f"- {f}" for f in facts)
     # レバーは事実に適応：週後半集中なら退院分散、補充が弱ければ週末入院強化を主にする
-    disperse, refill, mode = _leveling_levers(entity, latewk, adm, thin)
+    disperse, refill, mode = _leveling_levers(entity, latewk, adm, thin,
+                                              force_disperse=force_disperse)
     if mode == "disperse":
         lever = f"{disperse}（退院の平準化を主に）。"
     elif mode == "refill":
@@ -912,7 +925,10 @@ def narrate_leveling_actions(weekend_leveling: dict,
                              quiet: bool = False,
                              peers: Optional[dict] = None,
                              deltas: Optional[dict] = None,
-                             skip: Optional[set] = None) -> dict:
+                             skip: Optional[set] = None,
+                             drivers: Optional[dict] = None,
+                             next_week: Optional[str] = None,
+                             force_disperse: bool = False) -> dict:
     """週末のびしろ payload の各エンティティについて、のびしろ上位 top_n ユニットに
     `narrative`={body, action}（or None）を付与する（破壊的更新して返す）。
 
@@ -926,6 +942,12 @@ def narrate_leveling_actions(weekend_leveling: dict,
     - skip: 生成を省くユニット名（§6-1 人手オーバーライドで全文差し替え済みの部門）。
       候補選定・max_room は変えず生成だけ省く＝他ユニットのプロンプト（room相対値）を
       変えない（決定論seedの「同じ事実→同じ文」を壊さない）。
+    - drivers: ユニット名→①-6 census driver の事実文（Track B P3。渡さないユニットは
+      従来どおり driver 事実なし＝プロンプトはバイト単位で不変）。
+    - next_week: 来週の暦構造の事実文（Track B P3 ①-7 next_week_calendar）。ビルド単位で
+      1つに確定する値のため全ユニット共通で渡す（None のときバイト単位で不変）。
+    - force_disperse: 来週が連休（run_len>=3 or is_eve）で週末補充を当てにできない局面の
+      とき True にし、_leveling_levers の mode を disperse に固定する（既定 False は不変）。
     - 生成は NARRATE_WORKERS 並列（ThreadPoolExecutor）で行う。max_room/peers/deltas/
       det はループ前に確定済みで相対値の順序依存は無く、u["narrative"] の代入先も
       ユニット固有の dict なので競合しない。1ユニットの生成失敗は他ユニットへ波及させず
@@ -961,7 +983,10 @@ def narrate_leveling_actions(weekend_leveling: dict,
                 system=_resolve_system("leveling_action_system", LEVELING_ACTION_SYSTEM_PROMPT),
                 user=_build_leveling_prompt(u, entity, max_room, det.get(u["name"]),
                                             peer=(peers or {}).get(u["name"]),
-                                            delta=delta) + fs,
+                                            delta=delta,
+                                            driver=(drivers or {}).get(u["name"]),
+                                            next_week=next_week,
+                                            force_disperse=force_disperse) + fs,
                 banned=banned, allow=_unit_allow(u["name"]),
                 model=model, temperature=temperature, quiet=quiet)
 
@@ -1014,6 +1039,14 @@ _WARD_ADMISSION_BANNED_TREND_OK = _WARD_ADMISSION_BANNED_BASE
 _SURGERY_BANNED_BASE = ("診断", "処方", "投与", "術式を追加", "延伸", "早期退院")
 _SURGERY_BANNED = _SURGERY_BANNED_BASE + ("傾向",)
 _SURGERY_BANNED_TREND_OK = _SURGERY_BANNED_BASE
+
+# Track B P3 ①-7: 祝日文脈（holiday fact）を渡したユニットは、水準の低さを「低迷」と
+# 断定させない（holiday の「責めない」指示と矛盾する語を機械的にも弾く多重防衛）。
+# 生成済み252文の実測で「未達」0件・「新入院減」0件（効果ゼロ）だったため追加しない
+# （司令塔裁定）。「未達」は config/prompts.toml:91,113 の system 指示・
+# dept_report.py の差分事実「前回レポート時点の未達から、目標水準に到達した」と
+# 正面衝突し、棄却→定型文化→Jaccard 悪化を招くため見送る。
+_HOLIDAY_EXTRA_BANNED = ("低迷",)
 
 ADMISSION_ACTION_SYSTEM_PROMPT = """あなたは病院経営を支援する要約ライターです。各部門の「新入院（週間の入院受け入れ）」の状況への“今週の一手”を、与えられた事実だけから日本語で書きます。以下を厳守してください。
 
@@ -1129,7 +1162,9 @@ def _build_admission_prompt(unit_name: str, entity: str, state: str,
                             yoy: Optional[str] = None,
                             delta: Optional[str] = None,
                             mix: Optional[str] = None,
-                            holiday: Optional[str] = None) -> str:
+                            holiday: Optional[str] = None,
+                            driver: Optional[str] = None,
+                            next_week: Optional[str] = None) -> str:
     label = "診療科" if entity == "dept" else "病棟"
     lines = [f"- {state}"]
     # 「同種の診療科」は人手 override が例外なく「内科系/外科系診療科」へ書き換えていた
@@ -1145,6 +1180,8 @@ def _build_admission_prompt(unit_name: str, entity: str, state: str,
     if delta:   lines.append(f"- 前回レポートとの比較: {delta}")
     if mix:     lines.append(f"- 入院の内訳: {mix}")
     if holiday: lines.append(f"- 補足: {holiday}")
+    if driver:  lines.append(f"- {driver}")
+    if next_week: lines.append(f"- {next_week}")
     facts = "\n".join(lines)
     return f"""以下の事実から、{label}「{unit_name}」の新入院に関する“今週の一手”を JSON で1つだけ出力してください。
 
@@ -1163,13 +1200,17 @@ def _build_admission_prompt(unit_name: str, entity: str, state: str,
 def _build_ward_admission_prompt(ward_name: str, state: str,
                                  yoy: Optional[str] = None,
                                  delta: Optional[str] = None,
-                                 holiday: Optional[str] = None) -> str:
+                                 holiday: Optional[str] = None,
+                                 driver: Optional[str] = None,
+                                 next_week: Optional[str] = None) -> str:
     # 一般病棟向け。peer/mix は診療科軸専用の事実（同種診療科内の相対位置・予定/緊急の
     # 内訳）で病棟軸では算出していないため渡さない。
     lines = [f"- {state}"]
     if yoy:     lines.append(f"- 前年同期との比較: {yoy}")
     if delta:   lines.append(f"- 前回レポートとの比較: {delta}")
     if holiday: lines.append(f"- 補足: {holiday}")
+    if driver:  lines.append(f"- {driver}")
+    if next_week: lines.append(f"- {next_week}")
     facts = "\n".join(lines)
     return f"""以下の事実から、病棟「{ward_name}」の新規受け入れ（新入院・転入）に関する“今週の一手”を JSON で1つだけ出力してください。
 
@@ -1192,7 +1233,9 @@ def _build_surgery_prompt(dept_name: str, state: str,
                           dow_shape: Optional[str] = None,
                           urgency_mix: Optional[str] = None,
                           or_load: Optional[str] = None,
-                          holiday: Optional[str] = None) -> str:
+                          holiday: Optional[str] = None,
+                          driver: Optional[str] = None,
+                          next_week: Optional[str] = None) -> str:
     lines = [f"- {state}"]
     if peer:    lines.append(f"- 外科系の診療科の中では{peer}に位置する")
     if yoy:     lines.append(f"- 前年同期との比較: {yoy}")
@@ -1201,6 +1244,8 @@ def _build_surgery_prompt(dept_name: str, state: str,
     if urgency_mix:  lines.append(f"- {urgency_mix}")
     if or_load: lines.append(f"- 手術室全体の稼働: {or_load}")
     if holiday: lines.append(f"- 補足: {holiday}")
+    if driver:  lines.append(f"- {driver}")
+    if next_week: lines.append(f"- {next_week}")
     facts = "\n".join(lines)
     return f"""以下の事実から、診療科「{dept_name}」の{metric_label}に関する“今週の一手”を JSON で1つだけ出力してください。
 
@@ -1220,7 +1265,8 @@ def _build_surgery_prompt(dept_name: str, state: str,
 def narrate_admission_action(unit_name: str, entity: str, na, na_tgt, trend: Optional[str] = None,
                              peer: Optional[str] = None, yoy: Optional[str] = None,
                              delta: Optional[str] = None, mix: Optional[str] = None,
-                             holiday: Optional[str] = None,
+                             holiday: Optional[str] = None, driver: Optional[str] = None,
+                             next_week: Optional[str] = None,
                              model: str = DEFAULT_MODEL,
                              temperature: float = DEFAULT_TEMPERATURE,
                              quiet: bool = False) -> Optional[dict]:
@@ -1233,6 +1279,11 @@ def narrate_admission_action(unit_name: str, entity: str, na, na_tgt, trend: Opt
     yoy: 前年同期比較（_q_yoy の確定文・BチャートのCur/prevから）。
     delta: 前回レポート比較（①差分ナラティブ）。mix: 予定/緊急の内訳（①-2）。
     holiday: 連休文脈（①-4）。いずれも渡さない場合は対応語を禁止語にする（連動緩和）。
+    driver: 在院の増減が入口/出口どちらで動いているかの事実（Track B P3 ①-6・
+    dept_report._q_census_driver）。渡さない場合はプロンプトに事実行を足さない
+    （None のときバイト単位で不変。禁止語の連動緩和は無し＝holiday等と非対称）。
+    next_week: 来週の暦構造の事実文（Track B P3 ①-7）。driver と同じ扱い（None のとき
+    バイト単位で不変・禁止語の連動緩和は無し）。
     entity == "ward"（特例でない一般病棟）は紹介・地域医療連携を業務として持たないため、
     専用プロンプト（WARD_ADMISSION_ACTION_SYSTEM_PROMPT）に差し替える。entity == "dept" の
     経路は本分岐追加前とバイト単位で不変（生成キャッシュのキー・決定論 seed を壊さないため）。
@@ -1248,10 +1299,14 @@ def narrate_admission_action(unit_name: str, entity: str, na, na_tgt, trend: Opt
             banned = banned + ("前回",)
         if holiday is None:
             banned = banned + ("祝日", "連休")
+        else:
+            banned = banned + _HOLIDAY_EXTRA_BANNED
         return _generate_checked(
             f"admission {entity}:{unit_name}",
             system=_resolve_system("ward_admission_action_system", WARD_ADMISSION_ACTION_SYSTEM_PROMPT),
-            user=_build_ward_admission_prompt(unit_name, state, yoy=yoy, delta=delta, holiday=holiday),
+            user=_build_ward_admission_prompt(unit_name, state, yoy=yoy, delta=delta,
+                                              holiday=holiday, driver=driver,
+                                              next_week=next_week),
             banned=banned, allow=_unit_allow(unit_name),
             model=model, temperature=temperature, quiet=quiet)
     banned = _ADMISSION_BANNED_TREND_OK if trend in ("上昇", "低下") else _ADMISSION_BANNED
@@ -1263,6 +1318,8 @@ def narrate_admission_action(unit_name: str, entity: str, na, na_tgt, trend: Opt
         banned = banned + ("前回",)
     if holiday is None:
         banned = banned + ("祝日", "連休")
+    else:
+        banned = banned + _HOLIDAY_EXTRA_BANNED
     # P3: 添削 few-shot（診療科軸のみ・病棟は事実の語彙が異なるため対象外）
     fs = (fewshot.examples_block("admission", fewshot.state_token(state), banned, unit_name)
           if (fewshot and entity == "dept") else "")
@@ -1270,7 +1327,8 @@ def narrate_admission_action(unit_name: str, entity: str, na, na_tgt, trend: Opt
         f"admission {entity}:{unit_name}",
         system=_resolve_system("admission_action_system", ADMISSION_ACTION_SYSTEM_PROMPT),
         user=_build_admission_prompt(unit_name, entity, state, peer=peer, yoy=yoy,
-                                     delta=delta, mix=mix, holiday=holiday) + fs,
+                                     delta=delta, mix=mix, holiday=holiday, driver=driver,
+                                     next_week=next_week) + fs,
         banned=banned, allow=_unit_allow(unit_name),
         model=model, temperature=temperature, quiet=quiet)
 
@@ -1279,7 +1337,8 @@ def narrate_surgery_action(dept_name: str, sv, surg_tgt, trend: Optional[str] = 
                           peer: Optional[str] = None, yoy: Optional[str] = None,
                           delta: Optional[str] = None, or_load: Optional[str] = None,
                           dow_shape: Optional[str] = None, urgency_mix: Optional[str] = None,
-                          holiday: Optional[str] = None,
+                          holiday: Optional[str] = None, driver: Optional[str] = None,
+                          next_week: Optional[str] = None,
                           model: str = DEFAULT_MODEL,
                           temperature: float = DEFAULT_TEMPERATURE,
                           quiet: bool = False) -> Optional[dict]:
@@ -1294,6 +1353,9 @@ def narrate_surgery_action(dept_name: str, sv, surg_tgt, trend: Optional[str] = 
     urgency_mix: 予定/緊急・臨時の構成（dept_report._q_surg_urgency_mix）。いずれも科別の
     レバー選び用の事実で、action の均質化（枠稼働確認と症例調整の一般論への収束）を防ぐ。
     holiday: 連休文脈（①-4）。前回/祝日は渡さない場合に禁止語へ（連動緩和）。
+    driver: 在院の増減が入口/出口どちらで動いているかの事実（Track B P3 ①-6・
+    dept_report._q_census_driver）。渡さない場合はプロンプトに事実行を足さない。
+    next_week: 来週の暦構造の事実文（Track B P3 ①-7）。driver と同じ扱い。
 
     達成度 tier（_q_target_gap → _gap_level_tier が exceed/met）のときは、件数増を迫らず
     現状の進め方を肯定する SURGERY_ACTION_SYSTEM_PROMPT_MET に切り替える（state は
@@ -1323,6 +1385,8 @@ def narrate_surgery_action(dept_name: str, sv, surg_tgt, trend: Optional[str] = 
         banned = banned + ("前回",)
     if holiday is None:
         banned = banned + ("祝日", "連休")
+    else:
+        banned = banned + _HOLIDAY_EXTRA_BANNED
     if _met:
         # 達成版は件数増を迫らない方針のため、棄却されても _fallback_move_surgery の
         # 達成分岐（「現状の手術枠運用を維持しましょう。」）へ落ちるだけで安全。
@@ -1335,7 +1399,8 @@ def narrate_surgery_action(dept_name: str, sv, surg_tgt, trend: Optional[str] = 
         system=system,
         user=_build_surgery_prompt(dept_name, state, metric_label=label, peer=peer, yoy=yoy,
                                    delta=delta, dow_shape=dow_shape, urgency_mix=urgency_mix,
-                                   or_load=or_load, holiday=holiday) + fs,
+                                   or_load=or_load, holiday=holiday, driver=driver,
+                                   next_week=next_week) + fs,
         banned=banned, allow=_unit_allow(dept_name),
         model=model, temperature=temperature, quiet=quiet)
 

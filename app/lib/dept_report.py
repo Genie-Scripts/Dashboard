@@ -40,6 +40,7 @@ from .metrics import (
 )
 from .triage import adjusted_weekly_target
 from .charts import build_dow_unit_detail, _dow_unit_candidates
+from .calendar_preview import build_week_preview
 from .ai_narrative import (
     narrate_leveling_actions, narrate_admission_action, narrate_surgery_action,
     narrate_emergency_leveling_action, narrate_emergency_admission_action,
@@ -408,12 +409,17 @@ def _ach_badge(actual, target, prefix="達成率 "):
 # ════════════════════════════════════════════════════════════
 # この期間の一手（oMLX未起動時の定型フォールバック・データ適応）
 # ════════════════════════════════════════════════════════════
-def _fallback_move(unit: dict, dd: Optional[dict], entity: str) -> dict:
+def _fallback_move(unit: dict, dd: Optional[dict], entity: str,
+                   force_disperse: bool = False) -> dict:
     """narrate_leveling_actions が None（oMLX未起動/失敗）のときの定型文。
 
     2026-07: AI率95%になり出番は減ったが、oMLX停止時に全部門が同一文へ縮退しないよう
     事実の語彙（週後半集中の曜日名・補充3段階・ディップの形）で組み合わせ分岐する。
-    レバー文は _leveling_levers（LLMプロンプトと共通）から取り、文言の乖離を防ぐ。"""
+    レバー文は _leveling_levers（LLMプロンプトと共通）から取り、文言の乖離を防ぐ。
+
+    force_disperse: 来週が連休で週末補充を当てにできない局面のとき True にし、
+    _leveling_levers の mode を disperse に固定する（Track B P3 ①-7・LLMプロンプト側の
+    narrate_leveling_actions(force_disperse=) と同じ値を渡すことで両経路の整合を取る）。"""
     state = _q_state_trend(unit.get("retention"), unit.get("room_delta_4w"))
     latewk = _q_latewk_discharge(dd)
     adm = _q_weekend_adm(dd)
@@ -445,7 +451,8 @@ def _fallback_move(unit: dict, dd: Optional[dict], entity: str) -> dict:
     if dip:
         body += f"{dip}形です。"
 
-    disperse, refill, mode = _leveling_levers(entity, latewk, adm, thin)
+    disperse, refill, mode = _leveling_levers(entity, latewk, adm, thin,
+                                              force_disperse=force_disperse)
     if mode == "disperse":
         action = f"{disperse}（退院の平準化を主に）。在院日数は延ばさず、回転で取り戻す。"
     elif mode == "refill":
@@ -939,6 +946,97 @@ def _q_holiday_week(adm, base_date) -> Optional[str]:
     return "集計期間に祝日を含む（予定入院や手術は構造的に少なくなりやすい）" if hol else None
 
 
+def _q_census_driver(adm, base_date, group_col, unit, turn_m) -> Optional[dict]:
+    """在院の増減が入口（新入院・転入）側／出口（退院・転出）側のどちらで動いているかを
+    診断する事実quantizer（Track B P3 ①-6）。窓は turn_m の alos 窓と完全に一致させる
+    （直近28日 vs 前28日。窓定義を二重に作らない）。
+
+    IN=新入院患者数+転入患者数、OUT=退院合計+転出患者数（app/lib/validate.py:210-212
+    の check_bed_balance と同じ病床収支恒等式の左右辺）。両軸とも転入/転出込みで組む＝
+    病棟軸で転入・転出を落とすと、新入院/退院の単独差分が転入出でほぼ相殺されている
+    実態を見落として誤分類する（転入出の比重が大きい病棟ほど顕著）。
+
+    日平均の前窓比が±5%（_ma_window_trend の pt=5 と同じ閾値。新しいマジックナンバーは
+    作らない）を上回る側を「動いている」と判定する。両方とも閾値未満はNone（診断に足る
+    変化が無い）。前窓のIN/OUTがn<20（_q_planned_mix と同じ小規模ノイズガード）ならNone。
+
+    alos: turn_m["alos_28d"]/["alos_prev_28d"] の比を同じ±5%で up/down/flat 化する
+    診断専用の第2軸（目標化・順位化はしない）。turn_m 側が None のときは flat（＝文に
+    出さない）。
+
+    adm が想定列を欠く等で計算できない場合は例外を出さず None へ縮退する
+    （turnover_metrics の _turn_neutral と同じ安全側フォールバック。レポート生成
+    全体を落とさない）。
+    """
+    try:
+        disp_col = "病棟_表示" if group_col == "病棟コード" else "科_表示"
+        d = adm[adm[disp_col]]
+        if group_col and unit is not None:
+            d = d[d[group_col] == unit]
+
+        cur_lo, cur_hi = base_date - timedelta(days=27), base_date
+        prev_lo, prev_hi = base_date - timedelta(days=55), base_date - timedelta(days=28)
+
+        def _in_out(lo, hi):
+            w = d[(d["日付"] >= lo) & (d["日付"] <= hi)]
+            return (w["新入院患者数"].sum() + w["転入患者数"].sum(),
+                    w["退院合計"].sum() + w["転出患者数"].sum())
+
+        in_cur, out_cur = _in_out(cur_lo, cur_hi)
+        in_prev, out_prev = _in_out(prev_lo, prev_hi)
+        if in_prev < 20 or out_prev < 20:
+            return None
+
+        d_in = (in_cur - in_prev) / in_prev * 100
+        d_out = (out_cur - out_prev) / out_prev * 100
+        in_hit, out_hit = abs(d_in) >= 5, abs(d_out) >= 5
+        if not in_hit and not out_hit:
+            return None
+        level = "both" if (in_hit and out_hit) else ("inlet" if in_hit else "outlet")
+
+        alos = "flat"
+        a_cur = (turn_m or {}).get("alos_28d")
+        a_prev = (turn_m or {}).get("alos_prev_28d")
+        if a_cur is not None and a_prev:
+            d_alos = (a_cur - a_prev) / a_prev * 100
+            if d_alos >= 5:
+                alos = "up"
+            elif d_alos <= -5:
+                alos = "down"
+
+        text = {
+            "inlet": "在院の増減は主に入口（新入院・転入）側で動いている",
+            "outlet": "在院の増減は主に出口（退院・転出）側で動いている",
+            "both": "在院の増減は入口（新入院・転入）・出口（退院・転出）の両方で動いている",
+        }[level]
+        if alos == "up":
+            text += "。在院日数はやや長くなっている"
+        elif alos == "down":
+            text += "。在院日数はやや短くなっている"
+        return {"level": level, "alos": alos, "text": text}
+    except Exception:
+        return None
+
+
+def _q_next_week_calendar(base_date) -> Optional[dict]:
+    """来週（翌週月〜日）の暦構造（連休・営業日不足）の事実quantizer（Track B P3 ①-7）。
+
+    calendar_preview.build_week_preview を呼ぶだけ（day-type群の再実装はしない）。
+    同関数の text は数字入りの表示専用文言のため使わず、AI一手プロンプトの数字ガード
+    （_rejection_reason の digit ガード）に弾かれない自前の数字なし文を組み立てる。
+    """
+    week = build_week_preview(base_date)
+    if week is None:
+        return None
+    if week["run_len"] >= 3:
+        text = ("来週は連休があり営業日が少ない（退院を連休前に固めすぎない・"
+                "連休明けの受け入れ枠をあらかじめ空ける）")
+    else:
+        text = "来週は営業日が通常より少ない（新入院・手術は構造的に少なくなりやすい）"
+    return {"biz_days": week["biz_days"], "run_len": week["run_len"],
+            "is_eve": week["is_eve"], "text": text}
+
+
 # ════════════════════════════════════════════════════════════
 # ① 差分ナラティブ（前回レポート比較・バケット遷移のみ・悪化は控えめ）
 # ════════════════════════════════════════════════════════════
@@ -1335,6 +1433,13 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
     # ①-3/①-4: ビルド単位の共通事実（全麻トピックのOR稼働・連休フェアネス文脈）
     or_fact = _q_or_load(surg, base_date)
     holiday_fact = _q_holiday_week(adm, base_date)
+    # ①-7: ビルド単位の共通事実（来週の暦構造）。next_week_fact はプロンプト注入用の
+    # 数字なし文、force_disperse は来週が連休（run_len>=3 or 長期連休前日）で週末補充を
+    # 当てにできない局面のときだけ True にし、平準化レバーを disperse 側へ固定する
+    # （narrate_leveling_actions と _fallback_move の両方に同じ値を渡し整合を取る）。
+    next_week = _q_next_week_calendar(base_date)
+    next_week_fact = next_week["text"] if next_week else None
+    force_disperse = bool(next_week and (next_week["run_len"] >= 3 or next_week["is_eve"]))
     anchor_units = (delta_anchor or {}).get("units", {})
 
     # 粗利の当月見込み（暫定）用 per-dept 推計器を1回だけフィット
@@ -1415,6 +1520,15 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
                 "tags": tags,
                 "anchor": None if is_em0 else anchor_units.get(f"{entity}:{name0}"),
             }
+            # 回転3指標(turn_m)はここ1箇所で確定し、leveling バッチの drivers dict（①-6
+            # census driver）とパス1（st["turn_m"]）の両方がこの値を再利用する
+            # （呼び出し回数を1ユニット1回のまま増やさない）。
+            turn_census_target0 = targets.get("inpatient", {}).get(tgt_axis_gap, {}).get(code0)
+            turn_m0 = turnover_metrics(adm, base_date, turn_census_target0,
+                                       group_col=turn_group_col, unit=code0, los_df=los_df)
+            driver0 = _q_census_driver(adm, base_date, turn_group_col, code0, turn_m0)
+            unit_meta[name0]["turn_m"] = turn_m0
+            unit_meta[name0]["driver"] = (driver0 or {}).get("text")
             # per-unit ループ（後段）と同一の入力から topic を前倒し計算し、
             # leveling バッチの生成が捨てられるユニット（救急病棟／topicが
             # admission・surgeryに決まる／room<=0.5）を skip 対象として拾う
@@ -1438,10 +1552,14 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
         # 全文差し替え済み(override)の部門は、レビューHTMLでAI文と修正文を見比べられる
         # よう skip しない（旧: full_ov も skip に含めていた）。
         waste_skip = {n for n, m in unit_meta.items() if m["skip_leveling_gen"]}
+        # ①-6 census driver: leveling バッチは per-unit ループ（パス1）より先に走るため、
+        # unit_meta で前倒し確定済みの driver 事実を dict で前渡しする。
+        drivers = {n: m["driver"] for n, m in unit_meta.items() if m.get("driver")}
         if with_ai and n_ai:
             narrate_leveling_actions({entity: wl}, {entity: det}, top_n=n_ai, quiet=quiet,
                                      peers=lev_peers, deltas=lev_deltas,
-                                     skip=waste_skip)
+                                     skip=waste_skip, drivers=drivers,
+                                     next_week=next_week_fact, force_disperse=force_disperse)
 
         # P2-b: 同種科内の相対位置(上位/中位/下位)用の達成率マップ（診療科軸のみ・1回）。
         # 新入院＝タイプ別に、全麻＝外科系内で比較する（テーブルと同じ ranking helper を再利用）。
@@ -1469,6 +1587,13 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
             dd = det.get(name)
             room = u.get("room_per_week", 0) or 0
             ret = u.get("retention")
+            # 回転3指標・①-6 census driver: unit_meta で前倒し確定済み（turnover_metrics の
+            # 呼び出しはunit_metaループの1回のみ・ここでは読むだけ）。旧: パス3(turn_m)で
+            # 計算していたものをここへ純移動。
+            turn_m = unit_meta[name]["turn_m"]
+            turn_line = format_turn_line(turn_m)
+            turn_state, turn_hint = turn_m["state"], turn_m["hint"]
+            driver = unit_meta[name]["driver"]
             # §6-1 人手オーバーライド: 全文差し替えでもAI生成は止めない（AI文をレビューHTMLに
             # 併載し、修正文と見比べられるようにするため。旧: unit_ai = with_ai and
             # not is_full_override(ov)）。
@@ -1565,7 +1690,8 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
                 call = (narrate_admission_action,
                         (name, entity, na_gap, na_tgt_gap),
                         {"trend": na_trend, "peer": na_peer, "yoy": na_yoy, "delta": d_txt,
-                         "mix": mix, "holiday": holiday_fact, "quiet": quiet})
+                         "mix": mix, "holiday": holiday_fact, "driver": driver,
+                         "next_week": next_week_fact, "quiet": quiet})
             elif topic == "surgery":
                 dow_shape = _q_surg_dow_shape(surg, base_date, name)
                 urgency_mix = _q_surg_urgency_mix(surg, base_date, name)
@@ -1576,7 +1702,8 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
                         (name, sv_gap, surg_tgt_gap),
                         {"trend": surg_trend, "peer": surg_peer, "yoy": surg_yoy, "delta": d_txt,
                          "or_load": or_for_dept, "dow_shape": dow_shape, "urgency_mix": urgency_mix,
-                         "holiday": holiday_fact, "quiet": quiet})
+                         "holiday": holiday_fact, "driver": driver,
+                         "next_week": next_week_fact, "quiet": quiet})
 
             idx = len(unit_states)
             if unit_ai and call is not None:
@@ -1592,6 +1719,8 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
                 "na_yoy": na_yoy, "surg_yoy": surg_yoy, "na_state": na_state,
                 "surg_state": surg_state, "na_peer": na_peer, "surg_peer": surg_peer,
                 "is_emergency": is_emergency, "special": special, "d_txt": d_txt,
+                "turn_m": turn_m, "turn_line": turn_line,
+                "turn_state": turn_state, "turn_hint": turn_hint, "driver": driver,
             })
 
         # パス2（並列）: パス1で記録した narrate_* 呼び出しを NARRATE_WORKERS 並列で実行する。
@@ -1633,11 +1762,9 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
 
             # 回転3指標: 在院＝守り／新入院＝攻め／期間III超え＝退院促進（在院日数の短縮その
             # ものは号令にしない）。特例ユニットも含め全ユニット共通で数値行を出す。
-            turn_census_target = targets.get("inpatient", {}).get(tgt_axis_gap, {}).get(code)
-            turn_m = turnover_metrics(adm, base_date, turn_census_target,
-                                      group_col=turn_group_col, unit=code, los_df=los_df)
-            turn_line = format_turn_line(turn_m)
-            turn_state, turn_hint = turn_m["state"], turn_m["hint"]
+            # パス1で確定済み（st["turn_m"] 等）のためここでは読むだけ（純移動）。
+            turn_m = st["turn_m"]
+            turn_line, turn_state, turn_hint = st["turn_line"], st["turn_state"], st["turn_hint"]
 
             if special:
                 # oMLX 未起動/棄却時の定型文は救急病棟用を全特例で共用する（いずれも
@@ -1661,8 +1788,9 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
                 move = ai_out or _fallback_move_surgery(surg_state, peer=surg_peer,
                                                         label=surgery_metric_label(name))
             else:
-                move = (_fallback_move(u, dd, entity) if room <= 0.5
-                        else (u.get("narrative") or _fallback_move(u, dd, entity)))
+                move = (_fallback_move(u, dd, entity, force_disperse=force_disperse) if room <= 0.5
+                        else (u.get("narrative")
+                              or _fallback_move(u, dd, entity, force_disperse=force_disperse)))
 
             # ① 差分ナラティブ: AI経路はプロンプトで織り込み済み。定型文経路は決定論で1文追記。
             if d_txt and move.get("src") != "ai" and move.get("body"):

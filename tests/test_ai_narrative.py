@@ -8,6 +8,7 @@ LLM呼び出し（chat_json）はテストしない。純関数の境界のみ:
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -446,6 +447,262 @@ class TestExtractBodyAction(unittest.TestCase):
         self.assertIsNone(_extract_body_action('{"body": "本文のみ"}'))
         self.assertIsNone(_extract_body_action("JSONなし"))
         self.assertIsNone(_extract_body_action(""))
+
+
+class TestDriverPromptByteInvariance(unittest.TestCase):
+    """Track B P3 S3: driver=None のときプロンプト文字列がバイト単位で不変
+    （narrative_cache のキー・決定論 seed を壊さないため必須）。"""
+
+    def test_leveling_prompt_unchanged_when_driver_none(self):
+        from app.lib.ai_narrative import _build_leveling_prompt
+        unit = {"name": "内科A", "retention": 0.9, "room_delta_4w": 0.5, "room_per_week": 3.0}
+        before = _build_leveling_prompt(unit, "dept", 10.0, None, peer="上位", delta="改善している")
+        after = _build_leveling_prompt(unit, "dept", 10.0, None, peer="上位", delta="改善している",
+                                       driver=None)
+        self.assertEqual(before, after)
+
+    def test_leveling_prompt_changes_when_driver_given(self):
+        from app.lib.ai_narrative import _build_leveling_prompt
+        unit = {"name": "内科A", "retention": 0.9, "room_delta_4w": 0.5, "room_per_week": 3.0}
+        before = _build_leveling_prompt(unit, "dept", 10.0, None)
+        after = _build_leveling_prompt(unit, "dept", 10.0, None,
+                                       driver="在院の増減は主に入口（新入院・転入）側で動いている")
+        self.assertNotEqual(before, after)
+        self.assertIn("在院の増減は主に入口", after)
+
+    def test_admission_prompt_unchanged_when_driver_none(self):
+        from app.lib.ai_narrative import _build_admission_prompt
+        before = _build_admission_prompt("内科A", "dept", "状況の確定文", peer="上位",
+                                         yoy="前年並み", delta="改善している", mix="内訳の事実")
+        after = _build_admission_prompt("内科A", "dept", "状況の確定文", peer="上位",
+                                        yoy="前年並み", delta="改善している", mix="内訳の事実",
+                                        driver=None)
+        self.assertEqual(before, after)
+
+    def test_admission_prompt_changes_when_driver_given(self):
+        from app.lib.ai_narrative import _build_admission_prompt
+        before = _build_admission_prompt("内科A", "dept", "状況の確定文")
+        after = _build_admission_prompt("内科A", "dept", "状況の確定文",
+                                        driver="在院の増減は主に出口（退院・転出）側で動いている")
+        self.assertNotEqual(before, after)
+
+    def test_ward_admission_prompt_unchanged_when_driver_none(self):
+        from app.lib.ai_narrative import _build_ward_admission_prompt
+        before = _build_ward_admission_prompt("09B病棟", "状況の確定文", yoy="前年並み",
+                                              delta="改善している")
+        after = _build_ward_admission_prompt("09B病棟", "状況の確定文", yoy="前年並み",
+                                             delta="改善している", driver=None)
+        self.assertEqual(before, after)
+
+    def test_surgery_prompt_unchanged_when_driver_none(self):
+        from app.lib.ai_narrative import _build_surgery_prompt
+        before = _build_surgery_prompt("整形外科", "状況の確定文", peer="上位", yoy="前年並み",
+                                       delta="改善している", dow_shape="曜日の事実",
+                                       urgency_mix="内訳の事実", or_load="稼働の事実")
+        after = _build_surgery_prompt("整形外科", "状況の確定文", peer="上位", yoy="前年並み",
+                                      delta="改善している", dow_shape="曜日の事実",
+                                      urgency_mix="内訳の事実", or_load="稼働の事実", driver=None)
+        self.assertEqual(before, after)
+
+
+class TestNextWeekPromptByteInvariance(unittest.TestCase):
+    """Track B P3 ①-7: next_week=None のときプロンプト文字列がバイト単位で不変
+    （driver と同じ扱い＝narrative_cache のキー・決定論 seed を壊さないため必須）。"""
+
+    def test_leveling_prompt_unchanged_when_next_week_none(self):
+        from app.lib.ai_narrative import _build_leveling_prompt
+        unit = {"name": "内科A", "retention": 0.9, "room_delta_4w": 0.5, "room_per_week": 3.0}
+        before = _build_leveling_prompt(unit, "dept", 10.0, None, peer="上位", delta="改善している")
+        after = _build_leveling_prompt(unit, "dept", 10.0, None, peer="上位", delta="改善している",
+                                       next_week=None)
+        self.assertEqual(before, after)
+
+    def test_leveling_prompt_changes_when_next_week_given(self):
+        from app.lib.ai_narrative import _build_leveling_prompt
+        unit = {"name": "内科A", "retention": 0.9, "room_delta_4w": 0.5, "room_per_week": 3.0}
+        before = _build_leveling_prompt(unit, "dept", 10.0, None)
+        after = _build_leveling_prompt(unit, "dept", 10.0, None,
+                                       next_week="来週は連休があり営業日が少ない（...）")
+        self.assertNotEqual(before, after)
+        self.assertIn("来週は連休があり", after)
+
+    def test_admission_prompt_unchanged_when_next_week_none(self):
+        from app.lib.ai_narrative import _build_admission_prompt
+        before = _build_admission_prompt("内科A", "dept", "状況の確定文", peer="上位",
+                                         yoy="前年並み", delta="改善している", mix="内訳の事実",
+                                         driver="在院の増減は主に出口（退院・転出）側で動いている")
+        after = _build_admission_prompt("内科A", "dept", "状況の確定文", peer="上位",
+                                        yoy="前年並み", delta="改善している", mix="内訳の事実",
+                                        driver="在院の増減は主に出口（退院・転出）側で動いている",
+                                        next_week=None)
+        self.assertEqual(before, after)
+
+    def test_admission_prompt_changes_when_next_week_given(self):
+        from app.lib.ai_narrative import _build_admission_prompt
+        before = _build_admission_prompt("内科A", "dept", "状況の確定文")
+        after = _build_admission_prompt("内科A", "dept", "状況の確定文",
+                                        next_week="来週は営業日が通常より少ない（...）")
+        self.assertNotEqual(before, after)
+
+    def test_ward_admission_prompt_unchanged_when_next_week_none(self):
+        from app.lib.ai_narrative import _build_ward_admission_prompt
+        before = _build_ward_admission_prompt("09B病棟", "状況の確定文", yoy="前年並み",
+                                              delta="改善している", driver="事実文")
+        after = _build_ward_admission_prompt("09B病棟", "状況の確定文", yoy="前年並み",
+                                             delta="改善している", driver="事実文", next_week=None)
+        self.assertEqual(before, after)
+
+    def test_surgery_prompt_unchanged_when_next_week_none(self):
+        from app.lib.ai_narrative import _build_surgery_prompt
+        before = _build_surgery_prompt("整形外科", "状況の確定文", peer="上位", yoy="前年並み",
+                                       delta="改善している", dow_shape="曜日の事実",
+                                       urgency_mix="内訳の事実", or_load="稼働の事実",
+                                       driver="事実文")
+        after = _build_surgery_prompt("整形外科", "状況の確定文", peer="上位", yoy="前年並み",
+                                      delta="改善している", dow_shape="曜日の事実",
+                                      urgency_mix="内訳の事実", or_load="稼働の事実",
+                                      driver="事実文", next_week=None)
+        self.assertEqual(before, after)
+
+
+class TestForceDisperse(unittest.TestCase):
+    """Track B P3 S6: _leveling_levers の force_disperse（既定Falseは不変・Trueで固定）。"""
+
+    def test_default_false_matches_no_kwarg(self):
+        latewk = {"level": "strong", "days": "金曜"}
+        adm = {"level": "some"}
+        without_kwarg = _leveling_levers("dept", latewk, adm, None)
+        with_false = _leveling_levers("dept", latewk, adm, None, force_disperse=False)
+        self.assertEqual(without_kwarg, with_false)
+
+    def test_true_forces_disperse_even_when_refill_would_win(self):
+        latewk = {"level": "flat", "days": "木曜"}
+        adm = {"level": "none"}   # weak and not strong → 既定は refill
+        _, _, mode_default = _leveling_levers("dept", latewk, adm, None)
+        self.assertEqual(mode_default, "refill")
+        disperse, refill, mode_forced = _leveling_levers("dept", latewk, adm, None,
+                                                          force_disperse=True)
+        self.assertEqual(mode_forced, "disperse")
+        # disperse/refill の文言自体は事実（latewk/adm/thin）から変わらない
+        self.assertIn("木曜", disperse)
+
+    def test_build_leveling_prompt_force_disperse_wiring(self):
+        """プロンプト側: _build_leveling_prompt(force_disperse=) が _leveling_levers に
+        届き、レバー文が disperse 側に固定されること。"""
+        from app.lib.ai_narrative import _build_leveling_prompt
+        unit = {"name": "内科A", "retention": 0.9, "room_delta_4w": 0.5, "room_per_week": 3.0}
+        default_prompt = _build_leveling_prompt(unit, "dept", 10.0, None)
+        self.assertIn("あわせて", default_prompt)   # dd=None→both（既定）
+        forced_prompt = _build_leveling_prompt(unit, "dept", 10.0, None, force_disperse=True)
+        self.assertIn("（退院の平準化を主に）", forced_prompt)
+        self.assertNotIn("あわせて", forced_prompt)
+
+
+class TestHolidayExtraBannedLinkage(unittest.TestCase):
+    """Track B P3 S7: holiday fact ありのとき banned に「低迷」が追加される
+    （narrate_admission_action(dept/ward) / narrate_surgery_action の3経路）。
+    _generate_checked をフェイクに差し替え、実際の LLM 呼び出しは一切行わない。"""
+
+    def _capture_banned(self):
+        captured = {}
+
+        def fake(tag, system, user, banned, allow=(), model=None,
+                temperature=None, quiet=False):
+            captured["banned"] = banned
+            return None
+        return captured, fake
+
+    def test_dept_admission(self):
+        from app.lib import ai_narrative as an
+        captured, fake = self._capture_banned()
+        with mock.patch.object(an, "_generate_checked", fake):
+            an.narrate_admission_action("内科A", "dept", 10, 20, holiday=None, quiet=True)
+            self.assertNotIn("低迷", captured["banned"])
+            an.narrate_admission_action("内科A", "dept", 10, 20,
+                                        holiday="集計期間に祝日を含む", quiet=True)
+            self.assertIn("低迷", captured["banned"])
+
+    def test_ward_admission(self):
+        from app.lib import ai_narrative as an
+        captured, fake = self._capture_banned()
+        with mock.patch.object(an, "_generate_checked", fake):
+            an.narrate_admission_action("09B病棟", "ward", 10, 20, holiday=None, quiet=True)
+            self.assertNotIn("低迷", captured["banned"])
+            an.narrate_admission_action("09B病棟", "ward", 10, 20,
+                                        holiday="集計期間に祝日を含む", quiet=True)
+            self.assertIn("低迷", captured["banned"])
+
+    def test_surgery(self):
+        from app.lib import ai_narrative as an
+        captured, fake = self._capture_banned()
+        with mock.patch.object(an, "_generate_checked", fake):
+            an.narrate_surgery_action("整形外科", 5, 10, holiday=None, quiet=True)
+            self.assertNotIn("低迷", captured["banned"])
+            an.narrate_surgery_action("整形外科", 5, 10,
+                                      holiday="集計期間に祝日を含む", quiet=True)
+            self.assertIn("低迷", captured["banned"])
+
+
+class TestNextWeekWrapperForwarding(unittest.TestCase):
+    """Track B P3 ①-7: narrate_admission_action / narrate_surgery_action /
+    narrate_leveling_actions が next_week（と leveling は force_disperse も）を
+    実プロンプト（_generate_checked の user）まで転送すること。
+    _generate_checked をフェイクに差し替え、実際の LLM 呼び出しは一切行わない。"""
+
+    def _capture_user(self):
+        captured = {}
+
+        def fake(tag, system, user, banned, allow=(), model=None,
+                temperature=None, quiet=False):
+            captured["user"] = user
+            return None
+        return captured, fake
+
+    def test_admission_forwards_next_week(self):
+        from app.lib import ai_narrative as an
+        captured, fake = self._capture_user()
+        with mock.patch.object(an, "_generate_checked", fake):
+            an.narrate_admission_action("内科A", "dept", 10, 20, next_week=None, quiet=True)
+            self.assertNotIn("来週は", captured["user"])
+            an.narrate_admission_action("内科A", "dept", 10, 20,
+                                        next_week="来週は営業日が通常より少ない（...）", quiet=True)
+            self.assertIn("来週は営業日が通常より少ない", captured["user"])
+
+    def test_ward_admission_forwards_next_week(self):
+        from app.lib import ai_narrative as an
+        captured, fake = self._capture_user()
+        with mock.patch.object(an, "_generate_checked", fake):
+            an.narrate_admission_action("09B病棟", "ward", 10, 20,
+                                        next_week="来週は営業日が通常より少ない（...）", quiet=True)
+            self.assertIn("来週は営業日が通常より少ない", captured["user"])
+
+    def test_surgery_forwards_next_week(self):
+        from app.lib import ai_narrative as an
+        captured, fake = self._capture_user()
+        with mock.patch.object(an, "_generate_checked", fake):
+            an.narrate_surgery_action("整形外科", 5, 10, next_week=None, quiet=True)
+            self.assertNotIn("来週は", captured["user"])
+            an.narrate_surgery_action("整形外科", 5, 10,
+                                      next_week="来週は連休があり営業日が少ない（...）", quiet=True)
+            self.assertIn("来週は連休があり", captured["user"])
+
+    def test_leveling_forwards_next_week_and_force_disperse(self):
+        from app.lib import ai_narrative as an
+        captured, fake = self._capture_user()
+        weekend_leveling = {"dept": {"units": [
+            {"name": "内科A", "retention": 0.9, "room_delta_4w": -1.0, "room_per_week": 5.0},
+        ]}}
+        with mock.patch.object(an, "_generate_checked", fake):
+            an.narrate_leveling_actions({k: dict(v) for k, v in weekend_leveling.items()},
+                                        quiet=True)
+            self.assertNotIn("来週は", captured["user"])
+            self.assertIn("あわせて", captured["user"])   # dd=None→既定 mode="both"
+            an.narrate_leveling_actions({k: dict(v) for k, v in weekend_leveling.items()},
+                                        quiet=True,
+                                        next_week="来週は連休があり営業日が少ない（...）",
+                                        force_disperse=True)
+            self.assertIn("来週は連休があり", captured["user"])
+            self.assertIn("（退院の平準化を主に）", captured["user"])
 
 
 if __name__ == "__main__":
