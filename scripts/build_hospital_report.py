@@ -178,9 +178,26 @@ def main():
     if resolved_base_date != base_date:
         log(f"--base-date 未指定のため直近日曜（{resolved_base_date:%Y-%m-%d}）へ丸めました")
     base_date = resolved_base_date
+
+    # 粗利予測（較正済み hybrid+recency補正 pipeline）: build_dept_reports.py と同じ
+    # 組立で1回だけ計算し、ダッシュボード/PLレポートと同一の値をP4診療科テーブルの
+    # 粗利予測達成率に使う（未指定時は hospital_summary 側でOLS単独推計へ後方互換
+    # フォールバック）。
+    from app.lib.profit_estimate import (compute_calibrated_profit_projection,
+                                         last_complete_driver_date)
+    profit_base_date = last_complete_driver_date(adm, surg) or base_date
+    profit_projection = None
+    if profit_breakdown is not None and len(profit_breakdown):
+        try:
+            profit_projection = compute_calibrated_profit_projection(
+                profit_breakdown, surg, adm, profit_base_date)
+        except Exception:
+            profit_projection = None
+
     ctx = hs.build_summary_context(adm, surg, targets, surg_targets, base_date,
                                    profit_monthly=profit_monthly,
-                                   profit_breakdown=profit_breakdown)
+                                   profit_breakdown=profit_breakdown,
+                                   profit_projection=profit_projection)
 
     html = build_html(ctx)
     out_dir = Path(args.output_dir)
