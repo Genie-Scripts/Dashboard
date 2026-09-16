@@ -74,6 +74,12 @@ def load_and_preprocess(data_dir: str, base_date_str: Optional[str] = None,
     # ── 前処理 ──
     log("前処理中...")
     adm  = preprocess_admission(data["admission"])
+    if not no_validate:
+        try:
+            from app.lib.validate import check_admission
+            check_admission(adm).print_summary()
+        except ImportError:
+            pass  # validate モジュールが無い場合はスキップ
     surg = preprocess_surgery(data["surgery"])
     targets      = build_target_lookup(data["inpatient_targets"])
     surg_targets = build_surgery_target_lookup(data["surgery_targets"])

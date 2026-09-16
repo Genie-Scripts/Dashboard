@@ -72,7 +72,7 @@ def check_files(data_dir: str, result: Optional[ValidationResult] = None) -> Val
         )
         return result
 
-    optional_keys = {"profit_data", "profit_target", "outpatient_data"}
+    optional_keys = {"profit_data", "profit_target", "outpatient_data", "los_data"}
     labels = {
         "patient_data":   "入院データ",
         "patient_target": "在院・新入院目標",
@@ -81,7 +81,10 @@ def check_files(data_dir: str, result: Optional[ValidationResult] = None) -> Val
         "profit_data":    "粗利データ（省略可）",
         "profit_target":  "粗利目標（省略可）",
         "outpatient_data": "外来件数データ（省略可・隣リポ集計を既定参照）",
+        "los_data":       "期間III超え患者数フィード（省略可・回転3指標③・未配置は在院日数近似で代替）",
     }
+    # 任意フォルダが無い/空のときの案内文（キー別）。既定は従来どおり粗利レポート向け。
+    optional_skip_msg = {"los_data": "回転3指標③は在院日数近似で代替表示します"}
 
     info = inspect_data_dir(data_dir)
     for key, entry in info.items():
@@ -89,9 +92,10 @@ def check_files(data_dir: str, result: Optional[ValidationResult] = None) -> Val
         folder = entry["path"]
         files  = entry["files"]
 
+        skip_msg = optional_skip_msg.get(key, "粗利レポートをスキップします")
         if not entry["exists"]:
             if key in optional_keys:
-                result.warn(f"{folder.name}/ フォルダなし → 粗利レポートをスキップします")
+                result.warn(f"{folder.name}/ フォルダなし → {skip_msg}")
             else:
                 result.error(
                     f"必須フォルダが見つかりません: {folder}\n"
@@ -99,7 +103,7 @@ def check_files(data_dir: str, result: Optional[ValidationResult] = None) -> Val
                 )
         elif not files:
             if key in optional_keys:
-                result.warn(f"{folder.name}/ が空 → 粗利レポートをスキップします")
+                result.warn(f"{folder.name}/ が空 → {skip_msg}")
             else:
                 result.error(f"必須フォルダが空です: {folder} （{label}を配置してください）")
         else:
@@ -157,6 +161,82 @@ def check_admission(adm: pd.DataFrame,
     # 診療科名の確認
     visible_depts = adm[adm["科_表示"]]["診療科名"].dropna().unique()
     result.info(f"表示診療科: {len(visible_depts)} 科 — {', '.join(sorted(visible_depts)[:8])}...")
+
+    check_bed_balance(adm, result)
+
+    return result
+
+
+# ────────────────────────────────────────────────────
+# 病床収支恒等式チェック
+# ────────────────────────────────────────────────────
+
+# 不一致率がこの値未満なら「散発的」（info）、以上なら「系統的な崩れの疑い」（warn）とみなす閾値。
+# 日跨ぎの計上タイミング差（患者異動が前日/当日どちらに計上されるかの境界差）により、
+# 数%程度の散発的な不一致は常態で生じる（実データ988日で29日=2.9%、大半は連続2日で符号が
+# 逆転するペア）。一方、エクスポート元の定義変更（例: 緊急入院が入院の内数化）による崩れは
+# 毎日ちょうど不足するため不一致率がほぼ100%になる。このため件数ではなく率で切り分ける。
+BED_BALANCE_SYSTEMATIC_RATE = 0.10
+
+
+def check_bed_balance(adm: pd.DataFrame,
+                       result: Optional[ValidationResult] = None) -> ValidationResult:
+    """病床収支恒等式（在院増減 == 出入りの差）の整合性チェック
+
+    日付ごとに病院全体で合計したうえで
+        在院(t) − 在院(t−1) == 新入院患者数(t) + 転入患者数(t) − 退院合計(t) − 転出患者数(t)
+    が成り立つかを確認する。不一致率が BED_BALANCE_SYSTEMATIC_RATE 未満なら
+    日跨ぎの計上タイミング差による散発的な不一致とみなし info、以上なら
+    エクスポート元の定義変更などによる系統的な崩れの疑いとして warn する。
+    ビルドは止めない（不一致は warn 止まりでエラーにはしない）。
+    """
+    if result is None:
+        result = ValidationResult()
+
+    required_cols = ["日付", "在院患者数", "新入院患者数", "転入患者数", "退院合計", "転出患者数"]
+    missing = [c for c in required_cols if c not in adm.columns]
+    if missing:
+        result.warn(f"病床収支恒等式チェックに必須列がありません: {missing}")
+        return result
+
+    daily = (adm.groupby("日付")[required_cols[1:]]
+             .sum()
+             .sort_index())
+
+    if len(daily) <= 1:
+        result.info("病床収支恒等式チェック: 比較可能な日数がないためスキップします。")
+        return result
+
+    census_diff = daily["在院患者数"].diff()
+    expected_diff = (daily["新入院患者数"] + daily["転入患者数"]
+                      - daily["退院合計"] - daily["転出患者数"])
+    # 初日は前日が無いため対象外（diff() の NaN を dropna で除外）
+    gap = (census_diff - expected_diff).dropna()
+
+    mismatch = gap[gap != 0]
+    total = len(gap)
+    if len(mismatch) == 0:
+        result.info(f"病床収支恒等式: {total}/{total} 日一致")
+    else:
+        mismatch_rate = len(mismatch) / total
+        worst_date = mismatch.abs().idxmax()
+        worst_val = mismatch.loc[worst_date]
+        if mismatch_rate < BED_BALANCE_SYSTEMATIC_RATE:
+            result.info(
+                f"病床収支恒等式: 散発的な不一致 {len(mismatch)}/{total} 日"
+                f"（{mismatch_rate:.1%}）、"
+                f"最大乖離 {abs(int(round(worst_val))):,} 人（{worst_date.date()}）。"
+                "日跨ぎの計上タイミング差とみられます。"
+            )
+        else:
+            mean_gap = mismatch.abs().mean()
+            result.warn(
+                f"病床収支恒等式: 系統的な崩れの疑い、不一致 {len(mismatch)}/{total} 日"
+                f"（{mismatch_rate:.1%}）、"
+                f"最大乖離 {abs(int(round(worst_val))):,} 人（{worst_date.date()}）、"
+                f"平均乖離 {mean_gap:.1f} 人。"
+                "エクスポート元の列定義変更を確認してください。"
+            )
 
     return result
 

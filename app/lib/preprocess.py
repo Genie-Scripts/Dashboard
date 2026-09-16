@@ -5,6 +5,7 @@ preprocess.py — 前処理
 
 import pandas as pd
 import re
+import warnings
 from datetime import datetime, time, timedelta
 from .config import (
     DEPT_MERGE, DEPT_HIDDEN, WARD_NAMES, WARD_HIDDEN,
@@ -160,6 +161,34 @@ def preprocess_surgery(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _resolve_hospital_target_axis(hosp: pd.DataFrame, label: str) -> pd.DataFrame:
+    """病院全体行の軸あいまいさを解消する（部門種別=診療科を優先）
+
+    病院全体行は病棟軸・診療科軸の両方に同じ内容が重複登録されうる。
+    病院全体の実績（在院・新入院とも）は転入を含まない診療科軸と同一基準のため、
+    部門種別="診療科" の行を明示的に優先して採用する（病棟軸は転入込み基準で
+    病棟別目標の合計と整合するが、病院全体の基準としては使わない）。
+    両軸の値が食い違う場合は黙って上書きせず警告する。診療科軸の全体行が
+    存在しない場合は、従来どおり全体行すべて（＝病棟軸）から拾う（後方互換）。
+    """
+    dept_rows = hosp[hosp["部門種別"] == "診療科"]
+    ward_rows = hosp[hosp["部門種別"] == "病棟"]
+
+    if len(dept_rows) == 0:
+        return hosp
+
+    if len(ward_rows) > 0:
+        merged = dept_rows.merge(ward_rows, on="期間区分", suffixes=("_診療科", "_病棟"))
+        diverged = merged[merged["目標値_診療科"] != merged["目標値_病棟"]]
+        if len(diverged) > 0:
+            warnings.warn(
+                f"{label}: 病院全体目標が病棟軸と診療科軸で異なります"
+                f"（期間区分: {sorted(diverged['期間区分'].tolist())}）。診療科軸の値を採用します。"
+            )
+
+    return dept_rows
+
+
 def build_target_lookup(inpatient_targets: pd.DataFrame) -> dict:
     """統合目標マスタからルックアップ辞書を構築
     
@@ -184,8 +213,9 @@ def build_target_lookup(inpatient_targets: pd.DataFrame) -> dict:
     inp = inpatient_targets[
         inpatient_targets["指標タイプ"] == "日平均在院患者数"]
     
-    # 病院全体
+    # 病院全体（軸あいまいさ解消: 部門種別=診療科を優先）
     hosp = inp[inp["部門コード"] == "全体"]
+    hosp = _resolve_hospital_target_axis(hosp, "在院目標")
     targets["inpatient"]["hospital"] = {
         row["期間区分"]: row["目標値"]
         for _, row in hosp.iterrows()
@@ -215,9 +245,15 @@ def build_target_lookup(inpatient_targets: pd.DataFrame) -> dict:
         inpatient_targets["指標タイプ"] == "週間新入院患者数"]
     
     hosp_n = nadm[nadm["部門コード"] == "全体"]
-    targets["new_admission"]["hospital"] = {
-        "全日": hosp_n["目標値"].iloc[0] if len(hosp_n) > 0 else None
-    }
+    hosp_n = _resolve_hospital_target_axis(hosp_n, "新入院目標")
+    hosp_n_all = hosp_n[hosp_n["期間区分"] == "全日"]
+    if len(hosp_n_all) > 0:
+        hosp_n_value = hosp_n_all["目標値"].iloc[0]
+    elif len(hosp_n) > 0:
+        hosp_n_value = hosp_n["目標値"].iloc[0]
+    else:
+        hosp_n_value = None
+    targets["new_admission"]["hospital"] = {"全日": hosp_n_value}
     
     dept_n = nadm[(nadm["部門種別"] == "診療科") & (nadm["部門コード"] != "全体")]
     targets["new_admission"]["dept"] = {
