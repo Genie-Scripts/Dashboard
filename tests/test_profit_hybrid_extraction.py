@@ -224,5 +224,145 @@ class TestCalibCacheWriteIsolation(_FixtureMixin, unittest.TestCase):
                             "＝書込み先の動的参照が壊れている")
 
 
+class TestProjectionFromHybridEquivalence(_FixtureMixin, unittest.TestCase):
+    """§9 #13「hybrid の二重計算」後半: profit_estimate.projection_from_hybrid が
+    build_profit_hybrid_calibrated の戻り (section, g_million) から、hybrid を
+    再計算せずに compute_calibrated_profit_projection と同一の dict を導出できること。
+    """
+
+    def test_projection_from_hybrid_equals_compute_calibrated_profit_projection(self):
+        import tempfile
+        from unittest import mock
+        from app.lib.profit_estimate import last_complete_driver_date
+        profit_base_date = last_complete_driver_date(self.adm, self.surg) or BASE_DATE
+
+        with tempfile.TemporaryDirectory() as d:
+            tmp_cache = Path(d) / "g_calib_cache.json"
+            with mock.patch.object(profit_estimate, "DEFAULT_CALIB_CACHE_PATH", tmp_cache):
+                expected = profit_estimate.compute_calibrated_profit_projection(
+                    self.profit_breakdown, self.surg, self.adm, profit_base_date)
+                section, g = build_profit_hybrid_calibrated(
+                    self.profit_breakdown, self.surg, self.adm, profit_base_date)
+                actual = profit_estimate.projection_from_hybrid(section, g, profit_base_date)
+
+        print("expected:", expected)
+        print("actual:  ", actual)
+        self.assertIsNotNone(expected, "フィクスチャ不備（compute_calibrated_profit_projection が退化）")
+        self.assertEqual(expected, actual)
+
+
+class TestProjectionFromHybridEquivalenceMultiDept(unittest.TestCase):
+    """上と同じ等価性を診療科2件（dept_million ≥2件）で確認する。
+
+    profit_estimate.build_hybrid_payload の mask（=どの日を非Noneにするか）は
+    診療科ごとではなく日付のみで決まる（cutoff 以降＝当月分は全科一律で非None）ため、
+    「values_final_total の末尾がNoneの科」は既存ビルダーの範囲では作れない
+    （末尾＝base_date は常に当月内＝常にmask True）。よってこのテストでは
+    「末尾がNoneの科」のサブケースは検証しない（実行可能な2科構成での等価性のみ検証）。
+    """
+
+    DEPT2 = "消化器内科"  # DEPT と同じく NADM_DISPLAY_DEPTS所属・SURGERY_DISPLAY_DEPTS外
+
+    @classmethod
+    def setUpClass(cls):
+        depts = [DEPT, cls.DEPT2]
+        days = pd.date_range(RANGE_START, BASE_DATE, freq="D")
+
+        adm_rows = []
+        surg_rows = []
+        for dept in depts:
+            for d in days:
+                biz = is_operational_day(d)
+                adm_rows.append({
+                    "日付": d, "診療科名": dept, "病棟コード": WARD,
+                    "在院患者数": 600 if biz else 550,
+                    "新入院患者数": 50, "新入院患者数_病棟": 50,
+                    "入院患者数": 45, "緊急入院患者数": 5,
+                    "退院合計": 45, "退院患者数": 40, "退出合計": 45,
+                    "転入患者数": 2, "転出患者数": 2, "出入り負荷": 10,
+                    "科_表示": True, "病棟_表示": True, "平日": biz,
+                    "曜日": int(d.dayofweek),
+                })
+                if biz:
+                    for _ in range(2):
+                        surg_rows.append({
+                            "手術実施日": d, "実施診療科": dept, "全麻": True,
+                            "科_表示": True, "術数対象": True, "稼働対象室": True,
+                            "平日": True, "入外区分": "入院",
+                            "麻酔種別": "全身麻酔(20分以上：吸入もしくは静脈麻酔薬)",
+                        })
+        cls.adm = pd.DataFrame(adm_rows)
+        cls.surg = pd.DataFrame(surg_rows)
+
+        months = pd.date_range(BASE_DATE.replace(day=1) - pd.DateOffset(months=8),
+                               BASE_DATE.replace(day=1) - pd.DateOffset(months=1), freq="MS")
+        pb_rows = []
+        for i, m in enumerate(months):
+            pb_rows.append({"診療科名": DEPT, "月": m, "区分": "外来", "粗利": 5000.0 + 50.0 * i})
+            pb_rows.append({"診療科名": DEPT, "月": m, "区分": "入院", "粗利": 45000.0 + 300.0 * i})
+            pb_rows.append({"診療科名": cls.DEPT2, "月": m, "区分": "外来", "粗利": 4000.0 + 40.0 * i})
+            pb_rows.append({"診療科名": cls.DEPT2, "月": m, "区分": "入院", "粗利": 35000.0 + 250.0 * i})
+        cls.profit_breakdown = pd.DataFrame(pb_rows)
+
+    def test_projection_from_hybrid_equals_compute_calibrated_profit_projection_2depts(self):
+        import tempfile
+        from unittest import mock
+        from app.lib.profit_estimate import last_complete_driver_date
+        profit_base_date = last_complete_driver_date(self.adm, self.surg) or BASE_DATE
+
+        with tempfile.TemporaryDirectory() as d:
+            tmp_cache = Path(d) / "g_calib_cache.json"
+            with mock.patch.object(profit_estimate, "DEFAULT_CALIB_CACHE_PATH", tmp_cache):
+                expected = profit_estimate.compute_calibrated_profit_projection(
+                    self.profit_breakdown, self.surg, self.adm, profit_base_date)
+                section, g = build_profit_hybrid_calibrated(
+                    self.profit_breakdown, self.surg, self.adm, profit_base_date)
+                actual = profit_estimate.projection_from_hybrid(section, g, profit_base_date)
+
+        print("expected (2depts):", expected)
+        print("actual   (2depts):", actual)
+        self.assertIsNotNone(expected, "フィクスチャ不備（compute_calibrated_profit_projection が退化）")
+        self.assertGreaterEqual(len(expected["dept_million"]), 2,
+                                "フィクスチャ不備（dept_million が2件未満）")
+        self.assertEqual(expected, actual)
+
+
+class TestProjectionFromHybridEdgeCases(unittest.TestCase):
+    """projection_from_hybrid の入力異常系（hybrid が退化しているとき）。"""
+
+    def test_none_section_or_g_million_yields_none(self):
+        self.assertIsNone(profit_estimate.projection_from_hybrid(None, None, BASE_DATE))
+        self.assertIsNone(profit_estimate.projection_from_hybrid({"meta": {}}, None, BASE_DATE))
+        self.assertIsNone(profit_estimate.projection_from_hybrid(None, 100.0, BASE_DATE))
+
+    def test_section_without_calibration_factor_yields_none(self):
+        section = {"meta": {}, "series_by_dept": {}}
+        self.assertIsNone(profit_estimate.projection_from_hybrid(section, 100.0, BASE_DATE))
+
+
+class TestNoDuplicateHybridComputationInScripts(unittest.TestCase):
+    """§9 #13「hybrid の二重計算」: scripts/build_dept_reports.py と
+    scripts/build_hospital_report.py が hybrid pipeline を1回だけ計算するよう
+    projection_from_hybrid へ切り替わっていること（compute_calibrated_profit_projection
+    の呼び出しが残っていないこと）を、ソーステキストで機械検知する。
+    """
+
+    SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
+
+    def _assert_single_computation(self, filename):
+        text = (self.SCRIPTS_DIR / filename).read_text(encoding="utf-8")
+        self.assertIn("projection_from_hybrid", text,
+                      f"{filename} が projection_from_hybrid を使っていない")
+        self.assertNotIn("compute_calibrated_profit_projection", text,
+                         f"{filename} に compute_calibrated_profit_projection の呼び出しが残っている"
+                         "（hybrid の二重計算）")
+
+    def test_build_dept_reports(self):
+        self._assert_single_computation("build_dept_reports.py")
+
+    def test_build_hospital_report(self):
+        self._assert_single_computation("build_hospital_report.py")
+
+
 if __name__ == "__main__":
     unittest.main()

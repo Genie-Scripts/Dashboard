@@ -1250,7 +1250,7 @@ def build_detail_json(adm, surg, targets, surg_targets,
         try:
             p_kpi = build_profit_kpi(profit_monthly)
             p_chart = build_profit_chart_data(profit_monthly)
-            from .profit import get_latest_month_summary
+            from .profit import get_latest_month_summary, _round_no_neg_zero
             p_latest = get_latest_month_summary(profit_monthly)
             p_ranking = []
             from .config import (
@@ -1262,10 +1262,14 @@ def build_detail_json(adm, surg, targets, surg_targets,
                 st = status_display(r["達成率"]) if pd.notna(r["達成率"]) else status_display(0)
                 biz = r.get("当月営業日数")
                 cal = r.get("当月暦日数") if has_bd else None
-                dp = (round(float(r["粗利"]) / float(biz) / 10, 1)
-                      if pd.notna(r["粗利"]) and pd.notna(biz) and float(biz) > 0 else None)
-                dt = (round(float(r["月次目標"]) / _STD_BD / 10, 1)
-                      if pd.notna(r["月次目標"]) and float(r["月次目標"]) > 0 else None)
+                dp_raw = (float(r["粗利"]) / float(biz) / 1000
+                          if pd.notna(r["粗利"]) and pd.notna(biz) and float(biz) > 0 else None)
+                dt_raw = (float(r["月次目標"]) / _STD_BD / 1000
+                          if pd.notna(r["月次目標"]) and float(r["月次目標"]) > 0 else None)
+                dp = _round_no_neg_zero(dp_raw, 2) if dp_raw is not None else None
+                dt = _round_no_neg_zero(dt_raw, 2) if dt_raw is not None else None
+                pace_rate = (_round_no_neg_zero(dp_raw / dt_raw * 100, 1)
+                             if dp_raw is not None and dt_raw else None)
                 entry = {
                     "rank": i + 1,
                     "name": r["診療科名"],
@@ -1275,8 +1279,9 @@ def build_detail_json(adm, surg, targets, surg_targets,
                     "rate": float(r["達成率"]) if pd.notna(r["達成率"]) else None,
                     "rate_rev_adj": (float(r["達成率_改定換算"])
                                       if pd.notna(r.get("達成率_改定換算")) else None),
-                    "daily_pace": dp,                                      # 万円/営業日
-                    "daily_target": dt,                                    # 万円/営業日
+                    "daily_pace_mm": dp,                                   # 百万円/営業日
+                    "daily_target_mm": dt,                                 # 百万円/営業日
+                    "pace_rate": pace_rate,
                     "biz_days": int(biz) if pd.notna(biz) else None,
                     "mom": round(float(r["前月比"]) / 1000, 1) if pd.notna(r.get("前月比")) else None,
                     "status": st["css"],
@@ -1289,14 +1294,26 @@ def build_detail_json(adm, surg, targets, surg_targets,
                     g_tgt = r.get("外来目標")
                     n_tgt = r.get("入院目標")
                     entry["cal_days"] = int(cal) if pd.notna(cal) else None
-                    entry["gairai_daily_pace"]   = (round(float(g_val) / float(biz) / 10, 1)
-                                                     if pd.notna(g_val) and pd.notna(biz) and float(biz) > 0 else None)
-                    entry["nyuin_daily_pace"]    = (round(float(n_val) / float(cal) / 10, 1)
-                                                     if pd.notna(n_val) and pd.notna(cal) and float(cal) > 0 else None)
-                    entry["gairai_daily_target"] = (round(float(g_tgt) / _STD_BD / 10, 1)
-                                                     if pd.notna(g_tgt) and float(g_tgt) > 0 else None)
-                    entry["nyuin_daily_target"]  = (round(float(n_tgt) / _STD_CD / 10, 1)
-                                                     if pd.notna(n_tgt) and float(n_tgt) > 0 else None)
+                    g_pace_raw = (float(g_val) / float(biz) / 1000
+                                  if pd.notna(g_val) and pd.notna(biz) and float(biz) > 0 else None)
+                    n_pace_raw = (float(n_val) / float(cal) / 1000
+                                  if pd.notna(n_val) and pd.notna(cal) and float(cal) > 0 else None)
+                    g_tgt_raw = (float(g_tgt) / _STD_BD / 1000
+                                 if pd.notna(g_tgt) and float(g_tgt) > 0 else None)
+                    n_tgt_raw = (float(n_tgt) / _STD_CD / 1000
+                                 if pd.notna(n_tgt) and float(n_tgt) > 0 else None)
+                    entry["gairai_daily_pace_mm"]   = (_round_no_neg_zero(g_pace_raw, 2)
+                                                        if g_pace_raw is not None else None)
+                    entry["nyuin_daily_pace_mm"]    = (_round_no_neg_zero(n_pace_raw, 2)
+                                                        if n_pace_raw is not None else None)
+                    entry["gairai_daily_target_mm"] = (_round_no_neg_zero(g_tgt_raw, 2)
+                                                        if g_tgt_raw is not None else None)
+                    entry["nyuin_daily_target_mm"]  = (_round_no_neg_zero(n_tgt_raw, 2)
+                                                        if n_tgt_raw is not None else None)
+                    entry["gairai_pace_rate"] = (_round_no_neg_zero(g_pace_raw / g_tgt_raw * 100, 1)
+                                                  if g_pace_raw is not None and g_tgt_raw else None)
+                    entry["nyuin_pace_rate"]  = (_round_no_neg_zero(n_pace_raw / n_tgt_raw * 100, 1)
+                                                  if n_pace_raw is not None and n_tgt_raw else None)
                 p_ranking.append(entry)
             profit_section = {
                 "kpi": p_kpi,

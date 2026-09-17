@@ -181,38 +181,32 @@ def main():
     base_date = resolved_base_date
 
     # 粗利予測（較正済み hybrid+recency補正 pipeline）: build_dept_reports.py と同じ
-    # 組立で1回だけ計算し、ダッシュボード/PLレポートと同一の値をP4診療科テーブルの
-    # 粗利予測達成率に使う（未指定時は hospital_summary 側でOLS単独推計へ後方互換
-    # フォールバック）。
-    from app.lib.profit_estimate import (compute_calibrated_profit_projection,
+    # 組立で、ダッシュボード/PLレポートと同一の値をP4診療科テーブルの粗利予測達成率に
+    # 使う（未指定時は hospital_summary 側でOLS単独推計へ後方互換フォールバック）。
+    # hybrid 計算自体は下の load_profit_headline が1回だけ行い、ここではその結果から
+    # 導出するのみ（§9 #13: 二重計算回避）。
+    from app.lib.profit_estimate import (projection_from_hybrid,
                                          last_complete_driver_date)
     profit_base_date = last_complete_driver_date(adm, surg) or base_date
-    profit_projection = None
-    if profit_breakdown is not None and len(profit_breakdown):
-        try:
-            profit_projection = compute_calibrated_profit_projection(
-                profit_breakdown, surg, adm, profit_base_date)
-        except Exception:
-            profit_projection = None
 
     # 粗利ヘッドライン（P1・入院 粗利/人日／外来 粗利/営業日）: build_comedix_card.py と
     # 同じ手順（fail-soft・目標内訳読込→hybrid→build_profit_headline）を共用する。
     from scripts.build_comedix_card import load_profit_headline
-    profit_headline = load_profit_headline(
+    profit_headline, profit_hybrid = load_profit_headline(
         args.data_dir, adm, surg, profit_monthly, profit_breakdown, base_date)
+    profit_projection = projection_from_hybrid(
+        profit_hybrid[0], profit_hybrid[1], profit_base_date)
 
     # 粗利/人日（確報月・科別・P4）: build_profit_unit_payload には hybrid の
-    # meta/hospital_series が要る。load_profit_headline（上）は ph だけを返し hybrid を
-    # 外へ出さないため、ここで同じ hybrid 計算をもう一度行う（build_comedix_card.py は
-    # 本タスクの担当外ファイルのため拡張せず、ここに重複させる）。
+    # meta/hospital_series が要る。load_profit_headline（上）が返す hybrid
+    # （build_profit_hybrid_calibrated の戻り値そのもの）をそのまま使い、同じ
+    # 計算をここでもう一度行わない（以前は ph だけが返っていたため二重計算していた）。
     profit_unit = None
     try:
         from app.lib.data_loader import load_profit_targets_breakdown
-        from app.lib.html_builder import build_profit_hybrid_calibrated
         from app.lib.profit_unit import build_profit_unit_payload
+        hybrid_section, _ = profit_hybrid
         profit_targets_breakdown = load_profit_targets_breakdown(args.data_dir)
-        hybrid_section, _ = build_profit_hybrid_calibrated(
-            profit_breakdown, surg, adm, profit_base_date)
         if hybrid_section:
             profit_unit = build_profit_unit_payload(
                 profit_breakdown, adm, base_date=profit_base_date,

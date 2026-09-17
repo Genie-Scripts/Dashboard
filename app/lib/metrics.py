@@ -891,10 +891,11 @@ def build_dept_ranking(adm: pd.DataFrame, date: pd.Timestamp,
     df = pd.DataFrame(rows)
     if len(df) == 0:
         return df
+    # ★同率タイブレークを診療科名昇順に固定（set/dict由来の行順=PYTHONHASHSEED依存を排除）
     if sort_by == "achievement":
-        df = df.sort_values("達成率", ascending=False, na_position="last")
+        df = df.sort_values(["達成率", "診療科"], ascending=[False, True], na_position="last")
     elif sort_by == "actual":
-        df = df.sort_values("実績", ascending=False)
+        df = df.sort_values(["実績", "診療科"], ascending=[False, True])
     df["順位"] = range(1, len(df) + 1)
     return df.reset_index(drop=True)
 
@@ -948,10 +949,11 @@ def build_ward_ranking(adm: pd.DataFrame, date: pd.Timestamp,
     df = pd.DataFrame(rows)
     if len(df) == 0:
         return df
+    # ★同率タイブレークを病棟名昇順に固定（set/dict由来の行順=PYTHONHASHSEED依存を排除）
     if sort_by == "achievement":
-        df = df.sort_values("達成率", ascending=False, na_position="last")
+        df = df.sort_values(["達成率", "病棟名"], ascending=[False, True], na_position="last")
     elif sort_by == "actual":
-        df = df.sort_values("実績", ascending=False)
+        df = df.sort_values(["実績", "病棟名"], ascending=[False, True])
     df["順位"] = range(1, len(df) + 1)
     return df.reset_index(drop=True)
 
@@ -994,10 +996,11 @@ def build_surgery_ranking(surg: pd.DataFrame, date: pd.Timestamp,
         })
 
     df = pd.DataFrame(rows)
+    # ★同率タイブレークを診療科名昇順に固定（set/dict由来の行順=PYTHONHASHSEED依存を排除）
     if sort_by == "achievement":
-        df = df.sort_values("達成率", ascending=False, na_position="last")
+        df = df.sort_values(["達成率", "診療科"], ascending=[False, True], na_position="last")
     elif sort_by == "actual":
-        df = df.sort_values("実績", ascending=False)
+        df = df.sort_values(["実績", "診療科"], ascending=[False, True])
     df["順位"] = range(1, len(df) + 1)
     return df.reset_index(drop=True)
 
@@ -1694,8 +1697,10 @@ def format_turn_line(m: dict) -> str:
     """turnover_metrics の戻り値を1行の表示文字列にする（None は「—」）。
 
     例: 「回転：在院 572／目標575・新入院 51.6／必要55.3（あと3.7）・
-    期間III超え 48人」。mode="alos_proxy"（期間IIIフィード未配置）のときは
-    末尾を「・在院日数 11.1日（参考）」にする（目標を持たない参考値）。
+    期間III超え 48人」。nadm_gap が既に0以下（新入院/日が必要数を満たしている）
+    のときは「（あと0）」ではなく「（達成）」にする。mode="alos_proxy"
+    （期間IIIフィード未配置）のときは末尾を「・在院日数 11.1日（参考）」に
+    する（目標を持たない参考値）。
 
     【長さの制約】部門別レポートPDFは A4 1枚/部門 が設計要件で、一手の数値行
     （surg_line / util_line / nadm_line）は実測41〜45字に収まっている。初版の
@@ -1707,8 +1712,15 @@ def format_turn_line(m: dict) -> str:
         return "—" if v is None else f"{v:g}"
 
     census_part = f"在院 {g(m.get('census_7d'))}／目標{g(m.get('census_target'))}"
+    nadm_gap = m.get("nadm_gap")
+    if nadm_gap is None:
+        gap_part = "（あと—）"
+    elif nadm_gap <= 0:
+        gap_part = "（達成）"
+    else:
+        gap_part = f"（あと{g(nadm_gap)}）"
     nadm_part = (f"新入院/日 {g(m.get('nadm_per_day_7d'))}／必要{g(m.get('nadm_required'))}"
-                 f"（あと{g(m.get('nadm_gap'))}）")
+                 f"{gap_part}")
     if m.get("mode") == "alos_proxy":
         tail = f"在院日数 {g(m.get('alos_28d'))}日（参考）"
     else:

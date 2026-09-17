@@ -69,10 +69,20 @@ def find_chrome():
 
 
 def load_profit_headline(data_dir, adm, surg, profit_monthly, profit_breakdown, base_date):
-    """粗利ヘッドライン payload を1回だけ計算する（build_comedix_html.py と共用）。
+    """粗利ヘッドライン payload と hybrid 計算結果を1回だけ計算する
+    （build_comedix_html.py・build_hospital_report.py と共用）。
 
     profit_targets_breakdown の読込・hybrid計算・build_profit_headline はいずれも
     fail-soft（例外時は None）。LLMは呼ばない。
+
+    Returns:
+        (ph, hybrid) のタプル。
+        - hybrid は build_profit_hybrid_calibrated の戻り値そのもの
+          （(section, g_million) タプル）。計算に失敗した場合は (None, None)。
+        - ph は build_profit_headline の戻り値。hybrid 計算が成功しても
+          build_profit_headline 側で失敗すれば None（hybrid は失敗と切り離して
+          呼び出し側へ返す＝build_hospital_report.py が meta/hospital_series を
+          得るために同じ hybrid 計算をもう一度行わずに済む）。
     """
     from app.lib.data_loader import load_profit_targets_breakdown
     from app.lib.html_builder import build_profit_hybrid_calibrated, last_complete_driver_date
@@ -84,15 +94,22 @@ def load_profit_headline(data_dir, adm, surg, profit_monthly, profit_breakdown, 
     except Exception as e:
         log(f"粗利目標内訳の読込スキップ: {e}", "warn")
 
+    hybrid = (None, None)
     try:
         profit_base_date = last_complete_driver_date(adm, surg) or base_date
         hybrid = build_profit_hybrid_calibrated(profit_breakdown, surg, adm, profit_base_date)
-        return build_profit_headline(
+    except Exception as e:
+        log(f"粗利hybrid計算スキップ: {e}", "warn")
+        return None, hybrid
+
+    ph = None
+    try:
+        ph = build_profit_headline(
             adm, surg, profit_monthly, profit_breakdown, profit_targets_breakdown, base_date,
             hybrid=hybrid)
     except Exception as e:
         log(f"粗利ヘッドライン生成スキップ: {e}", "warn")
-        return None
+    return ph, hybrid
 
 
 # ════════════════════════════════════════════════════════════
@@ -231,7 +248,7 @@ def main():
     log("データ読込・前処理中（load_and_preprocess）...")
     adm, surg, targets, surg_targets, profit_monthly, base_date, profit_breakdown = \
         load_and_preprocess(args.data_dir, args.base_date, no_validate=False)
-    profit_headline = load_profit_headline(
+    profit_headline, _profit_hybrid = load_profit_headline(
         args.data_dir, adm, surg, profit_monthly, profit_breakdown, base_date)
     ctx = hs.build_summary_context(adm, surg, targets, surg_targets, base_date,
                                    profit_headline=profit_headline)

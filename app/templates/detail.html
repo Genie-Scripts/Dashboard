@@ -1203,17 +1203,20 @@ function kpiCardHtml(c) {
     </div>`;
   }
 
+  const dec = c.dec != null ? c.dec : 1;
+  const gapScale = Math.pow(10, dec);
+  const fmtVal = (v) => v != null ? Number(v).toFixed(dec) : null;
   const gap = c.target != null ? (c.actual - c.target) : null;
-  const gapStr = gap != null ? (gap > 0 ? '+' : '') + Math.round(gap*10)/10 + (c.gapUnit||c.unit) : '—';
+  const gapStr = gap != null ? (gap > 0 ? '+' : '') + Math.round(gap*gapScale)/gapScale + (c.gapUnit||c.unit) : '—';
   return `<div class="kc">
     <h3>${c.icon} ${c.label}</h3>
     ${c.period ? `<div class="period">${c.period}</div>` : ''}
-    <div class="val ${sc==='dr'?'dr':''}">${c.actual!=null?c.actual:'—'}<span class="unit">${c.unit}</span></div>
+    <div class="val ${sc==='dr'?'dr':''}">${c.actual!=null?fmtVal(c.actual):'—'}<span class="unit">${c.unit}</span></div>
     ${c.sub ? `<div style="font-size:11px;color:var(--sub);margin-top:3px">${c.sub}</div>` : ''}
     ${c.target!=null ? `<div class="tgt-row">
       <span style="font-size:11px">🎯</span>
       <span class="tgt-label">${c.targetLabel||'目標'}</span>
-      <span class="tgt-val">${c.target}${c.unit}</span>
+      <span class="tgt-val">${fmtVal(c.target)}${c.unit}</span>
       <span class="gap-val ${sc}">${gapStr}</span>
     </div>
     <div class="prog">
@@ -1447,8 +1450,8 @@ function renderSummary() {
     // 3モードいずれでも refs の末尾（またはtotal/confirmedではrefs[0]）に使う共通カード。
     const [, confirmedM] = (pk.base_month || '').split('-');
     const confirmedLabel = confirmedM ? `${parseInt(confirmedM,10)}月 確報` : '確報';
-    const paceLabel = pk.hospital_daily_pace != null
-      ? `日次ペース ${pk.hospital_daily_pace}万/営業日${pk.hospital_daily_target!=null ? `（目標 ${pk.hospital_daily_target}万/営業日）` : ''}`
+    const paceLabel = pk.hospital_daily_pace_mm != null
+      ? `日次ペース（全科・確報） ${_puFmt(pk.hospital_daily_pace_mm, {minimumFractionDigits: 1, maximumFractionDigits: 1})}百万円/営業日${pk.hospital_daily_target_mm!=null ? `（目標 ${_puFmt(pk.hospital_daily_target_mm, {minimumFractionDigits: 1, maximumFractionDigits: 1})}百万円/営業日）` : ''}`
       : '日次ペース —';
     const confirmedRef = {k:confirmedLabel, v:pk.hospital_total!==null?`${_puFmt(pk.hospital_total, {minimumFractionDigits: 1, maximumFractionDigits: 1})}百万円`:'—', unit:'百万円',
        curr:pk.hospital_total, refTarget:pTgt, refTargetLabel: pAdj != null ? '補正目標' : '目標',
@@ -3578,7 +3581,7 @@ function openProfitDrill(dept) {
 
   // KPIカード
   const rk = DATA.profit.ranking.find(r => r.name === dept) || {};
-  const hasBdDept = rk.gairai_daily_pace != null || rk.nyuin_daily_pace != null;
+  const hasBdDept = rk.gairai_daily_pace_mm != null || rk.nyuin_daily_pace_mm != null;
   const bdSuffix = rk.biz_days != null ? `(営業${rk.biz_days}日)` : '今月';
   const calSuffix = rk.cal_days != null ? `(暦${rk.cal_days}日)` : '今月';
   const achLabel = hasBdDept ? '達成率(内訳補正)' : '達成率(営業日換算)';
@@ -3586,21 +3589,19 @@ function openProfitDrill(dept) {
   const cards = [
     kpiCardHtml({icon:'💰', label:'月次粗利', period:'今月', actual:rk.actual||0, unit:'百万円', gapUnit:'百万円', target:(rk.adj_target != null ? rk.adj_target : rk.target), rate:rk.rate})
   ];
-  const _paceRate = (act, tgt) => (act != null && tgt != null && tgt > 0)
-    ? Math.round(act / tgt * 1000) / 10 : null;
   if (hasBdDept) {
     cards.push(kpiCardHtml({icon:'🏥', label:'外来 日次ペース', period:bdSuffix,
-                            actual:rk.gairai_daily_pace, unit:'万/営業日',
-                            target:rk.gairai_daily_target,
-                            rate:_paceRate(rk.gairai_daily_pace, rk.gairai_daily_target)}));
+                            actual:rk.gairai_daily_pace_mm, unit:'百万円/営業日',
+                            target:rk.gairai_daily_target_mm,
+                            rate:rk.gairai_pace_rate, dec:2}));
     cards.push(kpiCardHtml({icon:'🛏️', label:'入院 日次ペース', period:calSuffix,
-                            actual:rk.nyuin_daily_pace, unit:'万/暦日',
-                            target:rk.nyuin_daily_target,
-                            rate:_paceRate(rk.nyuin_daily_pace, rk.nyuin_daily_target)}));
+                            actual:rk.nyuin_daily_pace_mm, unit:'百万円/暦日',
+                            target:rk.nyuin_daily_target_mm,
+                            rate:rk.nyuin_pace_rate, dec:2}));
   } else {
     cards.push(kpiCardHtml({icon:'🗓️', label:'日次ペース', period:bdSuffix,
-                            actual:rk.daily_pace!=null?rk.daily_pace:null, unit:'万/営業日',
-                            target:rk.daily_target, rate:rk.rate}));
+                            actual:rk.daily_pace_mm!=null?rk.daily_pace_mm:null, unit:'百万円/営業日',
+                            target:rk.daily_target_mm, rate:rk.pace_rate, dec:2}));
   }
   cards.push(kpiCardHtml({mode:'rate-only', icon:'📊', label:achLabel, period:'今月',
                           actual:rk.rate!=null?rk.rate+'%':null, unit:'', rate:rk.rate}));

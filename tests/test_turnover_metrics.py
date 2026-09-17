@@ -265,6 +265,14 @@ class FormatTurnLineTest(unittest.TestCase):
         self.assertIn("在院 572／目標575", line)
         self.assertIn("新入院/日 51.6／必要55.3（あと3.7）", line)
 
+    def test_nadm_gap_zero_shows_achieved_not_ato_zero(self):
+        m = {"census_7d": 572, "census_target": 575, "nadm_per_day_7d": 59.0,
+            "nadm_required": 52.8, "nadm_gap": 0.0, "alos_28d": 11.1,
+            "alos_prev_28d": 10.4, "mode": "alos_proxy"}
+        line = format_turn_line(m)
+        self.assertIn("新入院/日 59／必要52.8（達成）", line)
+        self.assertNotIn("（あと0）", line)
+
     def test_over_iii_mode_shows_period3_count(self):
         m = {"census_7d": 572, "census_target": 575, "nadm_per_day_7d": 51.6,
             "nadm_required": 55.3, "nadm_gap": 3.7, "over_iii": 48, "over_iii_prev": 44,

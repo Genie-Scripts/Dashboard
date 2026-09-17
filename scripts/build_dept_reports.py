@@ -440,33 +440,35 @@ def main():
             log(f"前回の添削 {len(ov_carry)} 部門を保持（レビュー画面で再適用できます）")
 
     # ── 粗利の当月見込み（較正済み hybrid+recency補正 pipeline）──
-    # 病院全体サマリ・部門コンテキスト（診療科の粗利チャート）の両方でこの1回の結果を
-    # 使い回す（本番ダッシュボード・PLレポートと同一の値に揃える）。
-    from app.lib.profit_estimate import (compute_calibrated_profit_projection,
+    # 病院全体サマリ・部門コンテキスト（診療科の粗利チャート）・粗利/人日（パーツD note）
+    # のすべてでこの1回の hybrid 計算を使い回す（本番ダッシュボード・PLレポートと同一の
+    # 値に揃える／§9 #13: 同じ pipeline を二重に走らせない）。
+    from app.lib.profit_estimate import (projection_from_hybrid,
                                          last_complete_driver_date)
     # 粗利予測は adm/surg 両方が揃う最終日で行う（本番ダッシュボードと同じ日で揃える）
     profit_base_date = last_complete_driver_date(adm, surg) or base_date
     profit_projection = None
+    hybrid_section = None
     if profit_breakdown is not None and len(profit_breakdown):
         try:
-            profit_projection = compute_calibrated_profit_projection(
+            from app.lib.html_builder import build_profit_hybrid_calibrated
+            hybrid_section, hybrid_g = build_profit_hybrid_calibrated(
                 profit_breakdown, surg, adm, profit_base_date)
+            profit_projection = projection_from_hybrid(
+                hybrid_section, hybrid_g, profit_base_date)
         except Exception:
             profit_projection = None
+            hybrid_section = None
 
     # ── 粗利/人日（確報月・科別・パーツD note）──
-    # compute_calibrated_profit_projection（上）は meta/hospital_series を外へ出さないため、
-    # build_profit_unit_payload にはここで同じ hybrid をもう一度計算する
-    # （build_hospital_report.py の P1/P4 と同じ手順・重複）。
+    # 上で計算済みの hybrid（build_profit_hybrid_calibrated の戻り）をそのまま使い、
+    # 同じ計算をここでもう一度行わない。
     profit_unit = None
     try:
         from app.lib.data_loader import load_profit_targets_breakdown
-        from app.lib.html_builder import build_profit_hybrid_calibrated
         from app.lib.profit_unit import build_profit_unit_payload
-        profit_targets_breakdown = load_profit_targets_breakdown(args.data_dir)
-        hybrid_section, _ = build_profit_hybrid_calibrated(
-            profit_breakdown, surg, adm, profit_base_date)
         if hybrid_section:
+            profit_targets_breakdown = load_profit_targets_breakdown(args.data_dir)
             profit_unit = build_profit_unit_payload(
                 profit_breakdown, adm, base_date=profit_base_date,
                 profit_targets_breakdown=profit_targets_breakdown,

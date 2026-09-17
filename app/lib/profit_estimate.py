@@ -1524,6 +1524,10 @@ def compute_calibrated_profit_projection(profit_breakdown: pd.DataFrame,
     Returns None（推計不可）or:
       {"month": pd.Timestamp, "hospital_million": float,
        "dept_million": {dept: 百万円}, "calibration_factor": float}
+
+    呼び出し側が既に build_profit_hybrid_calibrated（html_builder）で hybrid を
+    計算済みなら、この関数で pipeline を再実行せず `projection_from_hybrid` に
+    その戻り値 (section, g_million) を渡して同じ dict を導出すること（二重計算回避）。
     """
     if profit_breakdown is None or len(profit_breakdown) == 0:
         return None
@@ -1543,6 +1547,27 @@ def compute_calibrated_profit_projection(profit_breakdown: pd.DataFrame,
         if vals:
             dept_million[dept] = round(vals[-1] * cf, 2)
     return {"month": _month_floor(base_date), "hospital_million": cal["g_million"],
+            "dept_million": dept_million, "calibration_factor": cf}
+
+
+def projection_from_hybrid(section: Optional[Dict[str, Any]],
+                            g_million: Optional[float],
+                            base_date) -> Optional[Dict[str, Any]]:
+    """build_profit_hybrid_calibrated の戻り (section, g_million) から
+    compute_calibrated_profit_projection と同一の dict を導出する（hybrid を再計算しない）。
+    """
+    if not section or g_million is None:
+        return None
+    cf = (section.get("meta") or {}).get("calibration_factor")
+    if cf is None:
+        return None
+    dept_million: Dict[str, float] = {}
+    for dept, ser in (section.get("series_by_dept") or {}).items():
+        vals = [v for v in (ser.get("values_final_total") or []) if v is not None]
+        if vals:
+            dept_million[dept] = vals[-1]
+    return {"month": _month_floor(pd.Timestamp(base_date).normalize()),
+            "hospital_million": g_million,
             "dept_million": dept_million, "calibration_factor": cf}
 
 

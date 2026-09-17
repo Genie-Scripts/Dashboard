@@ -27,6 +27,12 @@ from .config import (
 _FEE_REVISION_TS = pd.Timestamp(FEE_REVISION_DATE)
 
 
+def _round_no_neg_zero(value: float, ndigits: int) -> float:
+    """round() した結果の -0.0 を 0.0 に正規化する"""
+    r = round(value, ndigits)
+    return 0.0 if r == 0 else r
+
+
 def _fy_start(month: pd.Timestamp) -> pd.Timestamp:
     """対象月の年度開始（4月1日）"""
     y = month.year if month.month >= 4 else month.year - 1
@@ -276,7 +282,7 @@ def build_profit_kpi(profit_monthly: pd.DataFrame,
                       base_month: Optional[pd.Timestamp] = None) -> dict:
     """粗利タブ用トップKPI
 
-    達成率は補正後月次目標ベース。絶対額（百万円）と日次ペース（万円/営業日）を併存。
+    達成率は補正後月次目標ベース。絶対額（百万円）と日次ペース（百万円/営業日）を併存。
     内訳モード時は外来/入院別の日次ペースも併記する。
 
     Returns:
@@ -287,8 +293,8 @@ def build_profit_kpi(profit_monthly: pd.DataFrame,
           "hospital_adj_target": float,        # 全科補正後目標 百万円
           "hospital_achievement": float,       # 全科達成率(補正後ベース)
           "hospital_achievement_rev_adj": float,  # 全科達成率(改定換算後・参考値。改定前月は上と同値)
-          "hospital_daily_pace": float,        # 全科 日次粗利 万円/営業日
-          "hospital_daily_target": float,      # 全科 日次目標 万円/営業日
+          "hospital_daily_pace_mm": float,     # 全科 日次粗利 百万円/営業日
+          "hospital_daily_target_mm": float,   # 全科 日次目標 百万円/営業日
           "current_biz_days": int,             # 当月営業日数
           "current_cal_days": int,             # 当月暦日数
           "std_biz_days": int,                 # 標準営業日数(=20)
@@ -297,10 +303,10 @@ def build_profit_kpi(profit_monthly: pd.DataFrame,
           # 内訳モードのみ:
           "hospital_gairai_total": float,      # 外来粗利合計 百万円
           "hospital_nyuin_total": float,       # 入院粗利合計 百万円
-          "hospital_gairai_daily_pace": float, # 外来 万円/営業日
-          "hospital_nyuin_daily_pace": float,  # 入院 万円/暦日
-          "hospital_gairai_daily_target": float,
-          "hospital_nyuin_daily_target": float,
+          "hospital_gairai_daily_pace_mm": float, # 外来 百万円/営業日
+          "hospital_nyuin_daily_pace_mm": float,  # 入院 百万円/暦日
+          "hospital_gairai_daily_target_mm": float,
+          "hospital_nyuin_daily_target_mm": float,
           # 年度:
           "hospital_ytd": float,               # 年度累計 億円
           "hospital_ytd_target": float,        # 年度目標 億円
@@ -328,9 +334,9 @@ def build_profit_kpi(profit_monthly: pd.DataFrame,
     tgt_total = latest["月次目標"].sum()
     adj_tgt_total = latest["月次補正目標"].sum() if "月次補正目標" in latest.columns else None
 
-    # 全科 日次ペース・日次目標 (万円/営業日 = 千円÷10)
-    daily_pace_total = round(total / current_biz_days / 10, 1) if current_biz_days > 0 else None
-    daily_target_total = round(tgt_total / STD_BIZ_DAYS_PER_MONTH / 10, 1) if tgt_total > 0 else None
+    # 全科 日次ペース・日次目標 (百万円/営業日 = 千円÷1000)
+    daily_pace_total = _round_no_neg_zero(total / current_biz_days / 1000, 1) if current_biz_days > 0 else None
+    daily_target_total = _round_no_neg_zero(tgt_total / STD_BIZ_DAYS_PER_MONTH / 1000, 1) if tgt_total > 0 else None
 
     # 全科達成率（補正後ベース）
     ach_total = (
@@ -358,12 +364,12 @@ def build_profit_kpi(profit_monthly: pd.DataFrame,
         nyuin_sum  = float(latest["入院粗利"].sum()) if "入院粗利" in latest.columns else 0.0
         gairai_total = round(gairai_sum / 1000, 1)
         nyuin_total  = round(nyuin_sum / 1000, 1)
-        gairai_daily_pace = round(gairai_sum / current_biz_days / 10, 1) if current_biz_days > 0 else None
-        nyuin_daily_pace  = round(nyuin_sum / current_cal_days / 10, 1)  if current_cal_days > 0 else None
+        gairai_daily_pace = _round_no_neg_zero(gairai_sum / current_biz_days / 1000, 1) if current_biz_days > 0 else None
+        nyuin_daily_pace  = _round_no_neg_zero(nyuin_sum / current_cal_days / 1000, 1)  if current_cal_days > 0 else None
         gairai_tgt_sum = float(latest["外来目標"].sum()) if "外来目標" in latest.columns else 0.0
         nyuin_tgt_sum  = float(latest["入院目標"].sum()) if "入院目標" in latest.columns else 0.0
-        gairai_daily_target = round(gairai_tgt_sum / STD_BIZ_DAYS_PER_MONTH / 10, 1) if gairai_tgt_sum > 0 else None
-        nyuin_daily_target  = round(nyuin_tgt_sum  / STD_CAL_DAYS_PER_MONTH / 10, 1) if nyuin_tgt_sum  > 0 else None
+        gairai_daily_target = _round_no_neg_zero(gairai_tgt_sum / STD_BIZ_DAYS_PER_MONTH / 1000, 1) if gairai_tgt_sum > 0 else None
+        nyuin_daily_target  = _round_no_neg_zero(nyuin_tgt_sum  / STD_CAL_DAYS_PER_MONTH / 1000, 1) if nyuin_tgt_sum  > 0 else None
 
     ytd_total     = ytd["年度累計"].sum()
     ytd_tgt_total = ytd["年度目標"].sum()
@@ -410,12 +416,16 @@ def build_profit_kpi(profit_monthly: pd.DataFrame,
     def _row_to_dict(row):
         biz = row.get("当月営業日数")
         cal = row.get("当月暦日数") if has_breakdown else None
-        daily_pace = None
+        daily_pace_raw = None
         if pd.notna(biz) and biz and float(biz) > 0:
-            daily_pace = round(float(row["粗利"]) / float(biz) / 10, 1)
-        daily_target = None
+            daily_pace_raw = float(row["粗利"]) / float(biz) / 1000
+        daily_target_raw = None
         if pd.notna(row["月次目標"]) and float(row["月次目標"]) > 0:
-            daily_target = round(float(row["月次目標"]) / STD_BIZ_DAYS_PER_MONTH / 10, 1)
+            daily_target_raw = float(row["月次目標"]) / STD_BIZ_DAYS_PER_MONTH / 1000
+        daily_pace = _round_no_neg_zero(daily_pace_raw, 2) if daily_pace_raw is not None else None
+        daily_target = _round_no_neg_zero(daily_target_raw, 2) if daily_target_raw is not None else None
+        pace_rate = (_round_no_neg_zero(daily_pace_raw / daily_target_raw * 100, 1)
+                     if daily_pace_raw is not None and daily_target_raw else None)
         d = {
             "name":         row["診療科名"],
             "actual":       round(float(row["粗利"]) / 1000, 1),
@@ -424,8 +434,9 @@ def build_profit_kpi(profit_monthly: pd.DataFrame,
             "achievement":  float(row["達成率"]) if pd.notna(row["達成率"]) else None,
             "achievement_rev_adj": (float(row["達成率_改定換算"])
                                      if pd.notna(row.get("達成率_改定換算")) else None),
-            "daily_pace":   daily_pace,
-            "daily_target": daily_target,
+            "daily_pace_mm":   daily_pace,
+            "daily_target_mm": daily_target,
+            "pace_rate":       pace_rate,
             "biz_days":     int(biz) if pd.notna(biz) else None,
             "mom":          round(float(row["前月比"]) / 1000, 1) if pd.notna(row.get("前月比")) else None,
         }
@@ -433,10 +444,28 @@ def build_profit_kpi(profit_monthly: pd.DataFrame,
             d["cal_days"] = int(cal) if pd.notna(cal) else None
             gairai_val = row.get("外来粗利")
             nyuin_val  = row.get("入院粗利")
-            d["gairai_daily_pace"] = (round(float(gairai_val) / float(biz) / 10, 1)
-                                       if pd.notna(gairai_val) and pd.notna(biz) and float(biz) > 0 else None)
-            d["nyuin_daily_pace"]  = (round(float(nyuin_val) / float(cal) / 10, 1)
-                                       if pd.notna(nyuin_val) and pd.notna(cal) and float(cal) > 0 else None)
+            gairai_tgt_val = row.get("外来目標")
+            nyuin_tgt_val  = row.get("入院目標")
+            gairai_pace_raw = (float(gairai_val) / float(biz) / 1000
+                                if pd.notna(gairai_val) and pd.notna(biz) and float(biz) > 0 else None)
+            nyuin_pace_raw  = (float(nyuin_val) / float(cal) / 1000
+                                if pd.notna(nyuin_val) and pd.notna(cal) and float(cal) > 0 else None)
+            gairai_tgt_raw = (float(gairai_tgt_val) / STD_BIZ_DAYS_PER_MONTH / 1000
+                               if pd.notna(gairai_tgt_val) and float(gairai_tgt_val) > 0 else None)
+            nyuin_tgt_raw  = (float(nyuin_tgt_val) / STD_CAL_DAYS_PER_MONTH / 1000
+                               if pd.notna(nyuin_tgt_val) and float(nyuin_tgt_val) > 0 else None)
+            d["gairai_daily_pace_mm"] = (_round_no_neg_zero(gairai_pace_raw, 2)
+                                          if gairai_pace_raw is not None else None)
+            d["nyuin_daily_pace_mm"]  = (_round_no_neg_zero(nyuin_pace_raw, 2)
+                                          if nyuin_pace_raw is not None else None)
+            d["gairai_daily_target_mm"] = (_round_no_neg_zero(gairai_tgt_raw, 2)
+                                            if gairai_tgt_raw is not None else None)
+            d["nyuin_daily_target_mm"]  = (_round_no_neg_zero(nyuin_tgt_raw, 2)
+                                            if nyuin_tgt_raw is not None else None)
+            d["gairai_pace_rate"] = (_round_no_neg_zero(gairai_pace_raw / gairai_tgt_raw * 100, 1)
+                                      if gairai_pace_raw is not None and gairai_tgt_raw else None)
+            d["nyuin_pace_rate"]  = (_round_no_neg_zero(nyuin_pace_raw / nyuin_tgt_raw * 100, 1)
+                                      if nyuin_pace_raw is not None and nyuin_tgt_raw else None)
         return d
 
     top3    = [_row_to_dict(r) for _, r in latest.head(3).iterrows()]
@@ -450,8 +479,8 @@ def build_profit_kpi(profit_monthly: pd.DataFrame,
         "hospital_adj_target":       round(adj_tgt_total / 1000, 1) if adj_tgt_total else None,
         "hospital_achievement":      ach_total,
         "hospital_achievement_rev_adj": ach_total_rev_adj,
-        "hospital_daily_pace":       daily_pace_total,
-        "hospital_daily_target":     daily_target_total,
+        "hospital_daily_pace_mm":    daily_pace_total,
+        "hospital_daily_target_mm":  daily_target_total,
         "current_biz_days":          int(current_biz_days),
         "current_cal_days":          int(current_cal_days),
         "std_biz_days":              STD_BIZ_DAYS_PER_MONTH,
@@ -459,10 +488,10 @@ def build_profit_kpi(profit_monthly: pd.DataFrame,
         "has_breakdown":             has_breakdown,
         "hospital_gairai_total":     gairai_total,
         "hospital_nyuin_total":      nyuin_total,
-        "hospital_gairai_daily_pace":   gairai_daily_pace,
-        "hospital_nyuin_daily_pace":    nyuin_daily_pace,
-        "hospital_gairai_daily_target": gairai_daily_target,
-        "hospital_nyuin_daily_target":  nyuin_daily_target,
+        "hospital_gairai_daily_pace_mm":   gairai_daily_pace,
+        "hospital_nyuin_daily_pace_mm":    nyuin_daily_pace,
+        "hospital_gairai_daily_target_mm": gairai_daily_target,
+        "hospital_nyuin_daily_target_mm":  nyuin_daily_target,
         "hospital_ytd":              round(ytd_total / 1000000, 2),
         "hospital_ytd_target":       round(ytd_tgt_total / 1000000, 2),
         "hospital_ytd_adj_target":   round(ytd_adj_tgt_total / 1000000, 2) if ytd_adj_tgt_total else None,

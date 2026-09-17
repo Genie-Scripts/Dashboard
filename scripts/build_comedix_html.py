@@ -382,7 +382,7 @@ def main():
     log("データ読込・前処理中（load_and_preprocess）...")
     adm, surg, targets, surg_targets, profit_monthly, base_date, profit_breakdown = \
         load_and_preprocess(args.data_dir, args.base_date, no_validate=False)
-    profit_headline = load_profit_headline(
+    profit_headline, _profit_hybrid = load_profit_headline(
         args.data_dir, adm, surg, profit_monthly, profit_breakdown, base_date)
     ctx = hs.build_summary_context(adm, surg, targets, surg_targets, base_date,
                                    profit_headline=profit_headline)
