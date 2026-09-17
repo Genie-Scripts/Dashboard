@@ -139,6 +139,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP"
     </table>
   </div>
 
+  {% if profit_strip_html %}{{ profit_strip_html|safe }}{% endif %}
+
   <div class="sec">
     <div class="sec-h">📅 当月着地見込み</div>
     <div class="mp-tiles">

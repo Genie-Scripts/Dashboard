@@ -304,6 +304,27 @@ def generate(data_dir: str = DEFAULT_DATA_DIR,
                                "diffs": [], "story": None, "failed": True}
     results["weekly_story"] = weekly_story_result
 
+    # 入院粗利目標の内訳（粗利タブ確報バンドの目標比バッジに使う）。読み込み失敗は
+    # 握りつぶして None（バッジ非表示のまま静かに縮退）。data_dir は generate() 引数を
+    # そのまま使う（ハードコードしない＝ --data-dir 指定時にも追随させる）。
+    try:
+        from app.lib.data_loader import load_profit_targets_breakdown
+        profit_targets_breakdown_raw = load_profit_targets_breakdown(data_dir)
+    except Exception as e:
+        log(f"粗利目標内訳の読込スキップ（目標比バッジ非表示）: {e}", "warn")
+        profit_targets_breakdown_raw = None
+
+    # 粗利 hybrid（P0: 一元計算・前倒し）。portal/detail で共通の値を使うため、ここで
+    # 1回だけ計算しておく。last_complete_driver_date は html_builder が import している
+    # 同一関数を使う（build_detail_json 内の profit_base_date と完全に同じ算出にするため）。
+    from app.lib.html_builder import build_profit_hybrid_calibrated, last_complete_driver_date
+    try:
+        _pbd = last_complete_driver_date(adm, surg) or base_date
+        profit_hybrid = build_profit_hybrid_calibrated(profit_breakdown_raw, surg, adm, _pbd)
+    except Exception as e:
+        log(f"粗利 hybrid 事前計算スキップ: {e}", "warn")
+        profit_hybrid = None
+
     # ════════════════════════════════════════
     # Layer-1: portal.html
     # ════════════════════════════════════════
@@ -313,6 +334,9 @@ def generate(data_dir: str = DEFAULT_DATA_DIR,
         weekly_story=weekly_story_result,
         profit_monthly=profit_monthly,
         kpi_history_path=out_dir / "output" / "last_kpi.json",
+        profit_hybrid=profit_hybrid,
+        profit_breakdown=profit_breakdown_raw,
+        profit_targets_breakdown=profit_targets_breakdown_raw,
     )
     portal_tmpl = env.get_template("portal.html")
     portal_html = portal_tmpl.render(**portal_ctx)
@@ -325,21 +349,12 @@ def generate(data_dir: str = DEFAULT_DATA_DIR,
     # Layer-2: detail.html
     # ════════════════════════════════════════
     log("detail.html 生成中...")
-    # 入院粗利目標の内訳（粗利タブ確報バンドの目標比バッジに使う）。読み込み失敗は
-    # 握りつぶして None（バッジ非表示のまま静かに縮退）。data_dir は generate() 引数を
-    # そのまま使う（ハードコードしない＝ --data-dir 指定時にも追随させる）。
-    try:
-        from app.lib.data_loader import load_profit_targets_breakdown
-        profit_targets_breakdown_raw = load_profit_targets_breakdown(data_dir)
-    except Exception as e:
-        log(f"粗利目標内訳の読込スキップ（目標比バッジ非表示）: {e}", "warn")
-        profit_targets_breakdown_raw = None
-
     detail_json = build_detail_json(
         adm, surg, targets, surg_targets, profit_monthly, base_date, generated_at,
         profit_breakdown=profit_breakdown_raw,
         kpi_history_path=out_dir / "output" / "last_kpi.json",
         profit_targets_breakdown=profit_targets_breakdown_raw,
+        profit_hybrid=profit_hybrid,
     )
     detail_ctx = {
         "data_json": detail_json,

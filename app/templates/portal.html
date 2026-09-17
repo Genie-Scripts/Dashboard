@@ -108,6 +108,22 @@
 [data-theme="dark"] .kc-spark svg circle{fill:#5b9bd5}
 /* ── B4: マイ部門（自科/自病棟）導線。localStorageに保存済みのときのみJSで表示 ── */
 .my-unit-cta{display:block;text-decoration:none;font-size:12.5px;font-weight:700;color:var(--br);background:var(--bl);border-radius:var(--card-border-radius);padding:8px 14px;margin:-4px 0 16px;text-align:center}
+/* ── P1: 粗利ヘッドライン帯（入院 粗利/人日・外来 粗利/営業日。KPIカードと同じトークンを流用） ── */
+.profit-strip{background:var(--s);border:1px solid var(--ln);border-radius:var(--r);box-shadow:var(--sh);padding:16px 18px;margin-bottom:16px}
+.profit-strip-hd{font-size:12px;color:var(--sub)}
+.profit-strip-hd .tol{color:var(--mu);margin-left:4px}
+.profit-main{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:10px}
+.profit-main-lab{font-size:13px;font-weight:800;color:var(--ink)}
+.profit-main-scope{font-size:11px;color:var(--mu);margin-left:2px}
+.profit-main-val{font-size:26px;font-weight:900;line-height:1.15;margin:4px 0 2px}
+.profit-main-val small{font-size:12px;font-weight:600;color:var(--sub);margin-left:2px}
+.profit-main-cmp{font-size:11.5px;color:var(--sub)}
+.profit-sub{font-size:12px;color:var(--sub);margin-top:10px;padding-top:10px;border-top:1px dashed var(--ln);display:flex;flex-wrap:wrap;gap:6px 16px}
+.profit-badge{font-size:11px;font-weight:900;padding:2px 9px;border-radius:999px;margin-left:4px}
+.profit-badge.dr{background:var(--dr-bg);color:var(--dr-t)}
+.profit-badge.wr{background:var(--wr-bg);color:#7c3a06}
+.profit-badge.ok{background:var(--ok-bg);color:#065f42}
+.profit-note{font-size:10.5px;color:var(--mu);margin-top:8px;line-height:1.5}
 /* ── 最新の動向バナー ── */
 .chg-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--s);border:1px solid var(--ln);border-radius:var(--card-border-radius);box-shadow:var(--card-box-shadow);padding:9px 14px;margin-bottom:16px}
 .chg-title{font-size:12.5px;font-weight:800;color:var(--ink);flex-shrink:0}
@@ -224,6 +240,8 @@
   /* A5/B8: 鮮度1行はスマホでも常時1行表示（フォント11px・折返し可） */
   #freshness{font-size:11px;white-space:normal;overflow-wrap:anywhere}
   .triage-facts-body{flex-direction:column;gap:3px}
+  /* P1: 粗利ヘッドライン帯の主数値もKPIカードと同じ縮小率に合わせる */
+  .profit-main-val{font-size:22px}
 }
 /* ── B2: 狭幅スマホはKPI1カラム＋在院カードの.dual-rowをステータス行末チップ化 ── */
 @media(max-width:480px){
@@ -238,6 +256,8 @@
   .dual-st.dr{background:var(--dr-bg)}
   .dual-st.wr{background:var(--wr-bg)}
   .dual-st.ok{background:var(--ok-bg)}
+  /* P1: 粗利ヘッドライン帯も1カラムに積む */
+  .profit-main{grid-template-columns:1fr;gap:10px}
 }
 /* ★モバイル横向き: ヘッダを1段スリム化＋固定解除（自動非表示も無効・ナビは横並び維持） */
 @media (orientation:landscape) and (max-height:500px){
@@ -409,6 +429,60 @@ h4{font-weight:var(--jp-head)!important}
     </a>
     {% endfor %}
   </section>
+
+  {# ── P1: 粗利ヘッドライン帯（入院 粗利/人日・外来 粗利/営業日） ── #}
+  {% if profit_headline %}
+  {% set nyuin = profit_headline.nyuin %}
+  {% set gairai = profit_headline.gairai %}
+  {% set total = profit_headline.total %}
+  {% set labels = profit_headline.labels %}
+  {% set n_badge = None %}
+  {% if nyuin.achievement_pct is not none %}
+    {% if nyuin.achievement_pct >= 100 %}{% set n_badge = ('ok', '▲達成') %}
+    {% elif nyuin.achievement_pct >= 90 %}{% set n_badge = ('wr', '―接近') %}
+    {% else %}{% set n_badge = ('dr', '▼未達') %}
+    {% endif %}
+  {% endif %}
+  {% set g_badge = None %}
+  {% if gairai.achievement_pct is not none %}
+    {% if gairai.achievement_pct >= 100 %}{% set g_badge = ('ok', '▲達成') %}
+    {% elif gairai.achievement_pct >= 90 %}{% set g_badge = ('wr', '―接近') %}
+    {% else %}{% set g_badge = ('dr', '▼未達') %}
+    {% endif %}
+  {% endif %}
+  <section class="profit-strip" aria-label="粗利ヘッドライン">
+    <div class="profit-strip-hd">{{ labels.period }}<span class="tol">{{ labels.tolerance }}</span></div>
+    <div class="profit-main">
+      <div class="profit-main-item">
+        <span class="profit-main-lab">{{ labels.main_nyuin }}</span><span class="profit-main-scope">（{{ labels.scope_nyuin }}）</span>
+        <div class="profit-main-val">{{ nyuin.ppd | numfmt }}<small>円</small></div>
+        {% if nyuin.vs_prev_pct is not none %}
+        <div class="profit-main-cmp">{{ labels.cmp }}{% if nyuin.direction == 'up' %} ↑{% elif nyuin.direction == 'down' %} ↓{% else %} 横ばい{% endif %} {{ '%+.1f'|format(nyuin.vs_prev_pct) }}%</div>
+        {% endif %}
+      </div>
+      <div class="profit-main-item">
+        <span class="profit-main-lab">{{ labels.main_gairai }}</span><span class="profit-main-scope">（{{ labels.scope_gairai }}）</span>
+        <div class="profit-main-val">{{ gairai.ppd_biz }}<small>百万円/営業日</small></div>
+        {% if gairai.vs_prev_pct is not none %}
+        <div class="profit-main-cmp">{{ labels.cmp }}{% if gairai.direction == 'up' %} ↑{% elif gairai.direction == 'down' %} ↓{% else %} 横ばい{% endif %} {{ '%+.1f'|format(gairai.vs_prev_pct) }}%</div>
+        {% endif %}
+      </div>
+    </div>
+    <div class="profit-sub">
+      {% if nyuin.patient_days is not none %}<span>延患者数 {{ nyuin.patient_days | numfmt }}人日</span>{% endif %}
+      {% if nyuin.profit_mm is not none %}
+      <span>入院粗利 {{ '{:,.1f}'.format(nyuin.profit_mm) }}百万円{% if nyuin.achievement_pct is not none %}（目標比 {{ nyuin.achievement_pct }}%{% if n_badge %}<span class="profit-badge {{ n_badge[0] }}">{{ n_badge[1] }}</span>{% endif %}）{% endif %}</span>
+      {% endif %}
+      {% if gairai.profit_mm is not none %}
+      <span>外来粗利 {{ '{:,.1f}'.format(gairai.profit_mm) }}百万円{% if gairai.achievement_pct is not none %}（目標比 {{ gairai.achievement_pct }}%{% if g_badge %}<span class="profit-badge {{ g_badge[0] }}">{{ g_badge[1] }}</span>{% endif %}）{% endif %}</span>
+      {% endif %}
+      {% if total.proj_mm is not none %}
+      <span>合計 {{ '{:,.1f}'.format(total.proj_mm) }}百万円{% if total.rate is not none %}（目標比 {{ total.rate }}%）{% endif %}</span>
+      {% endif %}
+    </div>
+    <div class="profit-note">{{ labels.note }}</div>
+  </section>
+  {% endif %}
 
   {# ── B4: マイ部門（localStorage）導線。保存済みのときのみJSで表示切替 ── #}
   <div class="my-unit-link" id="myUnitLink" style="display:none">

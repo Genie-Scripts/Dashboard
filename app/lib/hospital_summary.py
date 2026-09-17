@@ -220,7 +220,8 @@ def _dept_profit_proj(profit_monthly, estimators, adm, surg, base_date, dept,
 
 def build_summary_context(adm, surg, targets, surg_targets, base_date,
                           profit_monthly=None, profit_breakdown=None,
-                          profit_projection=None) -> dict:
+                          profit_projection=None, profit_headline=None,
+                          profit_unit=None) -> dict:
     kpi = metrics.build_kpi_summary(adm, surg, base_date, targets, surg_targets)
 
     # 粗利予測達成率（診療科テーブル右端）用 per-dept 推計器を1回だけフィット
@@ -277,10 +278,12 @@ def build_summary_context(adm, surg, targets, surg_targets, base_date,
     flow_d = _flow_7d(adm, base_date, "dept")
     medical = sorted(NADM_DISPLAY_DEPTS - SURGERY_EVAL_DEPTS)
     surgical = sorted(SURGERY_EVAL_DEPTS)
+    profit_unit_by_dept = (profit_unit or {}).get("by_dept") or {}
     dept_rows = []
     for dept, dtype in [(d, "内科") for d in medical] + [(d, "外科") for d in surgical]:
         ip, na, sg = inp_rank.get(dept), nadm_rank.get(dept), surg_rank.get(dept)
         prof = metrics.discharge_dow_profile(adm, base_date, "診療科名", dept)
+        dept_ppd_latest = (profit_unit_by_dept.get(dept) or {}).get("latest") or {}
         dept_rows.append({
             "name": dept, "type": dtype, "exempt": dept in COLOR_EXEMPT_DEPTS,
             "inp_actual": ip.get("実績") if ip else None, "inp_target": ip.get("目標") if ip else None,
@@ -294,13 +297,28 @@ def build_summary_context(adm, surg, targets, surg_targets, base_date,
             "redist": prof.get("redistribution"),
             "profit_proj": _dept_profit_proj(profit_monthly, estimators, adm, surg, base_date, dept,
                                              profit_projection=profit_projection),
+            # 粗利/人日（確報月・科別）: profit_unit.build_profit_unit_payload の
+            # by_dept[dept].latest をそのまま流用（新しい推計はしない・確報月のみ）。
+            "ppd_latest": dept_ppd_latest.get("ppd"),
+            "ppd_month": dept_ppd_latest.get("month"),
             "flow": flow_d.get(dept, {"in": 0, "out": 0, "net": 0}),
         })
+
+    # 回転3指標の1行（P2: 粗利帯の直下に併記）。build_hero_text も内部で同じ
+    # metrics.turnover_metrics(adm, base_date, TARGET_INPATIENT_ALLDAY) を計算するが、
+    # hero の戻り値には含まれない（既存の hero 出力は変えない方針）ため、同じ引数で
+    # 呼び直す（式は複製せず turnover_metrics/format_turn_line をそのまま再利用）。
+    try:
+        turn_m = metrics.turnover_metrics(adm, base_date, TARGET_INPATIENT_ALLDAY)
+        turn_line = metrics.format_turn_line(turn_m)
+    except Exception:
+        turn_line = None
 
     return {"kpi": kpi, "trends": trends, "ward_rows": ward_rows, "dept_rows": dept_rows,
             "hero": build_hero_text(adm, surg, surg_targets, base_date),
             "base_date": base_date,
-            "calendar_preview": calendar_preview.build_calendar_preview(base_date)}
+            "calendar_preview": calendar_preview.build_calendar_preview(base_date),
+            "profit_headline": profit_headline, "turn_line": turn_line}
 
 
 # ════════════════════════════════════════════════════════════
@@ -504,19 +522,30 @@ def _proj_cell(pj: Optional[dict]) -> str:
             f'<br><span class="sub">{pj["proj"]:.0f}/{pj["tgt"]:.0f}</span></td>')
 
 
+def _ppd_cell(row: dict) -> str:
+    """粗利/人日（確報月）セル。row["ppd_latest"] が無ければ「—」。"""
+    ppd = row.get("ppd_latest")
+    if ppd is None:
+        return '<td>—</td>'
+    return f'<td>{ppd:,}円</td>'
+
+
 def render_dept_table(rows: list) -> str:
+    ppd_month = next((r.get("ppd_month") for r in rows if r.get("ppd_month")), None)
+    ppd_month_label = f'{int(ppd_month.split("-")[1])}月' if ppd_month else ""
     head = ('<tr><th>診療科</th><th>在院<span class="sub">実/目</span></th>'
             '<th>新入院<span class="sub">実/目</span></th><th>入退院フロー<span class="sub">直近7日</span></th>'
             '<th>手術<span class="sub">実/目</span></th>'
-            '<th>粗利予測達成率<span class="sub">見込/目標</span></th></tr>')
-    # 列幅を固定（入退院フロー列だけが内容で広がるのを防ぎ、データ5列を等幅に）
+            '<th>粗利予測達成率<span class="sub">見込/目標</span></th>'
+            f'<th>粗利/人日（確報月）<span class="sub">{ppd_month_label}</span></th></tr>')
+    # 列幅を固定（入退院フロー列だけが内容で広がるのを防ぎ、データ6列を等幅に）
     cols = ('<colgroup><col style="width:16%">'
-            + '<col style="width:16.8%">' * 5 + '</colgroup>')
+            + '<col style="width:14%">' * 6 + '</colgroup>')
     body, cur_type = [], None
     for r in rows:
         if r["type"] != cur_type:
             cur_type = r["type"]
-            body.append(f'<tr><td class="grp" colspan="6">{cur_type}系</td></tr>')
+            body.append(f'<tr><td class="grp" colspan="7">{cur_type}系</td></tr>')
         ex = r["exempt"]
         med = (r["type"] == "内科")
         body.append(
@@ -526,6 +555,7 @@ def render_dept_table(rows: list) -> str:
             + _flow_cell(r["flow"])
             + _ach(r["surg_actual"], r["surg_target"], r["surg_rate"], _sd(r["surg_rate"], ex), emphasize=not med)
             + _proj_cell(r.get("profit_proj"))
+            + _ppd_cell(r)
             + '</tr>')
     return (f'<table class="ht" style="table-layout:fixed">{cols}'
             f'<thead>{head}</thead><tbody>{"".join(body)}</tbody></table>')
@@ -538,3 +568,201 @@ def render_legend() -> str:
             f'<i style="background:{sw["bg"]};border:1px solid {sw["color"]}"></i>接近'
             f'<i style="background:{sd["bg"]};border:1px solid {sd["color"]}"></i>未達'
             f'　／　純＝直近7日の入−退（＋増/−減）　／　※＝色評価の対象外（業務実態が異なる）</div>')
+
+
+# ════════════════════════════════════════════════════════════
+# 粗利ヘッドライン帯（Comedix HTML/PNGカード・週次ダイジェスト共用）
+#
+# profit_headline.build_profit_headline() の戻り値が正本。ここでは新しい数値は
+# 作らず整形のみ。Comedix は <style>/class/<script>/<svg> を落とすため、render_hero
+# と同じ inline style のみの <div> で組み立てる（class= を一切使わない）。
+# ════════════════════════════════════════════════════════════
+def _profit_cmp(labels: dict, block: dict) -> str:
+    """前月比の1文（例:「前月比 ↑ +2.3%」）。vs_prev_pct が無ければ空文字。"""
+    vs_prev_pct = block.get("vs_prev_pct")
+    if vs_prev_pct is None:
+        return ""
+    direction = block.get("direction")
+    arrow = "↑" if direction == "up" else ("↓" if direction == "down" else "横ばい")
+    return f'{labels.get("cmp", "")} {arrow} {vs_prev_pct:+.1f}%'
+
+
+def _profit_badge_html(rate) -> str:
+    """目標比バッジ（達成/接近/未達）。判定は config.status_display に一任（閾値を
+    ここに複製しない）。rate が None なら空文字（バッジ無し）。"""
+    if rate is None:
+        return ""
+    sd = status_display(rate)
+    return f' <span style="color:{sd["color"]};font-weight:700">{sd["shape"]}{sd["text"]}</span>'
+
+
+def _profit_badge_text(rate) -> str:
+    if rate is None:
+        return ""
+    sd = status_display(rate)
+    return f' {sd["shape"]}{sd["text"]}'
+
+
+def _profit_sub_parts(nyuin: dict, gairai: dict, total: dict, badge_fn) -> list:
+    """副数値（延患者数・入院粗利・外来粗利・合計）の文字列断片。HTML版/TXT版で
+    badge_fn（_profit_badge_html／_profit_badge_text）だけ差し替えて共用する。
+    null 項は省略する。目標比バッジは合計にだけ付ける（入院粗利・外来粗利は
+    「目標比 x%」の数値だけを出し、バッジ（▲達成/―接近/▼未達）は付けない）。"""
+    parts = []
+    if nyuin.get("patient_days") is not None:
+        parts.append(f'延患者数 {nyuin["patient_days"]:,}人日')
+    if nyuin.get("profit_mm") is not None:
+        ach = ""
+        if nyuin.get("achievement_pct") is not None:
+            ach = f'（目標比 {nyuin["achievement_pct"]}%）'
+        parts.append(f'入院粗利 {nyuin["profit_mm"]:,.1f}百万円{ach}')
+    if gairai.get("profit_mm") is not None:
+        ach = ""
+        if gairai.get("achievement_pct") is not None:
+            ach = f'（目標比 {gairai["achievement_pct"]}%）'
+        parts.append(f'外来粗利 {gairai["profit_mm"]:,.1f}百万円{ach}')
+    if total.get("proj_mm") is not None:
+        ach = ""
+        if total.get("rate") is not None:
+            ach = f'（目標比 {total["rate"]}%{badge_fn(total["rate"])}）'
+        parts.append(f'合計 {total["proj_mm"]:,.1f}百万円{ach}')
+    return parts
+
+
+def render_profit_strip(ph: Optional[dict], turn_line: Optional[str] = None) -> str:
+    """粗利ヘッドライン帯（HTML/PNG/PDF共用・inline styleのみ）。
+
+    ph は profit_headline.build_profit_headline() の戻り値（None/空なら ""）。
+    turn_line を渡すと、副数値行の直下・labels.guard の前に回転3指標の1行
+    （metrics.format_turn_line）を挿む。
+    """
+    if not ph:
+        return ""
+    nyuin = ph.get("nyuin") or {}
+    gairai = ph.get("gairai") or {}
+    total = ph.get("total") or {}
+    labels = ph.get("labels") or {}
+
+    def _main_item(label: str, scope: str, val_html: str, block: dict) -> str:
+        cmp_txt = _profit_cmp(labels, block)
+        cmp_html = (f'<div style="font-size:11px;color:{SUB};margin-top:1px">{cmp_txt}</div>'
+                   if cmp_txt else "")
+        return (f'<div style="min-width:190px">'
+                f'<div style="font-size:12px;color:{SUB}">{label}'
+                f'<span style="font-size:10.5px;color:#9aa7b4">（{scope}）</span></div>'
+                f'<div style="font-size:21px;font-weight:900;color:{INK}">{val_html}</div>'
+                f'{cmp_html}</div>')
+
+    # 数値と単位は同じテキストラン（タグで分断しない）にする。「82,601円」のように
+    # 一続きの文字列として現れることを外部テスト（tests/test_comedix_profit_strip.py）
+    # が検査するため。
+    main_items = []
+    if nyuin.get("ppd") is not None:
+        val_html = f'{nyuin["ppd"]:,}円'
+        main_items.append(_main_item(labels.get("main_nyuin", ""), labels.get("scope_nyuin", ""),
+                                     val_html, nyuin))
+    if gairai.get("ppd_biz") is not None:
+        val_html = f'{gairai["ppd_biz"]}百万円/営業日'
+        main_items.append(_main_item(labels.get("main_gairai", ""), labels.get("scope_gairai", ""),
+                                     val_html, gairai))
+
+    sub_parts = _profit_sub_parts(nyuin, gairai, total, _profit_badge_html)
+
+    heading = (f'<div style="font-size:11.5px;font-weight:700;color:{SUB}">{labels.get("period", "")}'
+              f'<span style="color:#9aa7b4;margin-left:4px">{labels.get("tolerance", "")}</span></div>')
+    main_html = (f'<div style="display:flex;flex-wrap:wrap;gap:20px;margin-top:4px">{"".join(main_items)}</div>'
+                if main_items else "")
+    sub_html = (f'<div style="font-size:11.5px;color:{SUB};margin-top:6px">{"・".join(sub_parts)}</div>'
+               if sub_parts else "")
+    turn_html = (f'<div style="font-size:11.5px;color:{SUB};margin-top:3px">{turn_line}</div>'
+                if turn_line else "")
+    guard = labels.get("guard")
+    guard_html = f'<div style="font-size:10.5px;color:#9aa7b4;margin-top:4px">{guard}</div>' if guard else ""
+    note = labels.get("note")
+    note_html = f'<div style="font-size:10px;color:#9aa7b4;margin-top:2px">{note}</div>' if note else ""
+
+    return (f'<div style="border:1px solid #e0e6ee;border-left:5px solid #2b6cb0;border-radius:10px;'
+            f'padding:10px 14px;margin:9px 0 4px;background:#fbfdff">'
+            f'{heading}{main_html}{sub_html}{turn_html}{guard_html}{note_html}</div>')
+
+
+def render_profit_strip_text(ph: Optional[dict], turn_line: Optional[str] = None) -> str:
+    """粗利ヘッドライン帯のプレーンテキスト版（週次ダイジェストのメール貼付TXT用）。
+    render_profit_strip と同じ順序・同じデータ源（_profit_cmp/_profit_sub_parts を共用）。
+    """
+    if not ph:
+        return ""
+    nyuin = ph.get("nyuin") or {}
+    gairai = ph.get("gairai") or {}
+    total = ph.get("total") or {}
+    labels = ph.get("labels") or {}
+
+    lines = [f'{labels.get("period", "")}{labels.get("tolerance", "")}']
+
+    if nyuin.get("ppd") is not None:
+        line = f'{labels.get("main_nyuin", "")}（{labels.get("scope_nyuin", "")}） {nyuin["ppd"]:,}円'
+        cmp_txt = _profit_cmp(labels, nyuin)
+        if cmp_txt:
+            line += f'　{cmp_txt}'
+        lines.append(line)
+    if gairai.get("ppd_biz") is not None:
+        line = (f'{labels.get("main_gairai", "")}（{labels.get("scope_gairai", "")}） '
+               f'{gairai["ppd_biz"]}百万円/営業日')
+        cmp_txt = _profit_cmp(labels, gairai)
+        if cmp_txt:
+            line += f'　{cmp_txt}'
+        lines.append(line)
+
+    sub_parts = _profit_sub_parts(nyuin, gairai, total, _profit_badge_text)
+    if sub_parts:
+        lines.append("・".join(sub_parts))
+    if turn_line:
+        lines.append(turn_line)
+    if labels.get("guard"):
+        lines.append(labels["guard"])
+    if labels.get("note"):
+        lines.append(labels["note"])
+    return "\n".join(lines)
+
+
+def render_profit_headline_line(ph: Optional[dict]) -> str:
+    """粗利ヘッドラインの1行帯（実績まとめPDF P1・KPIカード直下）。
+
+    render_profit_strip のフル帯と違い、P1の高さ予算（約28px）に収める1行テキストのみ
+    （バッジなし。_calendar_line と同型の inline style）。ph が None/空なら ""。
+    null 項は省略する。
+    """
+    if not ph:
+        return ""
+    nyuin = ph.get("nyuin") or {}
+    gairai = ph.get("gairai") or {}
+    labels = ph.get("labels") or {}
+
+    segs = []
+    if nyuin.get("ppd") is not None:
+        seg = f'{labels.get("main_nyuin", "")} {nyuin["ppd"]:,}円'
+        extras = []
+        cmp_txt = _profit_cmp(labels, nyuin)
+        if cmp_txt:
+            extras.append(cmp_txt)
+        if nyuin.get("patient_days") is not None:
+            extras.append(f'延患者数 {nyuin["patient_days"]:,}人日')
+        if extras:
+            seg += f'（{"・".join(extras)}）'
+        segs.append(seg)
+    if gairai.get("ppd_biz") is not None:
+        seg = f'{labels.get("main_gairai", "")} {gairai["ppd_biz"]}百万円/営業日'
+        cmp_txt = _profit_cmp(labels, gairai)
+        if cmp_txt:
+            seg += f'（{cmp_txt}）'
+        segs.append(seg)
+
+    if not segs:
+        return ""
+    body = "／".join(segs)
+    period = labels.get("period")
+    if period:
+        body += f'｜{period}'
+
+    return (f'<div style="font-size:11.5px;padding:7px 11px;border-radius:8px;'
+            f'background:#f6f8fb;margin-top:8px">{body}</div>')

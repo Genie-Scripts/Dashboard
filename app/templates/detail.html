@@ -18,7 +18,7 @@
 .nav-bar{display:flex;align-items:center;gap:4px;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.12)}.nav-bar a{font-size:12px;font-weight:800;text-decoration:none;padding:5px 13px;border-radius:8px;color:#a8bdd4;transition:all .15s;border:1px solid transparent}.nav-bar a:hover{color:#fff;border-color:rgba(255,255,255,.25)}.nav-bar a.active{background:rgba(255,255,255,.18);color:#fff;border-color:rgba(255,255,255,.35)}
 .w{max-width:1280px;margin:0 auto;padding:16px 20px 48px}
 /* ★課題4: タブを大きく、数字を目立たせる */
-.tabs{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));background:var(--s);border:1px solid var(--ln);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh)}.tab{padding:16px 18px;border-right:1px solid var(--ln);cursor:pointer;transition:background .15s}.tab:last-child{border-right:none}.tab:hover{background:#f8fafc}.tab:not(.active){background:#f0f4f8;color:var(--sub)}.tab.active{background:var(--s);color:var(--ink);box-shadow:inset 0 -4px 0 var(--br),0 4px 12px rgba(14,77,164,.10)}.tab .nm{font-size:13px;font-weight:800}.tab .big{font-size:28px;font-weight:900;line-height:1.1;margin:4px 0}.tab .tab-dual{font-size:18px;font-weight:900}.tab .tab-unit{font-size:13px;font-weight:600;color:var(--sub);margin-left:1px}.tab:not(.active) .big{color:var(--sub)}.tab .per{font-size:11px;color:var(--sub);margin-top:2px}.tab .st{display:inline-block;font-size:10px;font-weight:900;padding:2px 8px;border-radius:999px;margin-left:4px;background:var(--dr-bg);color:var(--dr-t)}
+.tabs{scroll-margin-top:110px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));background:var(--s);border:1px solid var(--ln);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh)}.tab{scroll-margin-top:110px;padding:16px 18px;border-right:1px solid var(--ln);cursor:pointer;transition:background .15s}.tab:last-child{border-right:none}.tab:hover{background:#f8fafc}.tab:not(.active){background:#f0f4f8;color:var(--sub)}.tab.active{background:var(--s);color:var(--ink);box-shadow:inset 0 -4px 0 var(--br),0 4px 12px rgba(14,77,164,.10)}.tab .nm{font-size:13px;font-weight:800}.tab .big{font-size:28px;font-weight:900;line-height:1.1;margin:4px 0}.tab .tab-dual{font-size:18px;font-weight:900}.tab .tab-unit{font-size:13px;font-weight:600;color:var(--sub);margin-left:1px}.tab:not(.active) .big{color:var(--sub)}.tab .per{font-size:11px;color:var(--sub);margin-top:2px}.tab .st{display:inline-block;font-size:10px;font-weight:900;padding:2px 8px;border-radius:999px;margin-left:4px;background:var(--dr-bg);color:var(--dr-t)}
 .sum{display:grid;grid-template-columns:1.6fr repeat(3,1fr);gap:10px;margin-top:12px}.bx{background:var(--bg);border:1px solid var(--ln);border-radius:14px;padding:12px 14px;box-shadow:0 2px 6px rgba(10,22,42,.04)}.bx h2{font-size:16px;margin:0}.bx .k{font-size:13px;color:var(--sub);font-weight:700}.bx .v{font-size:24px;font-weight:900;margin-top:4px}.bx .v.dr{color:var(--dr)}
 .bx .cmp-bar{height:4px;background:#edf2f7;border-radius:999px;overflow:hidden;margin-top:8px}.bx .cmp-fill{height:100%;border-radius:999px;transition:width .3s}.bx .cmp-fill.ok{background:var(--ok)}.bx .cmp-fill.wr{background:var(--wr)}.bx .cmp-fill.dr{background:var(--dr)}.bx .cmp-fill.mu{background:var(--mu)}.bx .cmp-meta{display:flex;justify-content:space-between;align-items:center;margin-top:3px}.bx .cmp-prev{font-size:13px;color:var(--sub);font-weight:600}.bx .cmp-dir{font-size:11px;font-weight:900;padding:2px 6px;border-radius:4px}.bx .cmp-dir.ok{background:var(--ok-bg);color:#065f42}.bx .cmp-dir.wr{background:var(--wr-bg);color:#7c3a06}.bx .cmp-dir.dr{background:var(--dr-bg);color:var(--dr-t)}.bx .cmp-dir.mu{color:var(--mu)}
 /* ★Plan-B: 実績+目標+差分 統合カード */
@@ -160,6 +160,11 @@
 .pu-band-sub .pu-label{font-size:11px}
 .pu-band-sub .pu-foot{font-size:10px}
 .pu-band-sub .pu-badge{font-size:10px}
+/* ★§7: 粗利/人日を最大級・入院粗利/延患者数は同級・平均在院日数は1段小さく。
+   既存の pu-big(22px) を基準に、hero=26px(.dual-main-row .main-val と同スケール)・
+   sub=18px(.pu-band-sub .pu-big と同スケール)を流用し新しい値は増やさない。 */
+.pu-tile-hero .pu-big{font-size:26px}
+.pu-tile-sub .pu-big{font-size:18px}
 @media(max-width:768px){.tabs{display:flex;overflow:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}.tab{min-width:150px;flex:0 0 auto}.tab .big{font-size:22px}.sum{grid-template-columns:1fr}.bx-main .main-val{font-size:24px}.main{grid-template-columns:1fr}.chart{height:220px}.ri{grid-template-columns:24px 1fr auto}.bar,.stl{display:none}.drill-chart{height:200px}.drill-graphs{grid-template-columns:1fr}.hdr .role{display:none}.hdr{padding:6px 12px}.hdr .row{flex-wrap:nowrap;gap:8px;align-items:center}.left{min-width:0;flex:1 1 auto;overflow:hidden}.title{font-size:14px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.right{flex:0 0 auto;gap:6px}.act,.meta:not(#freshness){display:none}#freshness{font-size:11px;white-space:normal;overflow-wrap:anywhere}.hdr .nav-bar{display:none}
 /* ★モバイル: KPIカード2列化・チャート1列化・はみ出し防止 */
 .kpi-row{grid-template-columns:repeat(2,1fr) !important;gap:8px}
@@ -701,6 +706,17 @@ let dhmDrillUnit = null;  // 行クリックで開いている単一ユニット
 let currentPeriod = '12w';
 const hasProfit = !!(DATA.profit && DATA.profit.kpi);
 const hasProfitUnit = !!(DATA.profit_unit && DATA.profit_unit.global);
+// ★§7: 粗利ヘッドライン主役モード判定（renderSummary・renderTabs 共用）。
+//   'ppd'       : 入院 粗利/人日の当月見込みが組める（最優先・主役）
+//   'total'     : 粗利/人日は組めないが合算の当月見込みは組める（従来Phase2の代替）
+//   'confirmed' : どちらも組めず確報を主カードのまま維持（静かに縮退）
+function profitHeadlineMode() {
+  const puProjection = DATA.profit_unit && DATA.profit_unit.global && DATA.profit_unit.global.projection;
+  if (puProjection) return 'ppd';
+  const mp = (DATA.month_projection && DATA.month_projection.profit) || null;
+  if (mp) return 'total';
+  return 'confirmed';
+}
 let showWeekday = true;
 let showHoliday = true;
 let inpDayFilter = 'all'; // 'all' | 'wd' | 'hd'
@@ -871,16 +887,49 @@ function renderTabs() {
   ];
   if (hasProfit) {
     const pk = DATA.profit.kpi;
-    const pSt = pk.hospital_achievement >= 100 ? {css:'ok',shape:'▲',text:'達成'} : pk.hospital_achievement >= 90 ? {css:'wr',shape:'―',text:'接近'} : {css:'dr',shape:'▼',text:'未達'};
-    const bdLabel = pk.current_biz_days != null ? ` (営業${pk.current_biz_days}日)` : '';
-    const hyMeta = (DATA.profit_hybrid && DATA.profit_hybrid.meta) || {};
-    const projT = hyMeta.latest_final_total != null ? hyMeta.latest_final_total : hyMeta.latest_projection_total;
-    const projLabel = (projT != null)
-      ? `<br>📍 月末見込み ${projT}百万円`
-      : '';
-    tabs.push({id:'profit', icon:'💰', name:'粗利',
-      big:`${pk.hospital_total}百万円`, per:`${pk.base_month} 全科合計${bdLabel}${projLabel}`,
-      st:pSt});
+    // ★§7: タブ帯の粗利チップも renderSummary と同じ3段フォールバックを共用する。
+    const tabMode = profitHeadlineMode();
+    const mp = (DATA.month_projection && DATA.month_projection.profit) || null;
+    const windowEndRaw = (DATA.profit_estimate && DATA.profit_estimate.meta
+                          && DATA.profit_estimate.meta.window_end) || DATA.meta.base_date;
+    const we = new Date(windowEndRaw);
+    const asOfLabel = `${we.getMonth()+1}/${we.getDate()}時点`;
+    const [, confirmedM] = (pk.base_month || '').split('-');
+    const confirmedLabel = confirmedM ? `${parseInt(confirmedM,10)}月` : '';
+    const fmt = (v) => _puFmt(v, {minimumFractionDigits: 1, maximumFractionDigits: 1});
+    let tabBig, tabPer, tabSt;
+    if (tabMode === 'ppd') {
+      const projection = DATA.profit_unit.global.projection;
+      const [projY, projM] = (projection.month || '').split('-');
+      const monthLabel = (projY && projM) ? `${projY}年${parseInt(projM,10)}月` : (projection.month || '');
+      const achLabel = projection.achievement_pct != null ? `${projection.achievement_pct}%` : '—';
+      const totalNote = mp != null
+        ? `<br>📍 合計 ${fmt(mp.projection)}百万円／${confirmedLabel}確報 ${fmt(pk.hospital_total)}`
+        : '';
+      tabBig = `${_puFmt(projection.ppd)}<span class="tab-unit">円/人日</span>`;
+      tabPer = `入院のみ・${monthLabel} 月末見込み（${asOfLabel}）・目標比（入院粗利）${achLabel}${totalNote}`;
+      tabSt = {css:stCss(projection.achievement_pct), shape:stShape(projection.achievement_pct), text:stText(projection.achievement_pct)};
+    } else if (tabMode === 'total') {
+      const projMonthRaw = (DATA.month_projection.meta && DATA.month_projection.meta.month) || '';
+      const [projY, projM] = projMonthRaw.split('-');
+      const monthLabel = (projY && projM) ? `${projY}年${parseInt(projM,10)}月` : projMonthRaw;
+      tabBig = `${fmt(mp.projection)}百万円`;
+      tabPer = `${monthLabel} 月末見込み（${asOfLabel}）<br>📍 ${confirmedLabel}確報 ${fmt(pk.hospital_total)}百万円`;
+      tabSt = {css:mp.status_css, shape:mp.status_shape, text:mp.status_text};
+    } else {
+      // 現行どおり: 確報が主、📍 月末見込み の副行
+      const pSt = pk.hospital_achievement >= 100 ? {css:'ok',shape:'▲',text:'達成'} : pk.hospital_achievement >= 90 ? {css:'wr',shape:'―',text:'接近'} : {css:'dr',shape:'▼',text:'未達'};
+      const bdLabel = pk.current_biz_days != null ? ` (営業${pk.current_biz_days}日)` : '';
+      const hyMeta = (DATA.profit_hybrid && DATA.profit_hybrid.meta) || {};
+      const projT = hyMeta.latest_final_total != null ? hyMeta.latest_final_total : hyMeta.latest_projection_total;
+      const projLabel = (projT != null)
+        ? `<br>📍 月末見込み ${projT}百万円`
+        : '';
+      tabBig = `${pk.hospital_total}百万円`;
+      tabPer = `${pk.base_month} 全科合計${bdLabel}${projLabel}`;
+      tabSt = pSt;
+    }
+    tabs.push({id:'profit', icon:'💰', name:'粗利', big:tabBig, per:tabPer, st:tabSt});
   }
   document.getElementById('kpiTabs').innerHTML = tabs.map(t =>
     `<div class="tab${t.id===currentTab?' active':''}" onclick="switchTab('${t.id}')">
@@ -1224,7 +1273,8 @@ function refCardHtml(r) {
   let tgtHtml = '', rateHtml = '';
   if (r.refTarget != null && r.curr != null) {
     const gap = Math.round((r.curr - r.refTarget)*10)/10;
-    const rate = Math.round(r.curr / r.refTarget * 1000)/10;
+    // ★refRate: 正本側で算出済みの達成率があればそれを使う（丸め後の curr/refTarget から再計算しない＝面ごとの率のズレ防止）
+    const rate = r.refRate != null ? r.refRate : Math.round(r.curr / r.refTarget * 1000)/10;
     const tc = rate >= 100 ? 'ok' : rate >= 90 ? 'wr' : 'dr';
     const gapPfx = gap > 0 ? '+' : '';
     const stLabel = rate >= 100 ? '▲ 達成' : rate >= 90 ? '― 接近' : '▼ 未達';
@@ -1382,19 +1432,78 @@ function renderSummary() {
                           && pk.hospital_achievement_rev_adj !== pRate)
                          ? pk.hospital_achievement_rev_adj : null;
 
-    // ★Phase2: 主カードを「当月見込み」へ主役交代（既存 month_projection.profit を昇格。
-    //   新しい推計器は作らない）。確報(pk)は refs[0]「◯月 確報」へ降格する。
+    // ★§7: 主カードは3段フォールバック（'ppd'→'total'→'confirmed'）。
+    //   profitHeadlineMode() は renderTabs と共用。新しい推計器は作らない。
+    const mode = profitHeadlineMode();
     const mp = (DATA.month_projection && DATA.month_projection.profit) || null;
-    if (mp) {
+    // 基準日はページ全体の基準日(DATA.meta.base_date)ではなく見込みの実際の算出日
+    // （profit_estimate.meta.window_end）を使う（1日ずれることがあるため）。
+    const windowEndRaw = (DATA.profit_estimate && DATA.profit_estimate.meta
+                          && DATA.profit_estimate.meta.window_end) || DATA.meta.base_date;
+    const we = new Date(windowEndRaw);
+    const asOfLabel = `${we.getMonth()+1}/${we.getDate()}時点`;
+
+    // 確報カード（旧主カード相当を降格。現行の「日次ペース」は副文字列として畳む）。
+    // 3モードいずれでも refs の末尾（またはtotal/confirmedではrefs[0]）に使う共通カード。
+    const [, confirmedM] = (pk.base_month || '').split('-');
+    const confirmedLabel = confirmedM ? `${parseInt(confirmedM,10)}月 確報` : '確報';
+    const paceLabel = pk.hospital_daily_pace != null
+      ? `日次ペース ${pk.hospital_daily_pace}万/営業日${pk.hospital_daily_target!=null ? `（目標 ${pk.hospital_daily_target}万/営業日）` : ''}`
+      : '日次ペース —';
+    const confirmedRef = {k:confirmedLabel, v:pk.hospital_total!==null?`${_puFmt(pk.hospital_total, {minimumFractionDigits: 1, maximumFractionDigits: 1})}百万円`:'—', unit:'百万円',
+       curr:pk.hospital_total, refTarget:pTgt, refTargetLabel: pAdj != null ? '補正目標' : '目標',
+       prevLabel:paceLabel};
+
+    if (mode === 'ppd') {
+      // ★§7: 主役を「入院 粗利/人日」の当月見込みへ交代。粗利/人日にバッジは付けない
+      //   （バッジは総額＝入院粗利の目標比にのみ付け「目標比（入院粗利）」と明示する）。
+      const puGlobal = DATA.profit_unit.global;
+      const projection = puGlobal.projection;
+      const [projY, projM] = (projection.month || '').split('-');
+      const monthLabel = (projY && projM) ? `${projY}年${parseInt(projM,10)}月` : (projection.month || '');
+      const prevPending = puGlobal.prev_month_pending;
+      const prevCmpLabel = prevPending ? '前月(見込み)比' : '前月比';
+      const dirArrow = projection.direction === 'up' ? '↑' : projection.direction === 'down' ? '↓' : '横ばい';
+      const oneDec = {minimumFractionDigits: 1, maximumFractionDigits: 1};
+      const subNote = projection.vs_prev_pct != null
+        ? `<div class="period-note">${prevCmpLabel} ${dirArrow} ${_puFmtPct(projection.vs_prev_pct)}</div>`
+        : '';
+      main = {
+        icon:'💰', label:'入院 粗利/人日',
+        periodNote:`${monthLabel} 月末見込み（${asOfLabel}・診療実績ベース・暫定・入院のみ・全科）`,
+        subNote,
+        actual: _puFmt(projection.ppd), unit:'円',
+        targetLabel:null, target:null, gap:null, gapUnit:null,
+        rate:projection.achievement_pct, rateLabel:'目標比（入院粗利）',
+        status:{css:stCss(projection.achievement_pct), shape:stShape(projection.achievement_pct), text:stText(projection.achievement_pct)},
+        rateSuffix:'（±2%）',
+        footNote:'※ 見込みの誤差は月間 ±2%程度。単価そのものの変化（加算・コーディング・改定）は映りません',
+      };
+
+      refs = [
+        {k:'延患者数（月末見込み）', v:`${_puFmt(projection.patient_days)}人日`, unit:'人日',
+         curr:projection.patient_days, prev:puGlobal.latest && puGlobal.latest.patient_days,
+         prevLabel:(puGlobal.latest && puGlobal.latest.patient_days!=null)?`${confirmedLabel} ${_puFmt(puGlobal.latest.patient_days)}人日`:undefined},
+        {k:'入院粗利（月末見込み）', v:`${_puFmt(projection.profit_mm, oneDec)}百万円`, unit:'百万円',
+         curr:projection.profit_mm, refTarget:projection.target_mm, refTargetLabel:'月次目標'},
+      ];
+      const gairai = DATA.profit_headline && DATA.profit_headline.gairai;
+      if (gairai) {
+        refs.push({k:'外来 粗利/営業日（月末見込み）', v:`${_puFmt(gairai.ppd_biz, oneDec)}百万円/営業日`, unit:'百万円/営業日',
+          curr:gairai.ppd_biz, refTarget:gairai.target_per_biz_day, refTargetLabel:'補正目標',
+          refRate:gairai.achievement_pct});
+      }
+      if (mp) {
+        refs.push({k:'粗利 合計（月末見込み）', v:`${_puFmt(mp.projection, oneDec)}百万円`, unit:'百万円',
+          curr:mp.projection, refTarget:mp.target, refTargetLabel:'月次目標'});
+      }
+      refs.push(confirmedRef);
+    } else if (mode === 'total') {
+      // ★Phase2: 主カードを「当月見込み」へ主役交代（既存 month_projection.profit を昇格。
+      //   新しい推計器は作らない）。確報(pk)は refs[0]「◯月 確報」へ降格する。
       const projMonthRaw = (DATA.month_projection.meta && DATA.month_projection.meta.month) || '';
       const [projY, projM] = projMonthRaw.split('-');
       const monthLabel = (projY && projM) ? `${projY}年${parseInt(projM,10)}月` : projMonthRaw;
-      // 基準日はページ全体の基準日(DATA.meta.base_date)ではなく見込みの実際の算出日
-      // （profit_estimate.meta.window_end）を使う（1日ずれることがあるため）。
-      const windowEndRaw = (DATA.profit_estimate && DATA.profit_estimate.meta
-                            && DATA.profit_estimate.meta.window_end) || DATA.meta.base_date;
-      const we = new Date(windowEndRaw);
-      const asOfLabel = `${we.getMonth()+1}/${we.getDate()}時点`;
       const mpGap = mp.target != null ? Math.round((mp.projection - mp.target)*10)/10 : null;
       main = {
         icon:'💰', label:'粗利（全科合計）',
@@ -1405,6 +1514,14 @@ function renderSummary() {
         rateSuffix:'（±2%）',
         footNote:'※ 見込みの誤差は月間 ±2%程度。単価そのものの変化（加算・コーディング・改定）は映りません',
       };
+
+      refs = [
+        confirmedRef,
+        {k:'直近3ヶ月平均', v:pk.hospital_3m_avg!==null?`${pk.hospital_3m_avg}百万/月`:'—', unit:'百万/月',
+         curr:pk.hospital_3m_avg, prev:pk.prev_3m_avg},
+        {k:'年度累計月平均', v:pk.hospital_ytd_monthly_avg!==null?`${pk.hospital_ytd_monthly_avg}百万/月`:'—', unit:'百万/月',
+         curr:pk.hospital_ytd_monthly_avg, prev:pk.prev_ytd_monthly_avg},
+      ];
     } else {
       // 見込みが組めないビルド（データ欠落等）は従来どおり確報を主カードのまま維持（静かに縮退）
       const pGap = pTgt ? Math.round((pk.hospital_total - pTgt)*10)/10 : 0;
@@ -1416,23 +1533,15 @@ function renderSummary() {
         rate:pRate, status:pSt, revAdjRate:pRateRevAdj,
         footNote: pAdj != null ? `※名目目標 ${pk.hospital_target}百万円（営業${pk.std_biz_days}日・暦${pk.std_cal_days}日 基準）` : ''
       };
-    }
 
-    // refs[0]: 確報カード（旧主カード相当を降格。現行の「日次ペース」は副文字列として畳む）
-    const [, confirmedM] = (pk.base_month || '').split('-');
-    const confirmedLabel = confirmedM ? `${parseInt(confirmedM,10)}月 確報` : '確報';
-    const paceLabel = pk.hospital_daily_pace != null
-      ? `日次ペース ${pk.hospital_daily_pace}万/営業日${pk.hospital_daily_target!=null ? `（目標 ${pk.hospital_daily_target}万/営業日）` : ''}`
-      : '日次ペース —';
-    refs = [
-      {k:confirmedLabel, v:pk.hospital_total!==null?`${pk.hospital_total}百万円`:'—', unit:'百万円',
-       curr:pk.hospital_total, refTarget:pTgt, refTargetLabel: pAdj != null ? '補正目標' : '目標',
-       prevLabel:paceLabel},
-      {k:'直近3ヶ月平均', v:pk.hospital_3m_avg!==null?`${pk.hospital_3m_avg}百万/月`:'—', unit:'百万/月',
-       curr:pk.hospital_3m_avg, prev:pk.prev_3m_avg},
-      {k:'年度累計月平均', v:pk.hospital_ytd_monthly_avg!==null?`${pk.hospital_ytd_monthly_avg}百万/月`:'—', unit:'百万/月',
-       curr:pk.hospital_ytd_monthly_avg, prev:pk.prev_ytd_monthly_avg},
-    ];
+      refs = [
+        confirmedRef,
+        {k:'直近3ヶ月平均', v:pk.hospital_3m_avg!==null?`${pk.hospital_3m_avg}百万/月`:'—', unit:'百万/月',
+         curr:pk.hospital_3m_avg, prev:pk.prev_3m_avg},
+        {k:'年度累計月平均', v:pk.hospital_ytd_monthly_avg!==null?`${pk.hospital_ytd_monthly_avg}百万/月`:'—', unit:'百万/月',
+         curr:pk.hospital_ytd_monthly_avg, prev:pk.prev_ytd_monthly_avg},
+      ];
+    }
   } else {
     main = {
       icon:'💉', label:'全身麻酔手術', periodNote:`直近1週（${jpRange(addDays(DATA.meta.base_date,-6), DATA.meta.base_date)}）・営業日平均`,
@@ -1486,17 +1595,18 @@ function renderSummary() {
       <span class="dual-main-tgt">目標 ${d.target}人${d.rate!=null?' ('+Math.round(d.rate)+'%)':''}</span>
     </div>`;
   }).join('') : `
-    <div class="main-val ${sc==='dr'?'dr':''}">${main.actual}<span class="main-unit">${main.unit}</span></div>
-    <div class="tgt-row">
+    <div class="main-val ${sc==='dr'?'dr':''}">${main.actual!=null?main.actual:'—'}<span class="main-unit">${main.unit}</span></div>
+    ${main.target!=null ? `<div class="tgt-row">
       <span class="tgt-icon">🎯</span>
       <span class="tgt-label">${main.targetLabel}</span>
       <span class="tgt-val">${main.target}${main.unit}</span>
       <span class="gap-val ${sc}">${gapPfx}${main.gap}${main.gapUnit}</span>
-    </div>
+    </div>` : ''}
     <div class="prog-wrap">
       <div class="prog-bar"><div class="prog-fill ${sc}" style="width:${barW}%"></div></div>
       <div class="prog-meta">
         <span style="display:flex;align-items:baseline;gap:6px">
+          ${main.rateLabel ? `<span style="font-size:10px;font-weight:700;color:var(--mu)">${main.rateLabel}</span>` : ''}
           <span class="prog-pct ${sc}">${main.rate!=null?main.rate+'%'+(main.rateSuffix||''):'—'}</span>
           ${main.revAdjRate!=null ? `<span style="font-size:10px;font-weight:700;color:var(--mu)" title="粗利目標は改定前水準のまま。改定換算後は改定がなかった場合に相当する達成率">改定換算後 ${main.revAdjRate}%</span>` : ''}
         </span>
@@ -1508,6 +1618,7 @@ function renderSummary() {
   const mainHtml = `<div class="bx-main ${sc}">
     <h2>${main.icon} ${main.label}${trendHtml}</h2>
     ${main.periodNote ? `<div class="period-note">${main.periodNote}</div>` : ''}
+    ${main.subNote || ''}
     ${bodyHtml}
     ${main.pace ? `<div class="main-pace">${main.pace}</div>` : ''}
   </div>`;
@@ -2505,11 +2616,11 @@ function _renderPuLatestBand(latest, pending, dept) {
         <div class="pu-label">延患者数</div>
         <div class="pu-big">${_puFmt(pending.patient_days)}<span class="pu-unit">人日</span></div>
       </div>`;
-    const tile3 = `<div class="pu-tile">
+    const tile3 = `<div class="pu-tile pu-tile-hero">
         <div class="pu-label">粗利/人日</div>
         <div class="pu-big">${_puFmt(pending.ppd)}<span class="pu-unit">円</span></div>
       </div>`;
-    const tile4 = `<div class="pu-tile">
+    const tile4 = `<div class="pu-tile pu-tile-sub">
         <div class="pu-label">平均在院日数</div>
         <div class="pu-big">—</div>
       </div>`;
@@ -2549,13 +2660,13 @@ function _renderPuLatestBand(latest, pending, dept) {
       ${yoy.patient_days != null ? `<div class="pu-foot">前年 ${_puFmtPct(yoy.patient_days)}</div>` : ''}
     </div>`;
 
-  const tile3 = `<div class="pu-tile">
+  const tile3 = `<div class="pu-tile pu-tile-hero">
       <div class="pu-label">粗利/人日</div>
       <div class="pu-big">${_puFmt(latest.ppd)}<span class="pu-unit">円</span></div>
       ${yoy.ppd != null ? `<div class="pu-foot">前年 ${_puFmtPct(yoy.ppd)}</div>` : ''}
     </div>`;
 
-  const tile4 = `<div class="pu-tile">
+  const tile4 = `<div class="pu-tile pu-tile-sub">
       <div class="pu-label">平均在院日数(近似)</div>
       <div class="pu-big">${_puFmt(latest.alos, oneDec)}<span class="pu-unit">日</span></div>
       ${py.alos != null ? `<div class="pu-foot">前年 ${_puFmt(py.alos, oneDec)}日</div>` : ''}
@@ -2622,20 +2733,31 @@ function _renderPuProjectionRow(projection, latest, pending, dept) {
       <div class="pu-big">${_puFmt(projection.patient_days)}<span class="pu-unit">人日</span></div>
       ${pdFoot}
     </div>`;
-  const tile3 = `<div class="pu-tile">
+  const tile3 = `<div class="pu-tile pu-tile-hero">
       <div class="pu-label">粗利/人日</div>
       <div class="pu-big">${_puFmt(projection.ppd)}<span class="pu-unit">円</span></div>
       ${ppdFoot}
     </div>`;
   // 平均在院日数: 分子分母が同じ推計器で情報が無いため見込みは出さない
-  const tile4 = `<div class="pu-tile">
+  const tile4 = `<div class="pu-tile pu-tile-sub">
       <div class="pu-label">平均在院日数</div>
       <div class="pu-big">—</div>
     </div>`;
 
+  // ★§7: 外来 粗利/営業日（profit_headline.gairai が配線されている時だけ表示）。
+  const gairai = DATA.profit_headline && DATA.profit_headline.gairai;
+  let gairaiRow = '';
+  if (gairai) {
+    const parts = [`外来 粗利/営業日 ${_puFmt(gairai.ppd_biz, oneDec)}百万円/営業日`];
+    if (gairai.vs_prev_pct != null) parts.push(`前月比 ${_puFmtPct(gairai.vs_prev_pct)}`);
+    if (gairai.achievement_pct != null) parts.push(`目標比 ${_puFmt(gairai.achievement_pct, oneDec)}%`);
+    gairaiRow = `<div class="pu-foot" style="margin-top:8px">${parts.join(' ／ ')}</div>`;
+  }
+
   el.innerHTML = `
     <div class="pu-proj-head">${headText}</div>
     <div class="pu-grid">${tile1}${tile2}${tile3}${tile4}</div>
+    ${gairaiRow}
     <div class="pu-proj-note">※手術件数と患者の回転から推計。単価そのものの変化は映りません</div>`;
   el.style.display = '';
 }

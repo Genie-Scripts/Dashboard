@@ -410,7 +410,10 @@ def build_portal_context(adm, surg, targets, surg_targets,
                          weekly_story: dict = None,
                          profit_monthly=None,
                          include_triage: bool = True,
-                         kpi_history_path=None) -> dict:
+                         kpi_history_path=None,
+                         profit_hybrid=None,
+                         profit_breakdown=None,
+                         profit_targets_breakdown=None) -> dict:
     """
     portal.html テンプレート用のコンテキスト辞書を生成。
 
@@ -599,6 +602,22 @@ def build_portal_context(adm, surg, targets, surg_targets,
     kpi_cards[1]["sparkline"] = sparklines.get("admission", "")
     kpi_cards[2]["sparkline"] = sparklines.get("operation", "")
 
+    # ── P1: 粗利ヘッドライン帯（入院 粗利/人日・外来 粗利/営業日・合計月末見込み）──
+    # profit_hybrid（generate_html.py で1回だけ計算済みのタプル）が渡されたときだけ
+    # 計算する。detail.html 経由の呼び出し（include_ai_alerts=False）は kwargs を
+    # 渡さないため常に None のまま（二重計算しない）。
+    profit_headline = None
+    if profit_hybrid is not None:
+        try:
+            from .profit_headline import build_profit_headline
+            _profit_base_date = last_complete_driver_date(adm, surg) or base_date
+            profit_headline = build_profit_headline(
+                adm, surg, profit_monthly, profit_breakdown, profit_targets_breakdown,
+                _profit_base_date, hybrid=profit_hybrid,
+            )
+        except Exception:
+            profit_headline = None
+
     return {
         "base_date": base_date.strftime("%Y-%m-%d"),
         "generated_at": _generated_at.strftime("%Y/%m/%d %H:%M"),
@@ -618,6 +637,7 @@ def build_portal_context(adm, surg, targets, surg_targets,
         "fy_progress": fy_progress,
         "last_week_prefix": last_week_prefix,
         "freshness": freshness,
+        "profit_headline": profit_headline,
     }
 
 
@@ -761,10 +781,63 @@ def _build_ai_alerts(adm, surg, targets, surg_targets, base_date) -> list:
 # Detail用 JSON一括生成
 # ═══════════════════════════════════════
 
+def build_profit_hybrid_calibrated(profit_breakdown, surg, adm, profit_base_date):
+    """術式NNLS + 件数OLS + admission 加算層のハイブリッド月次推計を構築し、
+    月末見込み G を確定する（KPI・棒・折れ線で共通の数値にする。recency 補正を
+    適用し、チャート表示用の「最終月末見込み」系列(values_final_*) を
+    hospital_series に注入）。
+
+    returns (profit_hybrid_section | None, profit_g_calibrated | None)
+    """
+    # ── profit_hybrid: 術式NNLS + 件数OLS + admission 加算層のハイブリッド月次推計 ──
+    profit_hybrid_section = None
+    profit_g_calibrated = None   # PLレポートと同じ G（MTDブレンド × recency補正, 百万円）
+    if profit_breakdown is not None and len(profit_breakdown) > 0 and surg is not None:
+        try:
+            profit_hybrid_section = build_profit_hybrid_payload(
+                profit_breakdown=profit_breakdown,
+                surg=surg,
+                base_date=profit_base_date,
+                adm=adm,
+            )
+        except Exception:
+            profit_hybrid_section = None
+
+    # 月末見込み G を確定（KPI・棒・折れ線で共通の数値にする）。recency 補正を適用し、
+    # チャート表示用の「最終月末見込み」系列(values_final_*) を hospital_series に注入。
+    if profit_hybrid_section:
+        try:
+            cal = apply_recency_calibration(
+                profit_hybrid_section["meta"], profit_breakdown, surg, adm,
+                profit_base_date,
+            )
+            profit_g_calibrated = cal["g_million"]
+            fin = blend_and_calibrate_series(
+                profit_hybrid_section["hospital_series"], cal["calibration_factor"],
+            )
+            profit_hybrid_section["hospital_series"].update(fin["series"])
+            profit_hybrid_section["meta"].update(fin["latest"])
+            # 科別: 病院係数を流用して values_blend_* → values_final_* に変換。
+            # 同一スカラー係数なので Σ科別 final = 病院 final の整合が保たれる。
+            # blend は最終 JSON から削除（pop）しサイズ最小化（+3配列/科のみ）。
+            cf = cal["calibration_factor"]
+            for ser in profit_hybrid_section.get("series_by_dept", {}).values():
+                for suf in ("total", "gairai", "nyuin"):
+                    bl = ser.pop(f"values_blend_{suf}", None)
+                    if bl is not None:
+                        ser[f"values_final_{suf}"] = [
+                            round(v * cf, 2) if v is not None else None for v in bl
+                        ]
+        except Exception:
+            profit_g_calibrated = None
+
+    return profit_hybrid_section, profit_g_calibrated
+
+
 def build_detail_json(adm, surg, targets, surg_targets,
                       profit_monthly, base_date, generated_at=None,
                       profit_breakdown=None, kpi_history_path=None,
-                      profit_targets_breakdown=None) -> str:
+                      profit_targets_breakdown=None, profit_hybrid=None) -> str:
     """
     detail.html に埋め込む DATA JSON 文字列を生成。
     仕様書 付録D のスキーマに準拠。
@@ -1254,19 +1327,13 @@ def build_detail_json(adm, surg, targets, surg_targets,
         except Exception:
             profit_estimate_section = None
 
-    # ── profit_hybrid: 術式NNLS + 件数OLS + admission 加算層のハイブリッド月次推計 ──
-    profit_hybrid_section = None
-    profit_g_calibrated = None   # PLレポートと同じ G（MTDブレンド × recency補正, 百万円）
-    if profit_breakdown is not None and len(profit_breakdown) > 0 and surg is not None:
-        try:
-            profit_hybrid_section = build_profit_hybrid_payload(
-                profit_breakdown=profit_breakdown,
-                surg=surg,
-                base_date=profit_base_date,
-                adm=adm,
-            )
-        except Exception:
-            profit_hybrid_section = None
+    # ── profit_hybrid: 術式NNLS + 件数OLS + admission 加算層のハイブリッド月次推計
+    #    ＋ 月末見込み G の確定（KPI・棒・折れ線で共通の数値にする）──
+    if profit_hybrid is None:
+        profit_hybrid_section, profit_g_calibrated = build_profit_hybrid_calibrated(
+            profit_breakdown, surg, adm, profit_base_date)
+    else:
+        profit_hybrid_section, profit_g_calibrated = profit_hybrid
 
     # ── profit_translate: 係数読み替え（K1あと何件換算/K2前年差ウォーターフォール/K3トルネード）──
     profit_translate = None
@@ -1280,34 +1347,6 @@ def build_detail_json(adm, surg, targets, surg_targets,
             )
         except Exception:
             profit_translate = None
-
-    # 月末見込み G を確定（KPI・棒・折れ線で共通の数値にする）。recency 補正を適用し、
-    # チャート表示用の「最終月末見込み」系列(values_final_*) を hospital_series に注入。
-    if profit_hybrid_section:
-        try:
-            cal = apply_recency_calibration(
-                profit_hybrid_section["meta"], profit_breakdown, surg, adm,
-                profit_base_date,
-            )
-            profit_g_calibrated = cal["g_million"]
-            fin = blend_and_calibrate_series(
-                profit_hybrid_section["hospital_series"], cal["calibration_factor"],
-            )
-            profit_hybrid_section["hospital_series"].update(fin["series"])
-            profit_hybrid_section["meta"].update(fin["latest"])
-            # 科別: 病院係数を流用して values_blend_* → values_final_* に変換。
-            # 同一スカラー係数なので Σ科別 final = 病院 final の整合が保たれる。
-            # blend は最終 JSON から削除（pop）しサイズ最小化（+3配列/科のみ）。
-            cf = cal["calibration_factor"]
-            for ser in profit_hybrid_section.get("series_by_dept", {}).values():
-                for suf in ("total", "gairai", "nyuin"):
-                    bl = ser.pop(f"values_blend_{suf}", None)
-                    if bl is not None:
-                        ser[f"values_final_{suf}"] = [
-                            round(v * cf, 2) if v is not None else None for v in bl
-                        ]
-        except Exception:
-            profit_g_calibrated = None
 
     # ── profit_unit: 入院粗利の「数量×単価」分解（粗利/人日・平均在院日数の近似・
     #   前年同月差の数量/単価効果・限界人日単価・確報バンド）。粗利タブの新設ブロック用。
@@ -1471,6 +1510,18 @@ def build_detail_json(adm, surg, targets, surg_targets,
     if profit_unit_section:
         data["profit_unit"] = profit_unit_section
 
+    # ── profit_headline: 粗利ヘッドライン正本（入院 粗利/人日・外来 粗利/営業日・
+    #   合計月末見込み）。portal 帯と同じ数値・文言を detail.html にも同梱する
+    #   （detail 専用ブロック。DETAIL_ONLY_TOP_KEYS で dept.html からは剥がす）──
+    try:
+        from .profit_headline import build_profit_headline
+        data["profit_headline"] = build_profit_headline(
+            adm, surg, profit_monthly, profit_breakdown, profit_targets_breakdown,
+            profit_base_date, hybrid=(profit_hybrid_section, profit_g_calibrated),
+        )
+    except Exception:
+        data["profit_headline"] = None
+
     if profit_section:
         data["profit"] = profit_section
         # 各診療科の drill に粗利データを付与
@@ -1617,8 +1668,9 @@ def build_detail_json(adm, surg, targets, surg_targets,
 DETAIL_ONLY_CHART_KEYS = ("surgery_ops", "profit_translate", "ward_flow")
 
 # detail.html 専用（dept.html には同梱しない）トップレベルキー。profit_unit（粗利タブの
-# 数量×単価分解・13か月×診療科別で重い）は detail 専用ブロックのため dept 側では剥がす。
-DETAIL_ONLY_TOP_KEYS = ("profit_unit",)
+# 数量×単価分解・13か月×診療科別で重い）と profit_headline（粗利ヘッドライン正本。
+# portal 帯と同じ値を detail 専用で同梱）は detail 専用ブロックのため dept 側では剥がす。
+DETAIL_ONLY_TOP_KEYS = ("profit_unit", "profit_headline")
 
 
 def strip_detail_only_json(detail_json: str) -> str:

@@ -25,17 +25,18 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from app.lib.config import (DEFAULT_DATA_DIR, PUBLIC_BASE_URL, TARGET_GA_DAILY,
-                            status_display, fmt_jp_date, fmt_jp_range)
+                            TARGET_INPATIENT_ALLDAY, status_display, fmt_jp_date, fmt_jp_range)
 try:
     from app.lib.config import REPORT_HOSPITAL_NAME
 except ImportError:
     REPORT_HOSPITAL_NAME = ""
 from app.lib.calendar_preview import complete_week_end
-from app.lib.metrics import build_kpi_summary, achievement_rate
+from app.lib.metrics import build_kpi_summary, achievement_rate, turnover_metrics, format_turn_line
 from app.lib.weekly_story import build_kpi_snapshot, compute_wow_diffs, narrate_weekly_story
 from app.lib.month_projection import build_month_projection_payload
 from app.lib.triage import score_departments, score_wards, pick_targets, adjusted_weekly_target
 from app.lib.qr import qr_svg_inline
+from app.lib.hospital_summary import render_profit_strip, render_profit_strip_text
 from scripts.build_dept_reports import find_chrome, html_to_pdf
 
 
@@ -205,6 +206,9 @@ def render_txt(ctx: dict) -> str:
         rate = f"{row['rate']:.1f}%" if row["rate"] is not None else ""
         lines.append(f"・{row['label']} {row['now_s']}{row['unit']}{paren}{rate}")
 
+    if ctx.get("profit_strip_text"):
+        lines.append(ctx["profit_strip_text"])
+
     att = ctx["attention"]
     worst_txt = "、".join(f"{it['name']}({it['primary_rate']:.0f}%)" for it in att["worst3"])
     att_line = f"■ 要注視: 病棟{att['ward_count']}・診療科{att['dept_count']}"
@@ -312,6 +316,33 @@ def main():
         log(f"暦プレビュースキップ: {e}", "warn")
         calendar_preview = None
 
+    # 粗利ヘッドライン帯（P2: KPIの直下・メール貼付TXTにも同梱）。数値の正本は
+    # app.lib.profit_headline.build_profit_headline。hybrid は1プロセス1回だけ計算する。
+    profit_headline = None
+    try:
+        from app.lib.data_loader import load_profit_targets_breakdown
+        from app.lib.html_builder import build_profit_hybrid_calibrated, last_complete_driver_date
+        from app.lib.profit_headline import build_profit_headline
+        profit_targets_breakdown = load_profit_targets_breakdown(args.data_dir)
+        profit_base_date = last_complete_driver_date(adm, surg) or base_date
+        hybrid = build_profit_hybrid_calibrated(profit_breakdown, surg, adm, profit_base_date)
+        profit_headline = build_profit_headline(
+            adm, surg, profit_monthly, profit_breakdown, profit_targets_breakdown, base_date,
+            hybrid=hybrid)
+    except Exception as e:
+        log(f"粗利ヘッドライン生成スキップ: {e}", "warn")
+
+    # 回転3指標の1行（build_hero_text と同じ呼び方＝式を複製しない）。
+    turn_line = None
+    try:
+        turn_m = turnover_metrics(adm, base_date, TARGET_INPATIENT_ALLDAY)
+        turn_line = format_turn_line(turn_m)
+    except Exception as e:
+        log(f"回転3指標行スキップ: {e}", "warn")
+
+    profit_strip_html = render_profit_strip(profit_headline, turn_line)
+    profit_strip_text = render_profit_strip_text(profit_headline, turn_line)
+
     qr_svg = qr_svg_inline(f"{PUBLIC_BASE_URL}portal.html", size_mm=18)
 
     poster_kpis = build_poster_kpis(kpi_now, kpi_rows, base_date)
@@ -329,6 +360,9 @@ def main():
         "story": story,
         "diffs": diffs,
         "kpi_rows": kpi_rows,
+        "profit_headline": profit_headline,
+        "profit_strip_html": profit_strip_html,
+        "profit_strip_text": profit_strip_text,
         "month_projection": month_projection,
         "attention": attention,
         "improvement": improvement,

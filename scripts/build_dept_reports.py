@@ -454,6 +454,27 @@ def main():
         except Exception:
             profit_projection = None
 
+    # ── 粗利/人日（確報月・科別・パーツD note）──
+    # compute_calibrated_profit_projection（上）は meta/hospital_series を外へ出さないため、
+    # build_profit_unit_payload にはここで同じ hybrid をもう一度計算する
+    # （build_hospital_report.py の P1/P4 と同じ手順・重複）。
+    profit_unit = None
+    try:
+        from app.lib.data_loader import load_profit_targets_breakdown
+        from app.lib.html_builder import build_profit_hybrid_calibrated
+        from app.lib.profit_unit import build_profit_unit_payload
+        profit_targets_breakdown = load_profit_targets_breakdown(args.data_dir)
+        hybrid_section, _ = build_profit_hybrid_calibrated(
+            profit_breakdown, surg, adm, profit_base_date)
+        if hybrid_section:
+            profit_unit = build_profit_unit_payload(
+                profit_breakdown, adm, base_date=profit_base_date,
+                profit_targets_breakdown=profit_targets_breakdown,
+                profit_hybrid_meta=hybrid_section["meta"],
+                hospital_series=hybrid_section["hospital_series"])
+    except Exception:
+        profit_unit = None
+
     # ── コンテキスト構築（AI一手は全ユニット）──
     log(f"レポート構築中… axes={axes} AI={'OFF' if args.no_ai else 'ON(全ユニット)'}")
     contexts = build_dept_report_contexts(
@@ -461,7 +482,7 @@ def main():
         hospital_name=args.hospital_name, with_ai=not args.no_ai,
         axes=axes, quiet=args.quiet, profit_breakdown=profit_breakdown,
         delta_anchor=anchor, overrides=overrides, profit_projection=profit_projection,
-        los_df=los_df,
+        los_df=los_df, profit_unit=profit_unit,
     )
     if args.only:
         contexts = [c for c in contexts if c["unit"] == args.only]

@@ -52,7 +52,9 @@ try:
     from app.lib.config import REPORT_HOSPITAL_NAME
 except Exception:
     REPORT_HOSPITAL_NAME = ""
-from build_comedix_card import resolve_comment, log, WEB_URL, find_chrome  # 今週の一手.md/Chrome を共有
+from build_comedix_card import (  # 今週の一手.md/Chrome/粗利ヘッドラインを共有
+    resolve_comment, log, WEB_URL, find_chrome, load_profit_headline,
+)
 
 OUT_DIR = ROOT / "output" / "comedix"
 CHART_PNG = OUT_DIR / "週報グラフ.png"
@@ -315,6 +317,7 @@ def build_fragment(ctx, headline, body, trend_html: str) -> str:
     title = (REPORT_HOSPITAL_NAME + "　") if REPORT_HOSPITAL_NAME else ""
     hero = hs.render_hero(headline, body, ctx["hero"]["chips"])
     kpis = render_kpi_cards_inline(ctx["kpi"])
+    profit_strip = hs.render_profit_strip(ctx.get("profit_headline"), ctx.get("turn_line"))
 
     ward = render_ward_table_inline(ctx["ward_rows"])
     dept = render_dept_table_inline(ctx["dept_rows"])
@@ -333,6 +336,7 @@ def build_fragment(ctx, headline, body, trend_html: str) -> str:
 
   <div style="{S_SEC}">📣 今週のKPI</div>
   {kpis}
+  {profit_strip}
 
   <div style="{S_SEC}">📈 トレンド</div>
   {trend_html}
@@ -376,9 +380,12 @@ def main():
 
     from generate_html import load_and_preprocess
     log("データ読込・前処理中（load_and_preprocess）...")
-    adm, surg, targets, surg_targets, _pm, base_date, _ = \
+    adm, surg, targets, surg_targets, profit_monthly, base_date, profit_breakdown = \
         load_and_preprocess(args.data_dir, args.base_date, no_validate=False)
-    ctx = hs.build_summary_context(adm, surg, targets, surg_targets, base_date)
+    profit_headline = load_profit_headline(
+        args.data_dir, adm, surg, profit_monthly, profit_breakdown, base_date)
+    ctx = hs.build_summary_context(adm, surg, targets, surg_targets, base_date,
+                                   profit_headline=profit_headline)
     headline, body = resolve_comment(ctx["hero"], args.refresh)
 
     # トレンドは PNG 化（資料室へアップ）→ HTMLは library_refer.php の <img> で参照

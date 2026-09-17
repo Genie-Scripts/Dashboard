@@ -1207,7 +1207,8 @@ def _dow_part(dd) -> Optional[dict]:
 
 
 def _build_parts(adm, surg, base_date, entity, name, code, dd, r7_inp, r7_nadm,
-                 r7_surg, targets, surg_targets, profit_series) -> dict:
+                 r7_surg, targets, surg_targets, profit_series,
+                 profit_unit: Optional[dict] = None) -> dict:
     """利用可能なグラフパーツ {A,B,C,D,E} を作る（無いものは欠落）。
 
     トレンド線は公開版ダッシュボード dept.html の既定（28日移動平均）と統一。
@@ -1279,6 +1280,16 @@ def _build_parts(adm, surg, base_date, entity, name, code, dd, r7_inp, r7_nadm,
             note = f"確報ベース・最新 {profit_series['latest'].strftime('%Y年%-m月')}"
         if profit_series.get("prev_adjusted"):
             note += _REV_NOTE
+        # 粗利/人日（確報月・科別）: profit_unit（profit_unit.build_profit_unit_payload の
+        # 戻り値）にこの科の確報月 ppd/延患者数が両方揃っているときだけ note へ追記する
+        # （新しい推計はしない・ppd は必ず延患者数とセット）。
+        dept_latest = ((profit_unit or {}).get("by_dept", {}).get(name) or {}).get("latest") or {}
+        ppd_val = dept_latest.get("ppd")
+        pd_val = dept_latest.get("patient_days")
+        if ppd_val is not None and pd_val is not None:
+            m = dept_latest.get("month")
+            m_label = f'{int(m.split("-")[1])}' if m else "?"
+            note += (f"／粗利/人日（{m_label}月確報）{ppd_val:,}円・延患者数 {pd_val:,}人日")
         badge = (f"達成率 {rate:g}%", "ok" if (rate or 0) >= 100 else "wr") if rate is not None else None
         ref = profit_series["ref"] or 0
         parts["D"] = _trend_part("D", "粗利", profit_series, ref,
@@ -1404,7 +1415,8 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
                                delta_anchor: Optional[dict] = None,
                                overrides: Optional[dict] = None,
                                profit_projection: Optional[dict] = None,
-                               los_df: Optional[pd.DataFrame] = None) -> list:
+                               los_df: Optional[pd.DataFrame] = None,
+                               profit_unit: Optional[dict] = None) -> list:
     """診療科版・病棟版それぞれの 1部門=1コンテキスト を返す（PDF描画用）。
 
     los_df: data_loader.load_los_data の戻り値（回転3指標③・期間III超え患者数の任意
@@ -1413,6 +1425,10 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
     profit_projection: profit_estimate.compute_calibrated_profit_projection の戻り値。
     渡すと診療科の粗利見込みスロットがこちらを優先する（hospital_summary._dept_profit_proj
     と同じ優先順位）。呼び出し側で1回だけ計算し、病院全体サマリと同じ結果を使い回すこと。
+
+    profit_unit: profit_unit.build_profit_unit_payload の戻り値。渡すと診療科の粗利
+    チャート（パーツD）の note 末尾に、当該科の確報月 粗利/人日・延患者数を追記する
+    （新しい推計はしない・確報月のみ・必ず延患者数とセット。病棟軸には付与しない）。
 
     delta_anchor: load_delta_anchor の戻り値（約4週前の量子化状態）。渡すと各ユニットの
     一手に「前回レポートとの比較」事実が加わる。各コンテキストには "_state"（今回の
@@ -1632,7 +1648,8 @@ def build_dept_report_contexts(adm: pd.DataFrame, surg: pd.DataFrame,
                                                       estimators, adm, surg,
                                                       profit_projection=profit_projection))
             parts = _build_parts(adm, surg, base_date, entity, name, code, dd,
-                                 r7_inp, r7_nadm, r7_surg, targets, surg_targets, profit_series)
+                                 r7_inp, r7_nadm, r7_surg, targets, surg_targets, profit_series,
+                                 profit_unit=profit_unit)
 
             def _trend_of(part_key):
                 p = parts.get(part_key)

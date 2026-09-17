@@ -117,6 +117,7 @@ def build_html(ctx) -> str:
     hero = hs.render_hero(ctx["hero"]["headline"], ctx["hero"]["body"], ctx["hero"]["chips"])
     cal_line = _calendar_line(ctx.get("calendar_preview"))
     kpis = hs.render_kpi_cards(kpi)
+    profit_line = hs.render_profit_headline_line(ctx.get("profit_headline"))
     banner = _headline_banner(kpi.get("headline"))
 
     t = ctx["trends"]
@@ -139,7 +140,7 @@ def build_html(ctx) -> str:
             f'<div style="font-size:20px;font-weight:700">病院全体KPI　'
             f'<span style="font-size:13px;color:{SUB};font-weight:600">{period}・基準日 {bd:%Y-%m-%d}</span></div></div>')
 
-    p1 = page(head + f'<div style="margin-top:10px">{kpis}</div>' + banner
+    p1 = page(head + f'<div style="margin-top:10px">{kpis}</div>' + profit_line + banner
               + '<div class="sec">📣 今週の一手</div>' + hero + cal_line)
     p2 = page('<div class="sec">📈 主要指標の推移（直近12週・点線＝前年同期）</div>'
               + f'<div class="tb">{t_inp}</div><div class="tb">{t_adm}</div><div class="tb">{t_op}</div>')
@@ -194,10 +195,39 @@ def main():
         except Exception:
             profit_projection = None
 
+    # 粗利ヘッドライン（P1・入院 粗利/人日／外来 粗利/営業日）: build_comedix_card.py と
+    # 同じ手順（fail-soft・目標内訳読込→hybrid→build_profit_headline）を共用する。
+    from scripts.build_comedix_card import load_profit_headline
+    profit_headline = load_profit_headline(
+        args.data_dir, adm, surg, profit_monthly, profit_breakdown, base_date)
+
+    # 粗利/人日（確報月・科別・P4）: build_profit_unit_payload には hybrid の
+    # meta/hospital_series が要る。load_profit_headline（上）は ph だけを返し hybrid を
+    # 外へ出さないため、ここで同じ hybrid 計算をもう一度行う（build_comedix_card.py は
+    # 本タスクの担当外ファイルのため拡張せず、ここに重複させる）。
+    profit_unit = None
+    try:
+        from app.lib.data_loader import load_profit_targets_breakdown
+        from app.lib.html_builder import build_profit_hybrid_calibrated
+        from app.lib.profit_unit import build_profit_unit_payload
+        profit_targets_breakdown = load_profit_targets_breakdown(args.data_dir)
+        hybrid_section, _ = build_profit_hybrid_calibrated(
+            profit_breakdown, surg, adm, profit_base_date)
+        if hybrid_section:
+            profit_unit = build_profit_unit_payload(
+                profit_breakdown, adm, base_date=profit_base_date,
+                profit_targets_breakdown=profit_targets_breakdown,
+                profit_hybrid_meta=hybrid_section["meta"],
+                hospital_series=hybrid_section["hospital_series"])
+    except Exception:
+        profit_unit = None
+
     ctx = hs.build_summary_context(adm, surg, targets, surg_targets, base_date,
                                    profit_monthly=profit_monthly,
                                    profit_breakdown=profit_breakdown,
-                                   profit_projection=profit_projection)
+                                   profit_projection=profit_projection,
+                                   profit_headline=profit_headline,
+                                   profit_unit=profit_unit)
 
     html = build_html(ctx)
     out_dir = Path(args.output_dir)
